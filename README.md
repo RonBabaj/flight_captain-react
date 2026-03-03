@@ -29,7 +29,6 @@ Create `backend/.env`:
 ```env
 AMADEUS_CLIENT_ID=your_amadeus_client_id
 AMADEUS_CLIENT_SECRET=your_amadeus_client_secret
-TELEGRAM_BOT_TOKEN=your_telegram_token   # optional; not needed for HTTP API
 ```
 
 ### Run the HTTP API (for the frontend)
