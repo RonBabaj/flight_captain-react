@@ -1,0 +1,1 @@
+export { MonthDealsScreen } from './MonthDealsScreen';

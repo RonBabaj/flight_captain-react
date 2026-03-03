@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Flight Captain",
+    "slug": "flight-captain-web",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "flight-captain",
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": []
+  }
+}
