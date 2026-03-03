@@ -409,6 +409,215 @@ type MonthDealsResponse struct {
 	Days     []DayDeal `json:"days"`
 }
 
+// --- Airport autocomplete API ---
+
+type AirportCityType string
+
+const (
+	AirportType AirportCityType = "AIRPORT"
+	CityType    AirportCityType = "CITY"
+)
+
+type AirportCityResult struct {
+	ID          string          `json:"id"`
+	Type        AirportCityType `json:"type"`
+	AirportCode string          `json:"airportCode,omitempty"`
+	CityCode    string          `json:"cityCode,omitempty"`
+	Name        string          `json:"name"`
+	CityName    string          `json:"cityName,omitempty"`
+	CountryCode string          `json:"countryCode,omitempty"`
+}
+
+type AirportCitySearchResponse struct {
+	Items []AirportCityResult `json:"items"`
+}
+
+var airportDirectory = []AirportCityResult{
+	{ID: "TLV", Type: AirportType, AirportCode: "TLV", CityCode: "TLV", Name: "Ben Gurion Intl", CityName: "Tel Aviv", CountryCode: "IL"},
+	{ID: "NAP", Type: AirportType, AirportCode: "NAP", CityCode: "NAP", Name: "Naples Intl", CityName: "Naples", CountryCode: "IT"},
+	{ID: "HND", Type: AirportType, AirportCode: "HND", CityCode: "TYO", Name: "Tokyo Haneda", CityName: "Tokyo", CountryCode: "JP"},
+	{ID: "BER", Type: AirportType, AirportCode: "BER", CityCode: "BER", Name: "Berlin Brandenburg", CityName: "Berlin", CountryCode: "DE"},
+}
+
+func handleAirportSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeJSON(w, http.StatusNoContent, nil)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	q := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("q")))
+	if q == "" {
+		writeJSON(w, http.StatusOK, AirportCitySearchResponse{Items: []AirportCityResult{}})
+		return
+	}
+	limit := 10
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if v, err := strconv.Atoi(lStr); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	var items []AirportCityResult
+	for _, a := range airportDirectory {
+		if strings.Contains(strings.ToLower(a.AirportCode), q) ||
+			strings.Contains(strings.ToLower(a.CityCode), q) ||
+			strings.Contains(strings.ToLower(a.Name), q) ||
+			strings.Contains(strings.ToLower(a.CityName), q) {
+			items = append(items, a)
+			if len(items) >= limit {
+				break
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, AirportCitySearchResponse{Items: items})
+}
+
+// --- Flight details API (for monthly deals modal) ---
+
+type FareBreakdown struct {
+	Currency string  `json:"currency"`
+	Total    float64 `json:"total"`
+}
+
+type StopsSummary struct {
+	Outbound int `json:"outbound"`
+	Return   int `json:"return"`
+}
+
+type FlightDetailsResponse struct {
+	Origin        AirportLike  `json:"origin"`
+	Destination   AirportLike  `json:"destination"`
+	DepartureDate string       `json:"departureDate"`
+	ReturnDate    string       `json:"returnDate"`
+	DurationDays  int          `json:"durationDays"`
+	Outbound      FlightLeg    `json:"outbound"`
+	Return        FlightLeg    `json:"return"`
+	TotalPrice    MonetaryAmount `json:"totalPrice"`
+	Fare          *FareBreakdown  `json:"fare,omitempty"`
+	Stops         StopsSummary    `json:"stops"`
+}
+
+// normalizeSingleOffer converts a single raw offer into one FlightOption using the
+// existing normalization logic.
+func normalizeSingleOffer(offer map[string]interface{}, req *CreateSearchSessionRequest) (*FlightOption, error) {
+	options := normalizeFlightOptions([]map[string]interface{}{offer}, req)
+	if len(options) == 0 {
+		return nil, fmt.Errorf("no normalized options")
+	}
+	return &options[0], nil
+}
+
+func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeJSON(w, http.StatusNoContent, nil)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if amadeusClient == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+		return
+	}
+
+	q := r.URL.Query()
+	origin := strings.TrimSpace(strings.ToUpper(q.Get("origin")))
+	destination := strings.TrimSpace(strings.ToUpper(q.Get("destination")))
+	dateStr := q.Get("date")
+	durationStr := q.Get("durationDays")
+
+	if origin == "" || destination == "" || dateStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin, destination and date are required"})
+		return
+	}
+
+	startDate, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date (use YYYY-MM-DD)"})
+		return
+	}
+
+	durationDays := 7
+	if durationStr != "" {
+		if v, err := strconv.Atoi(durationStr); err == nil && v > 0 {
+			durationDays = v
+		}
+	}
+
+	endDate := startDate
+
+	// Reuse existing deals search for a single day to find the best round-trip.
+	deals, err := amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays)
+	if err != nil || len(deals) == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no deals found for requested date"})
+		return
+	}
+	trip := deals[0]
+
+	// Normalize outbound and return offers to FlightLegs using existing logic.
+	outReq := &CreateSearchSessionRequest{
+		Origin:        origin,
+		Destination:   destination,
+		DepartureDate: trip.OutboundDate,
+		CabinClass:    "ECONOMY",
+	}
+	retReq := &CreateSearchSessionRequest{
+		Origin:        destination,
+		Destination:   origin,
+		DepartureDate: trip.ReturnDate,
+		CabinClass:    "ECONOMY",
+	}
+
+	outOpt, err := normalizeSingleOffer(trip.OutboundFlight, outReq)
+	if err != nil || len(outOpt.Legs) == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to normalize outbound flight"})
+		return
+	}
+	retOpt, err := normalizeSingleOffer(trip.ReturnFlight, retReq)
+	if err != nil || len(retOpt.Legs) == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to normalize return flight"})
+		return
+	}
+
+	outLeg := outOpt.Legs[0]
+	retLeg := retOpt.Legs[0]
+
+	countStops := func(leg FlightLeg) int {
+		if len(leg.Segments) == 0 {
+			return 0
+		}
+		return len(leg.Segments) - 1
+	}
+
+	resp := FlightDetailsResponse{
+		Origin:        AirportLike{Code: origin},
+		Destination:   AirportLike{Code: destination},
+		DepartureDate: trip.OutboundDate,
+		ReturnDate:    trip.ReturnDate,
+		DurationDays:  durationDays,
+		Outbound:      outLeg,
+		Return:        retLeg,
+		TotalPrice: MonetaryAmount{
+			Currency: outReq.CurrencyOrDefault(),
+			Amount:   trip.TotalCost,
+		},
+		Fare: &FareBreakdown{
+			Currency: outReq.CurrencyOrDefault(),
+			Total:    trip.TotalCost,
+		},
+		Stops: StopsSummary{
+			Outbound: countStops(outLeg),
+			Return:   countStops(retLeg),
+		},
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		writeJSON(w, http.StatusNoContent, nil)
@@ -427,28 +636,39 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	yearStr := r.URL.Query().Get("year")
 	monthStr := r.URL.Query().Get("month")
 	durationStr := r.URL.Query().Get("durationDays")
+	startDateStr := r.URL.Query().Get("startDate")
+	endDateStr := r.URL.Query().Get("endDate")
 
-	if origin == "" || destination == "" || yearStr == "" || monthStr == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin, destination, year and month are required"})
+	if origin == "" || destination == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin and destination are required"})
+		return
+	}
+	// Either (year + month) for full month, or (startDate + endDate) for range.
+	useRange := startDateStr != "" && endDateStr != ""
+	if !useRange && (yearStr == "" || monthStr == "") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "year and month are required, or startDate and endDate"})
 		return
 	}
 
-	year, err := strconv.Atoi(yearStr)
-	if err != nil || year < 2000 || year > 2100 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid year"})
-		return
-	}
-	month, err := strconv.Atoi(monthStr)
-	if err != nil || month < 1 || month > 12 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid month (1-12)"})
-		return
+	var year, month int
+	if !useRange {
+		var err error
+		year, err = strconv.Atoi(yearStr)
+		if err != nil || year < 2000 || year > 2100 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid year"})
+			return
+		}
+		month, err = strconv.Atoi(monthStr)
+		if err != nil || month < 1 || month > 12 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid month (1-12)"})
+			return
+		}
 	}
 
 	durationDays := 7
 	if durationStr != "" {
-		durationDays, err = strconv.Atoi(durationStr)
-		if err != nil || durationDays < 1 {
-			durationDays = 7
+		if v, err := strconv.Atoi(durationStr); err == nil && v > 0 {
+			durationDays = v
 		}
 	}
 
@@ -457,15 +677,13 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional smaller range for flight-search calendar (reduces backend load).
-	startDateStr := r.URL.Query().Get("startDate")
-	endDateStr := r.URL.Query().Get("endDate")
 	var deals []FullRoundTrip
 	var byDate map[string]float64
 	var days []DayDeal
 	var rangeYear, rangeMonth int
+	var err error
 
-	if startDateStr != "" && endDateStr != "" {
+	if useRange {
 		startDate, err1 := time.Parse("2006-01-02", startDateStr)
 		endDate, err2 := time.Parse("2006-01-02", endDateStr)
 		if err1 != nil || err2 != nil || endDate.Before(startDate) {
@@ -561,6 +779,8 @@ func main() {
 	mux.HandleFunc("/api/search/sessions", handleCreateSession)
 	mux.HandleFunc("/api/search/sessions/", handleGetSession)
 	mux.HandleFunc("/api/deals/month", handleMonthDeals)
+	mux.HandleFunc("/api/flights/details", handleFlightDetails)
+	mux.HandleFunc("/api/airports/search", handleAirportSearch)
 
 	server := &http.Server{
 		Addr:         ":8080",

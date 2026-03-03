@@ -1,8 +1,10 @@
 /**
  * API client base. Isolated from UI; single place for base URL and fetch config.
+ * Must be an absolute URL so requests hit the backend, not the Expo dev server.
  */
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080';
+const raw = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
+const API_BASE =
+  (typeof raw === 'string' && raw.trim() !== '') ? raw.trim() : 'http://localhost:8080';
 
 export function getApiBase(): string {
   return API_BASE;

@@ -7,22 +7,9 @@ const Stack = createNativeStackNavigator<SearchStackParamList>();
 
 export function SearchStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: '#1a73e8' },
-        headerTintColor: '#fff',
-      }}
-    >
-      <Stack.Screen
-        name="SearchForm"
-        component={SearchFormScreen}
-        options={{ title: 'Flight Search' }}
-      />
-      <Stack.Screen
-        name="Results"
-        component={ResultsScreen}
-        options={{ title: 'Results' }}
-      />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="SearchForm" component={SearchFormScreen} />
+      <Stack.Screen name="Results" component={ResultsScreen} />
     </Stack.Navigator>
   );
 }

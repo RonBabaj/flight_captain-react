@@ -10,5 +10,10 @@ export type RootTabParamList = {
   MonthDeals: undefined;
 };
 
+export type RootStackParamList = {
+  Search: undefined;
+  MonthDeals: undefined;
+};
+
 export type SearchFormProps = NativeStackScreenProps<SearchStackParamList, 'SearchForm'>;
 export type ResultsProps = NativeStackScreenProps<SearchStackParamList, 'Results'>;

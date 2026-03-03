@@ -105,6 +105,31 @@ export interface MonthDealsResponse {
   days: DayDeal[];
 }
 
+// --- Flight details for a specific deal/day ---
+
+export interface FareBreakdown {
+  currency: string;
+  total: number;
+}
+
+export interface StopsSummary {
+  outbound: number;
+  return: number;
+}
+
+export interface FlightDetailsResponse {
+  origin: AirportLike;
+  destination: AirportLike;
+  departureDate: string;
+  returnDate: string;
+  durationDays: number;
+  outbound: FlightLeg;
+  return: FlightLeg;
+  totalPrice: MonetaryAmount;
+  fare?: FareBreakdown;
+  stops: StopsSummary;
+}
+
 // --- Airport / city autocomplete ---
 
 export type AirportCityType = 'AIRPORT' | 'CITY';

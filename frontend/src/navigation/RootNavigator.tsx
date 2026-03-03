@@ -1,29 +1,21 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SearchStack } from './SearchStack';
 import { MonthDealsScreen } from '../features/monthly-deals/screens';
-import type { RootTabParamList } from './types';
+import { TopNavMenu } from './TopNavMenu';
+import type { RootStackParamList } from './types';
 
-const Tab = createBottomTabNavigator<RootTabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   return (
-    <Tab.Navigator
+    <Stack.Navigator
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#1a73e8',
+        header: () => <TopNavMenu />,
       }}
     >
-      <Tab.Screen
-        name="Search"
-        component={SearchStack}
-        options={{ tabBarLabel: 'Search' }}
-      />
-      <Tab.Screen
-        name="MonthDeals"
-        component={MonthDealsScreen}
-        options={{ tabBarLabel: 'Monthly Deals' }}
-      />
-    </Tab.Navigator>
+      <Stack.Screen name="Search" component={SearchStack} />
+      <Stack.Screen name="MonthDeals" component={MonthDealsScreen} />
+    </Stack.Navigator>
   );
 }
