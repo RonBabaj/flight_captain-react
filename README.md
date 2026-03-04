@@ -49,6 +49,20 @@ Server listens on **http://localhost:8080**. CORS is enabled for browser clients
 - **`GET /api/deals/month`** – Monthly deals: `origin`, `destination`, `year`, `month` (or `startDate`/`endDate` for a range), optional `durationDays`. Returns `days[]` with `date` and `lowestPrice`.
 - **`GET /api/flights/details`** – Flight details for a route/date/duration (e.g. for deal details modal).
 - **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete (optional; frontend uses a local dictionary by default).
+- **`GET /api/affiliate/provider?sessionId=...&optionId=...`** – Provider (airline/OTA) for an option (for “Book on …” label). No click recorded.
+- **`GET /api/affiliate/outbound-link?sessionId=...&optionId=...`** – Outbound booking URL + provider; records a click. Frontend opens the URL (or falls back to Google Flights if the API is unavailable).
+- **`GET /api/affiliate/redirect?sessionId=...&optionId=...`** – Same as outbound-link but returns 302 redirect.
+- **`GET /api/affiliate/clicks/summary?from=...&to=...`** – Clicks report (optional).
+
+**Note:** Affiliate routes are in the same HTTP server as search/deals. Run the backend with `go run .` from `backend/` (the default build uses `server.go`). If “Book on partner site” doesn’t open a link, ensure this server is running; the app will fall back to opening Google Flights with your search.
+
+### Affiliate setup (optional)
+
+Outbound booking links can include affiliate IDs and a tracking subid for commission and click/conversion tracking. **Do not commit real affiliate IDs to the repo.**
+
+- **Env vars:** Copy `backend/.env.example` and set in `.env`: `AFFILIATE_ID` (default for all providers) and optionally `AFF_ID_OTA`, `AFF_ID_LY`, `AFF_ID_UA`, etc. OTA fallback uses `AFF_ID_OTA` or `AFFILIATE_ID`.
+- **Link building:** Templates use `{aff_id}` and `{subid}`. The backend sets `subid` to `sessionId_optionId` so you can attribute clicks and conversions to a search/option.
+- **Programs:** Use one global ID (e.g. Travelpayouts, Google Flights) in `AFFILIATE_ID`, or set per-airline IDs where supported.
 
 See **`backend/backend_api_contracts.md`** for full request/response shapes.
 

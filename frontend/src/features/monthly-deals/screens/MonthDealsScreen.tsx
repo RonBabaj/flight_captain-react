@@ -149,21 +149,21 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       <Text style={[styles.label, { color: theme.text }]}>Trip duration (days)</Text>
       <View style={styles.durationRow}>
         <TouchableOpacity
-          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd }]}
+          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd, borderWidth: 1, borderColor: theme.inputBorder }]}
           onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}
         >
           <Text style={[styles.stepperText, { color: theme.text }]}>−</Text>
         </TouchableOpacity>
         <Text style={[styles.durationValue, { color: theme.text }]}>{durationDays} days</Text>
         <TouchableOpacity
-          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd }]}
+          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd, borderWidth: 1, borderColor: theme.inputBorder }]}
           onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}
         >
           <Text style={[styles.stepperText, { color: theme.text }]}>+</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.monthNav}>
+      <View style={[styles.monthNav, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: theme.radiusMd, paddingVertical: 12, paddingHorizontal: 16 }]}>
         <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={styles.navBtn}>
           <Text style={[styles.navText, { color: theme.primary }]}>← Prev</Text>
         </TouchableOpacity>
@@ -186,11 +186,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       {error ? <Text style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
       {isLoading ? (
         <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
-      ) : bestDeals.length === 0 ? (
+      ) : data != null && bestDeals.length === 0 ? (
         <Text style={[styles.empty, { color: theme.textMuted }]}>
           No deals found for this month. Try another month or route.
         </Text>
-      ) : (
+      ) : data != null ? (
         <View style={styles.list}>
           <Text style={[styles.listTitle, { color: theme.textMuted }]}>
             Best deals (cheapest first){bestDeals.length > 0 ? ` · ${bestDeals.length} total` : ''}
@@ -198,7 +198,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           {visibleDeals.map((day) => (
             <TouchableOpacity
               key={day.date}
-              style={[styles.dealCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}
+              style={[styles.dealCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: 1, borderRadius: theme.radiusLg }]}
               onPress={() => openDetails(day.date)}
               activeOpacity={0.8}
             >
@@ -211,7 +211,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           ))}
           {hasMore && (
             <TouchableOpacity
-              style={[styles.loadMoreBtn, { backgroundColor: theme.cardBg, borderColor: theme.inputBorder }]}
+              style={[styles.loadMoreBtn, { backgroundColor: theme.cardBg, borderColor: theme.inputBorder, borderWidth: 1 }]}
               onPress={() => setVisibleCount(c => c + 10)}
             >
               <Text style={[styles.loadMoreText, { color: theme.primary }]}>
@@ -220,7 +220,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             </TouchableOpacity>
           )}
         </View>
-      )}
+      ) : null}
 
       <Modal
         visible={showDetails}
@@ -229,29 +229,29 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         onRequestClose={() => setShowDetails(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.cardBg }]}>
+          <View style={[styles.modalCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Flight details</Text>
             {selectedDate && (
-              <Text style={styles.modalSubtitle}>{formatDealDate(selectedDate)}</Text>
+              <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>
             )}
 
             {detailsLoading && (
               <View style={styles.modalLoaderRow}>
-                <ActivityIndicator size="small" color="#1a73e8" />
-                <Text style={styles.modalLoaderText}>Loading flight details…</Text>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.modalLoaderText, { color: theme.textMuted }]}>Loading flight details…</Text>
               </View>
             )}
 
             {detailsError && !detailsLoading && (
-              <Text style={styles.modalError}>{detailsError}</Text>
+              <Text style={[styles.modalError, { color: theme.error }]}>{detailsError}</Text>
             )}
 
             {details && !detailsLoading && (
               <View style={styles.modalContent}>
-                <Text style={styles.modalPrice}>
+                <Text style={[styles.modalPrice, { color: theme.primary }]}>
                   {details.totalPrice.currency} {details.totalPrice.amount.toFixed(0)}
                 </Text>
-                <Text style={styles.modalSection}>
+                <Text style={[styles.modalSection, { color: theme.textMuted }]}>
                   Outbound · {details.departureDate}
                 </Text>
                 {details.outbound.segments.map((seg, idx, arr) => {
@@ -268,11 +268,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   return (
                     <View key={`o-${idx}`} style={styles.modalSegmentRow}>
                       {idx > 0 && layover > 0 && (
-                        <Text style={styles.modalLayover}>
+                        <Text style={[styles.modalLayover, { color: theme.textMuted }]}>
                           Layover in {arr[idx - 1].to.code} · {Math.floor(layover / 60)}h {layover % 60}m
                         </Text>
                       )}
-                      <Text style={styles.modalSegment}>
+                      <Text style={[styles.modalSegment, { color: theme.text }]}>
                         {seg.from.code}{' '}
                         {dep.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} →{' '}
                         {seg.to.code}{' '}
@@ -282,7 +282,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     </View>
                   );
                 })}
-                <Text style={styles.modalSection}>
+                <Text style={[styles.modalSection, { color: theme.textMuted }]}>
                   Return · {details.returnDate}
                 </Text>
                 {details.return.segments.map((seg, idx, arr) => {
@@ -299,11 +299,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   return (
                     <View key={`r-${idx}`} style={styles.modalSegmentRow}>
                       {idx > 0 && layover > 0 && (
-                        <Text style={styles.modalLayover}>
+                        <Text style={[styles.modalLayover, { color: theme.textMuted }]}>
                           Layover in {arr[idx - 1].to.code} · {Math.floor(layover / 60)}h {layover % 60}m
                         </Text>
                       )}
-                      <Text style={styles.modalSegment}>
+                      <Text style={[styles.modalSegment, { color: theme.text }]}>
                         {seg.from.code}{' '}
                         {dep.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} →{' '}
                         {seg.to.code}{' '}
@@ -318,17 +318,17 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
 
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalSecondaryBtn]}
+                style={[styles.modalBtn, styles.modalSecondaryBtn, { backgroundColor: theme.controlBg }]}
                 onPress={() => setShowDetails(false)}
               >
-                <Text style={styles.modalSecondaryText}>Close</Text>
+                <Text style={[styles.modalSecondaryText, { color: theme.text }]}>Close</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, !details && styles.modalPrimaryDisabled]}
+                style={[styles.modalBtn, { backgroundColor: details ? theme.buttonBg : theme.controlBg }, !details && styles.modalPrimaryDisabled]}
                 onPress={startSearchFromDetails}
                 disabled={!details}
               >
-                <Text style={styles.modalPrimaryText}>Search these dates</Text>
+                <Text style={[styles.modalPrimaryText, { color: theme.buttonText }]}>Search these dates</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -4,15 +4,10 @@ import type { CreateSearchSessionRequest } from '../../../types';
 import { searchActions } from '../../../store';
 import { createSearchSession } from '../../../api';
 import { useTheme } from '../../../theme/ThemeContext';
-import { CalendarModal } from '../components/CalendarModal';
-import { AirportInput } from '../components/AirportInput';
-
-const CABIN_OPTIONS: Array<CreateSearchSessionRequest['cabinClass']> = [
-  'ECONOMY',
-  'PREMIUM_ECONOMY',
-  'BUSINESS',
-  'FIRST',
-];
+import { AirportAutocomplete } from '../components/AirportAutocomplete';
+import { DateRangePicker } from '../components/DateRangePicker';
+import { PassengerCabinPicker } from '../components/PassengerCabinPicker';
+import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -20,6 +15,8 @@ const defaultParams: CreateSearchSessionRequest = {
   departureDate: '',
   returnDate: '',
   cabinClass: 'ECONOMY',
+  cabinPreference: 'ECONOMY',
+  includeCheckedBag: false,
   adults: 1,
   children: 0,
   infants: 0,
@@ -30,11 +27,35 @@ const defaultParams: CreateSearchSessionRequest = {
 export function SearchFormScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('round-trip');
-  const [params, setParams] = useState<CreateSearchSessionRequest>(defaultParams);
+  const [params, setParams] = useState<CreateSearchSessionRequest>(() => {
+    const cached = getCachedSearch();
+    if (cached && typeof cached === 'object') {
+      const cabin = cached.cabinClass;
+      const cabinClass =
+        cabin === 'ECONOMY' || cabin === 'PREMIUM_ECONOMY' || cabin === 'BUSINESS' || cabin === 'FIRST'
+          ? cabin
+          : 'ECONOMY';
+      return {
+        ...defaultParams,
+        ...cached,
+        cabinClass,
+        cabinPreference: cabinClass,
+        adults: cached.adults ?? 1,
+        children: cached.children ?? 0,
+        infants: cached.infants ?? 0,
+      };
+    }
+    return defaultParams;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const themed = makeThemedStyles(theme);
+
+  const update = <K extends keyof CreateSearchSessionRequest>(
+    key: K,
+    value: CreateSearchSessionRequest[K]
+  ) => setParams((prev) => ({ ...prev, [key]: value }));
 
   const handleSearch = async () => {
     if (!params.origin.trim() || !params.destination.trim() || !params.departureDate) {
@@ -48,12 +69,21 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     setError(null);
     setLoading(true);
     try {
+      const cabin: CreateSearchSessionRequest['cabinClass'] =
+        params.cabinClass === 'ECONOMY' || params.cabinClass === 'PREMIUM_ECONOMY' ||
+        params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
+          ? params.cabinClass
+          : 'ECONOMY';
       const payload: CreateSearchSessionRequest = {
         ...params,
         origin: params.origin.trim().toUpperCase(),
         destination: params.destination.trim().toUpperCase(),
         returnDate: tripType === 'one-way' ? undefined : params.returnDate || undefined,
+        cabinClass: cabin,
+        cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
+        includeCheckedBag: params.includeCheckedBag ?? false,
       };
+      setCachedSearch(payload);
       searchActions.setParams(payload);
       const session = await createSearchSession(payload);
       searchActions.setSession(session.id, session, session.status);
@@ -66,139 +96,139 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     }
   };
 
-  const update = <K extends keyof CreateSearchSessionRequest>(
-    key: K,
-    value: CreateSearchSessionRequest[K]
-  ) => setParams(prev => ({ ...prev, [key]: value }));
+  const dateLabel =
+    tripType === 'round-trip'
+      ? params.departureDate && params.returnDate
+        ? `${params.departureDate} → ${params.returnDate}`
+        : 'Select dates'
+      : params.departureDate || 'Select date';
 
   return (
     <ScrollView style={themed.container} contentContainerStyle={styles.content}>
-      <Text style={themed.title}>Flight Search</Text>
+      <View style={[styles.hero, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+        <Text style={themed.heroTitle}>Find flights</Text>
+        <Text style={themed.heroSubtitle}>Compare prices and book with one click</Text>
 
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={[styles.tab, themed.tabBase, tripType === 'one-way' && themed.tabActive]}
-          onPress={() => setTripType('one-way')}
-        >
-          <Text style={[tripType === 'one-way' ? themed.tabTextActive : themed.tabText]}>
-            One-way
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, themed.tabBase, tripType === 'round-trip' && themed.tabActive]}
-          onPress={() => setTripType('round-trip')}
-        >
-          <Text style={[tripType === 'round-trip' ? themed.tabTextActive : themed.tabText]}>
-            Round-trip
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <AirportInput
-        label="From"
-        value={params.origin}
-        onChange={code => update('origin', code)}
-        placeholder="City or airport"
-      />
-      <AirportInput
-        label="To"
-        value={params.destination}
-        onChange={code => update('destination', code)}
-        placeholder="City or airport"
-      />
-
-      <Text style={themed.label}>Departure date</Text>
-      <TouchableOpacity
-        style={[styles.dateButton, themed.dateButton]}
-        onPress={() => setShowCalendar(true)}
-      >
-        <Text style={themed.dateButtonText}>
-          {tripType === 'round-trip'
-            ? params.departureDate && params.returnDate
-              ? `${params.departureDate} → ${params.returnDate}`
-              : 'Select dates'
-            : params.departureDate || 'Select date'}
-        </Text>
-      </TouchableOpacity>
-
-      <CalendarModal
-        visible={showCalendar}
-        mode={tripType === 'round-trip' ? 'range' : 'single'}
-        initialDate={params.departureDate || undefined}
-        initialEndDate={params.returnDate || undefined}
-        onClose={() => setShowCalendar(false)}
-        onSelect={date => {
-          update('departureDate', date);
-          update('returnDate', undefined as any);
-        }}
-        onSelectRange={(start, end) => {
-          update('departureDate', start);
-          update('returnDate', end as any);
-        }}
-      />
-
-      <Text style={themed.label}>Passengers</Text>
-      <View style={styles.row}>
-        <Text style={themed.smallLabel}>Adults</Text>
-        <View style={styles.stepper}>
+        <View style={styles.tripRow}>
           <TouchableOpacity
-            onPress={() => update('adults', Math.max(1, params.adults - 1))}
-            style={[styles.stepperBtn, themed.stepperBtn]}
+            style={[styles.tab, themed.tabBase, tripType === 'one-way' && themed.tabActive]}
+            onPress={() => setTripType('one-way')}
           >
-            <Text style={[styles.stepperBtnText, themed.stepperBtnText]}>−</Text>
-          </TouchableOpacity>
-          <Text style={themed.stepperValue}>{params.adults}</Text>
-          <TouchableOpacity
-            onPress={() => update('adults', params.adults + 1)}
-            style={[styles.stepperBtn, themed.stepperBtn]}
-          >
-            <Text style={[styles.stepperBtnText, themed.stepperBtnText]}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={styles.row}>
-        <Text style={themed.smallLabel}>Children</Text>
-        <View style={styles.stepper}>
-          <TouchableOpacity
-            onPress={() => update('children', Math.max(0, (params.children ?? 0) - 1))}
-            style={[styles.stepperBtn, themed.stepperBtn]}
-          >
-            <Text style={[styles.stepperBtnText, themed.stepperBtnText]}>−</Text>
-          </TouchableOpacity>
-          <Text style={themed.stepperValue}>{params.children ?? 0}</Text>
-          <TouchableOpacity
-            onPress={() => update('children', (params.children ?? 0) + 1)}
-            style={[styles.stepperBtn, themed.stepperBtn]}
-          >
-            <Text style={[styles.stepperBtnText, themed.stepperBtnText]}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={themed.label}>Cabin class</Text>
-      <View style={styles.cabinRow}>
-        {CABIN_OPTIONS.map(c => (
-          <TouchableOpacity
-            key={c}
-            style={[styles.cabinBtn, themed.cabinBtn, params.cabinClass === c && themed.cabinBtnActive]}
-            onPress={() => update('cabinClass', c)}
-          >
-            <Text style={params.cabinClass === c ? themed.cabinTextActive : themed.cabinText}>
-              {c.replace('_', ' ')}
+            <Text style={tripType === 'one-way' ? themed.tabTextActive : themed.tabText}>
+              One-way
             </Text>
           </TouchableOpacity>
-        ))}
+          <TouchableOpacity
+            style={[styles.tab, themed.tabBase, tripType === 'round-trip' && themed.tabActive]}
+            onPress={() => setTripType('round-trip')}
+          >
+            <Text style={tripType === 'round-trip' ? themed.tabTextActive : themed.tabText}>
+              Round-trip
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <AirportAutocomplete
+          label="From"
+          value={params.origin}
+          onChange={(code) => update('origin', code)}
+          placeholder="City or airport"
+        />
+        <AirportAutocomplete
+          label="To"
+          value={params.destination}
+          onChange={(code) => update('destination', code)}
+          placeholder="City or airport"
+        />
+
+        <Text style={themed.label}>Dates</Text>
+        <TouchableOpacity
+          style={[styles.dateButton, themed.dateButton]}
+          onPress={() => setShowCalendar(true)}
+        >
+          <Text style={themed.dateButtonText}>{dateLabel}</Text>
+        </TouchableOpacity>
+
+        <DateRangePicker
+          visible={showCalendar}
+          onClose={() => setShowCalendar(false)}
+          mode={tripType === 'round-trip' ? 'range' : 'single'}
+          initialDate={params.departureDate || undefined}
+          initialEndDate={params.returnDate || undefined}
+          onSelect={(date) => {
+            update('departureDate', date);
+            update('returnDate', undefined as any);
+          }}
+          onSelectRange={(start, end) => {
+            update('departureDate', start);
+            update('returnDate', end as any);
+          }}
+        />
+
+        <PassengerCabinPicker
+          adults={params.adults}
+          children={params.children ?? 0}
+          cabinClass={
+            params.cabinClass === 'ECONOMY' || params.cabinClass === 'PREMIUM_ECONOMY' ||
+            params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
+              ? params.cabinClass
+              : 'ECONOMY'
+          }
+          onAdultsChange={(n) => update('adults', n)}
+          onChildrenChange={(n) => update('children', n)}
+          onCabinChange={(c) => {
+            update('cabinClass', c);
+            update('cabinPreference', c as 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST');
+          }}
+          label="Passengers & cabin"
+        />
+
+        <Text style={themed.label}>Checked bag</Text>
+        <View style={styles.bagRow}>
+          <TouchableOpacity
+            style={[
+              styles.bagBtn,
+              themed.bagBtn,
+              !params.includeCheckedBag && themed.bagBtnActive,
+            ]}
+            onPress={() => update('includeCheckedBag', false as any)}
+          >
+            <Text
+              style={
+                !params.includeCheckedBag ? themed.bagTextActive : themed.bagText
+              }
+            >
+              Not included
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.bagBtn,
+              themed.bagBtn,
+              params.includeCheckedBag && themed.bagBtnActive,
+            ]}
+            onPress={() => update('includeCheckedBag', true as any)}
+          >
+            <Text
+              style={
+                params.includeCheckedBag ? themed.bagTextActive : themed.bagText
+              }
+            >
+              Included
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {error ? <Text style={themed.error}>{error}</Text> : null}
+
+        <TouchableOpacity
+          style={[themed.button, loading && styles.buttonDisabled]}
+          onPress={handleSearch}
+          disabled={loading}
+        >
+          <Text style={themed.buttonText}>{loading ? 'Searching…' : 'Search flights'}</Text>
+        </TouchableOpacity>
       </View>
-
-      {error ? <Text style={themed.error}>{error}</Text> : null}
-
-      <TouchableOpacity
-        style={[styles.button, themed.button, loading && styles.buttonDisabled]}
-        onPress={handleSearch}
-        disabled={loading}
-      >
-        <Text style={themed.buttonText}>{loading ? 'Searching…' : 'Search flights'}</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -206,61 +236,74 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 function makeThemedStyles(theme: import('../../../theme/ThemeContext').Theme) {
   return {
     container: { flex: 1, backgroundColor: theme.screenBg },
-    title: { fontSize: 32, fontWeight: '700', marginBottom: 24, color: theme.text },
-    label: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, color: theme.text },
-    smallLabel: { fontSize: 18, marginRight: 12, color: theme.text },
-    tabBase: { backgroundColor: theme.cardBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
+    heroTitle: { fontSize: 26, fontWeight: '700' as const, color: theme.text, marginBottom: 6 },
+    heroSubtitle: { fontSize: 15, color: theme.textMuted, marginBottom: 24 },
+    label: { fontSize: 16, fontWeight: '600' as const, marginBottom: 8, color: theme.text },
+    tabBase: {
+      backgroundColor: theme.controlBg,
+      borderColor: theme.inputBorder,
+      borderRadius: theme.radiusMd,
+    },
     tabActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-    tabText: { color: theme.text, fontSize: 18 },
-    tabTextActive: { color: '#fff', fontWeight: '600', fontSize: 18 },
-    dateButton: { backgroundColor: theme.cardBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
-    dateButtonText: { fontSize: 20, color: theme.text },
-    stepperValue: { marginHorizontal: 16, fontSize: 20, minWidth: 32, textAlign: 'center' as const, color: theme.text },
-    stepperBtn: { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd },
-    stepperBtnText: { color: theme.text },
-    cabinBtn: { backgroundColor: theme.cardBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
-    cabinBtnActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-    cabinText: { color: theme.text, fontSize: 16 },
-    cabinTextActive: { color: '#fff', fontSize: 16 },
-    error: { color: theme.error, marginTop: 16, fontSize: 18 },
-    button: { marginTop: 32, backgroundColor: theme.buttonBg, padding: 20, borderRadius: theme.radiusLg, alignItems: 'center' as const },
-    buttonText: { color: theme.buttonText, fontSize: 20, fontWeight: '600' as const },
+    tabText: { color: theme.text, fontSize: 17 },
+    tabTextActive: { color: '#fff', fontWeight: '600', fontSize: 17 },
+    dateButton: {
+      backgroundColor: theme.inputBg,
+      borderColor: theme.inputBorder,
+      borderRadius: theme.radiusMd,
+    },
+    dateButtonText: { fontSize: 17, color: theme.text },
+    bagBtn: {
+      backgroundColor: theme.controlBg,
+      borderColor: theme.inputBorder,
+      borderRadius: theme.radiusMd,
+    },
+    bagBtnActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+    bagText: { color: theme.text, fontSize: 15 },
+    bagTextActive: { color: '#fff', fontSize: 15 },
+    error: { color: theme.error, marginTop: 12, fontSize: 16 },
+    button: {
+      marginTop: 24,
+      backgroundColor: theme.buttonBg,
+      paddingVertical: 18,
+      borderRadius: theme.radiusLg,
+      alignItems: 'center' as const,
+    },
+    buttonText: { color: theme.buttonText, fontSize: 18, fontWeight: '600' as const },
   };
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24, paddingBottom: 48 },
-  row: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  tab: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    marginRight: 12,
-    borderRadius: 12,
+  content: { padding: 20, paddingBottom: 48, maxWidth: 560, alignSelf: 'center', width: '100%' },
+  hero: {
+    borderRadius: 20,
+    padding: 24,
     borderWidth: 1,
   },
+  tripRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  tab: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
   dateButton: {
-    marginTop: 12,
+    marginBottom: 4,
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
   },
-  stepper: { flexDirection: 'row', alignItems: 'center' },
-  stepperBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepperBtnText: { fontSize: 24, fontWeight: '600', color: '#333' },
-  cabinRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 12 },
-  cabinBtn: {
+  bagRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  bagBtn: {
+    flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: 'center',
   },
   buttonDisabled: { opacity: 0.6 },
 });

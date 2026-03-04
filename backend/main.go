@@ -557,7 +557,7 @@ Example: /month_deals TLV BER 2025-12 7
 			searchingMsg += ")..."
 			initialMsg := tgbotapi.NewMessage(update.Message.Chat.ID, searchingMsg)
 			sentMsg, _ := bot.Send(initialMsg)
-			resp, err := amadeusClient.FlightOffersSearch(origin, dest, depDate, returnDate, 0, 15)
+			resp, err := amadeusClient.FlightOffersSearch(origin, dest, depDate, returnDate, 15, "")
 			if err != nil {
 				bot.Send(tgbotapi.NewEditMessageText(sentMsg.Chat.ID, sentMsg.MessageID, fmt.Sprintf("❌ Search error: %v\n\n_Tip: Try different dates or check IATA codes (e.g. NAP = Naples, Italy)._", err)))
 				return

@@ -6,7 +6,7 @@ import type {
   SearchSessionStatus,
 } from '../types';
 
-export type SortField = 'price' | 'duration';
+export type SortField = 'price' | 'duration' | 'best';
 export type SortOrder = 'asc' | 'desc';
 
 export interface SearchFilters {
@@ -14,6 +14,7 @@ export interface SearchFilters {
   airlines: string[];            // empty = any
   departureAfter?: string;       // HH:mm
   departureBefore?: string;      // HH:mm
+  maxDurationMinutes?: number;    // client-side only
 }
 
 interface SearchState {
@@ -49,8 +50,8 @@ export const useSearchStore = create<SearchState>(() => ({
   version: 0,
   isLoading: false,
   error: null,
-  sortField: 'price',
-  sortOrder: 'asc',
+  sortField: 'price' as SortField,
+  sortOrder: 'asc' as SortOrder,
   filters: defaultFilters,
   expandedOptionId: null,
 }));

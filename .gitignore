@@ -1,0 +1,27 @@
+# Backend
+backend/.env
+
+# Dependencies
+node_modules/
+
+# Build / IDE
+dist/
+*.exe
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env (catch-all for other .env files)
+.env
+.env.local
+.env.*.local
+backend/.env

@@ -19,6 +19,7 @@ import (
 // NOTE: Changed base URL from test to live API
 const amadeusBaseURL = "https://api.amadeus.com" // Now using the live API environment
 const maxConcurrentTrips = 5                     // Max number of simultaneous date-pair searches to avoid 429 errors
+const cheapestSearchMaxOffers = 50               // Max offers per leg when searching for the cheapest single leg
 
 // --- API Response Structures ---
 
@@ -48,6 +49,16 @@ type FullRoundTrip struct {
 func extractRawPrice(flight map[string]interface{}) float64 {
 	// 1. Check if price is already a direct float64 (if it was simplified before storage)
 	if price, ok := flight["price"].(float64); ok {
+		appendDebugLogDe4859(map[string]any{
+			"location":     "backend/amadeus_api.go:extractRawPrice",
+			"message":      "Price already float64 on offer",
+			"hypothesisId": "pricing-1",
+			"runId":        "pre-fix",
+			"data": map[string]any{
+				"price": price,
+				"path":  "price (float64)",
+			},
+		})
 		return price
 	}
 
@@ -64,11 +75,14 @@ func extractRawPrice(flight map[string]interface{}) float64 {
 
 	// 3. Extract the price string from "grandTotal" or "total"
 	var priceStr string
+	sourceField := ""
 	if totalStr, found := priceMap["grandTotal"].(string); found {
 		priceStr = totalStr
+		sourceField = "grandTotal"
 	} else if totalStr, found := priceMap["total"].(string); found {
 		// Fallback to "total" if "grandTotal" is missing (Amadeus response structure varies)
 		priceStr = totalStr
+		sourceField = "total"
 	} else {
 		return 0
 	}
@@ -78,6 +92,18 @@ func extractRawPrice(flight map[string]interface{}) float64 {
 		log.Printf("[PRICE_ERROR] Failed to parse float '%s': %v", priceStr, err)
 		return 0
 	}
+
+	appendDebugLogDe4859(map[string]any{
+		"location":     "backend/amadeus_api.go:extractRawPrice",
+		"message":      "Parsed offer price",
+		"hypothesisId": "pricing-1",
+		"runId":        "pre-fix",
+		"data": map[string]any{
+			"rawPrice":    priceMap,
+			"price":       p,
+			"sourceField": sourceField,
+		},
+	})
 	return p
 }
 
@@ -256,8 +282,10 @@ func (c *AmadeusClient) makeAPIRequest(method, endpoint string, queryParams url.
 	return result, nil
 }
 
-// FlightOffersSearch performs the main flight search, including support for pagination via offset.
-func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, returnDate string, offset int, maxOffers int) (APIResponse, error) {
+// FlightOffersSearch performs the main flight search. Uses a single request with max;
+// offset is not used (not supported in our Amadeus environment). Optional travelClass
+// is sent as query param when non-empty (ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST).
+func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, returnDate string, maxOffers int, travelClass string) (APIResponse, error) {
 	queryParams := url.Values{}
 	queryParams.Set("originLocationCode", origin)
 	queryParams.Set("destinationLocationCode", destination)
@@ -273,9 +301,8 @@ func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, r
 		queryParams.Set("returnDate", returnDate)
 	}
 
-	// Only include offset if > 0 to avoid API 400 error on page 1 (where offset should be omitted)
-	if offset > 0 {
-		queryParams.Set("offset", strconv.Itoa(offset))
+	if travelClass != "" {
+		queryParams.Set("travelClass", travelClass)
 	}
 
 	rawResult, err := c.makeAPIRequest("GET", "/v2/shopping/flight-offers", queryParams)
@@ -294,6 +321,12 @@ func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, r
 		}
 		resp.Data = offers
 	}
+	if len(resp.Data) > 0 {
+		prettyJSON, err := json.MarshalIndent(resp.Data[0], "", "  ")
+		if err == nil {
+			log.Printf("[RAW_AMADEUS_OFFER_SAMPLE]\n%s\n", string(prettyJSON))
+		}
+	}
 	if meta, ok := rawResult["meta"].(map[string]interface{}); ok {
 		resp.Meta = meta
 	}
@@ -304,19 +337,88 @@ func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, r
 	return resp, nil
 }
 
-// searchCheapestSingleLeg is a helper for SearchMonthDeal, finding the single cheapest flight.
-// Now returns the cheapest offer map, the dictionary map, and an error.
+// pickCheapestOffer scans a slice of raw Amadeus offers and returns the single
+// cheapest one based on extractRawPrice. Returns nil if no offer has a
+// positive price.
+func pickCheapestOffer(offers []map[string]interface{}) map[string]interface{} {
+	var cheapest map[string]interface{}
+	lowest := 0.0
+	for _, offer := range offers {
+		price := extractRawPrice(offer)
+		if price <= 0 {
+			continue
+		}
+		if cheapest == nil || price < lowest {
+			cheapest = offer
+			lowest = price
+		}
+	}
+	return cheapest
+}
+
+// searchCheapestSingleLeg is a helper for SearchMonthDeal and SearchDealsRange,
+// finding the single cheapest flight for a given origin/destination/date.
+// Single request (no offset); picks minimum by extractRawPrice.
 func (c *AmadeusClient) searchCheapestSingleLeg(origin, destination, date string) (map[string]interface{}, map[string]interface{}, error) {
-	// Use FlightOffersSearch with offset=0 (omitted) and maxOffers=1
-	resp, err := c.FlightOffersSearch(origin, destination, date, "", 0, 1)
+	resp, err := c.FlightOffersSearch(origin, destination, date, "", cheapestSearchMaxOffers, "")
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(resp.Data) == 0 {
 		return nil, nil, errors.New("no offers found")
 	}
-	// Return the cheapest (first) offer and the dictionaries
-	return resp.Data[0], resp.Dictionaries, nil
+
+	cheapest := pickCheapestOffer(resp.Data)
+	if cheapest == nil {
+		return nil, nil, errors.New("no offers with positive price found")
+	}
+
+	var validating []string
+	if codes, ok := cheapest["validatingAirlineCodes"].([]interface{}); ok {
+		for _, c := range codes {
+			if s, ok := c.(string); ok && s != "" {
+				validating = append(validating, s)
+			}
+		}
+	}
+
+	uniqueCarriers := make(map[string]struct{})
+	for _, offer := range resp.Data {
+		itinsRaw, ok := offer["itineraries"].([]interface{})
+		if !ok || len(itinsRaw) == 0 {
+			continue
+		}
+		firstItin, ok := itinsRaw[0].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		segsRaw, ok := firstItin["segments"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, segAny := range segsRaw {
+			seg, ok := segAny.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if carrierCode, ok := seg["carrierCode"].(string); ok && carrierCode != "" {
+				uniqueCarriers[carrierCode] = struct{}{}
+			}
+		}
+	}
+	sample := make([]string, 0, 8)
+	for code := range uniqueCarriers {
+		sample = append(sample, code)
+		if len(sample) >= 8 {
+			break
+		}
+	}
+
+	cheapestPrice := extractRawPrice(cheapest)
+	log.Printf("[CHEAPEST_LEG] date=%s offersReturned=%d cheapest=%.2f validating=%v uniqueCarriers=%d sample=%v",
+		date, len(resp.Data), cheapestPrice, validating, len(uniqueCarriers), sample)
+
+	return cheapest, resp.Dictionaries, nil
 }
 
 // SearchMonthDeals finds the cheapest round-trip flights for a fixed duration

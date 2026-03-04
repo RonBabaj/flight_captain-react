@@ -46,6 +46,8 @@ export interface FlightLeg {
 
 // --- Flight option (one bookable result) ---
 
+export type BaggageClass = 'BAG_OK' | 'BAG_UNKNOWN' | 'BAG_INCLUDED';
+
 export interface FlightOption {
   id: string;
   price: MonetaryAmount;
@@ -53,6 +55,8 @@ export interface FlightOption {
   legs: FlightLeg[];
   score?: number;
   provider?: string;
+  validatingAirlines?: string[];
+  baggageClass?: BaggageClass;
 }
 
 // --- Search session ---
@@ -65,6 +69,8 @@ export interface CreateSearchSessionRequest {
   departureDate: string; // YYYY-MM-DD
   returnDate?: string;   // omit for one-way
   cabinClass: string;    // ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST
+  cabinPreference?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
+  includeCheckedBag?: boolean;
   adults: number;
   children?: number;
   infants?: number;
