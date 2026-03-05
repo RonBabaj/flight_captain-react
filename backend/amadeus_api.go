@@ -285,24 +285,40 @@ func (c *AmadeusClient) makeAPIRequest(method, endpoint string, queryParams url.
 // FlightOffersSearch performs the main flight search. Uses a single request with max;
 // offset is not used (not supported in our Amadeus environment). Optional travelClass
 // is sent as query param when non-empty (ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST).
-func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, returnDate string, maxOffers int, travelClass string) (APIResponse, error) {
+// currencyCode is sent to Amadeus (e.g. USD, GBP, EUR); if empty, USD is used.
+// adults and children default to 1 and 0 if < 1 or < 0. nonStop restricts to direct flights.
+func (c *AmadeusClient) FlightOffersSearch(origin, destination, departureDate, returnDate string, maxOffers int, travelClass string, currencyCode string, adults, children int, nonStop bool) (APIResponse, error) {
+	if adults < 1 {
+		adults = 1
+	}
+	if children < 0 {
+		children = 0
+	}
 	queryParams := url.Values{}
 	queryParams.Set("originLocationCode", origin)
 	queryParams.Set("destinationLocationCode", destination)
 	queryParams.Set("departureDate", departureDate)
-	queryParams.Set("adults", "1") // Fixed at 1 adult for simplicity
+	queryParams.Set("adults", strconv.Itoa(adults))
+	if children > 0 {
+		queryParams.Set("children", strconv.Itoa(children))
+	}
 	queryParams.Set("max", strconv.Itoa(maxOffers))
 
-	// Set currency to USD for consistency
-	queryParams.Set("currencyCode", "USD")
+	if currencyCode == "" {
+		currencyCode = "USD"
+	}
+	queryParams.Set("currencyCode", currencyCode)
 
 	if returnDate != "" {
-		// If returnDate is provided, it's a round trip search
 		queryParams.Set("returnDate", returnDate)
 	}
 
 	if travelClass != "" {
 		queryParams.Set("travelClass", travelClass)
+	}
+
+	if nonStop {
+		queryParams.Set("nonStop", "true")
 	}
 
 	rawResult, err := c.makeAPIRequest("GET", "/v2/shopping/flight-offers", queryParams)
@@ -359,8 +375,12 @@ func pickCheapestOffer(offers []map[string]interface{}) map[string]interface{} {
 // searchCheapestSingleLeg is a helper for SearchMonthDeal and SearchDealsRange,
 // finding the single cheapest flight for a given origin/destination/date.
 // Single request (no offset); picks minimum by extractRawPrice.
-func (c *AmadeusClient) searchCheapestSingleLeg(origin, destination, date string) (map[string]interface{}, map[string]interface{}, error) {
-	resp, err := c.FlightOffersSearch(origin, destination, date, "", cheapestSearchMaxOffers, "")
+// currencyCode is passed to Amadeus (e.g. USD, GBP, EUR); if empty, USD is used.
+func (c *AmadeusClient) searchCheapestSingleLeg(origin, destination, date string, currencyCode string, adults, children int, nonStop bool) (map[string]interface{}, map[string]interface{}, error) {
+	if currencyCode == "" {
+		currencyCode = "USD"
+	}
+	resp, err := c.FlightOffersSearch(origin, destination, date, "", cheapestSearchMaxOffers, "", currencyCode, adults, children, nonStop)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -422,8 +442,8 @@ func (c *AmadeusClient) searchCheapestSingleLeg(origin, destination, date string
 }
 
 // SearchMonthDeals finds the cheapest round-trip flights for a fixed duration
-// across all days of the specified month.
-func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.Time, durationDays int) ([]FullRoundTrip, error) {
+// across all days of the specified month. currencyCode is sent to Amadeus (e.g. USD, GBP); if empty, USD is used.
+func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.Time, durationDays int, currencyCode string, adults, children int, nonStop bool) ([]FullRoundTrip, error) {
 	log.Printf("[MONTH] Starting search for %s to %s in %s for duration %d days.",
 		origin, destination, month.Format("January 2006"), durationDays)
 
@@ -461,7 +481,7 @@ func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.
 			}()
 
 			// --- 1. Find cheapest outbound flight ---
-			cheapestOutbound, outboundDictionaries, err := c.searchCheapestSingleLeg(origin, destination, outboundStr)
+			cheapestOutbound, outboundDictionaries, err := c.searchCheapestSingleLeg(origin, destination, outboundStr, currencyCode, adults, children, nonStop)
 			if err != nil {
 				// We don't log this as an error, as it's common for no flights to exist on a given day
 				// log.Printf("[MONTH:TRIP] Outbound search failed for %s: %v", outboundStr, err)
@@ -469,7 +489,7 @@ func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.
 			}
 
 			// --- 2. Find cheapest return flight ---
-			cheapestReturn, returnDictionaries, err := c.searchCheapestSingleLeg(destination, origin, returnStr)
+			cheapestReturn, returnDictionaries, err := c.searchCheapestSingleLeg(destination, origin, returnStr, currencyCode, adults, children, nonStop)
 			if err != nil {
 				// log.Printf("[MONTH:TRIP] Return search failed for %s: %v", returnStr, err)
 				return
@@ -516,7 +536,8 @@ func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.
 
 // SearchDealsRange finds the cheapest round-trip for each day in [startDate, endDate] (inclusive).
 // Lighter than SearchMonthDeals when only a short range is needed (e.g. 14 days for flight-search calendar).
-func (c *AmadeusClient) SearchDealsRange(origin, destination string, startDate, endDate time.Time, durationDays int) ([]FullRoundTrip, error) {
+// currencyCode is sent to Amadeus (e.g. USD, GBP); if empty, USD is used.
+func (c *AmadeusClient) SearchDealsRange(origin, destination string, startDate, endDate time.Time, durationDays int, currencyCode string, adults, children int, nonStop bool) ([]FullRoundTrip, error) {
 	log.Printf("[RANGE] Starting search for %s to %s from %s to %s, duration %d days.",
 		origin, destination, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), durationDays)
 
@@ -534,11 +555,11 @@ func (c *AmadeusClient) SearchDealsRange(origin, destination string, startDate, 
 			semaphore <- struct{}{}
 			defer func() { <-semaphore; wg.Done() }()
 
-			cheapestOutbound, outboundDictionaries, err := c.searchCheapestSingleLeg(origin, destination, outboundStr)
+			cheapestOutbound, outboundDictionaries, err := c.searchCheapestSingleLeg(origin, destination, outboundStr, currencyCode, adults, children, nonStop)
 			if err != nil {
 				return
 			}
-			cheapestReturn, returnDictionaries, err := c.searchCheapestSingleLeg(destination, origin, returnStr)
+			cheapestReturn, returnDictionaries, err := c.searchCheapestSingleLeg(destination, origin, returnStr, currencyCode, adults, children, nonStop)
 			if err != nil {
 				return
 			}

@@ -7,8 +7,9 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import { searchAirportsLocal } from '../../../data/airports';
+import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import type { AirportCityResult } from '../../../types';
 
 const DEBOUNCE_MS = 300;
@@ -25,9 +26,10 @@ export function AirportAutocomplete({
   label,
   value,
   onChange,
-  placeholder = 'City or airport',
+  placeholder,
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
+  const { language, t } = useLocale();
   const [query, setQuery] = useState(value);
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,8 +41,8 @@ export function AirportAutocomplete({
   const results = useMemo(() => {
     const q = query.trim();
     if (q.length < MIN_CHARS) return [];
-    return searchAirportsLocal(q, 15);
-  }, [query]);
+    return searchAirportsLocal(q, 15, language);
+  }, [query, language]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -55,7 +57,8 @@ export function AirportAutocomplete({
   const handleSelect = (item: AirportCityResult) => {
     const code = (item.airportCode || item.cityCode || item.id).toUpperCase();
     onChange(code);
-    setQuery(`${item.cityName || item.name} (${code})`);
+    const cityDisplay = getCityDisplayName(item, language);
+    setQuery(`${cityDisplay} (${code})`);
     setShowList(false);
   };
 
@@ -74,7 +77,7 @@ export function AirportAutocomplete({
               color: theme.text,
             },
           ]}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('city_or_airport')}
           placeholderTextColor={theme.textMuted}
           value={query}
           onChangeText={(text) => {
@@ -88,7 +91,7 @@ export function AirportAutocomplete({
       </View>
       {query.trim().length > 0 && query.trim().length < MIN_CHARS && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
-          Type at least {MIN_CHARS} characters
+          {t('type_min_chars').replace('{n}', String(MIN_CHARS))}
         </Text>
       )}
       {listVisible && (
@@ -106,6 +109,8 @@ export function AirportAutocomplete({
             >
               {results.map((item) => {
                 const code = item.airportCode || item.cityCode || item.id;
+                const cityDisplay = getCityDisplayName(item, language);
+                const nameDisplay = getAirportDisplayName(item, language);
                 return (
                   <TouchableOpacity
                     key={`${item.id}-${code}`}
@@ -116,10 +121,10 @@ export function AirportAutocomplete({
                     <Text style={[styles.optionIcon, { color: theme.textMuted }]}>✈</Text>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
-                        {item.cityName || item.name} ({code})
+                        {cityDisplay} ({code})
                       </Text>
                       <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
-                        {item.name} · {item.countryCode}
+                        {nameDisplay} · {item.countryCode}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -131,7 +136,7 @@ export function AirportAutocomplete({
             style={styles.closeBtn}
             onPress={() => setShowList(false)}
           >
-            <Text style={[styles.closeBtnText, { color: theme.primary }]}>Close</Text>
+            <Text style={[styles.closeBtnText, { color: theme.primary }]}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
       )}

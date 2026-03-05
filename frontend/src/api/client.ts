@@ -1,20 +1,43 @@
 /**
  * API client base. Isolated from UI; single place for base URL and fetch config.
- * Must be an absolute URL so requests hit the backend, not the Expo dev server.
+ *
+ * Primary source:
+ * - EXPO_PUBLIC_API_BASE_URL (recommended)
+ *
+ * Fallbacks (for backwards compatibility/local dev):
+ * - EXPO_PUBLIC_API_URL
+ * - VITE_API_BASE_URL
+ * - http://localhost:8080
  */
-const raw = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_URL : undefined;
-const API_BASE =
-  (typeof raw === 'string' && raw.trim() !== '') ? raw.trim() : 'http://localhost:8080';
+function resolveApiBase(): string {
+  if (typeof process === 'undefined') return 'http://localhost:8080';
+  const env = process.env as Record<string, string | undefined>;
+  let raw =
+    env.EXPO_PUBLIC_API_BASE_URL ||
+    env.EXPO_PUBLIC_API_URL ||
+    env.VITE_API_BASE_URL ||
+    'http://localhost:8080';
 
-export function getApiBase(): string {
-  return API_BASE;
+  raw = raw.trim();
+  if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+    // Assume https if scheme missing.
+    raw = `https://${raw}`;
+  }
+  return raw;
+}
+
+export const API_BASE = resolveApiBase();
+
+export function apiUrl(path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_BASE}${path}`;
 }
 
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const url = apiUrl(path);
   const res = await fetch(url, {
     ...options,
     headers: {

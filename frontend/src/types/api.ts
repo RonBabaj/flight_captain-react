@@ -55,8 +55,12 @@ export interface FlightOption {
   legs: FlightLeg[];
   score?: number;
   provider?: string;
+  source?: string;  // "amadeus" | "duffel" | "compare" - backend sends this
   validatingAirlines?: string[];
+  primaryDisplayCarrier?: string;
   baggageClass?: BaggageClass;
+  deepLink?: string;    // booking URL when present (e.g. Duffel, OTA)
+  vendorName?: string;  // OTA name (kayak/expedia etc) when source=compare
 }
 
 // --- Search session ---
@@ -74,7 +78,7 @@ export interface CreateSearchSessionRequest {
   adults: number;
   children?: number;
   infants?: number;
-  currency?: string;
+currency?: string;
   locale?: string;
 }
 
@@ -148,6 +152,14 @@ export interface AirportCityResult {
   name: string;
   cityName?: string;
   countryCode?: string;
+  /** Localized city name (Hebrew) for search/display */
+  cityNameHe?: string;
+  /** Localized city name (Russian) for search/display */
+  cityNameRu?: string;
+  /** Localized airport name (Hebrew) for display */
+  nameHe?: string;
+  /** Localized airport name (Russian) for display */
+  nameRu?: string;
 }
 
 export interface AirportCitySearchResponse {

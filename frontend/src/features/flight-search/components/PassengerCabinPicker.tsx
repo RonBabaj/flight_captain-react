@@ -8,6 +8,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import type { CreateSearchSessionRequest } from '../../../types';
 
 const CABIN_OPTIONS: Array<CreateSearchSessionRequest['cabinClass']> = [
@@ -25,6 +26,8 @@ export interface PassengerCabinPickerProps {
   onChildrenChange: (n: number) => void;
   onCabinChange: (c: CreateSearchSessionRequest['cabinClass']) => void;
   label?: string;
+  /** When true, hide cabin class selector (e.g. for deals page) */
+  passengersOnly?: boolean;
 }
 
 export function PassengerCabinPicker({
@@ -34,19 +37,27 @@ export function PassengerCabinPicker({
   onAdultsChange,
   onChildrenChange,
   onCabinChange,
-  label = 'Passengers & cabin',
+  label,
+  passengersOnly = false,
 }: PassengerCabinPickerProps) {
   const { theme } = useTheme();
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
+  const displayLabel = label ?? t('passengers_cabin');
 
+  const cabinLabelKey =
+    cabinClass === 'ECONOMY' ? 'cabin_economy' :
+    cabinClass === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' :
+    cabinClass === 'BUSINESS' ? 'cabin_business' :
+    'cabin_first';
   const summary =
-    `${adults} adult${adults !== 1 ? 's' : ''}` +
-    (children > 0 ? `, ${children} child${children !== 1 ? 'ren' : ''}` : '') +
-    ` · ${cabinClass.replace('_', ' ')}`;
+    `${adults} ${adults === 1 ? t('adult') : t('adults')}` +
+    (children > 0 ? `, ${children} ${children === 1 ? t('child') : t('children')}` : '') +
+    (passengersOnly ? '' : ` · ${t(cabinLabelKey)}`);
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+      <Text style={[styles.label, { color: theme.text }]}>{displayLabel}</Text>
       <TouchableOpacity
         style={[
           styles.trigger,
@@ -69,10 +80,10 @@ export function PassengerCabinPicker({
             style={[styles.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
             onStartShouldSetResponder={() => true}
           >
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Passengers & cabin</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{passengersOnly ? t('passengers_cabin') : t('passengers_cabin')}</Text>
 
             <View style={styles.row}>
-              <Text style={[styles.rowLabel, { color: theme.text }]}>Adults</Text>
+              <Text style={[styles.rowLabel, { color: theme.text }]}>{t('adults_label')}</Text>
               <View style={styles.stepper}>
                 <TouchableOpacity
                   onPress={() => onAdultsChange(Math.max(1, adults - 1))}
@@ -90,7 +101,7 @@ export function PassengerCabinPicker({
               </View>
             </View>
             <View style={styles.row}>
-              <Text style={[styles.rowLabel, { color: theme.text }]}>Children</Text>
+              <Text style={[styles.rowLabel, { color: theme.text }]}>{t('children_label')}</Text>
               <View style={styles.stepper}>
                 <TouchableOpacity
                   onPress={() => onChildrenChange(Math.max(0, children - 1))}
@@ -107,7 +118,9 @@ export function PassengerCabinPicker({
                 </TouchableOpacity>
               </View>
             </View>
-            <Text style={[styles.cabinLabel, { color: theme.text }]}>Cabin class</Text>
+            {!passengersOnly && (
+            <>
+            <Text style={[styles.cabinLabel, { color: theme.text }]}>{t('cabin_class')}</Text>
             <View style={styles.cabinRow}>
               {CABIN_OPTIONS.map((c) => (
                 <TouchableOpacity
@@ -126,16 +139,18 @@ export function PassengerCabinPicker({
                       cabinClass === c && { color: '#fff' },
                     ]}
                   >
-                    {c.replace('_', ' ')}
+                    {t(c === 'ECONOMY' ? 'cabin_economy' : c === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : c === 'BUSINESS' ? 'cabin_business' : 'cabin_first')}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
+            </>
+            )}
             <TouchableOpacity
               style={[styles.doneBtn, { backgroundColor: theme.primary }]}
               onPress={() => setOpen(false)}
             >
-              <Text style={styles.doneBtnText}>Done</Text>
+              <Text style={styles.doneBtnText}>{t('done')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>

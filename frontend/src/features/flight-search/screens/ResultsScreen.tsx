@@ -6,109 +6,51 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Animated,
+  ScrollView,
+  Modal,
+  Pressable,
+  Linking,
+  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import type { FlightOption } from '../../../types';
+import type { CreateSearchSessionRequest } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions } from '../../../store';
-import { getSearchSessionResults } from '../../../api';
-import { getAirlineName } from '../../../data/airlines';
+import type { LocaleContextValue } from '../../../context/LocaleContext';
+import { getSearchSessionResults, createSearchSession, getOutboundLink } from '../../../api';
+import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
+import { useSearchParams } from '../../../hooks/useSearchParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
+import { FlightResultCard } from '../components/FlightResultCard';
+import { SearchFormContent } from '../components/SearchFormContent';
 
 const POLL_INTERVAL_MS = 1500;
 
-function formatDuration(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}h ${m}m`;
-}
-
-function baggageBadgeText(baggageClass: FlightOption['baggageClass']): string {
-  if (!baggageClass) return 'Checked bag: Unknown';
-  if (baggageClass === 'BAG_OK') return 'Checked bag: Not included';
-  if (baggageClass === 'BAG_INCLUDED') return 'Checked bag: Included';
-  return 'Checked bag: Unknown';
-}
-
-function FlightCard({
-  option,
-  onPress,
-  theme,
-}: {
-  option: FlightOption;
-  onPress: () => void;
-  theme: import('../../../theme/ThemeContext').Theme;
-}) {
-  const stops = option.legs.reduce((acc, leg) => acc + leg.segments.length - 1, 0);
-  const validatingCode = option.validatingAirlines?.[0];
-  const validatingName = getAirlineName(validatingCode) ?? validatingCode ?? 'Flight';
-
-  return (
-    <TouchableOpacity
-      style={[cardStyles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={cardStyles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={[cardStyles.price, { color: theme.primary }]}>
-            {option.price.currency} {option.price.amount.toFixed(2)}
-          </Text>
-          <Text style={[cardStyles.airline, { color: theme.text }]}>{validatingName}</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[cardStyles.duration, { color: theme.textMuted }]}>
-            {formatDuration(option.durationMinutes)}
-          </Text>
-          <Text style={[cardStyles.stops, { color: theme.textMuted }]}>
-            {stops === 0 ? 'Direct' : `${stops} stop(s)`}
-          </Text>
-        </View>
-      </View>
-      {option.baggageClass != null && (
-        <View style={cardStyles.badgeRow}>
-          <Text style={[cardStyles.badge, { color: theme.textMuted, borderColor: theme.cardBorder }]}>
-            Cabin bag: 1
-          </Text>
-          <Text style={[cardStyles.badge, { color: theme.textMuted, borderColor: theme.cardBorder }]}>
-            {baggageBadgeText(option.baggageClass)}
-          </Text>
-        </View>
-      )}
-      <Text style={[cardStyles.viewDetails, { color: theme.primary }]}>View details →</Text>
-    </TouchableOpacity>
-  );
-}
-
-const cardStyles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  price: { fontSize: 22, fontWeight: '700' },
-  airline: { marginTop: 4, fontSize: 15, fontWeight: '500' },
-  duration: { fontSize: 16 },
-  stops: { fontSize: 14 },
-  badgeRow: { flexDirection: 'row', marginTop: 10, gap: 10, flexWrap: 'wrap' },
-  badge: {
-    fontSize: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  viewDetails: { marginTop: 12, fontSize: 15, fontWeight: '600' },
-});
+const defaultFormParams: CreateSearchSessionRequest = {
+  origin: '',
+  destination: '',
+  departureDate: '',
+  returnDate: '',
+  cabinClass: 'ECONOMY',
+  cabinPreference: 'ECONOMY',
+  includeCheckedBag: false,
+  adults: 1,
+  children: 0,
+  infants: 0,
+  currency: 'USD',
+  locale: 'en-US',
+};
 
 function SkeletonCard({ theme }: { theme: import('../../../theme/ThemeContext').Theme }) {
   return (
-    <View style={[cardStyles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+    <View style={[skeletonStyles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
       <View style={[skeletonStyles.line, { backgroundColor: theme.controlBg }]} />
       <View style={[skeletonStyles.lineShort, { backgroundColor: theme.controlBg }]} />
       <View style={skeletonStyles.row}>
@@ -120,8 +62,15 @@ function SkeletonCard({ theme }: { theme: import('../../../theme/ThemeContext').
 }
 
 const skeletonStyles = StyleSheet.create({
-  line: { height: 24, borderRadius: 6, width: '60%', marginBottom: 12 },
-  lineShort: { height: 16, borderRadius: 4, width: 80 },
+  card: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  line: { height: 20, borderRadius: 6, width: '60%', marginBottom: 8 },
+  lineShort: { height: 14, borderRadius: 4, width: 72 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
 });
 
@@ -148,10 +97,13 @@ function sortResults(
 
 export function ResultsScreen({ route }: { route: { params: { sessionId: string } } }) {
   const { theme } = useTheme();
+  const { currency, locale, t, isRTL } = useLocale();
+  const { updateUrl } = useSearchParams();
+  const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
   const { sessionId } = route.params;
   const {
-    params,
+    params: storeParams,
     results,
     status,
     sortField,
@@ -160,7 +112,107 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   } = useSearchStore();
   const versionRef = useRef(0);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
+  const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const [showEditSearchModal, setShowEditSearchModal] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const handleBookFromCard = async (option: FlightOption) => {
+    setBookLoadingId(option.id);
+    try {
+      // Use deepLink directly when present (OTA/compare or Duffel)
+      let url: string;
+      if (option.deepLink) {
+        url = option.deepLink;
+      } else {
+        const res = await getOutboundLink(sessionId, option.id);
+        url = res.redirectUrl;
+      }
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('', 'Cannot open booking link.');
+      }
+    } catch {
+      const origin = option.legs[0]?.segments[0]?.from?.code ?? '';
+      const dest = option.legs[option.legs.length - 1]?.segments?.slice(-1)[0]?.to?.code ?? '';
+      const q = `Flights ${dest} from ${origin}`;
+      const fallback = `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`;
+      try {
+        if (await Linking.canOpenURL(fallback)) {
+          await Linking.openURL(fallback);
+        }
+      } catch (_) {}
+    } finally {
+      setBookLoadingId(null);
+    }
+  };
+
+  const [formParams, setFormParams] = useState<CreateSearchSessionRequest>(() =>
+    storeParams ? { ...defaultFormParams, ...storeParams } : defaultFormParams
+  );
+  const [tripType, setTripType] = useState<'one-way' | 'round-trip'>(
+    storeParams?.returnDate ? 'round-trip' : 'one-way'
+  );
+  const [sidebarSearchLoading, setSidebarSearchLoading] = useState(false);
+  const [sidebarSearchError, setSidebarSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (storeParams) {
+      setFormParams((p) => ({ ...defaultFormParams, ...p, ...storeParams }));
+      setTripType(storeParams.returnDate ? 'round-trip' : 'one-way');
+    }
+  }, [sessionId, storeParams?.origin, storeParams?.destination, storeParams?.departureDate, storeParams?.returnDate]);
+
+  const updateFormParams = <K extends keyof CreateSearchSessionRequest>(
+    key: K,
+    value: CreateSearchSessionRequest[K]
+  ) => setFormParams((prev) => ({ ...prev, [key]: value }));
+
+  const handleSidebarSearch = async () => {
+    const p = formParams;
+    if (!p.origin.trim() || !p.destination.trim() || !p.departureDate) {
+      setSidebarSearchError(t('fill_origin_destination_dates'));
+      return;
+    }
+    if (tripType === 'round-trip' && !p.returnDate) {
+      setSidebarSearchError(t('choose_return_date'));
+      return;
+    }
+    setSidebarSearchError(null);
+    setSidebarSearchLoading(true);
+    try {
+      const cabin: CreateSearchSessionRequest['cabinClass'] =
+        p.cabinClass === 'ECONOMY' || p.cabinClass === 'PREMIUM_ECONOMY' ||
+        p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
+          ? p.cabinClass
+          : 'ECONOMY';
+      const payload: CreateSearchSessionRequest = {
+        ...p,
+        origin: p.origin.trim().toUpperCase(),
+        destination: p.destination.trim().toUpperCase(),
+        returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
+        cabinClass: cabin,
+        cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
+        includeCheckedBag: p.includeCheckedBag ?? false,
+        currency: currency || 'USD',
+        locale: locale || 'en-US',
+      };
+      setCachedSearch(payload);
+      searchActions.setParams(payload);
+      const session = await createSearchSession(payload);
+      searchActions.setSession(session.id, session, session.status);
+      searchActions.setResults([], 0);
+      setShowEditSearchModal(false);
+      updateUrl({ ...payload, sessionId: session.id });
+      navigation.navigate('Results', { sessionId: session.id });
+    } catch (e) {
+      setSidebarSearchError(e instanceof Error ? e.message : 'Search failed');
+    } finally {
+      setSidebarSearchLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -169,7 +221,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       try {
         const res = await getSearchSessionResults(
           sessionId,
-          versionRef.current || undefined
+          versionRef.current || undefined,
+          storeParams ?? undefined
         );
         if (cancelled) return;
         versionRef.current = res.version;
@@ -191,7 +244,21 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       cancelled = true;
       clearInterval(id);
     };
-  }, [sessionId, status]);
+  }, [sessionId, status, storeParams]);
+
+  useEffect(() => {
+    if (sessionId && storeParams) {
+      updateUrl({ ...storeParams, sessionId });
+    }
+  }, [sessionId, storeParams, updateUrl]);
+
+  useEffect(() => {
+    if (results.length > 0) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [results.length]);
 
   const filtered = useMemo(() => {
     let list = results;
@@ -228,12 +295,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
         <Text style={[styles.error, { color: theme.error }]}>
-          Search failed or session expired.
+          {t('search_failed_expired')}
         </Text>
       </View>
     );
   }
 
+  const params = storeParams;
   const summaryParts: string[] = [];
   if (params?.origin) summaryParts.push(params.origin);
   if (params?.destination) summaryParts.push(params.destination);
@@ -242,30 +310,129 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const pax = [params?.adults, (params?.children ?? 0), (params?.infants ?? 0)].filter(
     (n) => n && n > 0
   );
-  if (pax.length) summaryParts.push(`${params?.adults} adult(s)`);
-  if (params?.cabinClass) summaryParts.push(params.cabinClass.replace('_', ' '));
+  if (pax.length && params?.adults != null) {
+    summaryParts.push(`${params.adults} ${params.adults === 1 ? t('adult') : t('adults')}`);
+  }
+  if (params?.cabinClass) {
+    const cabinKey = params.cabinClass === 'ECONOMY' ? 'cabin_economy' : params.cabinClass === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : params.cabinClass === 'BUSINESS' ? 'cabin_business' : 'cabin_first';
+    summaryParts.push(t(cabinKey));
+  }
   const summaryStr = summaryParts.join(' · ');
+  const showSearchBesideResults = !isMobile;
 
   const isLoading = status === 'PENDING' || status === 'PARTIAL';
   const hasResults = filtered.length > 0;
   const showEmpty = !isLoading && results.length === 0;
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
 
+  const resultsList = (
+    isLoading && filtered.length === 0 ? (
+      <View style={styles.listContent}>
+        {[1, 2, 3, 4].map((i) => (
+          <SkeletonCard key={i} theme={theme} />
+        ))}
+      </View>
+    ) : (
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <FlightResultCard
+            option={item}
+            onDetails={() => setDetailsOption(item)}
+            onBook={() => handleBookFromCard(item)}
+            bookLoading={bookLoadingId === item.id}
+            bookLabel={t('book')}
+          />
+        )}
+        ListEmptyComponent={
+          showEmpty ? (
+            <View style={styles.emptyWrap}>
+              <View style={{ marginBottom: 12 }}>
+                <Ionicons name="airplane-outline" size={48} color={theme.textMuted} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {t('no_flights_found')}
+              </Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                {t('no_flights_tip')}
+              </Text>
+            </View>
+          ) : showNoMatch ? (
+            <View style={styles.emptyWrap}>
+              <View style={{ marginBottom: 12 }}>
+                <Ionicons name="filter-outline" size={48} color={theme.textMuted} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {t('no_flights_match')}
+              </Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                {t('try_filters')}
+              </Text>
+            </View>
+          ) : null
+        }
+        contentContainerStyle={
+          filtered.length === 0 && !showEmpty
+            ? styles.listContentEmpty
+            : styles.listContent
+        }
+      />
+    )
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
-      {/* Sticky search summary bar */}
+      {/* Sticky search summary bar + Edit */}
       <View
         style={[
           styles.summaryBar,
           { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+          isRTL && { flexDirection: 'row-reverse' },
         ]}
       >
-        <Text style={[styles.summaryText, { color: theme.text }]} numberOfLines={2}>
-          {summaryStr || 'Search results'}
-        </Text>
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Ionicons name="airplane-outline" size={20} color={theme.text} />
+            <Text style={[styles.summaryText, { color: theme.text }]} numberOfLines={2}>
+              {summaryStr || t('search_results')}
+            </Text>
+          </View>
+        <TouchableOpacity
+          style={[styles.editSearchBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+          onPress={() => setShowEditSearchModal(true)}
+        >
+          <Ionicons name="create-outline" size={18} color={theme.primary} />
+          <Text style={[styles.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Loading banner */}
+      {/* Edit search popup modal */}
+      <Modal visible={showEditSearchModal} transparent animationType="fade">
+        <View style={styles.editSearchOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
+          <View style={[styles.editSearchModalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={[styles.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
+              <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>{t('change_search')}</Text>
+              <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={styles.editSearchModalClose}>
+                <Ionicons name="close" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.editSearchModalScroll} contentContainerStyle={styles.editSearchModalContent} keyboardShouldPersistTaps="handled">
+              <SearchFormContent
+                params={formParams}
+                update={updateFormParams}
+                tripType={tripType}
+                setTripType={setTripType}
+                onSearch={handleSidebarSearch}
+                loading={sidebarSearchLoading}
+                error={sidebarSearchError}
+                compact
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {isLoading && (
         <View
           style={[
@@ -275,100 +442,99 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         >
           <ActivityIndicator size="small" color={theme.primary} />
           <Text style={[styles.bannerText, { color: theme.primary }]}>
-            Loading more results…
+            {t('loading_more_results')}
           </Text>
         </View>
       )}
 
-      <View style={styles.main}>
-        {/* Filters: sidebar (desktop) or button (mobile) */}
-        {!isMobile && (
-          <FiltersPanel
-            variant="sidebar"
-            filters={filters}
-            onFiltersChange={(f) => searchActions.setFilters(f)}
-            results={results}
-            noResults={results.length === 0}
-          />
-        )}
-        <View style={styles.resultsColumn}>
-          <View
-            style={[
-              styles.toolbar,
-              { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-            ]}
-          >
-            <SortBar
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onSort={toggleSort}
-            />
-            {isMobile && (
-              <TouchableOpacity
-                style={[styles.filtersBtn, { backgroundColor: theme.controlBg }]}
-                onPress={() => setShowFiltersModal(true)}
-              >
-                <Text style={[styles.filtersBtnText, { color: theme.text }]}>Filters</Text>
-              </TouchableOpacity>
+      <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
+        {showSearchBesideResults ? (
+          <>
+            {/* RTL: Search (right) | Results (center) | Filters (left). LTR: Search (left) | Results (center) | Filters (right). */}
+            {isRTL ? (
+              <>
+                <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
+                  <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
+                  </ScrollView>
+                </View>
+                <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
+                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                  </View>
+                  {resultsList}
+                </Animated.View>
+                <FiltersPanel
+                  variant="sidebar"
+                  sidebarPosition="left"
+                  filters={filters}
+                  onFiltersChange={(f) => searchActions.setFilters(f)}
+                  results={results}
+                  noResults={results.length === 0}
+                />
+              </>
+            ) : (
+              <>
+                <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
+                  <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
+                  </ScrollView>
+                </View>
+                <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
+                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                  </View>
+                  {resultsList}
+                </Animated.View>
+                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} />
+              </>
             )}
-          </View>
-
-          {isMobile && (
-            <FiltersPanel
-              variant="modal"
-              visible={showFiltersModal}
-              onClose={() => setShowFiltersModal(false)}
-              filters={filters}
-              onFiltersChange={(f) => searchActions.setFilters(f)}
-              results={results}
-              noResults={results.length === 0}
-            />
-          )}
-
-          {isLoading && filtered.length === 0 ? (
-            <View style={styles.listContent}>
-              {[1, 2, 3, 4].map((i) => (
-                <SkeletonCard key={i} theme={theme} />
-              ))}
-            </View>
-          ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <FlightCard
-                option={item}
-                onPress={() => setDetailsOption(item)}
-                theme={theme}
+          </>
+        ) : (
+          <>
+            {!isMobile && (
+              <FiltersPanel
+                variant="sidebar"
+                sidebarPosition={isRTL ? 'right' : 'left'}
+                filters={filters}
+                onFiltersChange={(f) => searchActions.setFilters(f)}
+                results={results}
+                noResults={results.length === 0}
               />
             )}
-            ListEmptyComponent={
-              showEmpty ? (
-                <View style={styles.emptyWrap}>
-                  <ActivityIndicator size="large" color={theme.primary} />
-                  <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                    Searching for flights…
-                  </Text>
-                </View>
-              ) : showNoMatch ? (
-                <View style={styles.emptyWrap}>
-                  <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                    No flights match your filters
-                  </Text>
-                  <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                    Try changing stops or airlines in Filters.
-                  </Text>
-                </View>
-              ) : null
-            }
-            contentContainerStyle={
-              filtered.length === 0 && !showEmpty
-                ? styles.listContentEmpty
-                : styles.listContent
-            }
-          />
-          )}
-        </View>
+            <View style={styles.resultsColumn}>
+              <View
+                style={[
+                  styles.toolbar,
+                  { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+                ]}
+              >
+                <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                {isMobile && (
+                  <TouchableOpacity
+                    style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+                    onPress={() => setShowFiltersModal(true)}
+                  >
+                    <Ionicons name="filter-outline" size={18} color={theme.text} />
+                    <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {isMobile && (
+                <FiltersPanel
+                  variant="modal"
+                  visible={showFiltersModal}
+                  onClose={() => setShowFiltersModal(false)}
+                  filters={filters}
+                  onFiltersChange={(f) => searchActions.setFilters(f)}
+                  results={results}
+                  noResults={results.length === 0}
+                />
+              )}
+              <Animated.View style={{ flex: 1, opacity: fadeAnim }}>{resultsList}</Animated.View>
+            </View>
+          </>
+        )}
       </View>
 
       <FlightDetailsModal
@@ -384,11 +550,64 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   summaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
+    gap: 16,
   },
-  summaryText: { fontSize: 16, fontWeight: '600' },
+  summaryText: { fontSize: 16, fontWeight: '600', flex: 1 },
+  editSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    gap: 6,
+  },
+  editSearchBtnText: { fontSize: 15, fontWeight: '600' },
+  editSearchOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  editSearchModalCard: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '90%',
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  editSearchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
+  editSearchModalTitle: { fontSize: 20, fontWeight: '700' },
+  editSearchModalClose: { padding: 8 },
+  editSearchModalCloseText: { fontSize: 20 },
+  editSearchModalScroll: { maxHeight: 480 },
+  editSearchModalContent: { padding: 20, paddingBottom: 32 },
+  searchColumn: {
+    width: 320,
+    minWidth: 260,
+    maxWidth: 380,
+    borderRightWidth: 1,
+  },
+  searchColumnRTL: {
+    borderRightWidth: 0,
+    borderLeftWidth: 1,
+  },
+  searchColumnScroll: { flex: 1 },
+  searchColumnContent: { padding: 16, paddingBottom: 32 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,21 +621,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
+    zIndex: 10,
+    position: 'sticky',
+    top: 0,
   },
   filtersBtn: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 14,
   },
   filtersBtnText: { fontSize: 15, fontWeight: '600' },
-  listContent: { paddingVertical: 12, paddingBottom: 32 },
-  listContentEmpty: { flexGrow: 1, justifyContent: 'center', padding: 32 },
+  listContent: { paddingVertical: 8, paddingBottom: 24 },
+  listContentEmpty: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
-  emptyText: { fontSize: 16, textAlign: 'center' },
+  emptyText: { fontSize: 15, textAlign: 'center', paddingHorizontal: 24 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   error: { fontSize: 18 },
 });

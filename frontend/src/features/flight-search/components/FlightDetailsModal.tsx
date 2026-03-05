@@ -9,10 +9,13 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import { getAffiliateProvider, getOutboundLink, type AffiliateProvider } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
+import { getDisplayPrice } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 function formatDuration(min: number): string {
@@ -54,11 +57,11 @@ function SegmentRow({
   );
 }
 
-function baggageLabel(baggageClass: FlightOption['baggageClass']): string {
-  if (!baggageClass) return 'Checked bag: Unknown';
-  if (baggageClass === 'BAG_OK') return 'Checked bag: Not included';
-  if (baggageClass === 'BAG_INCLUDED') return 'Checked bag: Included';
-  return 'Checked bag: Unknown';
+function baggageLabel(baggageClass: FlightOption['baggageClass'], t: (k: string) => string): string {
+  if (!baggageClass) return t('checked_bag_unknown');
+  if (baggageClass === 'BAG_OK') return `${t('checked_bag')}: ${t('not_included')}`;
+  if (baggageClass === 'BAG_INCLUDED') return `${t('checked_bag')}: ${t('included')}`;
+  return t('checked_bag_unknown');
 }
 
 interface FlightDetailsModalProps {
@@ -75,6 +78,7 @@ export function FlightDetailsModal({
   option,
 }: FlightDetailsModalProps) {
   const { theme } = useTheme();
+  const { t, currency: displayCurrency } = useLocale();
   const [provider, setProvider] = useState<AffiliateProvider | null>(null);
   const [bookLoading, setBookLoading] = useState(false);
 
@@ -137,46 +141,54 @@ export function FlightDetailsModal({
   const validatingCode = option.validatingAirlines?.[0];
   const validatingName = getAirlineName(validatingCode) ?? validatingCode ?? 'Flight';
 
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 600;
+  const modalStyle = isNarrow
+    ? [styles.card, styles.cardBottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]
+    : [styles.card, styles.cardCentered, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }];
+
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
-          ]}
-        >
+      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }, isNarrow && styles.overlayBottomSheet]}>
+        <View style={modalStyle}>
           <View style={[styles.header, { borderBottomColor: theme.cardBorder }]}>
-            <Text style={[styles.title, { color: theme.text }]}>Flight details</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('flight_details')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={[styles.closeText, { color: theme.primary }]}>Close</Text>
+              <Text style={[styles.closeText, { color: theme.primary }]}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             <Text style={[styles.price, { color: theme.primary }]}>
-              {option.price.currency} {option.price.amount.toFixed(2)}
+              {(() => {
+                const { amount, currency } = getDisplayPrice(
+                  option.price.amount,
+                  option.price.currency,
+                  displayCurrency
+                );
+                return `${currency} ${amount.toFixed(2)}`;
+              })()}
             </Text>
             <Text style={[styles.airline, { color: theme.text }]}>{validatingName}</Text>
             <Text style={[styles.meta, { color: theme.textMuted }]}>
               {formatDuration(option.durationMinutes)} ·{' '}
               {option.legs.reduce((a, l) => a + l.segments.length - 1, 0) === 0
-                ? 'Direct'
-                : `${option.legs.reduce((a, l) => a + l.segments.length - 1, 0)} stop(s)`}
+                ? t('direct')
+                : `${option.legs.reduce((a, l) => a + l.segments.length - 1, 0)} ${t('stops')}`}
             </Text>
             {option.baggageClass != null && (
               <View style={styles.badgeWrap}>
                 <Text style={[styles.badge, { color: theme.textMuted }]}>
-                  Cabin bag: 1
+                  {t('cabin_bag_1')}
                 </Text>
                 <Text style={[styles.badge, { color: theme.textMuted }]}>
-                  {baggageLabel(option.baggageClass)}
+                  {baggageLabel(option.baggageClass, t)}
                 </Text>
               </View>
             )}
             {option.legs.map((leg, i) => (
               <View key={i} style={styles.legBlock}>
                 <Text style={[styles.legLabel, { color: theme.text }]}>
-                  {option.legs.length > 1 ? (i === 0 ? 'Outbound' : 'Return') : 'Flight'}
+                  {option.legs.length > 1 ? (i === 0 ? t('outbound') : t('return_leg')) : t('flight_leg')}
                 </Text>
                 {leg.segments.map((seg, j) => (
                   <SegmentRow key={j} seg={seg} theme={theme} />
@@ -194,12 +206,12 @@ export function FlightDetailsModal({
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={styles.bookBtnText}>
-                  Book on {provider?.name ?? 'partner site'}
+                  {t('book_on')} {provider?.name ?? t('partner_site')}
                 </Text>
               )}
             </TouchableOpacity>
             <Text style={[styles.disclaimer, { color: theme.textMuted }]}>
-              You'll complete your booking on the partner site. We don't process payments.
+              {t('booking_disclaimer')}
             </Text>
           </View>
         </View>
@@ -213,11 +225,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  overlayBottomSheet: {
+    justifyContent: 'flex-end',
+  },
   card: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
     borderWidth: 1,
+  },
+  cardBottomSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '90%',
+  },
+  cardCentered: {
+    alignSelf: 'center',
+    marginVertical: 24,
+    borderRadius: 16,
+    maxHeight: '85%',
+    maxWidth: 480,
   },
   header: {
     flexDirection: 'row',

@@ -8,10 +8,16 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import { useDealsStore, dealsActions, searchActions } from '../../../store';
 import { getMonthDeals, getFlightDetails, createSearchSession } from '../../../api';
-import { AirportInput } from '../../flight-search/components/AirportInput';
+import { getDisplayPrice } from '../../../utils/exchangeRates';
+import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
+import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
+import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
+import { useIsMobile } from '../../../hooks/useResponsive';
 import type { DayDeal, FlightDetailsResponse } from '../../../types';
 
 const MONTHS = [
@@ -29,15 +35,22 @@ function formatDealDate(dateStr: string): string {
 
 export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
+  const { currency, locale, t, isRTL } = useLocale();
+  const isMobile = useIsMobile();
   const { route, year, month, durationDays, data, isLoading, error } = useDealsStore();
-  const [origin, setOrigin] = useState(route?.origin ?? 'TLV');
-  const [destination, setDestination] = useState(route?.destination ?? 'HND');
+  const pending = typeof window !== 'undefined' ? getPendingDealsParams() : null;
+  const [origin, setOrigin] = useState(pending?.origin ?? route?.origin ?? 'TLV');
+  const [destination, setDestination] = useState(pending?.destination ?? route?.destination ?? 'HND');
+  const [adults, setAdults] = useState(pending?.adults ?? 1);
+  const [children, setChildren] = useState(pending?.children ?? 0);
+  const [nonStop, setNonStop] = useState(pending?.nonStop ?? false);
   const [visibleCount, setVisibleCount] = useState(10);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [details, setDetails] = useState<FlightDetailsResponse | null>(null);
+  const themed = makeThemedStyles(theme);
 
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
@@ -48,12 +61,42 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     setVisibleCount(10);
   }, [data]);
 
-  // Best deals = days with a price, sorted by price ascending
+  // Restore pending params after reload (e.g. from passenger-change re-search)
+  useEffect(() => {
+    const toRestore = typeof window !== 'undefined' ? getPendingDealsParams() : null;
+    if (!toRestore || !toRestore.origin?.trim() || !toRestore.destination?.trim()) return;
+    if (toRestore.year) dealsActions.setMonth(toRestore.year, toRestore.month);
+    if (toRestore.durationDays) dealsActions.setDurationDays(toRestore.durationDays);
+    clearPendingDealsParams();
+    const o = toRestore.origin.trim();
+    const d = toRestore.destination.trim();
+    dealsActions.setLoading(true);
+    dealsActions.setError(null);
+    getMonthDeals({
+      origin: o,
+      destination: d,
+      year: toRestore.year,
+      month: toRestore.month,
+      durationDays: toRestore.durationDays,
+      currency,
+      adults: toRestore.adults,
+      children: toRestore.children,
+      nonStop: toRestore.nonStop,
+    })
+      .then(res => dealsActions.setData(res))
+      .catch(e =>
+        dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals')
+      )
+      .finally(() => dealsActions.setLoading(false));
+  }, []);
+
   const bestDeals: DayDeal[] = (data?.days ?? [])
     .filter(d => d.lowestPrice != null && d.lowestPrice.amount > 0)
     .sort((a, b) => (a.lowestPrice!.amount - b.lowestPrice!.amount));
   const visibleDeals = bestDeals.slice(0, visibleCount);
   const hasMore = bestDeals.length > visibleCount;
+  /** When we have fetched data and viewport is wide, use two-column layout: hero left, results right */
+  const hasResultsLayout = data != null && !isMobile;
 
   const handleSearchDeals = () => {
     const o = origin.trim();
@@ -64,13 +107,45 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     }
     dealsActions.setLoading(true);
     dealsActions.setError(null);
-    getMonthDeals({ origin: o, destination: d, year, month, durationDays })
+    getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
       .then(res => dealsActions.setData(res))
       .catch(e =>
         dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals')
       )
       .finally(() => dealsActions.setLoading(false));
   };
+
+  // Re-fetch deals when passengers or nonStop change (prices depend on these).
+  // On web, reload the page after fetch so prices display correctly.
+  useEffect(() => {
+    if (!data || !origin.trim() || !destination.trim()) return;
+    const o = origin.trim();
+    const d = destination.trim();
+    dealsActions.setLoading(true);
+    dealsActions.setError(null);
+    getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
+      .then(res => {
+        dealsActions.setData(res);
+        if (typeof window !== 'undefined') {
+          setPendingDealsParams({
+            origin: o,
+            destination: d,
+            year,
+            month,
+            durationDays,
+            adults,
+            children,
+            nonStop,
+          });
+          window.location.reload();
+        }
+      })
+      .catch(e =>
+        dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals')
+      )
+      .finally(() => dealsActions.setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when passengers/filter change
+  }, [adults, children, nonStop]);
 
   const openDetails = async (date: string) => {
     const o = origin.trim().toUpperCase();
@@ -87,6 +162,9 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         destination: d,
         date,
         durationDays,
+        currency,
+        adults,
+        children,
       });
       setDetails(res);
     } catch (e) {
@@ -105,11 +183,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       destination: d,
       departureDate: selectedDate,
       cabinClass: 'ECONOMY' as const,
-      adults: 1,
-      children: 0,
+      adults,
+      children,
       infants: 0,
-      currency: 'USD',
-      locale: 'en-US',
+      currency,
+      locale,
     };
     searchActions.setParams(params as any);
     try {
@@ -126,102 +204,181 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     }
   };
 
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.screenBg }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: theme.text }]}>Monthly Deals</Text>
-      <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-        Best round-trip deals for a month. Tap a deal to search flights for that date.
+  const heroCard = (
+    <View style={[styles.hero, hasResultsLayout ? styles.heroSide : styles.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="calendar-outline" size={24} color={theme.text} />
+          <Text style={themed.heroTitle}>{t('monthly_deals')}</Text>
+        </View>
+      <Text style={themed.heroSubtitle}>
+        {t('monthly_deals_hero')}
       </Text>
 
-      <AirportInput
-        label="From"
+      <AirportAutocomplete
+        label={t('from')}
         value={origin}
-        onChange={code => setOrigin(code)}
-        placeholder="City or airport"
+        onChange={setOrigin}
+        placeholder={t('city_or_airport')}
       />
-      <AirportInput
-        label="To"
+      <AirportAutocomplete
+        label={t('to')}
         value={destination}
-        onChange={code => setDestination(code)}
-        placeholder="City or airport"
+        onChange={setDestination}
+        placeholder={t('city_or_airport')}
       />
 
-      <Text style={[styles.label, { color: theme.text }]}>Trip duration (days)</Text>
+      <PassengerCabinPicker
+        adults={adults}
+        children={children}
+        cabinClass="ECONOMY"
+        onAdultsChange={setAdults}
+        onChildrenChange={setChildren}
+        onCabinChange={() => {}}
+        label={t('passengers_cabin')}
+        passengersOnly
+      />
+
+      <View style={[styles.filterRow, { borderColor: theme.inputBorder }]}>
+        <Text style={[styles.filterLabel, { color: theme.text }]}>{t('non_stop_only')}</Text>
+        <TouchableOpacity
+          style={[styles.radioBtn, { backgroundColor: theme.controlBg, borderColor: theme.inputBorder }, nonStop && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+          onPress={() => setNonStop(!nonStop)}
+        >
+          <Text style={[styles.radioBtnText, { color: nonStop ? '#fff' : theme.text }]}>{nonStop ? '✓' : ''}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={themed.label}>{t('trip_duration_days')}</Text>
       <View style={styles.durationRow}>
         <TouchableOpacity
-          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd, borderWidth: 1, borderColor: theme.inputBorder }]}
+          style={[styles.stepperBtn, themed.stepperBtn]}
           onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}
         >
-          <Text style={[styles.stepperText, { color: theme.text }]}>−</Text>
+          <Text style={themed.stepperBtnText}>−</Text>
         </TouchableOpacity>
-        <Text style={[styles.durationValue, { color: theme.text }]}>{durationDays} days</Text>
+        <Text style={themed.durationValue}>{durationDays} {t('days')}</Text>
         <TouchableOpacity
-          style={[styles.stepperBtn, { backgroundColor: theme.controlBg, borderRadius: theme.radiusMd, borderWidth: 1, borderColor: theme.inputBorder }]}
+          style={[styles.stepperBtn, themed.stepperBtn]}
           onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}
         >
-          <Text style={[styles.stepperText, { color: theme.text }]}>+</Text>
+          <Text style={themed.stepperBtnText}>+</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.monthNav, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: theme.radiusMd, paddingVertical: 12, paddingHorizontal: 16 }]}>
+      <View style={[styles.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd }]}>
         <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={styles.navBtn}>
-          <Text style={[styles.navText, { color: theme.primary }]}>← Prev</Text>
+          <Text style={themed.navText}>← {t('prev')}</Text>
         </TouchableOpacity>
-        <Text style={[styles.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
+        <Text style={[themed.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
         <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={styles.navBtn}>
-          <Text style={[styles.navText, { color: theme.primary }]}>Next →</Text>
+          <Text style={themed.navText}>{t('next')} →</Text>
         </TouchableOpacity>
       </View>
+
+      {error ? <Text style={themed.error}>{error}</Text> : null}
 
       <TouchableOpacity
-        style={[styles.searchBtn, { backgroundColor: theme.primary }, (!origin.trim() || !destination.trim()) && styles.searchBtnDisabled]}
+        style={[themed.searchBtn, (!origin.trim() || !destination.trim() || isLoading) && styles.searchBtnDisabled]}
         disabled={!origin.trim() || !destination.trim() || isLoading}
         onPress={handleSearchDeals}
       >
-        <Text style={styles.searchBtnText}>
-          {isLoading ? 'Searching deals…' : 'Search deals'}
-        </Text>
+        {isLoading ? (
+          <Text style={themed.searchBtnText}>{t('loading_deals')}</Text>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="search" size={18} color={theme.buttonText} />
+            <Text style={themed.searchBtnText}>{t('search_deals')}</Text>
+          </View>
+        )}
       </TouchableOpacity>
+    </View>
+  );
 
-      {error ? <Text style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
-      {isLoading ? (
-        <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
-      ) : data != null && bestDeals.length === 0 ? (
-        <Text style={[styles.empty, { color: theme.textMuted }]}>
-          No deals found for this month. Try another month or route.
+  const resultsContent = (
+    isLoading && !data ? (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loaderText, { color: theme.textMuted }]}>{t('loading_deals')}</Text>
+      </View>
+    ) : data != null && bestDeals.length === 0 ? (
+      <View style={[styles.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+        <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('no_deals_month')}</Text>
+        <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+          {t('try_another_route')}
         </Text>
-      ) : data != null ? (
-        <View style={styles.list}>
-          <Text style={[styles.listTitle, { color: theme.textMuted }]}>
-            Best deals (cheapest first){bestDeals.length > 0 ? ` · ${bestDeals.length} total` : ''}
-          </Text>
-          {visibleDeals.map((day) => (
-            <TouchableOpacity
-              key={day.date}
-              style={[styles.dealCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: 1, borderRadius: theme.radiusLg }]}
-              onPress={() => openDetails(day.date)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.dealDate, { color: theme.text }]}>{formatDealDate(day.date)}</Text>
-              <Text style={[styles.dealPrice, { color: theme.primary }]}>
-                {day.lowestPrice!.currency} {day.lowestPrice!.amount.toFixed(0)}
-              </Text>
-              <Text style={[styles.dealHint, { color: theme.textMuted }]}>Tap to view details</Text>
-            </TouchableOpacity>
-          ))}
-          {hasMore && (
-            <TouchableOpacity
-              style={[styles.loadMoreBtn, { backgroundColor: theme.cardBg, borderColor: theme.inputBorder, borderWidth: 1 }]}
-              onPress={() => setVisibleCount(c => c + 10)}
-            >
-              <Text style={[styles.loadMoreText, { color: theme.primary }]}>
-                Load more ({bestDeals.length - visibleCount} left)
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : null}
+      </View>
+    ) : data != null ? (
+      <View style={styles.list}>
+        <Text style={[styles.listTitle, { color: theme.textMuted }]}>
+          {t('best_deals_first')}{bestDeals.length > 0 ? ` · ${bestDeals.length} total` : ''}
+        </Text>
+        {visibleDeals.map((day) => (
+          <TouchableOpacity
+            key={day.date}
+            style={[styles.dealCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+            onPress={() => openDetails(day.date)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.dealCardInner}>
+              <View>
+                <Text style={[styles.dealDate, { color: theme.text }]}>{formatDealDate(day.date)}</Text>
+                <Text style={[styles.dealPrice, { color: theme.primary }]}>
+                  {(() => {
+                    const { amount, currency: outCurr } = getDisplayPrice(
+                      day.lowestPrice!.amount,
+                      day.lowestPrice!.currency,
+                      currency
+                    );
+                    return `${outCurr} ${amount.toFixed(0)}`;
+                  })()}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.dealCta, { color: theme.primary }]}>{t('view_details')} →</Text>
+          </TouchableOpacity>
+        ))}
+        {hasMore && (
+          <TouchableOpacity
+            style={[styles.loadMoreBtn, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+            onPress={() => setVisibleCount(c => c + 10)}
+          >
+            <Text style={[styles.loadMoreText, { color: theme.primary }]}>
+              {t('load_more')} ({bestDeals.length - visibleCount} {t('left')})
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ) : null
+  );
 
+  return (
+    <View style={themed.container}>
+      {hasResultsLayout ? (
+        <View style={[styles.twoColumn, isRTL && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.heroColumn, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightColor: theme.cardBorder }]}>
+            <ScrollView contentContainerStyle={styles.heroColumnContent} keyboardShouldPersistTaps="handled">
+              {heroCard}
+            </ScrollView>
+          </View>
+          <ScrollView style={styles.resultsColumn} contentContainerStyle={styles.resultsColumnContent}>
+            {resultsContent}
+          </ScrollView>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.contentSingle} keyboardShouldPersistTaps="handled">
+          {heroCard}
+          {isLoading && !data ? (
+            <View style={styles.loaderWrap}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text style={[styles.loaderText, { color: theme.textMuted }]}>{t('loading_deals')}</Text>
+            </View>
+          ) : (
+            resultsContent
+          )}
+        </ScrollView>
+      )}
+
+      {/* Flight details modal – same style as FlightDetailsModal */}
       <Modal
         visible={showDetails}
         transparent
@@ -229,16 +386,18 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         onRequestClose={() => setShowDetails(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Flight details</Text>
-            {selectedDate && (
-              <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>
-            )}
+          <View style={[styles.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.cardBorder }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{t('flight_details')}</Text>
+              {selectedDate && (
+                <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>
+              )}
+            </View>
 
             {detailsLoading && (
               <View style={styles.modalLoaderRow}>
                 <ActivityIndicator size="small" color={theme.primary} />
-                <Text style={[styles.modalLoaderText, { color: theme.textMuted }]}>Loading flight details…</Text>
+                <Text style={[styles.modalLoaderText, { color: theme.textMuted }]}>{t('loading_flight_details')}</Text>
               </View>
             )}
 
@@ -247,12 +406,19 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             )}
 
             {details && !detailsLoading && (
-              <View style={styles.modalContent}>
+              <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent}>
                 <Text style={[styles.modalPrice, { color: theme.primary }]}>
-                  {details.totalPrice.currency} {details.totalPrice.amount.toFixed(0)}
+                  {(() => {
+                    const { amount, currency: outCurr } = getDisplayPrice(
+                      details.totalPrice.amount,
+                      details.totalPrice.currency,
+                      currency
+                    );
+                    return `${outCurr} ${amount.toFixed(0)}`;
+                  })()}
                 </Text>
                 <Text style={[styles.modalSection, { color: theme.textMuted }]}>
-                  Outbound · {details.departureDate}
+                  {t('outbound')} · {details.departureDate}
                 </Text>
                 {details.outbound.segments.map((seg, idx, arr) => {
                   const dep = new Date(seg.departureTime);
@@ -260,9 +426,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   const layover =
                     idx > 0
                       ? Math.round(
-                          (dep.getTime() -
-                            new Date(arr[idx - 1].arrivalTime).getTime()) /
-                            60000,
+                          (dep.getTime() - new Date(arr[idx - 1].arrivalTime).getTime()) / 60000,
                         )
                       : 0;
                   return (
@@ -283,7 +447,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   );
                 })}
                 <Text style={[styles.modalSection, { color: theme.textMuted }]}>
-                  Return · {details.returnDate}
+                  {t('return_leg')} · {details.returnDate}
                 </Text>
                 {details.return.segments.map((seg, idx, arr) => {
                   const dep = new Date(seg.departureTime);
@@ -291,9 +455,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   const layover =
                     idx > 0
                       ? Math.round(
-                          (dep.getTime() -
-                            new Date(arr[idx - 1].arrivalTime).getTime()) /
-                            60000,
+                          (dep.getTime() - new Date(arr[idx - 1].arrivalTime).getTime()) / 60000,
                         )
                       : 0;
                   return (
@@ -313,158 +475,219 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     </View>
                   );
                 })}
-              </View>
+              </ScrollView>
             )}
 
-            <View style={styles.modalButtonsRow}>
+            <View style={[styles.modalFooter, { borderTopColor: theme.cardBorder }]}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalSecondaryBtn, { backgroundColor: theme.controlBg }]}
                 onPress={() => setShowDetails(false)}
               >
-                <Text style={[styles.modalSecondaryText, { color: theme.text }]}>Close</Text>
+                <Text style={[styles.modalSecondaryText, { color: theme.text }]}>{t('close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: details ? theme.buttonBg : theme.controlBg }, !details && styles.modalPrimaryDisabled]}
+                style={[
+                  styles.modalBtn,
+                  { backgroundColor: details ? theme.buttonBg : theme.controlBg },
+                  !details && styles.modalPrimaryDisabled,
+                ]}
                 onPress={startSearchFromDetails}
                 disabled={!details}
               >
-                <Text style={[styles.modalPrimaryText, { color: theme.buttonText }]}>Search these dates</Text>
+                <Text style={[styles.modalPrimaryText, { color: theme.buttonText }]}>{t('search_these_dates')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
+function makeThemedStyles(theme: import('../../../theme/ThemeContext').Theme) {
+  return {
+    container: { flex: 1, backgroundColor: theme.screenBg },
+    heroTitle: { fontSize: 26, fontWeight: '700' as const, color: theme.text, marginBottom: 6 },
+    heroSubtitle: { fontSize: 15, color: theme.textMuted, marginBottom: 24 },
+    label: { fontSize: 16, fontWeight: '600' as const, marginBottom: 8, color: theme.text },
+    stepperBtn: {
+      backgroundColor: theme.controlBg,
+      borderRadius: theme.radiusMd,
+      borderWidth: 1,
+      borderColor: theme.inputBorder,
+    },
+    stepperBtnText: { color: theme.text, fontSize: 22, fontWeight: '600' as const },
+    durationValue: { marginHorizontal: 16, fontSize: 18, minWidth: 64, textAlign: 'center' as const, color: theme.text },
+    navText: { color: theme.primary, fontWeight: '600' as const, fontSize: 16 },
+    monthTitle: { fontSize: 18, fontWeight: '700' as const },
+    error: { color: theme.error, marginTop: 12, fontSize: 16 },
+    searchBtn: {
+      marginTop: 24,
+      backgroundColor: theme.buttonBg,
+      paddingVertical: 18,
+      borderRadius: theme.radiusLg,
+      alignItems: 'center' as const,
+    },
+    searchBtnText: { color: theme.buttonText, fontSize: 18, fontWeight: '600' as const },
+  };
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  content: { padding: 24, paddingBottom: 48 },
-  title: { fontSize: 32, fontWeight: '700', marginBottom: 8, color: '#333' },
-  subtitle: { fontSize: 18, color: '#555', marginBottom: 20 },
-  label: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8, color: '#333' },
-  input: {
-    backgroundColor: '#fff',
+  twoColumn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  heroColumn: {
+    width: 380,
+    minWidth: 380,
+    borderRightWidth: 1,
+  },
+  heroColumnContent: {
+    padding: 20,
+    paddingBottom: 48,
+  },
+  resultsColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  resultsColumnContent: {
+    padding: 20,
+    paddingBottom: 48,
+  },
+  contentSingle: {
+    padding: 20,
+    paddingBottom: 48,
+    maxWidth: 640,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  hero: {
+    borderRadius: 20,
+    padding: 24,
     borderWidth: 1,
-    borderColor: '#ddd',
+  },
+  heroCenter: {
+    marginBottom: 24,
+  },
+  heroSide: {
+    marginBottom: 0,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 12,
-    padding: 16,
-    fontSize: 20,
+    borderWidth: 1,
+  },
+  filterLabel: { fontSize: 16, fontWeight: '600' },
+  radioBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioBtnText: { fontSize: 16, fontWeight: '600' },
+  durationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  stepperBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 16,
-  },
-  navBtn: { padding: 12 },
-  navText: { color: '#1a73e8', fontWeight: '600', fontSize: 18 },
-  monthTitle: { fontSize: 22, fontWeight: '700' },
-  error: { color: '#c62828', marginBottom: 12, fontSize: 18 },
-  loader: { marginVertical: 32 },
-  empty: { color: '#666', marginTop: 20, textAlign: 'center', fontSize: 18 },
-  list: { marginTop: 12 },
-  listTitle: { fontSize: 18, fontWeight: '600', color: '#555', marginBottom: 12 },
-  dealCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
-  dealDate: { fontSize: 20, fontWeight: '600' },
-  dealPrice: { fontSize: 24, fontWeight: '700', color: '#1a73e8', marginTop: 6 },
-  dealHint: { fontSize: 16, color: '#888', marginTop: 6 },
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 16,
-  },
-  stepperBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
+  navBtn: { padding: 8 },
+  searchBtnDisabled: { opacity: 0.5 },
+  loaderWrap: { alignItems: 'center', paddingVertical: 48 },
+  loaderText: { marginTop: 16, fontSize: 16 },
+  emptyCard: {
+    borderRadius: 20,
+    padding: 32,
+    borderWidth: 1,
     alignItems: 'center',
   },
-  stepperText: { fontSize: 20, fontWeight: '600', color: '#333' },
-  durationValue: { fontSize: 18, fontWeight: '600', minWidth: 90 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  emptySubtitle: { fontSize: 15 },
+  list: { marginTop: 8 },
+  listTitle: { fontSize: 15, marginBottom: 12 },
+  dealCard: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  dealCardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dealDate: { fontSize: 18, fontWeight: '600' },
+  dealPrice: { fontSize: 22, fontWeight: '700', marginTop: 6 },
+  dealCta: { marginTop: 12, fontSize: 15, fontWeight: '600' },
   loadMoreBtn: {
     marginTop: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#ddd',
   },
-  loadMoreText: { color: '#1a73e8', fontWeight: '600', fontSize: 18 },
-  searchBtn: {
-    marginTop: 12,
-    paddingVertical: 18,
-    borderRadius: 12,
-    backgroundColor: '#1a73e8',
-    alignItems: 'center',
-  },
-  searchBtnDisabled: {
-    opacity: 0.5,
-  },
-  searchBtnText: { color: '#fff', fontWeight: '600', fontSize: 18 },
+  loadMoreText: { fontWeight: '600', fontSize: 17 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalCard: {
     width: '100%',
-    maxHeight: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
+    maxWidth: 480,
+    maxHeight: '85%',
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  modalTitle: { fontSize: 22, fontWeight: '700' },
-  modalSubtitle: { fontSize: 18, color: '#555', marginTop: 6, marginBottom: 12 },
-  modalLoaderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 12 },
-  modalLoaderText: { color: '#555', fontSize: 18 },
-  modalError: { color: '#c62828', marginTop: 16, fontSize: 18 },
-  modalContent: { marginTop: 12 },
-  modalPrice: { fontSize: 24, fontWeight: '700', color: '#1a73e8', marginBottom: 12 },
-  modalSection: { marginTop: 12, fontWeight: '600', fontSize: 18 },
+  modalHeader: { padding: 20, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  modalSubtitle: { fontSize: 16, marginTop: 4 },
+  modalLoaderRow: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 12 },
+  modalLoaderText: { fontSize: 16 },
+  modalError: { margin: 20, fontSize: 16 },
+  modalScroll: { maxHeight: 360 },
+  modalContent: { padding: 20, paddingBottom: 16 },
+  modalPrice: { fontSize: 24, fontWeight: '700', marginBottom: 12 },
+  modalSection: { marginTop: 12, fontWeight: '600', fontSize: 16 },
   modalSegmentRow: { marginTop: 6 },
-  modalLayover: { fontSize: 16, color: '#666' },
-  modalSegment: { fontSize: 17, color: '#333' },
-  modalButtonsRow: {
+  modalLayover: { fontSize: 14 },
+  modalSegment: { fontSize: 16 },
+  modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-    marginTop: 20,
+    padding: 20,
+    borderTopWidth: 1,
   },
   modalBtn: {
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
   },
-  modalSecondaryBtn: {
-    backgroundColor: '#eee',
-  },
-  modalSecondaryText: {
-    color: '#333',
-    fontWeight: '600',
-    fontSize: 18,
-  },
-  modalPrimaryDisabled: {
-    backgroundColor: '#90caf9',
-  },
-  modalPrimaryText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 18,
-  },
+  modalSecondaryBtn: {},
+  modalSecondaryText: { fontWeight: '600', fontSize: 16 },
+  modalPrimaryDisabled: { opacity: 0.6 },
+  modalPrimaryText: { fontWeight: '600', fontSize: 16 },
 });

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
@@ -20,6 +22,8 @@ interface FiltersPanelProps {
   noResults?: boolean;
   /** When 'modal', show as bottom sheet with visible/onClose. When 'sidebar', render inline. */
   variant: 'modal' | 'sidebar';
+  /** For sidebar: 'left' = border on right, 'right' = border on left. Default 'left'. */
+  sidebarPosition?: 'left' | 'right';
   visible?: boolean;
   onClose?: () => void;
 }
@@ -30,22 +34,29 @@ export function FiltersPanel({
   results,
   noResults,
   variant,
+  sidebarPosition = 'left',
   visible,
   onClose,
 }: FiltersPanelProps) {
   const { theme } = useTheme();
+  const { t, isRTL } = useLocale();
   const isModal = variant === 'modal';
+  const [stopsOpen, setStopsOpen] = useState(true);
+  const [airlinesOpen, setAirlinesOpen] = useState(true);
 
-  const airlineCodes = useMemo(() => {
-    const set = new Set<string>();
+  const airlineCodesWithCount = useMemo(() => {
+    const countByCode: Record<string, number> = {};
     results.forEach((opt) => {
       opt.legs.forEach((leg) => {
         leg.segments.forEach((seg) => {
-          if (seg.marketingCarrier?.code) set.add(seg.marketingCarrier.code);
+          const code = seg.marketingCarrier?.code;
+          if (code) countByCode[code] = (countByCode[code] ?? 0) + 1;
         });
       });
     });
-    return Array.from(set).sort();
+    return Object.entries(countByCode)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, count]) => ({ code, count }));
   }, [results]);
 
   const toggleAirline = (code: string) => {
@@ -55,66 +66,92 @@ export function FiltersPanel({
     onFiltersChange({ airlines: list });
   };
 
+  const stopsLabel = (max: number | null) =>
+    max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
+
   const content = (
     <>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Stops</Text>
-      <View style={styles.chipRow}>
-        {([null, 0, 1, 2] as const).map((max) => (
-          <TouchableOpacity
-            key={max ?? 'any'}
-            style={[
-              styles.chip,
-              { backgroundColor: theme.controlBg, borderColor: theme.inputBorder },
-              filters.maxStops === max && { backgroundColor: theme.primary, borderColor: theme.primary },
-            ]}
-            onPress={() => onFiltersChange({ maxStops: max })}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                { color: theme.text },
-                filters.maxStops === max && { color: '#fff', fontWeight: '600' },
-              ]}
-            >
-              {max === null ? 'Any' : max === 0 ? 'Direct' : max === 1 ? '1 stop' : '2+'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {airlineCodes.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Airlines</Text>
-          <View style={styles.airlineList}>
-            {airlineCodes.map((code) => {
-              const name = getAirlineName(code) || code;
-              const selected = filters.airlines.includes(code);
-              return (
-                <TouchableOpacity
-                  key={code}
-                  style={[styles.airlineRow, { borderBottomColor: theme.cardBorder }]}
-                  onPress={() => toggleAirline(code)}
+      <TouchableOpacity
+        style={[styles.sectionHeader, { borderBottomColor: theme.cardBorder }]}
+        onPress={() => setStopsOpen((o) => !o)}
+      >
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('stops_section')}</Text>
+        <Text style={[styles.sectionChevron, { color: theme.textMuted }]}>{stopsOpen ? '▼' : '▶'}</Text>
+      </TouchableOpacity>
+      {stopsOpen && (
+        <View style={[styles.sectionBody, { borderBottomColor: theme.cardBorder }]}>
+          <View style={styles.chipRow}>
+            {([null, 0, 1, 2] as const).map((max) => (
+              <TouchableOpacity
+                key={max ?? 'any'}
+                style={[
+                  styles.chip,
+                  { backgroundColor: theme.controlBg, borderColor: theme.inputBorder },
+                  filters.maxStops === max && { backgroundColor: theme.primary, borderColor: theme.primary },
+                ]}
+                onPress={() => onFiltersChange({ maxStops: max })}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: theme.text },
+                    filters.maxStops === max && { color: '#fff', fontWeight: '600' },
+                  ]}
                 >
-                  <Text style={[styles.airlineName, { color: theme.text }]}>{name}</Text>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      { borderColor: theme.inputBorder },
-                      selected && { backgroundColor: theme.primary, borderColor: theme.primary },
-                    ]}
-                  >
-                    {selected && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                  {stopsLabel(max)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
+        </View>
+      )}
+
+      {airlineCodesWithCount.length > 0 && (
+        <>
+          <TouchableOpacity
+            style={[styles.sectionHeader, { borderBottomColor: theme.cardBorder }]}
+            onPress={() => setAirlinesOpen((o) => !o)}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('airlines_section')}</Text>
+            <Text style={[styles.sectionChevron, { color: theme.textMuted }]}>{airlinesOpen ? '▼' : '▶'}</Text>
+          </TouchableOpacity>
+          {airlinesOpen && (
+            <View style={[styles.sectionBody, { borderBottomColor: theme.cardBorder }]}>
+              <View style={styles.airlineList}>
+                {airlineCodesWithCount.map(({ code, count }) => {
+                  const name = getAirlineName(code) || code;
+                  const selected = filters.airlines.includes(code);
+                  return (
+                    <TouchableOpacity
+                      key={code}
+                      style={[styles.airlineRow, { borderBottomColor: theme.cardBorder }]}
+                      onPress={() => toggleAirline(code)}
+                    >
+                      <Text style={[styles.airlineName, { color: theme.text }]}>{name}</Text>
+                      <View style={styles.airlineMeta}>
+                        <Text style={[styles.airlineCount, { color: theme.textMuted }]}>{count}</Text>
+                        <View
+                          style={[
+                            styles.checkbox,
+                            { borderColor: theme.inputBorder },
+                            selected && { backgroundColor: theme.primary, borderColor: theme.primary },
+                          ]}
+                        >
+                          {selected && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </>
       )}
 
       {noResults && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
-          No results yet. Search to see airlines and filters.
+          {t('no_results_search_first')}
         </Text>
       )}
     </>
@@ -122,11 +159,14 @@ export function FiltersPanel({
 
   const panelContent = (
     <>
-      <View style={[styles.header, { borderBottomColor: theme.cardBorder }]}>
-        <Text style={[styles.title, { color: theme.text }]}>Filters</Text>
+      <View style={[styles.header, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="filter-outline" size={22} color={theme.text} />
+          <Text style={[styles.title, { color: theme.text }]}>{t('filters')}</Text>
+        </View>
         {isModal && onClose && (
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={[styles.closeText, { color: theme.primary }]}>Done</Text>
+            <Text style={[styles.closeText, { color: theme.primary }]}>{t('done')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -137,8 +177,11 @@ export function FiltersPanel({
   );
 
   if (variant === 'sidebar') {
+    const borderStyle = sidebarPosition === 'right'
+      ? { borderLeftWidth: 1, borderLeftColor: theme.cardBorder }
+      : { borderRightWidth: 1, borderRightColor: theme.cardBorder };
     return (
-      <View style={[styles.sidebar, { backgroundColor: theme.cardBg, borderRightColor: theme.cardBorder }]}>
+      <View style={[styles.sidebar, { backgroundColor: theme.cardBg }, borderStyle]}>
         {panelContent}
       </View>
     );
@@ -161,7 +204,6 @@ export function FiltersPanel({
 const styles = StyleSheet.create({
   sidebar: {
     width: 260,
-    borderRightWidth: 1,
     paddingTop: 16,
   },
   overlay: {
@@ -186,25 +228,41 @@ const styles = StyleSheet.create({
   closeBtn: { paddingVertical: 8, paddingHorizontal: 12 },
   closeText: { fontSize: 17, fontWeight: '600' },
   scroll: { maxHeight: 400 },
-  scrollContent: { padding: 20, paddingBottom: 32 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, marginTop: 16 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  chip: {
+  scrollContent: { padding: 12, paddingBottom: 24 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sectionTitle: { fontSize: 14, fontWeight: '600' },
+  sectionChevron: { fontSize: 10 },
+  sectionBody: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
   },
-  chipText: { fontSize: 15 },
-  airlineList: { marginTop: 4 },
+  chipText: { fontSize: 13 },
+  airlineList: { marginTop: 0 },
   airlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  airlineName: { fontSize: 16 },
+  airlineName: { fontSize: 14 },
+  airlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  airlineCount: { fontSize: 12, minWidth: 20, textAlign: 'right' },
   checkbox: {
     width: 24,
     height: 24,

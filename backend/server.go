@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,7 +16,65 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"flightcaptainweb/search"
 )
+
+const frankfurterURL = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=GBP,EUR,ILS,JPY"
+const exchangeRefreshInterval = 1 * time.Hour
+
+var (
+	exchangeRatesMu   sync.RWMutex
+	exchangeRatesToUSD = map[string]float64{
+		"USD": 1.0,
+		"GBP": 1.27,
+		"EUR": 1.08,
+		"ILS": 0.27,
+		"JPY": 0.0067,
+	}
+)
+
+func fetchExchangeRates() {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(frankfurterURL)
+	if err != nil {
+		log.Printf("[EXCHANGE] fetch failed (using fallback rates): %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[EXCHANGE] status %d (using fallback rates)", resp.StatusCode)
+		return
+	}
+	var data struct {
+		Base  string             `json:"base"`
+		Rates map[string]float64 `json:"rates"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("[EXCHANGE] decode failed (using fallback rates): %v", err)
+		return
+	}
+	exchangeRatesMu.Lock()
+	defer exchangeRatesMu.Unlock()
+	exchangeRatesToUSD["USD"] = 1.0
+	for curr, perUSD := range data.Rates {
+		if perUSD > 0 {
+			exchangeRatesToUSD[curr] = 1.0 / perUSD // 1 unit of curr = X USD
+		}
+	}
+	log.Printf("[EXCHANGE] updated rates (date from API): USD=1 GBP=%.4f EUR=%.4f ILS=%.4f JPY=%.6f",
+		exchangeRatesToUSD["GBP"], exchangeRatesToUSD["EUR"], exchangeRatesToUSD["ILS"], exchangeRatesToUSD["JPY"])
+}
+
+func startExchangeRateRefresh() {
+	fetchExchangeRates()
+	go func() {
+		ticker := time.NewTicker(exchangeRefreshInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			fetchExchangeRates()
+		}
+	}()
+}
 
 type SearchSessionStatus string
 
@@ -61,6 +120,13 @@ func (r *CreateSearchSessionRequest) IncludeCheckedBagOrDefault() bool {
 	return r.IncludeCheckedBag
 }
 
+func (r *CreateSearchSessionRequest) ChildrenOrDefault() int {
+	if r.Children < 0 {
+		return 0
+	}
+	return r.Children
+}
+
 type MonetaryAmount struct {
 	Currency string  `json:"currency"`
 	Amount   float64 `json:"amount"`
@@ -97,8 +163,9 @@ type FlightOption struct {
 	ValidatingAirlines    []string       `json:"validatingAirlines,omitempty"`
 	BaggageClass          string         `json:"baggageClass,omitempty"`   // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
 	PrimaryDisplayCarrier string         `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
-	Source                string         `json:"source,omitempty"`           // "amadeus" | "duffel"
+	Source                string         `json:"source,omitempty"`           // "amadeus" | "duffel" | "compare"
 	DeepLink              string         `json:"deepLink,omitempty"`        // provider booking link (e.g. Duffel)
+	VendorName            string         `json:"vendorName,omitempty"`      // OTA name (kayak/expedia etc) when source=compare
 }
 
 type SearchSessionResultsResponse struct {
@@ -112,8 +179,9 @@ var (
 	sessionsMu         sync.RWMutex
 	rawOffersBySession = make(map[string][]map[string]interface{})
 	rawOffersMu        sync.RWMutex
-	amadeusClient      *AmadeusClient
-	duffelClient       *DuffelClient
+	amadeusClient         *AmadeusClient
+	duffelClient          *DuffelClient
+	googleFlights2Provider *search.GoogleFlights2Provider
 )
 
 const (
@@ -465,9 +533,6 @@ func appendDebugLog(entry map[string]any) {
 // #endregion
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
@@ -487,6 +552,17 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
+	}
+	// Normalize and ensure currency defaults to USD when empty or unsupported
+	req.Currency = strings.TrimSpace(strings.ToUpper(req.Currency))
+	if req.Currency == "" {
+		req.Currency = "USD"
+	}
+	switch req.Currency {
+	case "USD", "GBP", "EUR", "ILS", "JPY":
+		// use as-is
+	default:
+		req.Currency = "USD"
 	}
 
 	appendDebugLog(map[string]any{
@@ -533,6 +609,35 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
+	// Start Google Flights2 search in parallel when provider is configured (same as Duffel).
+	var gf2Ch chan []search.ProviderResult
+	if googleFlights2Provider != nil {
+		gf2Ch = make(chan []search.ProviderResult, 1)
+		go func() {
+			sreq := search.SearchRequest{
+				Origin:            strings.ToUpper(req.Origin),
+				Destination:       strings.ToUpper(req.Destination),
+				DepartureDate:     req.DepartureDate,
+				ReturnDate:        req.ReturnDate,
+				CabinClass:        req.CabinClass,
+				CabinPreference:   cabinPref,
+				IncludeCheckedBag: includeBag,
+				Adults:            req.Adults,
+				Children:          req.ChildrenOrDefault(),
+				Infants:           req.Infants,
+				Currency:          req.CurrencyOrDefault(),
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			res, err := googleFlights2Provider.Search(ctx, sreq)
+			if err != nil {
+				gf2Ch <- nil
+				return
+			}
+			gf2Ch <- res
+		}()
+	}
+
 	var offers []map[string]interface{}
 	var outboundOffersReturned, returnOffersReturned int
 	var combosGenerated int
@@ -543,14 +648,15 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		origin := strings.ToUpper(req.Origin)
 		dest := strings.ToUpper(req.Destination)
 
-		outResp, err := amadeusClient.FlightOffersSearch(origin, dest, req.DepartureDate, "", mainSearchMaxOffers, cabinPref)
+		currency := req.CurrencyOrDefault()
+		outResp, err := amadeusClient.FlightOffersSearch(origin, dest, req.DepartureDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
 		if err != nil {
 			log.Printf("FlightOffersSearch (outbound) error: %v", err)
 			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": err.Error()}})
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("search failed: %v", err)})
 			return
 		}
-		retResp, err := amadeusClient.FlightOffersSearch(dest, origin, req.ReturnDate, "", mainSearchMaxOffers, cabinPref)
+		retResp, err := amadeusClient.FlightOffersSearch(dest, origin, req.ReturnDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
 		if err != nil {
 			log.Printf("FlightOffersSearch (return) error: %v", err)
 			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": err.Error()}})
@@ -650,6 +756,10 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			"",
 			mainSearchMaxOffers,
 			cabinPref,
+			req.CurrencyOrDefault(),
+			req.Adults,
+			req.ChildrenOrDefault(),
+			false,
 		)
 		if err != nil {
 			log.Printf("FlightOffersSearch error: %v", err)
@@ -805,18 +915,13 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	options := normalizeFlightOptions(offers, &req)
 
 	// Merge Duffel results if available (ran in parallel).
+	requestedCurr := req.CurrencyOrDefault()
 	if duffelCh != nil {
 		duffelResult := <-duffelCh
 		if duffelResult.Err != nil {
 			log.Printf("[DUFFEL] search error: %v", duffelResult.Err)
 		} else {
 			options = append(options, duffelResult.Options...)
-			sort.Slice(options, func(i, j int) bool {
-				return options[i].Price.Amount < options[j].Price.Amount
-			})
-			if len(options) > maxOffersReturnedToClient {
-				options = options[:maxOffersReturnedToClient]
-			}
 			// [DUFFEL_SUMMARY]
 			duffelOffers := duffelResult.Options
 			offersReturned := len(duffelOffers)
@@ -841,6 +946,27 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[DUFFEL_SUMMARY] offersReturned=%d cheapest=%.2f carriersSample=%v latency=%dms",
 				offersReturned, cheapest, carriersSample, duffelResult.LatencyMs)
 		}
+	}
+
+	// Merge Google Flights2 results if available (never fail whole request on GF2 failure).
+	if gf2Ch != nil {
+		gf2Results := <-gf2Ch
+		if len(gf2Results) > 0 {
+			gf2Opts := providerResultsToFlightOptions(gf2Results)
+			options = append(options, gf2Opts...)
+		}
+	}
+
+	// Best-effort dedupe: same origin+dest, depart within 10 min, same carrier+flight when available.
+	options = dedupeFlightOptions(options)
+
+	// Convert all option prices to the requested currency (so Amadeus + Duffel + GF2 results are comparable and displayed in user's choice).
+	convertOptionsToCurrency(options, requestedCurr)
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Price.Amount < options[j].Price.Amount
+	})
+	if len(options) > maxOffersReturnedToClient {
+		options = options[:maxOffersReturnedToClient]
 	}
 
 	if len(options) > 0 {
@@ -962,6 +1088,35 @@ func randomID(prefix string) string {
 	return prefix + strconv.FormatInt(time.Now().UnixNano()+int64(rand.IntN(1000)), 36)
 }
 
+// convertPrice converts amount from fromCurr to toCurr using live rates. Returns (convertedAmount, toCurr). If rates unknown, returns original.
+func convertPrice(amount float64, fromCurr, toCurr string) (float64, string) {
+	if fromCurr == toCurr || amount <= 0 {
+		return amount, toCurr
+	}
+	exchangeRatesMu.RLock()
+	fromRate, okFrom := exchangeRatesToUSD[fromCurr]
+	toRate, okTo := exchangeRatesToUSD[toCurr]
+	exchangeRatesMu.RUnlock()
+	if !okFrom || !okTo || toRate <= 0 {
+		return amount, fromCurr
+	}
+	usd := amount * fromRate
+	return usd / toRate, toCurr
+}
+
+// convertOptionsToCurrency converts all options' prices to requestedCurr in place.
+func convertOptionsToCurrency(options []FlightOption, requestedCurr string) {
+	for i := range options {
+		p := &options[i].Price
+		if p.Currency == requestedCurr {
+			continue
+		}
+		converted, _ := convertPrice(p.Amount, p.Currency, requestedCurr)
+		p.Amount = converted
+		p.Currency = requestedCurr
+	}
+}
+
 // normalizeFlightOptions converts raw Amadeus offers into the simplified FlightOption shape.
 func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSessionRequest) []FlightOption {
 	var options []FlightOption
@@ -1076,6 +1231,82 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 	}
 
 	return options
+}
+
+// providerResultsToFlightOptions converts search.ProviderResult to FlightOption.
+func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption {
+	var out []FlightOption
+	for _, pr := range prs {
+		var legs []FlightLeg
+		for _, l := range pr.Legs {
+			var segs []FlightSegment
+			for _, s := range l.Segments {
+				segs = append(segs, FlightSegment{
+					From:             AirportLike{Code: strings.ToUpper(s.From)},
+					To:               AirportLike{Code: strings.ToUpper(s.To)},
+					DepartureTime:    s.DepartureTime,
+					ArrivalTime:      s.ArrivalTime,
+					MarketingCarrier: Carrier{Code: s.MarketingCarrier},
+					FlightNumber:     s.FlightNumber,
+					DurationMinutes:  s.DurationMinutes,
+					CabinClass:       s.CabinClass,
+				})
+			}
+			legs = append(legs, FlightLeg{Segments: segs})
+		}
+		out = append(out, FlightOption{
+			ID:                    pr.ID,
+			Price:                 MonetaryAmount{Currency: pr.Price.Currency, Amount: pr.Price.Amount},
+			DurationMinutes:       pr.DurationMinutes,
+			Legs:                  legs,
+			ValidatingAirlines:     pr.ValidatingAirlines,
+			BaggageClass:          pr.BaggageClass,
+			PrimaryDisplayCarrier: pr.PrimaryDisplayCarrier,
+			Source:                pr.Source,
+			DeepLink:              pr.DeepLink,
+			VendorName:            pr.VendorName,
+		})
+	}
+	return out
+}
+
+// dedupeFlightOptions removes duplicates: same origin+dest, depart within 10 min, same carrier+flight when available.
+func dedupeFlightOptions(opts []FlightOption) []FlightOption {
+	seen := make(map[string]int) // key -> index of option to keep (lowest price)
+	for i, o := range opts {
+		origin := ""
+		dest := ""
+		depMin := int64(0)
+		carrier := ""
+		flight := ""
+		if len(o.Legs) > 0 && len(o.Legs[0].Segments) > 0 {
+			seg := o.Legs[0].Segments[0]
+			origin = seg.From.Code
+			dest = seg.To.Code
+			depMin = seg.DepartureTime.Unix() / 600 // 10-min bucket
+			carrier = seg.MarketingCarrier.Code
+			flight = seg.FlightNumber
+		}
+		key := fmt.Sprintf("%s-%s-%d-%s-%s", origin, dest, depMin, carrier, flight)
+		if j, exists := seen[key]; exists {
+			if opts[j].Price.Amount > o.Price.Amount {
+				seen[key] = i
+			}
+		} else {
+			seen[key] = i
+		}
+	}
+	keep := make(map[int]bool)
+	for _, idx := range seen {
+		keep[idx] = true
+	}
+	var out []FlightOption
+	for i, o := range opts {
+		if keep[i] {
+			out = append(out, o)
+		}
+	}
+	return out
 }
 
 func parseAmadeusTime(s string) (time.Time, error) {
@@ -1237,6 +1468,15 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	destination := strings.TrimSpace(strings.ToUpper(q.Get("destination")))
 	dateStr := q.Get("date")
 	durationStr := q.Get("durationDays")
+	currency := strings.TrimSpace(strings.ToUpper(q.Get("currency")))
+	if currency == "" {
+		currency = "USD"
+	}
+	switch currency {
+	case "USD", "GBP", "EUR", "ILS", "JPY":
+	default:
+		currency = "USD"
+	}
 
 	if origin == "" || destination == "" || dateStr == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin, destination and date are required"})
@@ -1256,10 +1496,23 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	adults := 1
+	if a := q.Get("adults"); a != "" {
+		if v, err := strconv.Atoi(a); err == nil && v >= 1 {
+			adults = v
+		}
+	}
+	children := 0
+	if ch := q.Get("children"); ch != "" {
+		if v, err := strconv.Atoi(ch); err == nil && v >= 0 {
+			children = v
+		}
+	}
+
 	endDate := startDate
 
 	// Reuse existing deals search for a single day to find the best round-trip.
-	deals, err := amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays)
+	deals, err := amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays, currency, adults, children, false)
 	if err != nil || len(deals) == 0 {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no deals found for requested date"})
 		return
@@ -1272,12 +1525,14 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		Destination:   destination,
 		DepartureDate: trip.OutboundDate,
 		CabinClass:    "ECONOMY",
+		Currency:      currency,
 	}
 	retReq := &CreateSearchSessionRequest{
 		Origin:        destination,
 		Destination:   origin,
 		DepartureDate: trip.ReturnDate,
 		CabinClass:    "ECONOMY",
+		Currency:      currency,
 	}
 
 	outOpt, err := normalizeSingleOffer(trip.OutboundFlight, outReq)
@@ -1332,9 +1587,6 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != http.MethodGet {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -1346,6 +1598,17 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	durationStr := r.URL.Query().Get("durationDays")
 	startDateStr := r.URL.Query().Get("startDate")
 	endDateStr := r.URL.Query().Get("endDate")
+	currency := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("currency")))
+	if currency == "" {
+		currency = "USD"
+	}
+	// Amadeus supports common codes; default to USD if unsupported
+	switch currency {
+	case "USD", "GBP", "EUR", "ILS", "JPY":
+		// use as-is
+	default:
+		currency = "USD"
+	}
 
 	if origin == "" || destination == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin and destination are required"})
@@ -1380,6 +1643,20 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	adults := 1
+	if a := r.URL.Query().Get("adults"); a != "" {
+		if v, err := strconv.Atoi(a); err == nil && v >= 1 {
+			adults = v
+		}
+	}
+	children := 0
+	if ch := r.URL.Query().Get("children"); ch != "" {
+		if v, err := strconv.Atoi(ch); err == nil && v >= 0 {
+			children = v
+		}
+	}
+	nonStop := strings.ToLower(r.URL.Query().Get("nonStop")) == "true"
+
 	if amadeusClient == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
 		return
@@ -1398,7 +1675,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid startDate/endDate (use YYYY-MM-DD)"})
 			return
 		}
-		deals, err = amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays)
+		deals, err = amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays, currency, adults, children, nonStop)
 		if err != nil {
 			log.Printf("[MONTH_DEALS] SearchDealsRange error: %v", err)
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("deals search failed: %v", err)})
@@ -1415,7 +1692,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 			date := d.Format("2006-01-02")
 			dayDeal := DayDeal{Date: date}
 			if amount, ok := byDate[date]; ok && amount > 0 {
-				dayDeal.LowestPrice = &MonetaryAmount{Currency: "USD", Amount: amount}
+				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: amount}
 			}
 			days = append(days, dayDeal)
 		}
@@ -1423,7 +1700,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		rangeMonth = int(startDate.Month())
 	} else {
 		monthTime := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-		deals, err = amadeusClient.SearchMonthDeals(origin, destination, monthTime, durationDays)
+		deals, err = amadeusClient.SearchMonthDeals(origin, destination, monthTime, durationDays, currency, adults, children, nonStop)
 		if err != nil {
 			log.Printf("[MONTH_DEALS] SearchMonthDeals error: %v", err)
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("month deals search failed: %v", err)})
@@ -1441,7 +1718,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 			date := fmt.Sprintf("%04d-%02d-%02d", year, month, d)
 			dayDeal := DayDeal{Date: date}
 			if amount, ok := byDate[date]; ok && amount > 0 {
-				dayDeal.LowestPrice = &MonetaryAmount{Currency: "USD", Amount: amount}
+				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: amount}
 			}
 			days = append(days, dayDeal)
 		}
@@ -1452,7 +1729,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	resp := MonthDealsResponse{
 		Year:     rangeYear,
 		Month:    rangeMonth,
-		Currency: "USD",
+		Currency: currency,
 		Days:     days,
 	}
 	resp.Route.Origin = AirportLike{Code: origin}
@@ -1484,12 +1761,18 @@ func handleAffiliateRedirect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
 		return
 	}
-	provider := ResolveProvider(option)
-	redirectURL := BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
+	var redirectURL string
+	if option.DeepLink != "" {
+		redirectURL = option.DeepLink
+	} else {
+		provider := ResolveProvider(option)
+		redirectURL = BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
+	}
 	if redirectURL == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build redirect URL"})
 		return
 	}
+	provider := ResolveProvider(option)
 	_ = RecordClick(sessionID, optionID, provider, redirectURL)
 	w.Header().Set("Location", redirectURL)
 	w.WriteHeader(http.StatusFound)
@@ -1516,12 +1799,18 @@ func handleAffiliateOutboundLink(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
 		return
 	}
-	provider := ResolveProvider(option)
-	redirectURL := BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
+	var redirectURL string
+	if option.DeepLink != "" {
+		redirectURL = option.DeepLink
+	} else {
+		provider := ResolveProvider(option)
+		redirectURL = BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
+	}
 	if redirectURL == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build redirect URL"})
 		return
 	}
+	provider := ResolveProvider(option)
 	clickID := RecordClick(sessionID, optionID, provider, redirectURL)
 	writeJSON(w, http.StatusOK, OutboundLinkResponse{
 		RedirectURL: redirectURL,
@@ -1588,12 +1877,34 @@ func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, summary)
 }
 
-// corsMiddleware adds CORS headers to every response and responds to OPTIONS.
+// handleHealth returns a simple JSON health status for uptime checks.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeJSON(w, http.StatusNoContent, nil)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// allowedCORSOrigins are origins allowed for CORS (production + dev).
+var allowedCORSOrigins = map[string]bool{
+	"https://fly-fix.com":   true,
+	"http://localhost:19006": true, // Expo web/dev
+	"http://localhost:8081":  true, // local web/dev
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		origin := r.Header.Get("Origin")
+		if allowedCORSOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -1603,15 +1914,32 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Load .env file for AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET, etc.
+	// Load .env file for AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET, DUFFEL_API_KEY, etc.
 	if err := godotenv.Load(); err != nil {
-		log.Println("Note: .env file not found; falling back to process environment.")
+		// Try backend/.env when run from project root
+		if err2 := godotenv.Load(filepath.Join("backend", ".env")); err2 != nil {
+			log.Println("Note: .env file not found; falling back to process environment.")
+		}
 	}
 
 	amadeusClient = NewAmadeusClient()
 	duffelClient = NewDuffelClient()
+	if duffelClient != nil {
+		log.Println("[STARTUP] Duffel client: enabled")
+	} else {
+		log.Println("[STARTUP] Duffel client: disabled (set DUFFEL_API_KEY in .env to enable)")
+	}
+	googleFlights2Provider = search.NewGoogleFlights2Provider()
+	if googleFlights2Provider != nil {
+		log.Println("[STARTUP] Google Flights2 provider: enabled")
+	} else {
+		log.Println("[STARTUP] Google Flights2 provider: disabled (set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY)")
+	}
+	startExchangeRateRefresh()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/health", handleHealth)
 	mux.HandleFunc("/api/search/sessions", handleCreateSession)
 	mux.HandleFunc("/api/search/sessions/", handleGetSession)
 	mux.HandleFunc("/api/deals/month", handleMonthDeals)
@@ -1622,13 +1950,18 @@ func main() {
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := ":" + port
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         addr,
 		Handler:      corsMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	log.Println("Go HTTP API listening on :8080")
+	log.Printf("Go HTTP API listening on %s", addr)
 	log.Fatal(server.ListenAndServe())
 }

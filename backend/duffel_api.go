@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -58,7 +59,12 @@ type DuffelSearchResult struct {
 
 // SearchOffers runs a Duffel offer request (one-way or round-trip) and returns normalized FlightOptions.
 // If round-trip, slices are [outbound, return]. Cabin is mapped from our preference.
+// When premium cabin returns 0 offers, retries with economy (Duffel often has limited premium inventory).
 func (c *DuffelClient) SearchOffers(origin, destination, departureDate, returnDate, cabinPreference string) DuffelSearchResult {
+	return c.searchOffers(origin, destination, departureDate, returnDate, cabinPreference, false)
+}
+
+func (c *DuffelClient) searchOffers(origin, destination, departureDate, returnDate, cabinPreference string, economyFallbackDone bool) DuffelSearchResult {
 	start := time.Now()
 	defer func() { log.Printf("[DUFFEL] request latency=%dms", time.Since(start).Milliseconds()) }()
 
@@ -79,7 +85,8 @@ func (c *DuffelClient) SearchOffers(origin, destination, departureDate, returnDa
 	}
 	payload, _ := json.Marshal(map[string]interface{}{"data": body})
 
-	req, err := http.NewRequest(http.MethodPost, duffelAPIBase+"/air/offer_requests?return_offers=true", bytes.NewReader(payload))
+	// supplier_timeout in ms; 25s gives airlines more time to return offers (default 20s)
+	req, err := http.NewRequest(http.MethodPost, duffelAPIBase+"/air/offer_requests?return_offers=true&supplier_timeout=25000", bytes.NewReader(payload))
 	if err != nil {
 		return DuffelSearchResult{LatencyMs: time.Since(start).Milliseconds(), Err: err}
 	}
@@ -91,12 +98,15 @@ func (c *DuffelClient) SearchOffers(origin, destination, departureDate, returnDa
 	resp, err := c.client.Do(req)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
+		log.Printf("[DUFFEL] request error: %v", err)
 		return DuffelSearchResult{LatencyMs: latency, Err: err}
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return DuffelSearchResult{LatencyMs: latency, Err: fmt.Errorf("duffel API status %d", resp.StatusCode)}
+		log.Printf("[DUFFEL] API status %d: %s", resp.StatusCode, string(bodyBytes))
+		return DuffelSearchResult{LatencyMs: latency, Err: fmt.Errorf("duffel API status %d: %s", resp.StatusCode, string(bodyBytes))}
 	}
 
 	var result struct {
@@ -104,8 +114,20 @@ func (c *DuffelClient) SearchOffers(origin, destination, departureDate, returnDa
 			Offers []map[string]interface{} `json:"offers"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		log.Printf("[DUFFEL] decode error: %v", err)
 		return DuffelSearchResult{LatencyMs: latency, Err: err}
+	}
+
+	if len(result.Data.Offers) == 0 && !economyFallbackDone && duffelCabin(cabinPreference) != "economy" {
+		// Duffel often has no inventory for premium cabins; retry with economy once
+		log.Printf("[DUFFEL] 0 offers for cabin=%s, retrying with economy", cabinPreference)
+		return c.searchOffers(origin, destination, departureDate, returnDate, "ECONOMY", true)
+	}
+
+	if len(result.Data.Offers) == 0 {
+		log.Printf("[DUFFEL] 0 offers for %s-%s %s/%s cabin=%s",
+			origin, destination, departureDate, returnDate, cabinPreference)
 	}
 
 	options := normalizeDuffelOffers(result.Data.Offers)
