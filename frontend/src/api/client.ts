@@ -28,6 +28,10 @@ function resolveApiBase(): string {
 
 export const API_BASE = resolveApiBase();
 
+export function getApiBase(): string {
+  return API_BASE;
+}
+
 export function apiUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_BASE}${path}`;

@@ -34,6 +34,16 @@ export interface ClicksSummaryResponse {
 }
 
 const AFFILIATE_BASE = '/api/affiliate';
+const OUT_BOOKING_PATH = '/api/out/booking';
+
+/**
+ * URL for the uniform booking redirect. Open this URL (e.g. Linking.openURL); backend will 302 to the actual booking page and record the click.
+ */
+export function getUniformBookingRedirectUrl(sessionId: string, optionId: string): string {
+  const base = getApiBase();
+  const params = new URLSearchParams({ sessionId, optionId });
+  return `${base}${OUT_BOOKING_PATH}?${params.toString()}`;
+}
 
 /** Get provider for an option (for button label). Does not record a click. */
 export async function getAffiliateProvider(

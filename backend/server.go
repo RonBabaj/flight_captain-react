@@ -166,6 +166,7 @@ type FlightOption struct {
 	Source                string         `json:"source,omitempty"`           // "amadeus" | "duffel" | "compare"
 	DeepLink              string         `json:"deepLink,omitempty"`        // provider booking link (e.g. Duffel)
 	VendorName            string         `json:"vendorName,omitempty"`      // OTA name (kayak/expedia etc) when source=compare
+	CanonicalFingerprint  string         `json:"canonicalFingerprint,omitempty"` // stable hash for dedupe; optional in response
 }
 
 type SearchSessionResultsResponse struct {
@@ -645,26 +646,30 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	if req.ReturnDate != "" {
 		// Mixed one-way round-trip: search outbound and return separately, then combine with price-bounded mixing.
+		// On Amadeus error we continue with empty offers so Duffel/GF2 results can still be returned.
 		origin := strings.ToUpper(req.Origin)
 		dest := strings.ToUpper(req.Destination)
 
 		currency := req.CurrencyOrDefault()
-		outResp, err := amadeusClient.FlightOffersSearch(origin, dest, req.DepartureDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
-		if err != nil {
-			log.Printf("FlightOffersSearch (outbound) error: %v", err)
-			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": err.Error()}})
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("search failed: %v", err)})
-			return
+		outResp, errOut := amadeusClient.FlightOffersSearch(origin, dest, req.DepartureDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
+		if errOut != nil {
+			log.Printf("FlightOffersSearch (outbound) error: %v; continuing with other providers", errOut)
+			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": errOut.Error()}})
+			offers = nil
 		}
-		retResp, err := amadeusClient.FlightOffersSearch(dest, origin, req.ReturnDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
-		if err != nil {
-			log.Printf("FlightOffersSearch (return) error: %v", err)
-			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": err.Error()}})
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("search failed: %v", err)})
-			return
+		var retResp APIResponse
+		var errRet error
+		if errOut == nil {
+			retResp, errRet = amadeusClient.FlightOffersSearch(dest, origin, req.ReturnDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
+			if errRet != nil {
+				log.Printf("FlightOffersSearch (return) error: %v; continuing with other providers", errRet)
+				appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": errRet.Error()}})
+				offers = nil
+			}
 		}
 
-		// Filter out non-positive prices.
+		if errOut == nil && errRet == nil {
+			// Filter out non-positive prices.
 		var outboundFiltered []map[string]interface{}
 		for _, o := range outResp.Data {
 			if p := extractRawPrice(o); p > 0 {
@@ -747,6 +752,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("[ROUNDTRIP_MIX] outboundCandidates=%d returnCandidates=%d combinationsGenerated=%d cheapestMixed=%.2f cheapestOutbound=%.2f cheapestReturn=%.2f",
 			len(outboundCandidates), len(returnCandidates), combosGenerated, cheapestMixed, cheapestOutbound, cheapestReturn)
+		}
 	} else {
 		// One-way: single Amadeus request (no offset). travelClass from cabin preference.
 		apiResp, err := amadeusClient.FlightOffersSearch(
@@ -762,17 +768,16 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			false,
 		)
 		if err != nil {
-			log.Printf("FlightOffersSearch error: %v", err)
+			log.Printf("FlightOffersSearch error: %v; continuing with other providers", err)
 			appendDebugLog(map[string]any{
 				"location":     "backend/server.go:handleCreateSession",
 				"message":      "Amadeus search error",
 				"hypothesisId": "backend-A",
 				"data":         map[string]any{"error": err.Error()},
 			})
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("search failed: %v", err)})
-			return
-		}
-		offers = apiResp.Data
+			offers = nil
+		} else {
+			offers = apiResp.Data
 		outboundOffersReturned = len(apiResp.Data)
 		for _, o := range offers {
 			if p := extractRawPrice(o); p > 0 && (cheapestOutbound == 0 || p < cheapestOutbound) {
@@ -780,6 +785,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		cheapestMixed = cheapestOutbound
+		}
 	}
 
 	offersInitial := offers
@@ -1165,7 +1171,10 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 				depTime, _ := parseAmadeusTime(depAt)
 				arrTime, _ := parseAmadeusTime(arrAt)
 
-				duration := int(arrTime.Sub(depTime).Minutes())
+				duration := 0
+				if !depTime.IsZero() && !arrTime.IsZero() {
+					duration = int(arrTime.Sub(depTime).Minutes())
+				}
 				if duration < 0 {
 					duration = 0
 				}
@@ -1217,6 +1226,9 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 		}
 		baggageClass, _ := offer["_baggageClass"].(string)
 		primaryCarrier := PrimaryDisplayCarrier(offer)
+		if computed := computeTotalDurationFromLegs(legs); computed > 0 {
+			totalDuration = computed
+		}
 
 		options = append(options, FlightOption{
 			ID:                    fmt.Sprintf("opt_%d", idx),
@@ -1231,6 +1243,26 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 	}
 
 	return options
+}
+
+// computeTotalDurationFromLegs returns total minutes (flight + layovers) per leg: last segment arrival - first segment departure per leg.
+func computeTotalDurationFromLegs(legs []FlightLeg) int {
+	var total int
+	for _, leg := range legs {
+		if len(leg.Segments) == 0 {
+			continue
+		}
+		first := leg.Segments[0]
+		last := leg.Segments[len(leg.Segments)-1]
+		if first.DepartureTime.IsZero() || last.ArrivalTime.IsZero() {
+			continue
+		}
+		mins := int(last.ArrivalTime.Sub(first.DepartureTime).Minutes())
+		if mins > 0 {
+			total += mins
+		}
+	}
+	return total
 }
 
 // providerResultsToFlightOptions converts search.ProviderResult to FlightOption.
@@ -1254,10 +1286,14 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			}
 			legs = append(legs, FlightLeg{Segments: segs})
 		}
+		durMin := pr.DurationMinutes
+		if computed := computeTotalDurationFromLegs(legs); computed > 0 {
+			durMin = computed
+		}
 		out = append(out, FlightOption{
 			ID:                    pr.ID,
 			Price:                 MonetaryAmount{Currency: pr.Price.Currency, Amount: pr.Price.Amount},
-			DurationMinutes:       pr.DurationMinutes,
+			DurationMinutes:       durMin,
 			Legs:                  legs,
 			ValidatingAirlines:     pr.ValidatingAirlines,
 			BaggageClass:          pr.BaggageClass,
@@ -1270,24 +1306,34 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 	return out
 }
 
-// dedupeFlightOptions removes duplicates: same origin+dest, depart within 10 min, same carrier+flight when available.
+// dedupeFlightOptions removes duplicates by canonicalFingerprint (when set), else by legacy key; keeps cheapest. Renumbers IDs to opt_0, opt_1, ...
 func dedupeFlightOptions(opts []FlightOption) []FlightOption {
+	// Assign fingerprint to any option that doesn't have it
+	for i := range opts {
+		if opts[i].CanonicalFingerprint == "" {
+			opts[i].CanonicalFingerprint = CanonicalFingerprint(&opts[i])
+		}
+	}
 	seen := make(map[string]int) // key -> index of option to keep (lowest price)
 	for i, o := range opts {
-		origin := ""
-		dest := ""
-		depMin := int64(0)
-		carrier := ""
-		flight := ""
-		if len(o.Legs) > 0 && len(o.Legs[0].Segments) > 0 {
-			seg := o.Legs[0].Segments[0]
-			origin = seg.From.Code
-			dest = seg.To.Code
-			depMin = seg.DepartureTime.Unix() / 600 // 10-min bucket
-			carrier = seg.MarketingCarrier.Code
-			flight = seg.FlightNumber
+		key := o.CanonicalFingerprint
+		if key == "" {
+			// Legacy fallback
+			origin := ""
+			dest := ""
+			depMin := int64(0)
+			carrier := ""
+			flight := ""
+			if len(o.Legs) > 0 && len(o.Legs[0].Segments) > 0 {
+				seg := o.Legs[0].Segments[0]
+				origin = seg.From.Code
+				dest = seg.To.Code
+				depMin = seg.DepartureTime.Unix() / 600
+				carrier = seg.MarketingCarrier.Code
+				flight = seg.FlightNumber
+			}
+			key = fmt.Sprintf("%s-%s-%d-%s-%s", origin, dest, depMin, carrier, flight)
 		}
-		key := fmt.Sprintf("%s-%s-%d-%s-%s", origin, dest, depMin, carrier, flight)
 		if j, exists := seen[key]; exists {
 			if opts[j].Price.Amount > o.Price.Amount {
 				seen[key] = i
@@ -1306,19 +1352,30 @@ func dedupeFlightOptions(opts []FlightOption) []FlightOption {
 			out = append(out, o)
 		}
 	}
+	// Renumber IDs so GetSessionAndOption works (opt_0, opt_1, ...)
+	for i := range out {
+		out[i].ID = fmt.Sprintf("opt_%d", i)
+	}
 	return out
 }
 
+// parseAmadeusTime parses ISO timestamps from Amadeus; prefers RFC3339 (timezone preserved).
 func parseAmadeusTime(s string) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty time")
 	}
-	// Try common Amadeus formats.
-	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
-		return t, nil
-	}
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t, nil
+	}
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+	// No Z suffix: treat as UTC for consistency
+	if t, err := time.Parse("2006-01-02T15:04:05.999", s); err == nil {
+		return t.UTC(), nil
+	}
+	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
+		return t.UTC(), nil
 	}
 	return time.Time{}, fmt.Errorf("could not parse time %q", s)
 }
@@ -1844,6 +1901,40 @@ func handleAffiliateProvider(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ProviderResponse{Provider: *provider})
 }
 
+// handleOutBooking is the uniform booking redirect: GET /api/out/booking?sessionId=...&optionId=...
+// Builds link via BuildUniformBookingLink (prefer option.DeepLink, else prefill), records click, returns 302.
+func handleOutBooking(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := r.URL.Query()
+	sessionID := strings.TrimSpace(q.Get("sessionId"))
+	optionID := strings.TrimSpace(q.Get("optionId"))
+	if sessionID == "" || optionID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sessionId and optionId are required"})
+		return
+	}
+	resp, option := GetSessionAndOption(sessionID, optionID)
+	if resp == nil || option == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
+		return
+	}
+	redirectURL := BuildUniformBookingLink(&resp.Session, option)
+	if redirectURL == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build booking URL"})
+		return
+	}
+	provider := ResolveProvider(option)
+	_ = RecordClick(sessionID, optionID, provider, redirectURL)
+	w.Header().Set("Location", redirectURL)
+	w.WriteHeader(http.StatusFound)
+}
+
 func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -1949,6 +2040,7 @@ func main() {
 	mux.HandleFunc("/api/affiliate/outbound-link", handleAffiliateOutboundLink)
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
+	mux.HandleFunc("/api/out/booking", handleOutBooking)
 
 	port := os.Getenv("PORT")
 	if port == "" {

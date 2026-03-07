@@ -37,6 +37,35 @@ function baggageBadgeText(
   return t('checked_bag_unknown');
 }
 
+/** Layover minutes between previous segment arrival and this segment departure. */
+function layoverMinutes(segments: FlightSegment[], idx: number): number {
+  if (idx <= 0 || !segments?.length) return 0;
+  const prev = segments[idx - 1];
+  const curr = segments[idx];
+  if (!prev?.arrivalTime || !curr?.departureTime) return 0;
+  const prevArr = new Date(prev.arrivalTime).getTime();
+  const dep = new Date(curr.departureTime).getTime();
+  return Math.round((dep - prevArr) / 60000);
+}
+
+/** For a leg, return stop airport code and layover minutes for each connection. */
+function getStopsWithLayovers(segments: FlightSegment[]): { airport: string; layoverMinutes: number }[] {
+  const out: { airport: string; layoverMinutes: number }[] = [];
+  if (!segments || segments.length < 2) return out;
+  for (let i = 1; i < segments.length; i++) {
+    const airport = segments[i - 1].to?.code || '';
+    const mins = layoverMinutes(segments, i);
+    if (airport) out.push({ airport, layoverMinutes: mins });
+  }
+  return out;
+}
+
+function formatLayover(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 /** Airline + stops summary e.g. "El Al • Direct" or "ITA Airways • 1 stop" */
 function getAirlineSummary(option: FlightOption, t: (k: string) => string): string {
   const code =
@@ -70,11 +99,12 @@ export function FlightResultCard({
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
 
-  const firstSeg: FlightSegment | undefined = option.legs[0]?.segments[0];
-  const lastSeg: FlightSegment | undefined = (() => {
-    const leg = option.legs[option.legs.length - 1];
-    return leg?.segments[leg.segments.length - 1];
-  })();
+  // Outbound leg only for card summary (roundtrip: show outbound times)
+  const outboundLeg = option.legs[0];
+  const firstSeg: FlightSegment | undefined = outboundLeg?.segments[0];
+  const lastSeg: FlightSegment | undefined = outboundLeg?.segments?.length
+    ? outboundLeg.segments[outboundLeg.segments.length - 1]
+    : undefined;
 
   const depTime = firstSeg?.departureTime
     ? formatTime(firstSeg.departureTime)
@@ -83,7 +113,7 @@ export function FlightResultCard({
     ? formatTime(lastSeg.arrivalTime)
     : '—';
   const origin = firstSeg?.from?.code ?? '—';
-  const destination = lastSeg?.to?.code ?? '—';
+  const destination = lastSeg?.to?.code ?? '—'; // outbound destination (first leg)
   const durationStr = formatDuration(option.durationMinutes);
   const stops = option.legs.reduce(
     (acc, leg) => acc + leg.segments.length - 1,
@@ -91,6 +121,13 @@ export function FlightResultCard({
   );
   const stopsBadge =
     stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
+  const stopsWithLayovers = outboundLeg ? getStopsWithLayovers(outboundLeg.segments) : [];
+  const stopAtLabel =
+    stopsWithLayovers.length === 1
+      ? `${t('stop_at')} ${stopsWithLayovers[0].airport} (${formatLayover(stopsWithLayovers[0].layoverMinutes)})`
+      : stopsWithLayovers.length > 1
+        ? `${t('stops_at')} ${stopsWithLayovers.map((s) => `${s.airport} (${formatLayover(s.layoverMinutes)})`).join(', ')}`
+        : '';
   const airlineSummary = getAirlineSummary(option, t);
 
   const cabinRaw = option.legs[0]?.segments[0]?.cabinClass;
@@ -98,15 +135,10 @@ export function FlightResultCard({
     cabinRaw === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy'
       : cabinRaw === 'BUSINESS' ? 'cabin_business'
       : cabinRaw === 'FIRST' ? 'cabin_first'
-      : 'cabin_economy';
-  const src = option.source || option.provider;
-  const sourceLabel =
-    src === 'googleflights2'
-      ? (t('source_google') ?? 'Google')
-      : src === 'duffel'
-        ? (t('source_duffel') || 'Duffel')
-        : (t('source_amadeus') || 'Amadeus');
-  const showBookBtn = (src !== 'googleflights2') || !!option.deepLink;
+      : cabinRaw ? 'cabin_economy' : '';
+  const showCabinBadge = Boolean(cabinKey);
+  const showBaggageBadge =
+    option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED';
 
   const arrow = isRTL ? ' ← ' : ' → ';
   const { currency: displayCurrency } = useLocale();
@@ -145,24 +177,23 @@ export function FlightResultCard({
               <Text style={[styles.stopsBadgeText, { color: theme.text }]}>{stopsBadge}</Text>
             </View>
           </View>
+          {stopAtLabel ? (
+            <Text style={[styles.stopAtText, { color: theme.textMuted }]}>{stopAtLabel}</Text>
+          ) : null}
         </View>
 
         {/* Right (or left in RTL): price, Book, Details */}
         <View style={[styles.priceBlock, isRTL && styles.priceBlockRTL]}>
           <Text style={[styles.price, { color: theme.primary }]}>{priceStr}</Text>
-          {showBookBtn ? (
-            <TouchableOpacity
-              style={[styles.bookBtn, { backgroundColor: theme.primary }]}
-              onPress={onBook}
-              disabled={bookLoading}
-            >
-              <Text style={styles.bookBtnText}>
-                {bookLoading ? '…' : bookLabel ?? t('book')}
-              </Text>
-            </TouchableOpacity>
-          ) : src === 'googleflights2' ? (
-            <Text style={[styles.noBookingText, { color: theme.textMuted }]}>{t('no_booking_link')}</Text>
-          ) : null}
+          <TouchableOpacity
+            style={[styles.bookBtn, { backgroundColor: theme.primary }]}
+            onPress={onBook}
+            disabled={bookLoading}
+          >
+            <Text style={styles.bookBtnText}>
+              {bookLoading ? '…' : bookLabel ?? t('book')}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={onDetails} style={styles.detailsLink}>
             <Text style={[styles.detailsText, { color: theme.primary }]}>
               {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
@@ -176,20 +207,23 @@ export function FlightResultCard({
         <Text style={[styles.airlineSummary, { color: theme.text }]}>{airlineSummary}</Text>
       </View>
 
-      {/* Row 3: badges */}
-      <View style={[styles.badgesRow, isRTL && styles.badgesRowRTL]}>
-        <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
-          <Text style={[styles.badgeText, { color: theme.textMuted }]}>{t(cabinKey)}</Text>
+      {/* Row 3: badges (cabin + baggage only when known; no provider badge) */}
+      {(showCabinBadge || showBaggageBadge) && (
+        <View style={[styles.badgesRow, isRTL && styles.badgesRowRTL]}>
+          {showCabinBadge && (
+            <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
+              <Text style={[styles.badgeText, { color: theme.textMuted }]}>{t(cabinKey)}</Text>
+            </View>
+          )}
+          {showBaggageBadge && (
+            <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
+              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+                {t('checked_bag')}: {baggageBadgeText(option.baggageClass!, t)}
+              </Text>
+            </View>
+          )}
         </View>
-        <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
-          <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-            {t('checked_bag')}: {baggageBadgeText(option.baggageClass, t)}
-          </Text>
-        </View>
-        <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
-          <Text style={[styles.badgeText, { color: theme.textMuted }]}>{sourceLabel}</Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -216,6 +250,7 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 14 },
   airports: { fontSize: 12, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  stopAtText: { fontSize: 12, marginTop: 4 },
   metaRowRTL: { flexDirection: 'row-reverse' },
   meta: { fontSize: 13 },
   stopsBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -234,7 +269,6 @@ const styles = StyleSheet.create({
   bookBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   detailsLink: { marginTop: 4 },
   detailsText: { fontSize: 13, fontWeight: '600' },
-  noBookingText: { fontSize: 12, marginTop: 8, fontStyle: 'italic' },
   airlineRow: { flexDirection: 'row', marginTop: SPACING, paddingTop: SPACING, borderTopWidth: StyleSheet.hairlineWidth },
   airlineRowRTL: { flexDirection: 'row-reverse' },
   airlineSummary: { fontSize: 13, fontWeight: '500' },

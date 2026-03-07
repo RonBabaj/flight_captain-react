@@ -61,7 +61,15 @@ export const searchActions = {
     useSearchStore.setState({ params }),
 
   setSession: (sessionId: string | null, session: SearchSession | null, status: SearchSessionStatus | null) =>
-    useSearchStore.setState({ sessionId, session, status }),
+    useSearchStore.setState((state) => {
+      const sessionChanged = state.sessionId !== sessionId;
+      return {
+        sessionId,
+        session,
+        status,
+        ...(sessionChanged ? { results: [], version: 0 } : {}),
+      };
+    }),
 
   setResults: (results: FlightOption[], version: number) =>
     useSearchStore.setState(state => ({

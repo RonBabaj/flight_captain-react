@@ -283,6 +283,29 @@ func normalizeOneDuffelOffer(o map[string]interface{}, idx int) *FlightOption {
 	if len(legs) == 0 {
 		return nil
 	}
+	// Total duration = sum of (last segment arrival - first segment departure) per leg (includes layovers)
+	totalDuration = 0
+	for _, leg := range legs {
+		if len(leg.Segments) == 0 {
+			continue
+		}
+		first := leg.Segments[0]
+		last := leg.Segments[len(leg.Segments)-1]
+		if !first.DepartureTime.IsZero() && !last.ArrivalTime.IsZero() {
+			mins := int(last.ArrivalTime.Sub(first.DepartureTime).Minutes())
+			if mins > 0 {
+				totalDuration += mins
+			}
+		}
+	}
+	if totalDuration == 0 {
+		// Fallback to sum of segment durations if times missing
+		for _, leg := range legs {
+			for _, seg := range leg.Segments {
+				totalDuration += seg.DurationMinutes
+			}
+		}
+	}
 
 	primaryCarrier := ""
 	if len(legs) > 0 && len(legs[0].Segments) > 0 {

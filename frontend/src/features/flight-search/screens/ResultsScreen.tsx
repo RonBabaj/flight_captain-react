@@ -21,7 +21,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions } from '../../../store';
 import type { LocaleContextValue } from '../../../context/LocaleContext';
-import { getSearchSessionResults, createSearchSession, getOutboundLink } from '../../../api';
+import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams } from '../../../hooks/useSearchParams';
@@ -74,6 +74,16 @@ const skeletonStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
 });
 
+/** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
+function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
+  const priceNorm = maxPrice > 0 ? opt.price.amount / maxPrice : 0;
+  const stops = opt.legs.reduce((acc, leg) => acc + Math.max(0, leg.segments.length - 1), 0);
+  const stopsPenalty = stops * 0.15; // 0, 0.15, 0.3, ...
+  const durationNorm = maxDuration > 0 ? opt.durationMinutes / maxDuration : 0;
+  const durationPenalty = durationNorm * 0.2;
+  return priceNorm + stopsPenalty + durationPenalty;
+}
+
 function sortResults(
   results: FlightOption[],
   sortField: 'price' | 'duration' | 'best',
@@ -88,10 +98,12 @@ function sortResults(
       const diff = a.durationMinutes - b.durationMinutes;
       return sortOrder === 'asc' ? diff : -diff;
     }
-    // best: by score descending (higher = better)
-    const scoreA = a.score ?? 0;
-    const scoreB = b.score ?? 0;
-    return scoreB - scoreA;
+    // best: weighted score (price + stops + duration); lower is better
+    const maxPrice = Math.max(...results.map((r) => r.price.amount), 1);
+    const maxDuration = Math.max(...results.map((r) => r.durationMinutes), 1);
+    const scoreA = bestScore(a, maxPrice, maxDuration);
+    const scoreB = bestScore(b, maxPrice, maxDuration);
+    return scoreA - scoreB;
   });
 }
 
@@ -111,6 +123,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     filters,
   } = useSearchStore();
   const versionRef = useRef(0);
+  const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
@@ -120,14 +133,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const handleBookFromCard = async (option: FlightOption) => {
     setBookLoadingId(option.id);
     try {
-      // Use deepLink directly when present (OTA/compare or Duffel)
-      let url: string;
-      if (option.deepLink) {
-        url = option.deepLink;
-      } else {
-        const res = await getOutboundLink(sessionId, option.id);
-        url = res.redirectUrl;
-      }
+      const url = getUniformBookingRedirectUrl(sessionId, option.id);
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
@@ -215,13 +221,21 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   };
 
   useEffect(() => {
+    if (prevSessionIdRef.current !== sessionId) {
+      prevSessionIdRef.current = sessionId;
+      versionRef.current = 0;
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
       try {
+        const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const res = await getSearchSessionResults(
           sessionId,
-          versionRef.current || undefined,
+          sinceVersion,
           storeParams ?? undefined
         );
         if (cancelled) return;

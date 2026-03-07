@@ -47,11 +47,15 @@ export function FiltersPanel({
   const airlineCodesWithCount = useMemo(() => {
     const countByCode: Record<string, number> = {};
     results.forEach((opt) => {
+      const codes = new Set<string>();
       opt.legs.forEach((leg) => {
         leg.segments.forEach((seg) => {
           const code = seg.marketingCarrier?.code;
-          if (code) countByCode[code] = (countByCode[code] ?? 0) + 1;
+          if (code) codes.add(code);
         });
+      });
+      codes.forEach((code) => {
+        countByCode[code] = (countByCode[code] ?? 0) + 1;
       });
     });
     return Object.entries(countByCode)
@@ -127,9 +131,8 @@ export function FiltersPanel({
                       style={[styles.airlineRow, { borderBottomColor: theme.cardBorder }]}
                       onPress={() => toggleAirline(code)}
                     >
-                      <Text style={[styles.airlineName, { color: theme.text }]}>{name}</Text>
+                      <Text style={[styles.airlineName, { color: theme.text }]}>{name} ({count})</Text>
                       <View style={styles.airlineMeta}>
-                        <Text style={[styles.airlineCount, { color: theme.textMuted }]}>{count}</Text>
                         <View
                           style={[
                             styles.checkbox,
@@ -233,36 +236,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '600' },
+  sectionTitle: { fontSize: 13, fontWeight: '500' },
   sectionChevron: { fontSize: 10 },
   sectionBody: {
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     borderWidth: 1,
   },
-  chipText: { fontSize: 13 },
+  chipText: { fontSize: 12 },
   airlineList: { marginTop: 0 },
   airlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  airlineName: { fontSize: 14 },
+  airlineName: { fontSize: 13 },
   airlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  airlineCount: { fontSize: 12, minWidth: 20, textAlign: 'right' },
   checkbox: {
     width: 24,
     height: 24,

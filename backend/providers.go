@@ -94,7 +94,7 @@ func flightOptionsToProviderResults(opts []FlightOption) []search.ProviderResult
 			Price:                 search.Monetary{Currency: o.Price.Currency, Amount: o.Price.Amount},
 			DurationMinutes:       o.DurationMinutes,
 			Legs:                  legs,
-			ValidatingAirlines:     o.ValidatingAirlines,
+			ValidatingAirlines:    o.ValidatingAirlines,
 			BaggageClass:          o.BaggageClass,
 			PrimaryDisplayCarrier: o.PrimaryDisplayCarrier,
 			Source:                o.Source,
@@ -176,7 +176,9 @@ func fetchAmadeusOptionsFromRequest(ctx context.Context, req *CreateSearchSessio
 				returnFiltered = append(returnFiltered, r)
 			}
 		}
-		sort.Slice(outboundFiltered, func(i, j int) bool { return extractRawPrice(outboundFiltered[i]) < extractRawPrice(outboundFiltered[j]) })
+		sort.Slice(outboundFiltered, func(i, j int) bool {
+			return extractRawPrice(outboundFiltered[i]) < extractRawPrice(outboundFiltered[j])
+		})
 		sort.Slice(returnFiltered, func(i, j int) bool { return extractRawPrice(returnFiltered[i]) < extractRawPrice(returnFiltered[j]) })
 		if len(outboundFiltered) > mixLimit {
 			outboundFiltered = outboundFiltered[:mixLimit]

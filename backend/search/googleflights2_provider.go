@@ -905,6 +905,9 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 	if dur, ok := leg["duration_minutes"].(float64); ok {
 		durMin = int(dur)
 	}
+	if dur, ok := leg["duration"].(string); ok && dur != "" {
+		durMin = parseGF2DurationMinutes(dur)
+	}
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
 	}
@@ -927,11 +930,20 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 		}
 	}
 	if len(segs) == 0 {
+		// Single segment from leg-level fields. Ensure arrive != depart when we have duration.
+		// Never use time-only parsed value for both (causes "02:20 → 02:20"); derive arrival from dep+duration when needed.
+		arr := arrTime
+		if arr.IsZero() && !depTime.IsZero() && durMin > 0 {
+			arr = depTime.Add(time.Duration(durMin) * time.Minute)
+		}
+		if !arr.IsZero() && depTime.IsZero() && durMin > 0 {
+			depTime = arr.Add(-time.Duration(durMin) * time.Minute)
+		}
 		segs = append(segs, Segment{
 			From:             from,
 			To:               to,
 			DepartureTime:    depTime,
-			ArrivalTime:      arrTime,
+			ArrivalTime:      arr,
 			MarketingCarrier: carrier,
 			FlightNumber:     flightNum,
 			DurationMinutes:  durMin,
@@ -991,6 +1003,12 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
 	}
+	if arrTime.IsZero() && !depTime.IsZero() && durMin > 0 {
+		arrTime = depTime.Add(time.Duration(durMin) * time.Minute)
+	}
+	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
+		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
+	}
 	if durMin <= 0 {
 		durMin = 60
 	}
@@ -1040,6 +1058,12 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo string
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
 	}
+	if arrTime.IsZero() && !depTime.IsZero() && durMin > 0 {
+		arrTime = depTime.Add(time.Duration(durMin) * time.Minute)
+	}
+	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
+		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
+	}
 
 	return &Segment{
 		From:             from,
@@ -1060,21 +1084,84 @@ func truncateGF2(s string, max int) string {
 	return s[:max] + "..."
 }
 
+// parseGF2Time parses full date-time strings only. Time-only (e.g. "15:04") is rejected
+// to avoid 0001-01-01 and identical depart/arrive display ("02:20 → 02:20" bug).
 func parseGF2Time(s string) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
+	// Only full date-time formats; do NOT include "15:04" (time-only)
 	formats := []string{
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05.999Z",
+		"2006-01-02T15:04:05Z",
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
-		time.RFC3339,
-		"15:04",
 	}
 	for _, f := range formats {
-		if t, err := time.Parse(f, s); err == nil {
+		if t, err := time.ParseInLocation(f, s, time.UTC); err == nil {
 			return t, nil
+		}
+		if t, err := time.Parse(f, s); err == nil {
+			return t.UTC(), nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("could not parse %q", s)
+}
+
+// parseGF2DurationMinutes parses duration string (e.g. "PT2H20M", "2h 20m", "140") into minutes.
+func parseGF2DurationMinutes(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	// ISO 8601 PT1H30M
+	if strings.HasPrefix(s, "PT") {
+		var h, m int
+		for i := 2; i < len(s); {
+			j := i
+			for j < len(s) && (s[j] < '0' || s[j] > '9') {
+				j++
+			}
+			if j >= len(s) {
+				break
+			}
+			k := j
+			for k < len(s) && s[k] >= '0' && s[k] <= '9' {
+				k++
+			}
+			var num int
+			if _, err := fmt.Sscanf(s[j:k], "%d", &num); err != nil {
+				i = k
+				continue
+			}
+			if k < len(s) {
+				switch s[k] {
+				case 'H', 'h':
+					h = num
+				case 'M', 'm':
+					m = num
+				}
+			}
+			i = k + 1
+		}
+		return h*60 + m
+	}
+	// "2h 20m" or "2h20m"
+	var h, m int
+	_, _ = fmt.Sscanf(s, "%dh %dm", &h, &m)
+	if h != 0 || m != 0 {
+		return h*60 + m
+	}
+	_, _ = fmt.Sscanf(s, "%dh%dm", &h, &m)
+	if h != 0 || m != 0 {
+		return h*60 + m
+	}
+	var mins int
+	if _, err := fmt.Sscanf(s, "%d", &mins); err == nil && mins >= 0 {
+		return mins
+	}
+	return 0
 }

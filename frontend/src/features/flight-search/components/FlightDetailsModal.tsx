@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { getAffiliateProvider, getOutboundLink, type AffiliateProvider } from '../../../api';
+import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
@@ -24,37 +24,26 @@ function formatDuration(min: number): string {
   return `${h}h ${m}m`;
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+/** Time for segment display (e.g. "08:00 AM") – same as monthly deals modal. */
+function formatSegmentTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function SegmentRow({
-  seg,
-  theme,
-}: {
-  seg: FlightSegment;
-  theme: import('../../../theme/ThemeContext').Theme;
-}) {
-  return (
-    <View style={styles.segmentRow}>
-      <Text style={[styles.segmentCode, { color: theme.text }]}>{seg.from.code}</Text>
-      <Text style={[styles.segmentTime, { color: theme.textMuted }]}>
-        {formatTime(seg.departureTime)}
-      </Text>
-      <Text style={styles.dash}>→</Text>
-      <Text style={[styles.segmentCode, { color: theme.text }]}>{seg.to.code}</Text>
-      <Text style={[styles.segmentTime, { color: theme.textMuted }]}>
-        {formatTime(seg.arrivalTime)}
-      </Text>
-      <Text style={[styles.segmentCarrier, { color: theme.textMuted }]}>
-        {seg.marketingCarrier.name || seg.marketingCarrier.code} {seg.flightNumber}
-      </Text>
-    </View>
-  );
+/** Leg date from first segment departure (YYYY-MM-DD). */
+function legDate(segments: FlightSegment[]): string {
+  if (!segments?.length) return '';
+  const iso = segments[0].departureTime;
+  if (!iso) return '';
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+/** Layover minutes between previous segment arrival and this segment departure. */
+function layoverMinutes(segments: FlightSegment[], idx: number): number {
+  if (idx <= 0) return 0;
+  const prevArr = new Date(segments[idx - 1].arrivalTime).getTime();
+  const dep = new Date(segments[idx].departureTime).getTime();
+  return Math.round((dep - prevArr) / 60000);
 }
 
 function baggageLabel(baggageClass: FlightOption['baggageClass'], t: (k: string) => string): string {
@@ -79,54 +68,30 @@ export function FlightDetailsModal({
 }: FlightDetailsModalProps) {
   const { theme } = useTheme();
   const { t, currency: displayCurrency } = useLocale();
-  const [provider, setProvider] = useState<AffiliateProvider | null>(null);
   const [bookLoading, setBookLoading] = useState(false);
-
-  useEffect(() => {
-    if (!visible || !sessionId || !option?.id) return;
-    let cancelled = false;
-    getAffiliateProvider(sessionId, option.id)
-      .then((res) => {
-        if (!cancelled) setProvider(res.provider);
-      })
-      .catch(() => {
-        if (!cancelled) setProvider(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, sessionId, option?.id]);
 
   const handleBook = async () => {
     if (!option) return;
     setBookLoading(true);
     try {
-      const res = await getOutboundLink(sessionId, option.id);
-      const canOpen = await Linking.canOpenURL(res.redirectUrl);
+      const url = getUniformBookingRedirectUrl(sessionId, option.id);
+      const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
-        await Linking.openURL(res.redirectUrl);
+        await Linking.openURL(url);
       } else {
         Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
       }
-    } catch (_e) {
+    } catch {
       const origin = option.legs[0]?.segments[0]?.from?.code ?? '';
       const destination =
         option.legs[0]?.segments[option.legs[0].segments.length - 1]?.to?.code ?? '';
       const qStr = `Flights to ${destination} from ${origin}`;
       const fallbackUrl = `https://www.google.com/travel/flights?q=${encodeURIComponent(qStr)}`;
       try {
-        const canOpenFallback = await Linking.canOpenURL(fallbackUrl);
-        if (canOpenFallback) {
+        if (await Linking.canOpenURL(fallbackUrl)) {
           await Linking.openURL(fallbackUrl);
-          Alert.alert(
-            'Opened Google Flights',
-            'Partner link was unavailable. Your search was opened in Google Flights.'
-          );
         } else {
-          Alert.alert(
-            'Error',
-            'Partner link unavailable. Ensure the backend is running with affiliate routes.'
-          );
+          Alert.alert('Error', 'Could not open booking link.');
         }
       } catch {
         Alert.alert('Error', 'Could not open booking link.');
@@ -175,26 +140,47 @@ export function FlightDetailsModal({
                 ? t('direct')
                 : `${option.legs.reduce((a, l) => a + l.segments.length - 1, 0)} ${t('stops')}`}
             </Text>
-            {option.baggageClass != null && (
+            {option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED' ? (
               <View style={styles.badgeWrap}>
-                <Text style={[styles.badge, { color: theme.textMuted }]}>
-                  {t('cabin_bag_1')}
-                </Text>
                 <Text style={[styles.badge, { color: theme.textMuted }]}>
                   {baggageLabel(option.baggageClass, t)}
                 </Text>
               </View>
-            )}
-            {option.legs.map((leg, i) => (
-              <View key={i} style={styles.legBlock}>
-                <Text style={[styles.legLabel, { color: theme.text }]}>
-                  {option.legs.length > 1 ? (i === 0 ? t('outbound') : t('return_leg')) : t('flight_leg')}
-                </Text>
-                {leg.segments.map((seg, j) => (
-                  <SegmentRow key={j} seg={seg} theme={theme} />
-                ))}
-              </View>
-            ))}
+            ) : null}
+            {option.legs.map((leg, legIdx) => {
+              const legDateStr = legDate(leg.segments);
+              const legLabel =
+                option.legs.length > 1
+                  ? legIdx === 0
+                    ? t('outbound')
+                    : t('return_leg')
+                  : t('flight_leg');
+              return (
+                <View key={legIdx} style={styles.legBlock}>
+                  <Text style={[styles.legLabel, { color: theme.textMuted }]}>
+                    {legLabel}{legDateStr ? ` · ${legDateStr}` : ''}
+                  </Text>
+                  {leg.segments.map((seg, segIdx) => {
+                    const layover = layoverMinutes(leg.segments, segIdx);
+                    const depTime = formatSegmentTime(seg.departureTime);
+                    const arrTime = formatSegmentTime(seg.arrivalTime);
+                    const carrier = seg.marketingCarrier?.code || seg.marketingCarrier?.name || '';
+                    return (
+                      <View key={segIdx} style={styles.segmentBlock}>
+                        {segIdx > 0 && layover > 0 && (
+                          <Text style={[styles.layoverText, { color: theme.textMuted }]}>
+                            {t('layover_in')} {leg.segments[segIdx - 1].to.code} · {Math.floor(layover / 60)}h {layover % 60}m
+                          </Text>
+                        )}
+                        <Text style={[styles.segmentLine, { color: theme.text }]}>
+                          {seg.from.code} {depTime} → {seg.to.code} {arrTime} · {carrier} {seg.flightNumber}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
           </ScrollView>
           <View style={[styles.footer, { borderTopColor: theme.cardBorder }]}>
             <TouchableOpacity
@@ -206,7 +192,7 @@ export function FlightDetailsModal({
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={styles.bookBtnText}>
-                  {t('book_on')} {provider?.name ?? t('partner_site')}
+                  {t('book')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -263,16 +249,9 @@ const styles = StyleSheet.create({
   badge: { fontSize: 13 },
   legBlock: { marginTop: 16 },
   legLabel: { fontWeight: '600', marginBottom: 8, fontSize: 16 },
-  segmentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 6,
-    flexWrap: 'wrap',
-  },
-  segmentCode: { fontWeight: '700', marginRight: 10, fontSize: 15 },
-  segmentTime: { marginRight: 10, fontSize: 15 },
-  dash: { marginRight: 10 },
-  segmentCarrier: { marginLeft: 10, fontSize: 14 },
+  segmentBlock: { marginBottom: 4 },
+  layoverText: { fontSize: 13, marginBottom: 4 },
+  segmentLine: { fontSize: 15 },
   footer: {
     padding: 20,
     borderTopWidth: 1,
