@@ -8,7 +8,6 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
@@ -20,23 +19,15 @@ interface FiltersPanelProps {
   onFiltersChange: (f: Partial<SearchFilters>) => void;
   results: FlightOption[];
   noResults?: boolean;
-  /** When 'modal', show as bottom sheet with visible/onClose. When 'sidebar', render inline. */
   variant: 'modal' | 'sidebar';
-  /** For sidebar: 'left' = border on right, 'right' = border on left. Default 'left'. */
   sidebarPosition?: 'left' | 'right';
   visible?: boolean;
   onClose?: () => void;
 }
 
 export function FiltersPanel({
-  filters,
-  onFiltersChange,
-  results,
-  noResults,
-  variant,
-  sidebarPosition = 'left',
-  visible,
-  onClose,
+  filters, onFiltersChange, results, noResults,
+  variant, sidebarPosition = 'left', visible, onClose,
 }: FiltersPanelProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
@@ -44,23 +35,14 @@ export function FiltersPanel({
   const [stopsOpen, setStopsOpen] = useState(true);
   const [airlinesOpen, setAirlinesOpen] = useState(true);
 
-  const airlineCodesWithCount = useMemo(() => {
-    const countByCode: Record<string, number> = {};
+  const airlines = useMemo(() => {
+    const map: Record<string, number> = {};
     results.forEach((opt) => {
       const codes = new Set<string>();
-      opt.legs.forEach((leg) => {
-        leg.segments.forEach((seg) => {
-          const code = seg.marketingCarrier?.code;
-          if (code) codes.add(code);
-        });
-      });
-      codes.forEach((code) => {
-        countByCode[code] = (countByCode[code] ?? 0) + 1;
-      });
+      opt.legs.forEach((l) => l.segments.forEach((s) => { if (s.marketingCarrier?.code) codes.add(s.marketingCarrier.code); }));
+      codes.forEach((c) => { map[c] = (map[c] ?? 0) + 1; });
     });
-    return Object.entries(countByCode)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([code, count]) => ({ code, count }));
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ code, count }));
   }, [results]);
 
   const toggleAirline = (code: string) => {
@@ -73,206 +55,137 @@ export function FiltersPanel({
   const stopsLabel = (max: number | null) =>
     max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
 
+  const SectionHeader = ({ title, open, toggle }: { title: string; open: boolean; toggle: () => void }) => (
+    <TouchableOpacity style={[f.secHeader, { borderBottomColor: theme.cardBorder }]} onPress={toggle} activeOpacity={0.6}>
+      <Text style={[f.secTitle, { color: theme.text }]}>{title}</Text>
+      <Text style={[f.chevron, { color: theme.textMuted }]}>{open ? '▾' : '▸'}</Text>
+    </TouchableOpacity>
+  );
+
   const content = (
     <>
-      <TouchableOpacity
-        style={[styles.sectionHeader, { borderBottomColor: theme.cardBorder }]}
-        onPress={() => setStopsOpen((o) => !o)}
-      >
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('stops_section')}</Text>
-        <Text style={[styles.sectionChevron, { color: theme.textMuted }]}>{stopsOpen ? '▼' : '▶'}</Text>
-      </TouchableOpacity>
+      <SectionHeader title={t('stops_section')} open={stopsOpen} toggle={() => setStopsOpen((o) => !o)} />
       {stopsOpen && (
-        <View style={[styles.sectionBody, { borderBottomColor: theme.cardBorder }]}>
-          <View style={styles.chipRow}>
-            {([null, 0, 1, 2] as const).map((max) => (
-              <TouchableOpacity
-                key={max ?? 'any'}
-                style={[
-                  styles.chip,
-                  { backgroundColor: theme.controlBg, borderColor: theme.inputBorder },
-                  filters.maxStops === max && { backgroundColor: theme.primary, borderColor: theme.primary },
-                ]}
-                onPress={() => onFiltersChange({ maxStops: max })}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: theme.text },
-                    filters.maxStops === max && { color: '#fff', fontWeight: '600' },
-                  ]}
+        <View style={f.secBody}>
+          <View style={f.chipRow}>
+            {([null, 0, 1, 2] as const).map((max) => {
+              const active = filters.maxStops === max;
+              return (
+                <TouchableOpacity
+                  key={max ?? 'any'}
+                  style={[f.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  onPress={() => onFiltersChange({ maxStops: max })}
+                  activeOpacity={0.7}
                 >
-                  {stopsLabel(max)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[f.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>
+                    {stopsLabel(max)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
 
-      {airlineCodesWithCount.length > 0 && (
+      {airlines.length > 0 && (
         <>
-          <TouchableOpacity
-            style={[styles.sectionHeader, { borderBottomColor: theme.cardBorder }]}
-            onPress={() => setAirlinesOpen((o) => !o)}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('airlines_section')}</Text>
-            <Text style={[styles.sectionChevron, { color: theme.textMuted }]}>{airlinesOpen ? '▼' : '▶'}</Text>
-          </TouchableOpacity>
+          <SectionHeader title={t('airlines_section')} open={airlinesOpen} toggle={() => setAirlinesOpen((o) => !o)} />
           {airlinesOpen && (
-            <View style={[styles.sectionBody, { borderBottomColor: theme.cardBorder }]}>
-              <View style={styles.airlineList}>
-                {airlineCodesWithCount.map(({ code, count }) => {
-                  const name = getAirlineName(code) || code;
-                  const selected = filters.airlines.includes(code);
-                  return (
-                    <TouchableOpacity
-                      key={code}
-                      style={[styles.airlineRow, { borderBottomColor: theme.cardBorder }]}
-                      onPress={() => toggleAirline(code)}
-                    >
-                      <Text style={[styles.airlineName, { color: theme.text }]}>{name} ({count})</Text>
-                      <View style={styles.airlineMeta}>
-                        <View
-                          style={[
-                            styles.checkbox,
-                            { borderColor: theme.inputBorder },
-                            selected && { backgroundColor: theme.primary, borderColor: theme.primary },
-                          ]}
-                        >
-                          {selected && <Text style={styles.checkmark}>✓</Text>}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+            <View style={f.secBody}>
+              {airlines.map(({ code, count }) => {
+                const name = getAirlineName(code) || code;
+                const sel = filters.airlines.includes(code);
+                return (
+                  <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>
+                    <View style={[f.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
+                      {sel && <Text style={f.checkMark}>✓</Text>}
+                    </View>
+                    <Text style={[f.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
+                    <Text style={[f.airlineCount, { color: theme.textMuted }]}>{count}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </>
       )}
 
-      {noResults && (
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          {t('no_results_search_first')}
-        </Text>
-      )}
+      {noResults && <Text style={[f.hint, { color: theme.textMuted }]}>{t('no_results_search_first')}</Text>}
     </>
   );
 
-  const panelContent = (
-    <>
-      <View style={[styles.header, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="filter-outline" size={22} color={theme.text} />
-          <Text style={[styles.title, { color: theme.text }]}>{t('filters')}</Text>
-        </View>
-        {isModal && onClose && (
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={[styles.closeText, { color: theme.primary }]}>{t('done')}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {content}
-      </ScrollView>
-    </>
+  const header = (
+    <View style={[f.header, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
+      <Text style={[f.title, { color: theme.text }]}>{t('filters')}</Text>
+      {isModal && onClose && (
+        <TouchableOpacity onPress={onClose} style={f.closeBtn}>
+          <Text style={[f.closeText, { color: theme.primary }]}>{t('done')}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   if (variant === 'sidebar') {
-    const borderStyle = sidebarPosition === 'right'
+    const border = sidebarPosition === 'right'
       ? { borderLeftWidth: 1, borderLeftColor: theme.cardBorder }
       : { borderRightWidth: 1, borderRightColor: theme.cardBorder };
     return (
-      <View style={[styles.sidebar, { backgroundColor: theme.cardBg }, borderStyle]}>
-        {panelContent}
+      <View style={[f.sidebar, { backgroundColor: theme.cardBg }, border]}>
+        {header}
+        <ScrollView style={f.scroll} contentContainerStyle={f.scrollContent}>{content}</ScrollView>
       </View>
     );
   }
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <View
-          style={[styles.panel, { backgroundColor: theme.cardBg }]}
-          onStartShouldSetResponder={() => true}
-        >
-          {panelContent}
+      <Pressable style={f.overlay} onPress={onClose}>
+        <View style={[f.panel, { backgroundColor: theme.cardBg }]} onStartShouldSetResponder={() => true}>
+          {header}
+          <ScrollView style={f.scroll} contentContainerStyle={f.scrollContent}>{content}</ScrollView>
         </View>
       </Pressable>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  sidebar: {
-    width: 260,
-    paddingTop: 16,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  panel: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-  },
+const f = StyleSheet.create({
+  sidebar: { width: 240, paddingTop: 0 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  panel: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  title: { fontSize: 20, fontWeight: '700' },
-  closeBtn: { paddingVertical: 8, paddingHorizontal: 12 },
-  closeText: { fontSize: 17, fontWeight: '600' },
-  scroll: { maxHeight: 400 },
-  scrollContent: { padding: 12, paddingBottom: 24 },
-  sectionHeader: {
+  title: { fontSize: 15, fontWeight: '700' },
+  closeBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  closeText: { fontSize: 15, fontWeight: '600' },
+  scroll: {},
+  scrollContent: { paddingHorizontal: 14, paddingBottom: 24 },
+
+  secHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
   },
-  sectionTitle: { fontSize: 13, fontWeight: '500' },
-  sectionChevron: { fontSize: 10 },
-  sectionBody: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  secTitle: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  chevron: { fontSize: 12 },
+  secBody: { paddingBottom: 10 },
+
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
+  chip: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1 },
   chipText: { fontSize: 12 },
-  airlineList: { marginTop: 0 },
-  airlineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  airlineName: { fontSize: 13 },
-  airlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmark: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  hint: { fontSize: 14, marginTop: 16, fontStyle: 'italic' },
+
+  airlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  airlineName: { fontSize: 13, flex: 1 },
+  airlineCount: { fontSize: 12 },
+
+  hint: { fontSize: 13, marginTop: 16, fontStyle: 'italic' },
 });

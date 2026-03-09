@@ -15,15 +15,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joho/godotenv"
 	"flightcaptainweb/search"
+
+	"github.com/joho/godotenv"
 )
 
 const frankfurterURL = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=GBP,EUR,ILS,JPY"
 const exchangeRefreshInterval = 1 * time.Hour
 
 var (
-	exchangeRatesMu   sync.RWMutex
+	exchangeRatesMu    sync.RWMutex
 	exchangeRatesToUSD = map[string]float64{
 		"USD": 1.0,
 		"GBP": 1.27,
@@ -155,18 +156,35 @@ type FlightLeg struct {
 	Segments []FlightSegment `json:"segments"`
 }
 
+// LayoverSummary is a stop between two consecutive segments (at segment[i].from == segment[i-1].to).
+type LayoverSummary struct {
+	AirportCode string `json:"airportCode"`
+	Minutes     int    `json:"minutes"`
+}
+
+// OutboundSummary is the canonical summary for the outbound leg (legs[0]) used by result cards and details modal.
+type OutboundSummary struct {
+	DepartureTime   time.Time        `json:"departureTime"`
+	ArrivalTime     time.Time        `json:"arrivalTime"`
+	DurationMinutes int              `json:"durationMinutes"`
+	StopsCount      int              `json:"stopsCount"`
+	Layovers        []LayoverSummary `json:"layovers,omitempty"`
+}
+
 type FlightOption struct {
-	ID                    string         `json:"id"`
-	Price                 MonetaryAmount `json:"price"`
-	DurationMinutes       int            `json:"durationMinutes"`
-	Legs                  []FlightLeg    `json:"legs"`
-	ValidatingAirlines    []string       `json:"validatingAirlines,omitempty"`
-	BaggageClass          string         `json:"baggageClass,omitempty"`   // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
-	PrimaryDisplayCarrier string         `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
-	Source                string         `json:"source,omitempty"`           // "amadeus" | "duffel" | "compare"
-	DeepLink              string         `json:"deepLink,omitempty"`        // provider booking link (e.g. Duffel)
-	VendorName            string         `json:"vendorName,omitempty"`      // OTA name (kayak/expedia etc) when source=compare
-	CanonicalFingerprint  string         `json:"canonicalFingerprint,omitempty"` // stable hash for dedupe; optional in response
+	ID                    string           `json:"id"`
+	Price                 MonetaryAmount   `json:"price"`
+	DurationMinutes       int              `json:"durationMinutes"`
+	Legs                  []FlightLeg      `json:"legs"`
+	OutboundSummary       *OutboundSummary `json:"outboundSummary,omitempty"`
+	ValidatingAirlines    []string         `json:"validatingAirlines,omitempty"`
+	BaggageClass          string           `json:"baggageClass,omitempty"`          // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
+	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
+	Source                string           `json:"source,omitempty"`                // "amadeus" | "duffel" | "compare"
+	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link (e.g. Duffel)
+	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
+	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia etc) when source=compare
+	CanonicalFingerprint  string           `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
 }
 
 type SearchSessionResultsResponse struct {
@@ -176,12 +194,12 @@ type SearchSessionResultsResponse struct {
 }
 
 var (
-	sessions           = make(map[string]SearchSessionResultsResponse)
-	sessionsMu         sync.RWMutex
-	rawOffersBySession = make(map[string][]map[string]interface{})
-	rawOffersMu        sync.RWMutex
-	amadeusClient         *AmadeusClient
-	duffelClient          *DuffelClient
+	sessions               = make(map[string]SearchSessionResultsResponse)
+	sessionsMu             sync.RWMutex
+	rawOffersBySession     = make(map[string][]map[string]interface{})
+	rawOffersMu            sync.RWMutex
+	amadeusClient          *AmadeusClient
+	duffelClient           *DuffelClient
 	googleFlights2Provider *search.GoogleFlights2Provider
 )
 
@@ -367,8 +385,8 @@ func baggageOrder(class interface{}) int {
 
 // CarrierCodes holds marketing, operating, and validating carrier codes extracted from a raw offer.
 type CarrierCodes struct {
-	Marketing []string
-	Operating []string
+	Marketing  []string
+	Operating  []string
 	Validating []string
 }
 
@@ -670,88 +688,88 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 		if errOut == nil && errRet == nil {
 			// Filter out non-positive prices.
-		var outboundFiltered []map[string]interface{}
-		for _, o := range outResp.Data {
-			if p := extractRawPrice(o); p > 0 {
-				outboundFiltered = append(outboundFiltered, o)
+			var outboundFiltered []map[string]interface{}
+			for _, o := range outResp.Data {
+				if p := extractRawPrice(o); p > 0 {
+					outboundFiltered = append(outboundFiltered, o)
+				}
 			}
-		}
-		var returnFiltered []map[string]interface{}
-		for _, r := range retResp.Data {
-			if p := extractRawPrice(r); p > 0 {
-				returnFiltered = append(returnFiltered, r)
+			var returnFiltered []map[string]interface{}
+			for _, r := range retResp.Data {
+				if p := extractRawPrice(r); p > 0 {
+					returnFiltered = append(returnFiltered, r)
+				}
 			}
-		}
 
-		// Sort by price ascending.
-		sort.Slice(outboundFiltered, func(i, j int) bool {
-			return extractRawPrice(outboundFiltered[i]) < extractRawPrice(outboundFiltered[j])
-		})
-		sort.Slice(returnFiltered, func(i, j int) bool { return extractRawPrice(returnFiltered[i]) < extractRawPrice(returnFiltered[j]) })
+			// Sort by price ascending.
+			sort.Slice(outboundFiltered, func(i, j int) bool {
+				return extractRawPrice(outboundFiltered[i]) < extractRawPrice(outboundFiltered[j])
+			})
+			sort.Slice(returnFiltered, func(i, j int) bool { return extractRawPrice(returnFiltered[i]) < extractRawPrice(returnFiltered[j]) })
 
-		// Limit candidates.
-		outboundCandidates := outboundFiltered
-		if len(outboundCandidates) > mixLimit {
-			outboundCandidates = outboundCandidates[:mixLimit]
-		}
-		returnCandidates := returnFiltered
-		if len(returnCandidates) > mixLimit {
-			returnCandidates = returnCandidates[:mixLimit]
-		}
-
-		// Generate all combinations (no early exit) then sort and take top 50 for correctness.
-		var combos []MixedRoundTrip
-		for _, o := range outboundCandidates {
-			outPrice := extractRawPrice(o)
-			if outPrice <= 0 {
-				continue
+			// Limit candidates.
+			outboundCandidates := outboundFiltered
+			if len(outboundCandidates) > mixLimit {
+				outboundCandidates = outboundCandidates[:mixLimit]
 			}
-			for _, r := range returnCandidates {
-				retPrice := extractRawPrice(r)
-				if retPrice <= 0 {
+			returnCandidates := returnFiltered
+			if len(returnCandidates) > mixLimit {
+				returnCandidates = returnCandidates[:mixLimit]
+			}
+
+			// Generate all combinations (no early exit) then sort and take top 50 for correctness.
+			var combos []MixedRoundTrip
+			for _, o := range outboundCandidates {
+				outPrice := extractRawPrice(o)
+				if outPrice <= 0 {
 					continue
 				}
-				combos = append(combos, MixedRoundTrip{
-					Outbound:   o,
-					Return:     r,
-					TotalPrice: outPrice + retPrice,
-				})
+				for _, r := range returnCandidates {
+					retPrice := extractRawPrice(r)
+					if retPrice <= 0 {
+						continue
+					}
+					combos = append(combos, MixedRoundTrip{
+						Outbound:   o,
+						Return:     r,
+						TotalPrice: outPrice + retPrice,
+					})
+				}
 			}
-		}
-		combosGenerated = len(combos)
+			combosGenerated = len(combos)
 
-		// Sort by total price ascending and keep top 50.
-		sort.Slice(combos, func(i, j int) bool { return combos[i].TotalPrice < combos[j].TotalPrice })
-		topK := maxOffersReturnedToClient
-		if len(combos) < topK {
-			topK = len(combos)
-		}
-		combos = combos[:topK]
-
-		for _, c := range combos {
-			merged := buildCombinedOffer(c.Outbound, c.Return, c.TotalPrice)
-			if merged != nil {
-				offers = append(offers, merged)
+			// Sort by total price ascending and keep top 50.
+			sort.Slice(combos, func(i, j int) bool { return combos[i].TotalPrice < combos[j].TotalPrice })
+			topK := maxOffersReturnedToClient
+			if len(combos) < topK {
+				topK = len(combos)
 			}
-		}
+			combos = combos[:topK]
 
-		// Preserve dictionaries merging behavior.
-		_ = mergeDictionaries(outResp.Dictionaries, retResp.Dictionaries)
+			for _, c := range combos {
+				merged := buildCombinedOffer(c.Outbound, c.Return, c.TotalPrice)
+				if merged != nil {
+					offers = append(offers, merged)
+				}
+			}
 
-		outboundOffersReturned = len(outResp.Data)
-		returnOffersReturned = len(retResp.Data)
-		if len(combos) > 0 {
-			cheapestMixed = combos[0].TotalPrice
-		}
-		if len(outboundCandidates) > 0 {
-			cheapestOutbound = extractRawPrice(outboundCandidates[0])
-		}
-		if len(returnCandidates) > 0 {
-			cheapestReturn = extractRawPrice(returnCandidates[0])
-		}
+			// Preserve dictionaries merging behavior.
+			_ = mergeDictionaries(outResp.Dictionaries, retResp.Dictionaries)
 
-		log.Printf("[ROUNDTRIP_MIX] outboundCandidates=%d returnCandidates=%d combinationsGenerated=%d cheapestMixed=%.2f cheapestOutbound=%.2f cheapestReturn=%.2f",
-			len(outboundCandidates), len(returnCandidates), combosGenerated, cheapestMixed, cheapestOutbound, cheapestReturn)
+			outboundOffersReturned = len(outResp.Data)
+			returnOffersReturned = len(retResp.Data)
+			if len(combos) > 0 {
+				cheapestMixed = combos[0].TotalPrice
+			}
+			if len(outboundCandidates) > 0 {
+				cheapestOutbound = extractRawPrice(outboundCandidates[0])
+			}
+			if len(returnCandidates) > 0 {
+				cheapestReturn = extractRawPrice(returnCandidates[0])
+			}
+
+			log.Printf("[ROUNDTRIP_MIX] outboundCandidates=%d returnCandidates=%d combinationsGenerated=%d cheapestMixed=%.2f cheapestOutbound=%.2f cheapestReturn=%.2f",
+				len(outboundCandidates), len(returnCandidates), combosGenerated, cheapestMixed, cheapestOutbound, cheapestReturn)
 		}
 	} else {
 		// One-way: single Amadeus request (no offset). travelClass from cabin preference.
@@ -778,13 +796,13 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			offers = nil
 		} else {
 			offers = apiResp.Data
-		outboundOffersReturned = len(apiResp.Data)
-		for _, o := range offers {
-			if p := extractRawPrice(o); p > 0 && (cheapestOutbound == 0 || p < cheapestOutbound) {
-				cheapestOutbound = p
+			outboundOffersReturned = len(apiResp.Data)
+			for _, o := range offers {
+				if p := extractRawPrice(o); p > 0 && (cheapestOutbound == 0 || p < cheapestOutbound) {
+					cheapestOutbound = p
+				}
 			}
-		}
-		cheapestMixed = cheapestOutbound
+			cheapestMixed = cheapestOutbound
 		}
 	}
 
@@ -965,6 +983,30 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	// Best-effort dedupe: same origin+dest, depart within 10 min, same carrier+flight when available.
 	options = dedupeFlightOptions(options)
+
+	// Ensure every option has sanitized segment times, carrier, and canonical outbound summary.
+	for i := range options {
+		sanitizeSegmentTimes(options[i].Legs)
+		ensurePrimaryCarrier(&options[i])
+		options[i].OutboundSummary = computeOutboundSummary(&options[i])
+	}
+	if len(options) > 0 {
+		o := &options[0]
+		sum := o.OutboundSummary
+		if sum != nil {
+			layoversStr := ""
+			for _, l := range sum.Layovers {
+				if layoversStr != "" {
+					layoversStr += ","
+				}
+				layoversStr += l.AirportCode + "(" + fmt.Sprintf("%d", l.Minutes) + "m)"
+			}
+			log.Printf("[NORMALIZED_SUMMARY] departure=%s arrival=%s durationMinutes=%d stops=%d layovers=[%s]",
+				sum.DepartureTime.Format("2006-01-02T15:04:05Z"),
+				sum.ArrivalTime.Format("2006-01-02T15:04:05Z"),
+				sum.DurationMinutes, sum.StopsCount, layoversStr)
+		}
+	}
 
 	// Convert all option prices to the requested currency (so Amadeus + Duffel + GF2 results are comparable and displayed in user's choice).
 	convertOptionsToCurrency(options, requestedCurr)
@@ -1230,7 +1272,7 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 			totalDuration = computed
 		}
 
-		options = append(options, FlightOption{
+		opt := FlightOption{
 			ID:                    fmt.Sprintf("opt_%d", idx),
 			Price:                 MonetaryAmount{Currency: req.CurrencyOrDefault(), Amount: price},
 			DurationMinutes:       totalDuration,
@@ -1239,7 +1281,11 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 			BaggageClass:          baggageClass,
 			PrimaryDisplayCarrier: primaryCarrier,
 			Source:                "amadeus",
-		})
+		}
+		sanitizeSegmentTimes(opt.Legs)
+		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
+		opt.OutboundSummary = computeOutboundSummary(&opt)
+		options = append(options, opt)
 	}
 
 	return options
@@ -1263,6 +1309,107 @@ func computeTotalDurationFromLegs(legs []FlightLeg) int {
 		}
 	}
 	return total
+}
+
+// sumSegmentDurations returns total minutes from all segment DurationMinutes. Used when segment times are missing but API provided per-segment duration.
+func sumSegmentDurations(legs []FlightLeg) int {
+	var total int
+	for _, leg := range legs {
+		for _, seg := range leg.Segments {
+			if seg.DurationMinutes > 0 {
+				total += seg.DurationMinutes
+			}
+		}
+	}
+	return total
+}
+
+// ensurePrimaryCarrier derives PrimaryDisplayCarrier from the first outbound segment when the provider didn't set it (e.g. Google Flights).
+func ensurePrimaryCarrier(opt *FlightOption) {
+	if opt.PrimaryDisplayCarrier != "" {
+		return
+	}
+	if len(opt.Legs) > 0 {
+		for _, seg := range opt.Legs[0].Segments {
+			if seg.MarketingCarrier.Code != "" {
+				opt.PrimaryDisplayCarrier = seg.MarketingCarrier.Code
+				return
+			}
+		}
+	}
+}
+
+// sanitizeSegmentTimes ensures no segment has identical departure and arrival when duration is known (fixes "02:20 -> 02:20" and fake 0h layovers).
+func sanitizeSegmentTimes(legs []FlightLeg) {
+	for i := range legs {
+		for j := range legs[i].Segments {
+			s := &legs[i].Segments[j]
+			if !s.DepartureTime.IsZero() && s.DepartureTime.Equal(s.ArrivalTime) && s.DurationMinutes > 0 {
+				s.ArrivalTime = s.DepartureTime.Add(time.Duration(s.DurationMinutes) * time.Minute)
+			}
+			if !s.ArrivalTime.IsZero() && s.DepartureTime.Equal(s.ArrivalTime) && s.DurationMinutes > 0 {
+				s.DepartureTime = s.ArrivalTime.Add(-time.Duration(s.DurationMinutes) * time.Minute)
+			}
+		}
+	}
+}
+
+// computeOutboundSummary builds the canonical outbound summary from legs[0] for result cards and details modal.
+// Rules: departure = first segment dep, arrival = last segment arr, duration = last arr - first dep (or sum of segment durations), stopsCount = segments-1, layovers only between consecutive segments.
+func computeOutboundSummary(opt *FlightOption) *OutboundSummary {
+	if len(opt.Legs) == 0 || len(opt.Legs[0].Segments) == 0 {
+		return nil
+	}
+	leg := &opt.Legs[0]
+	segs := leg.Segments
+	first := &segs[0]
+	last := &segs[len(segs)-1]
+
+	dep := first.DepartureTime
+	arr := last.ArrivalTime
+	durMin := 0
+	if !dep.IsZero() && !arr.IsZero() {
+		durMin = int(arr.Sub(dep).Minutes())
+	}
+	if durMin <= 0 {
+		for _, s := range segs {
+			durMin += s.DurationMinutes
+		}
+	}
+	if durMin <= 0 && opt.DurationMinutes > 0 {
+		durMin = opt.DurationMinutes
+	}
+
+	stopsCount := len(segs) - 1
+	if stopsCount < 0 {
+		stopsCount = 0
+	}
+
+	var layovers []LayoverSummary
+	for i := 1; i < len(segs); i++ {
+		prev := segs[i-1]
+		curr := segs[i]
+		if prev.ArrivalTime.IsZero() || curr.DepartureTime.IsZero() {
+			continue
+		}
+		mins := int(curr.DepartureTime.Sub(prev.ArrivalTime).Minutes())
+		if mins < 0 {
+			mins = 0
+		}
+		airport := prev.To.Code
+		if airport == "" {
+			airport = curr.From.Code
+		}
+		layovers = append(layovers, LayoverSummary{AirportCode: airport, Minutes: mins})
+	}
+
+	return &OutboundSummary{
+		DepartureTime:   dep,
+		ArrivalTime:     arr,
+		DurationMinutes: durMin,
+		StopsCount:      stopsCount,
+		Layovers:        layovers,
+	}
 }
 
 // providerResultsToFlightOptions converts search.ProviderResult to FlightOption.
@@ -1289,19 +1436,26 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 		durMin := pr.DurationMinutes
 		if computed := computeTotalDurationFromLegs(legs); computed > 0 {
 			durMin = computed
+		} else if sum := sumSegmentDurations(legs); sum > 0 {
+			durMin = sum
 		}
-		out = append(out, FlightOption{
+		opt := FlightOption{
 			ID:                    pr.ID,
 			Price:                 MonetaryAmount{Currency: pr.Price.Currency, Amount: pr.Price.Amount},
 			DurationMinutes:       durMin,
 			Legs:                  legs,
-			ValidatingAirlines:     pr.ValidatingAirlines,
+			ValidatingAirlines:    pr.ValidatingAirlines,
 			BaggageClass:          pr.BaggageClass,
 			PrimaryDisplayCarrier: pr.PrimaryDisplayCarrier,
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
 			VendorName:            pr.VendorName,
-		})
+		}
+		sanitizeSegmentTimes(opt.Legs)
+		ensurePrimaryCarrier(&opt)
+		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
+		opt.OutboundSummary = computeOutboundSummary(&opt)
+		out = append(out, opt)
 	}
 	return out
 }
@@ -1902,7 +2056,8 @@ func handleAffiliateProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOutBooking is the uniform booking redirect: GET /api/out/booking?sessionId=...&optionId=...
-// Builds link via BuildUniformBookingLink (prefer option.DeepLink, else prefill), records click, returns 302.
+// Optional query params (origin, destination, departureDate, returnDate) are used when session/option is not found
+// so we still redirect to a Skyscanner search instead of returning JSON error.
 func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -1915,24 +2070,34 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	sessionID := strings.TrimSpace(q.Get("sessionId"))
 	optionID := strings.TrimSpace(q.Get("optionId"))
-	if sessionID == "" || optionID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sessionId and optionId are required"})
+	origin := strings.TrimSpace(q.Get("origin"))
+	destination := strings.TrimSpace(q.Get("destination"))
+	departureDate := strings.TrimSpace(q.Get("departureDate"))
+	returnDate := strings.TrimSpace(q.Get("returnDate"))
+
+	if sessionID != "" && optionID != "" {
+		resp, option := GetSessionAndOption(sessionID, optionID)
+		if resp != nil && option != nil {
+			redirectURL := BuildUniformBookingLink(&resp.Session, option)
+			if redirectURL != "" {
+				provider := ResolveProvider(option)
+				_ = RecordClick(sessionID, optionID, provider, redirectURL)
+				w.Header().Set("Location", redirectURL)
+				w.WriteHeader(http.StatusFound)
+				return
+			}
+		}
+	}
+
+	{
+		redirectURL := BuildSkyscannerFallbackFromParams(origin, destination, departureDate, returnDate)
+		if redirectURL == "" {
+			redirectURL = "https://www.skyscanner.net/transport/flights/"
+		}
+		w.Header().Set("Location", redirectURL)
+		w.WriteHeader(http.StatusFound)
 		return
 	}
-	resp, option := GetSessionAndOption(sessionID, optionID)
-	if resp == nil || option == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
-		return
-	}
-	redirectURL := BuildUniformBookingLink(&resp.Session, option)
-	if redirectURL == "" {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build booking URL"})
-		return
-	}
-	provider := ResolveProvider(option)
-	_ = RecordClick(sessionID, optionID, provider, redirectURL)
-	w.Header().Set("Location", redirectURL)
-	w.WriteHeader(http.StatusFound)
 }
 
 func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
@@ -1983,7 +2148,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // allowedCORSOrigins are origins allowed for CORS (production + dev).
 var allowedCORSOrigins = map[string]bool{
-	"https://fly-fix.com":   true,
+	"https://fly-fix.com":    true,
 	"http://localhost:19006": true, // Expo web/dev
 	"http://localhost:8081":  true, // local web/dev
 }

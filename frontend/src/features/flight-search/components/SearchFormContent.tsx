@@ -16,24 +16,16 @@ export interface SearchFormContentProps {
   onSearch: () => void;
   loading: boolean;
   error: string | null;
-  /** Compact mode for sidebar (e.g. on Results page) */
   compact?: boolean;
 }
 
 export function SearchFormContent({
-  params,
-  update,
-  tripType,
-  setTripType,
-  onSearch,
-  loading,
-  error,
-  compact = false,
+  params, update, tripType, setTripType, onSearch, loading, error, compact = false,
 }: SearchFormContentProps) {
   const { theme } = useTheme();
-  const { t, isRTL } = useLocale();
+  const { t } = useLocale();
   const [showCalendar, setShowCalendar] = useState(false);
-  const themed = makeThemedStyles(theme);
+  const ts = makeThemedStyles(theme);
 
   const dateLabel =
     tripType === 'round-trip'
@@ -43,48 +35,49 @@ export function SearchFormContent({
       : params.departureDate || t('select_date');
 
   const routeSummary =
-    params.origin && params.destination
-      ? `${params.origin} → ${params.destination}`
-      : null;
+    params.origin && params.destination ? `${params.origin} → ${params.destination}` : null;
 
   return (
-    <View style={[styles.hero, compact && styles.heroCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+    <View style={[s.hero, compact && s.heroCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
       {compact ? (
-        routeSummary && (
-          <Text style={[themed.heroSubtitle, { marginBottom: 12 }]} numberOfLines={1}>
-            {routeSummary}
-          </Text>
-        )
+        routeSummary && <Text style={[ts.heroSubtitle, { marginBottom: 10 }]} numberOfLines={1}>{routeSummary}</Text>
       ) : (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="airplane-outline" size={22} color={theme.text} />
-          <Text style={themed.heroTitle}>{t('find_flights')}</Text>
-        </View>
-          <Text style={themed.heroSubtitle}>{t('compare_prices')}</Text>
+            <Ionicons name="airplane-outline" size={20} color={theme.text} />
+            <Text style={ts.heroTitle}>{t('find_flights')}</Text>
+          </View>
+          <Text style={ts.heroSubtitle}>{t('compare_prices')}</Text>
         </>
       )}
-      <View style={[styles.tripRow, compact && styles.tripRowCompact]}>
-        <TouchableOpacity
-          style={[styles.tab, themed.tabBase, tripType === 'one-way' && themed.tabActive]}
-          onPress={() => setTripType('one-way')}
-        >
-          <Text style={tripType === 'one-way' ? themed.tabTextActive : themed.tabText}>{t('one_way')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, themed.tabBase, tripType === 'round-trip' && themed.tabActive]}
-          onPress={() => setTripType('round-trip')}
-        >
-          <Text style={tripType === 'round-trip' ? themed.tabTextActive : themed.tabText}>{t('round_trip')}</Text>
-        </TouchableOpacity>
+
+      {/* Trip type pills */}
+      <View style={[s.tripRow, compact && s.tripRowCompact]}>
+        {(['one-way', 'round-trip'] as const).map((tt) => {
+          const active = tripType === tt;
+          return (
+            <TouchableOpacity
+              key={tt}
+              style={[s.tab, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              onPress={() => setTripType(tt)}
+              activeOpacity={0.7}
+            >
+              <Text style={active ? ts.tabTextActive : ts.tabText}>{t(tt === 'one-way' ? 'one_way' : 'round_trip')}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <AirportAutocomplete label={t('from')} value={params.origin} onChange={(c) => update('origin', c)} placeholder={t('city_or_airport')} />
       <AirportAutocomplete label={t('to')} value={params.destination} onChange={(c) => update('destination', c)} placeholder={t('city_or_airport')} />
 
-      <Text style={[themed.label, compact && { marginBottom: 4, fontSize: 14 }]}>{t('dates')}</Text>
-      <TouchableOpacity style={[styles.dateButton, compact && styles.dateButtonCompact, themed.dateButton]} onPress={() => setShowCalendar(true)}>
-        <Text style={themed.dateButtonText}>{dateLabel}</Text>
+      <Text style={[ts.label, compact && { marginBottom: 3, fontSize: 13 }]}>{t('dates')}</Text>
+      <TouchableOpacity
+        style={[s.dateBtn, compact && s.dateBtnCompact, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
+        onPress={() => setShowCalendar(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={[ts.dateText, compact && { fontSize: 14 }]}>{dateLabel}</Text>
       </TouchableOpacity>
 
       <DateRangePicker
@@ -93,14 +86,8 @@ export function SearchFormContent({
         mode={tripType === 'round-trip' ? 'range' : 'single'}
         initialDate={params.departureDate || undefined}
         initialEndDate={params.returnDate || undefined}
-        onSelect={(date) => {
-          update('departureDate', date);
-          update('returnDate', undefined as any);
-        }}
-        onSelectRange={(start, end) => {
-          update('departureDate', start);
-          update('returnDate', end as any);
-        }}
+        onSelect={(date) => { update('departureDate', date); update('returnDate', undefined as any); }}
+        onSelectRange={(start, end) => { update('departureDate', start); update('returnDate', end as any); }}
       />
 
       <PassengerCabinPicker
@@ -114,42 +101,41 @@ export function SearchFormContent({
         }
         onAdultsChange={(n) => update('adults', n)}
         onChildrenChange={(n) => update('children', n)}
-        onCabinChange={(c) => {
-          update('cabinClass', c);
-          update('cabinPreference', c as 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST');
-        }}
+        onCabinChange={(c) => { update('cabinClass', c); update('cabinPreference', c as any); }}
         label={t('passengers_cabin')}
       />
 
-      <Text style={themed.label}>{t('checked_bag')}</Text>
-      <View style={styles.bagRow}>
-        <TouchableOpacity
-          style={[styles.bagBtn, themed.bagBtn, !params.includeCheckedBag && themed.bagBtnActive]}
-          onPress={() => update('includeCheckedBag', false as any)}
-        >
-          <Text style={!params.includeCheckedBag ? themed.bagTextActive : themed.bagText}>{t('not_included')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.bagBtn, themed.bagBtn, params.includeCheckedBag && themed.bagBtnActive]}
-          onPress={() => update('includeCheckedBag', true as any)}
-        >
-          <Text style={params.includeCheckedBag ? themed.bagTextActive : themed.bagText}>{t('included')}</Text>
-        </TouchableOpacity>
+      <Text style={[ts.label, compact && { fontSize: 13 }]}>{t('checked_bag')}</Text>
+      <View style={s.bagRow}>
+        {([false, true] as const).map((val) => {
+          const active = params.includeCheckedBag === val;
+          return (
+            <TouchableOpacity
+              key={String(val)}
+              style={[s.bagBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              onPress={() => update('includeCheckedBag', val as any)}
+              activeOpacity={0.7}
+            >
+              <Text style={active ? ts.bagTextActive : ts.bagText}>{t(val ? 'included' : 'not_included')}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {error ? <Text style={themed.error}>{error}</Text> : null}
+      {error ? <Text style={ts.error}>{error}</Text> : null}
 
       <TouchableOpacity
-        style={[themed.button, compact && themed.buttonCompact, loading && styles.buttonDisabled]}
+        style={[ts.button, compact && ts.buttonCompact, loading && s.btnDisabled]}
         onPress={onSearch}
         disabled={loading}
+        activeOpacity={0.8}
       >
         {loading ? (
-          <Text style={[themed.buttonText, compact && { fontSize: 16 }]}>{t('searching')}</Text>
+          <Text style={[ts.buttonText, compact && { fontSize: 15 }]}>{t('searching')}</Text>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Ionicons name="search" size={18} color={theme.buttonText} />
-            <Text style={[themed.buttonText, compact && { fontSize: 16 }]}>{t('search_flights')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Ionicons name="search" size={16} color={theme.buttonText} />
+            <Text style={[ts.buttonText, compact && { fontSize: 15 }]}>{t('search_flights')}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -159,41 +145,36 @@ export function SearchFormContent({
 
 function makeThemedStyles(theme: import('../../../theme/ThemeContext').Theme) {
   return {
-    heroTitle: { fontSize: 26, fontWeight: '700' as const, color: theme.text, marginBottom: 6 },
-    heroSubtitle: { fontSize: 15, color: theme.textMuted, marginBottom: 24 },
-    label: { fontSize: 16, fontWeight: '600' as const, marginBottom: 8, color: theme.text },
-    tabBase: { backgroundColor: theme.controlBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
-    tabActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-    tabText: { color: theme.text, fontSize: 17 },
-    tabTextActive: { color: '#fff', fontWeight: '600' as const, fontSize: 17 },
-    dateButton: { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
-    dateButtonText: { fontSize: 17, color: theme.text },
-    bagBtn: { backgroundColor: theme.controlBg, borderColor: theme.inputBorder, borderRadius: theme.radiusMd },
-    bagBtnActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-    bagText: { color: theme.text, fontSize: 15 },
-    bagTextActive: { color: '#fff', fontSize: 15 },
-    error: { color: theme.error, marginTop: 12, fontSize: 16 },
+    heroTitle: { fontSize: 24, fontWeight: '700' as const, color: theme.text, marginBottom: 4 },
+    heroSubtitle: { fontSize: 14, color: theme.textMuted, marginBottom: 20 },
+    label: { fontSize: 14, fontWeight: '600' as const, marginBottom: 6, color: theme.text },
+    tabText: { color: theme.text, fontSize: 14 },
+    tabTextActive: { color: '#fff', fontWeight: '600' as const, fontSize: 14 },
+    dateText: { fontSize: 15, color: theme.text },
+    bagText: { color: theme.text, fontSize: 13 },
+    bagTextActive: { color: '#fff', fontSize: 13 },
+    error: { color: theme.error, marginTop: 10, fontSize: 14 },
     button: {
-      marginTop: 24,
+      marginTop: 20,
       backgroundColor: theme.buttonBg,
-      paddingVertical: 18,
-      borderRadius: theme.radiusLg,
+      paddingVertical: 14,
+      borderRadius: 12,
       alignItems: 'center' as const,
     },
-    buttonCompact: { marginTop: 16, paddingVertical: 12 },
-    buttonText: { color: theme.buttonText, fontSize: 18, fontWeight: '600' as const },
+    buttonCompact: { marginTop: 12, paddingVertical: 10 },
+    buttonText: { color: theme.buttonText, fontSize: 16, fontWeight: '600' as const },
   };
 }
 
-const styles = StyleSheet.create({
-  hero: { borderRadius: 20, padding: 24, borderWidth: 1 },
-  heroCompact: { borderRadius: 12, padding: 16, borderWidth: 1 },
-  tripRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
-  tripRowCompact: { marginBottom: 6 },
-  tab: { flex: 1, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  dateButton: { marginBottom: 4, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 16, borderWidth: 1 },
-  dateButtonCompact: { paddingVertical: 10, marginBottom: 2 },
-  bagRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  bagBtn: { flex: 1, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.6 },
+const s = StyleSheet.create({
+  hero: { borderRadius: 16, padding: 20, borderWidth: 1 },
+  heroCompact: { borderRadius: 12, padding: 14, borderWidth: 1 },
+  tripRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  tripRowCompact: { marginBottom: 4 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  dateBtn: { marginBottom: 4, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1 },
+  dateBtnCompact: { paddingVertical: 8 },
+  bagRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  bagBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  btnDisabled: { opacity: 0.6 },
 });

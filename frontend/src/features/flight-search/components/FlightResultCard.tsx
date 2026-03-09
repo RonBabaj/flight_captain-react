@@ -1,6 +1,13 @@
 /**
- * Professional flight result card (Skyscanner/Kiwi style).
- * Row 1: times + airports + duration/stops | Row 2: airline + summary | Row 3: badges | Price + Book + Details
+ * Flight result card — Skyscanner / Kiwi inspired.
+ *
+ * Layout:
+ *   ┌──────────────────────────────────────────────┐
+ *   │ 06:15 ────── 3h 20m ────── 09:35   ILS 356  │
+ *   │ TLV            Direct           NAP  Book now│
+ *   │ Wizz Air · Economy                 Details → │
+ *   │ [🧳 Not included]                            │
+ *   └──────────────────────────────────────────────┘
  */
 
 import React from 'react';
@@ -11,75 +18,84 @@ import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
-const SPACING = 8;
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+function toValidMs(iso: string | undefined | null): number {
+  if (!iso) return NaN;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return NaN;
+  if (new Date(ms).getUTCFullYear() < 2000) return NaN;
+  return ms;
 }
 
-function formatDuration(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}h ${m}m`;
+function fmtTime(iso: string | undefined | null): string {
+  if (!Number.isFinite(toValidMs(iso))) return '';
+  return new Date(iso!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function baggageBadgeText(
-  baggageClass: FlightOption['baggageClass'],
-  t: (k: string) => string
-): string {
-  if (!baggageClass) return t('checked_bag_unknown');
-  if (baggageClass === 'BAG_OK') return t('not_included');
-  if (baggageClass === 'BAG_INCLUDED') return t('included');
-  return t('checked_bag_unknown');
-}
-
-/** Layover minutes between previous segment arrival and this segment departure. */
-function layoverMinutes(segments: FlightSegment[], idx: number): number {
-  if (idx <= 0 || !segments?.length) return 0;
-  const prev = segments[idx - 1];
-  const curr = segments[idx];
-  if (!prev?.arrivalTime || !curr?.departureTime) return 0;
-  const prevArr = new Date(prev.arrivalTime).getTime();
-  const dep = new Date(curr.departureTime).getTime();
-  return Math.round((dep - prevArr) / 60000);
-}
-
-/** For a leg, return stop airport code and layover minutes for each connection. */
-function getStopsWithLayovers(segments: FlightSegment[]): { airport: string; layoverMinutes: number }[] {
-  const out: { airport: string; layoverMinutes: number }[] = [];
-  if (!segments || segments.length < 2) return out;
-  for (let i = 1; i < segments.length; i++) {
-    const airport = segments[i - 1].to?.code || '';
-    const mins = layoverMinutes(segments, i);
-    if (airport) out.push({ airport, layoverMinutes: mins });
-  }
-  return out;
-}
-
-function formatLayover(min: number): string {
+function fmtDuration(min: number): string {
+  if (min <= 0) return '—';
   const h = Math.floor(min / 60);
   const m = min % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-/** Airline + stops summary e.g. "El Al • Direct" or "ITA Airways • 1 stop" */
-function getAirlineSummary(option: FlightOption, t: (k: string) => string): string {
-  const code =
-    option.primaryDisplayCarrier ||
-    option.validatingAirlines?.[0];
-  const name = code ? getAirlineName(code) || code : '';
-  const stops = option.legs.reduce(
-    (acc, leg) => acc + leg.segments.length - 1,
-    0
-  );
-  const stopsStr =
-    stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
-  return name ? `${name} · ${stopsStr}` : stopsStr;
+// ─── Summary builder ────────────────────────────────────────────────────────
+
+function buildSummary(option: FlightOption) {
+  const bs = option.outboundSummary;
+  const segments = option.legs?.[0]?.segments;
+  if (!segments?.length) return null;
+
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+
+  const departureTime =
+    (Number.isFinite(toValidMs(first.departureTime)) ? first.departureTime : null)
+    ?? (Number.isFinite(toValidMs(bs?.departureTime)) ? bs!.departureTime : null)
+    ?? '';
+  const arrivalTime =
+    (Number.isFinite(toValidMs(last.arrivalTime)) ? last.arrivalTime : null)
+    ?? (Number.isFinite(toValidMs(bs?.arrivalTime)) ? bs!.arrivalTime : null)
+    ?? '';
+
+  let durationMinutes = 0;
+  if ((bs?.durationMinutes ?? 0) > 0) durationMinutes = bs!.durationMinutes;
+  if (durationMinutes <= 0 && option.durationMinutes > 0) durationMinutes = option.durationMinutes;
+  if (durationMinutes <= 0) {
+    const d = toValidMs(departureTime), a = toValidMs(arrivalTime);
+    if (Number.isFinite(d) && Number.isFinite(a) && a > d) durationMinutes = Math.round((a - d) / 60000);
+  }
+  if (durationMinutes <= 0) durationMinutes = segments.reduce((s, seg) => s + Math.max(0, seg.durationMinutes || 0), 0);
+
+  const stopsCount = Math.max(0, segments.length - 1);
+  return { departureTime, arrivalTime, durationMinutes, stopsCount, origin: first.from?.code || '', destination: last.to?.code || '' };
 }
+
+function getLayovers(segments: FlightSegment[]): { airport: string; minutes: number }[] {
+  if (!segments || segments.length < 2) return [];
+  const dest = segments[segments.length - 1].to?.code || '';
+  const out: { airport: string; minutes: number }[] = [];
+  for (let i = 0; i < segments.length - 1; i++) {
+    const ap = segments[i].to?.code || '';
+    if (!ap || ap === dest) continue;
+    const a = toValidMs(segments[i].arrivalTime), d = toValidMs(segments[i + 1].departureTime);
+    const mins = Number.isFinite(a) && Number.isFinite(d) && d > a ? Math.round((d - a) / 60000) : 0;
+    out.push({ airport: ap, minutes: mins });
+  }
+  return out;
+}
+
+function airlineName(option: FlightOption): string {
+  const code =
+    option.primaryDisplayCarrier
+    || option.validatingAirlines?.[0]
+    || option.legs?.[0]?.segments?.find((s) => s.marketingCarrier?.code)?.marketingCarrier?.code
+    || '';
+  return code ? (getAirlineName(code) || code) : '';
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export interface FlightResultCardProps {
   option: FlightOption;
@@ -89,196 +105,156 @@ export interface FlightResultCardProps {
   bookLabel?: string;
 }
 
-export function FlightResultCard({
-  option,
-  onDetails,
-  onBook,
-  bookLoading = false,
-  bookLabel,
-}: FlightResultCardProps) {
+export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel }: FlightResultCardProps) {
   const { theme } = useTheme();
-  const { t, isRTL } = useLocale();
+  const { t, isRTL, currency: displayCurrency } = useLocale();
+  const summary = buildSummary(option);
+  const segments = option.legs?.[0]?.segments ?? [];
 
-  // Outbound leg only for card summary (roundtrip: show outbound times)
-  const outboundLeg = option.legs[0];
-  const firstSeg: FlightSegment | undefined = outboundLeg?.segments[0];
-  const lastSeg: FlightSegment | undefined = outboundLeg?.segments?.length
-    ? outboundLeg.segments[outboundLeg.segments.length - 1]
-    : undefined;
+  const dep = fmtTime(summary?.departureTime) || '—';
+  const arr = fmtTime(summary?.arrivalTime) || '—';
+  const origin = summary?.origin || '';
+  const dest = summary?.destination || '';
+  const dur = fmtDuration(summary?.durationMinutes ?? 0);
+  const stops = summary?.stopsCount ?? Math.max(0, segments.length - 1);
+  const stopsText = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
+  const layovers = getLayovers(segments);
+  const layoverStr = layovers.map((l) => `${l.airport}${l.minutes > 0 ? ` (${fmtDuration(l.minutes)})` : ''}`).join(', ');
+  const airline = airlineName(option);
 
-  const depTime = firstSeg?.departureTime
-    ? formatTime(firstSeg.departureTime)
-    : '—';
-  const arrTime = lastSeg?.arrivalTime
-    ? formatTime(lastSeg.arrivalTime)
-    : '—';
-  const origin = firstSeg?.from?.code ?? '—';
-  const destination = lastSeg?.to?.code ?? '—'; // outbound destination (first leg)
-  const durationStr = formatDuration(option.durationMinutes);
-  const stops = option.legs.reduce(
-    (acc, leg) => acc + leg.segments.length - 1,
-    0
-  );
-  const stopsBadge =
-    stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
-  const stopsWithLayovers = outboundLeg ? getStopsWithLayovers(outboundLeg.segments) : [];
-  const stopAtLabel =
-    stopsWithLayovers.length === 1
-      ? `${t('stop_at')} ${stopsWithLayovers[0].airport} (${formatLayover(stopsWithLayovers[0].layoverMinutes)})`
-      : stopsWithLayovers.length > 1
-        ? `${t('stops_at')} ${stopsWithLayovers.map((s) => `${s.airport} (${formatLayover(s.layoverMinutes)})`).join(', ')}`
-        : '';
-  const airlineSummary = getAirlineSummary(option, t);
+  const cabinRaw = segments[0]?.cabinClass;
+  const cabinKey = cabinRaw === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : cabinRaw === 'BUSINESS' ? 'cabin_business' : cabinRaw === 'FIRST' ? 'cabin_first' : '';
+  const cabinStr = cabinKey ? t(cabinKey) : '';
 
-  const cabinRaw = option.legs[0]?.segments[0]?.cabinClass;
-  const cabinKey =
-    cabinRaw === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy'
-      : cabinRaw === 'BUSINESS' ? 'cabin_business'
-      : cabinRaw === 'FIRST' ? 'cabin_first'
-      : cabinRaw ? 'cabin_economy' : '';
-  const showCabinBadge = Boolean(cabinKey);
-  const showBaggageBadge =
-    option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED';
+  const { amount, currency: cur } = getDisplayPrice(option.price.amount, option.price.currency, displayCurrency);
+  const priceStr = `${cur} ${amount.toFixed(0)}`;
 
-  const arrow = isRTL ? ' ← ' : ' → ';
-  const { currency: displayCurrency } = useLocale();
-  const { amount: displayAmount, currency: outCurr } = getDisplayPrice(
-    option.price.amount,
-    option.price.currency,
-    displayCurrency
-  );
-  const priceStr = `${outCurr} ${displayAmount.toFixed(0)}`;
+  const hasBagBadge = option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED';
+  const bagStr = option.baggageClass === 'BAG_INCLUDED' ? t('included') : option.baggageClass === 'BAG_OK' ? t('not_included') : '';
+
+  const row = (rtlStyle?: object) => isRTL ? [{ flexDirection: 'row-reverse' as const }, rtlStyle] : [];
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.cardBg,
-          borderColor: theme.cardBorder,
-        },
-      ]}
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onDetails}
+      style={[c.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
     >
-      {/* Main content row: schedule + meta | price + actions */}
-      <View style={[styles.mainRow, isRTL && styles.mainRowRTL]}>
-        {/* Left (or right in RTL): times, route, duration, stops */}
-        <View style={[styles.scheduleBlock, isRTL && styles.scheduleBlockRTL]}>
-          <View style={styles.timesRow}>
-            <Text style={[styles.time, { color: theme.text }]}>{depTime}</Text>
-            <Text style={[styles.arrow, { color: theme.textMuted }]}>{arrow}</Text>
-            <Text style={[styles.time, { color: theme.text }]}>{arrTime}</Text>
+      {/* ── Row 1: Times — Duration/Stops line — Price ── */}
+      <View style={[c.row1, ...row()]}>
+        {/* Schedule column */}
+        <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>
+          {/* Times */}
+          <View style={[c.timesRow, ...row()]}>
+            <Text style={[c.time, { color: theme.text }]}>{dep}</Text>
+            <Text style={[c.timeSep, { color: theme.textMuted }]}>{isRTL ? ' ← ' : ' → '}</Text>
+            <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
           </View>
-          <Text style={[styles.airports, { color: theme.textMuted }]}>
-            {origin} {arrow.trim()} {destination}
-          </Text>
-          <View style={[styles.metaRow, isRTL && styles.metaRowRTL]}>
-            <Text style={[styles.meta, { color: theme.textMuted }]}>{durationStr}</Text>
-            <View style={[styles.stopsBadge, { backgroundColor: theme.controlBg }]}>
-              <Text style={[styles.stopsBadgeText, { color: theme.text }]}>{stopsBadge}</Text>
+          {/* Route codes */}
+          <Text style={[c.route, { color: theme.textMuted }]}>{origin}{origin && dest ? (isRTL ? ' ← ' : ' → ') : ''}{dest}</Text>
+          {/* Duration + Stops */}
+          <View style={[c.metaRow, ...row()]}>
+            <Text style={[c.metaText, { color: theme.textMuted }]}>{dur}</Text>
+            <View style={[c.stopsChip, stops === 0 ? { backgroundColor: theme.isDark ? '#064e3b' : '#d1fae5' } : { backgroundColor: theme.controlBg }]}>
+              <Text style={[c.stopsChipText, stops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text }]}>{stopsText}</Text>
             </View>
           </View>
-          {stopAtLabel ? (
-            <Text style={[styles.stopAtText, { color: theme.textMuted }]}>{stopAtLabel}</Text>
+          {/* Layover detail */}
+          {layoverStr ? (
+            <Text style={[c.layoverText, { color: theme.textMuted }]} numberOfLines={1}>
+              {layovers.length === 1 ? t('stop_at') : t('stops_at')} {layoverStr}
+            </Text>
           ) : null}
         </View>
 
-        {/* Right (or left in RTL): price, Book, Details */}
-        <View style={[styles.priceBlock, isRTL && styles.priceBlockRTL]}>
-          <Text style={[styles.price, { color: theme.primary }]}>{priceStr}</Text>
+        {/* Price + actions column */}
+        <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
+          <Text style={[c.price, { color: theme.primary }]}>{priceStr}</Text>
           <TouchableOpacity
-            style={[styles.bookBtn, { backgroundColor: theme.primary }]}
-            onPress={onBook}
+            style={[c.bookBtn, { backgroundColor: theme.primary }]}
+            onPress={(e) => { e.stopPropagation(); onBook(); }}
             disabled={bookLoading}
+            activeOpacity={0.8}
           >
-            <Text style={styles.bookBtnText}>
-              {bookLoading ? '…' : bookLabel ?? t('book')}
-            </Text>
+            <Text style={c.bookBtnText}>{bookLoading ? '…' : bookLabel ?? t('book_now')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={onDetails} style={styles.detailsLink}>
-            <Text style={[styles.detailsText, { color: theme.primary }]}>
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); onDetails(); }}
+            style={c.detailsBtn}
+            hitSlop={6}
+          >
+            <Text style={[c.detailsBtnText, { color: theme.primary }]}>
               {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Row 2: airline + segments summary */}
-      <View style={[styles.airlineRow, isRTL && styles.airlineRowRTL, { borderTopColor: theme.cardBorder }]}>
-        <Text style={[styles.airlineSummary, { color: theme.text }]}>{airlineSummary}</Text>
+      {/* ── Row 2: Airline · cabin ── */}
+      <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
+        <Text style={[c.airlineText, { color: theme.text }]} numberOfLines={1}>
+          {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
+        </Text>
+        {hasBagBadge && (
+          <View style={[c.bagBadge, { backgroundColor: theme.controlBg }]}>
+            <Text style={[c.bagBadgeText, { color: theme.textMuted }]}>🧳 {bagStr}</Text>
+          </View>
+        )}
       </View>
-
-      {/* Row 3: badges (cabin + baggage only when known; no provider badge) */}
-      {(showCabinBadge || showBaggageBadge) && (
-        <View style={[styles.badgesRow, isRTL && styles.badgesRowRTL]}>
-          {showCabinBadge && (
-            <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
-              <Text style={[styles.badgeText, { color: theme.textMuted }]}>{t(cabinKey)}</Text>
-            </View>
-          )}
-          {showBaggageBadge && (
-            <View style={[styles.badge, { borderColor: theme.cardBorder }]}>
-              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                {t('checked_bag')}: {baggageBadgeText(option.baggageClass!, t)}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const c = StyleSheet.create({
   card: {
-    marginHorizontal: SPACING * 2,
-    marginVertical: SPACING,
-    padding: SPACING * 2,
-    borderRadius: 12,
+    marginHorizontal: 12,
+    marginVertical: 5,
+    borderRadius: 14,
     borderWidth: 1,
+    padding: 14,
   },
-  mainRow: {
+  row1: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: SPACING * 2,
+    gap: 12,
   },
-  mainRowRTL: { flexDirection: 'row-reverse' },
-  scheduleBlock: { flex: 1, minWidth: 0 },
-  scheduleBlockRTL: { alignItems: 'flex-end' },
-  timesRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  time: { fontSize: 20, fontWeight: '700' },
-  arrow: { fontSize: 14 },
-  airports: { fontSize: 12, marginTop: 2 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  stopAtText: { fontSize: 12, marginTop: 4 },
-  metaRowRTL: { flexDirection: 'row-reverse' },
-  meta: { fontSize: 13 },
-  stopsBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  stopsBadgeText: { fontSize: 12, fontWeight: '600' },
-  priceBlock: { alignItems: 'flex-end', minWidth: 100 },
-  priceBlockRTL: { alignItems: 'flex-start' },
-  price: { fontSize: 22, fontWeight: '700' },
+  scheduleCol: { flex: 1, minWidth: 0 },
+  timesRow: { flexDirection: 'row', alignItems: 'baseline' },
+  time: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  timeSep: { fontSize: 13, marginHorizontal: 2 },
+  route: { fontSize: 12, marginTop: 1, letterSpacing: 0.5 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  metaText: { fontSize: 13, fontWeight: '500' },
+  stopsChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  stopsChipText: { fontSize: 12, fontWeight: '600' },
+  layoverText: { fontSize: 11, marginTop: 3 },
+
+  priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 100 },
+  price: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
   bookBtn: {
     marginTop: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    minWidth: 90,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    minWidth: 96,
     alignItems: 'center',
   },
-  bookBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  detailsLink: { marginTop: 4 },
-  detailsText: { fontSize: 13, fontWeight: '600' },
-  airlineRow: { flexDirection: 'row', marginTop: SPACING, paddingTop: SPACING, borderTopWidth: StyleSheet.hairlineWidth },
-  airlineRowRTL: { flexDirection: 'row-reverse' },
-  airlineSummary: { fontSize: 13, fontWeight: '500' },
-  badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: SPACING },
-  badgesRowRTL: { flexDirection: 'row-reverse' },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
+  bookBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  detailsBtn: { marginTop: 6 },
+  detailsBtnText: { fontSize: 13, fontWeight: '600' },
+
+  row2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
   },
-  badgeText: { fontSize: 11 },
+  airlineText: { fontSize: 13, fontWeight: '500', flex: 1 },
+  bagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  bagBadgeText: { fontSize: 11 },
 });

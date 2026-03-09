@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
@@ -18,40 +19,68 @@ import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function toValidMs(iso: string | undefined | null): number {
+  if (!iso) return NaN;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return NaN;
+  if (new Date(ms).getUTCFullYear() < 2000) return NaN;
+  return ms;
+}
+
+function safeTime(iso: string | undefined | null): string {
+  const ms = toValidMs(iso);
+  if (!Number.isFinite(ms)) return '—';
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function safeDate(iso: string | undefined | null): string {
+  const ms = toValidMs(iso);
+  if (!Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 function formatDuration(min: number): string {
+  if (min <= 0) return '—';
   const h = Math.floor(min / 60);
   const m = min % 60;
   return `${h}h ${m}m`;
 }
 
-/** Time for segment display (e.g. "08:00 AM") – same as monthly deals modal. */
-function formatSegmentTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-/** Leg date from first segment departure (YYYY-MM-DD). */
-function legDate(segments: FlightSegment[]): string {
-  if (!segments?.length) return '';
-  const iso = segments[0].departureTime;
-  if (!iso) return '';
-  return new Date(iso).toISOString().slice(0, 10);
-}
-
-/** Layover minutes between previous segment arrival and this segment departure. */
-function layoverMinutes(segments: FlightSegment[], idx: number): number {
-  if (idx <= 0) return 0;
-  const prevArr = new Date(segments[idx - 1].arrivalTime).getTime();
-  const dep = new Date(segments[idx].departureTime).getTime();
+function layoverBetween(segments: FlightSegment[], idx: number): number {
+  if (idx <= 0 || idx >= segments.length) return 0;
+  const finalDest = segments[segments.length - 1].to?.code || '';
+  const connectAirport = segments[idx - 1].to?.code || '';
+  if (connectAirport && connectAirport === finalDest) return 0;
+  const prevArr = toValidMs(segments[idx - 1].arrivalTime);
+  const dep = toValidMs(segments[idx].departureTime);
+  if (!Number.isFinite(prevArr) || !Number.isFinite(dep) || dep <= prevArr) return 0;
   return Math.round((dep - prevArr) / 60000);
 }
 
-function baggageLabel(baggageClass: FlightOption['baggageClass'], t: (k: string) => string): string {
-  if (!baggageClass) return t('checked_bag_unknown');
-  if (baggageClass === 'BAG_OK') return `${t('checked_bag')}: ${t('not_included')}`;
-  if (baggageClass === 'BAG_INCLUDED') return `${t('checked_bag')}: ${t('included')}`;
-  return t('checked_bag_unknown');
+function cabinLabel(raw: string | undefined, t: (k: string) => string): string {
+  if (!raw) return '';
+  switch (raw) {
+    case 'PREMIUM_ECONOMY': return t('cabin_premium_economy');
+    case 'BUSINESS': return t('cabin_business');
+    case 'FIRST': return t('cabin_first');
+    default: return t('cabin_economy');
+  }
 }
+
+function legDuration(segments: FlightSegment[]): number {
+  if (!segments?.length) return 0;
+  const depMs = toValidMs(segments[0].departureTime);
+  const arrMs = toValidMs(segments[segments.length - 1].arrivalTime);
+  if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs > depMs) {
+    return Math.round((arrMs - depMs) / 60000);
+  }
+  return segments.reduce((sum, s) => sum + Math.max(0, s.durationMinutes || 0), 0);
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 interface FlightDetailsModalProps {
   visible: boolean;
@@ -60,21 +89,18 @@ interface FlightDetailsModalProps {
   option: FlightOption | null;
 }
 
-export function FlightDetailsModal({
-  visible,
-  onClose,
-  sessionId,
-  option,
-}: FlightDetailsModalProps) {
+export function FlightDetailsModal({ visible, onClose, sessionId, option }: FlightDetailsModalProps) {
   const { theme } = useTheme();
-  const { t, currency: displayCurrency } = useLocale();
+  const { t, isRTL, currency: displayCurrency } = useLocale();
   const [bookLoading, setBookLoading] = useState(false);
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 600;
 
   const handleBook = async () => {
     if (!option) return;
     setBookLoading(true);
     try {
-      const url = getUniformBookingRedirectUrl(sessionId, option.id);
+      const url = getUniformBookingRedirectUrl(sessionId, option.id, option);
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
@@ -82,20 +108,7 @@ export function FlightDetailsModal({
         Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
       }
     } catch {
-      const origin = option.legs[0]?.segments[0]?.from?.code ?? '';
-      const destination =
-        option.legs[0]?.segments[option.legs[0].segments.length - 1]?.to?.code ?? '';
-      const qStr = `Flights to ${destination} from ${origin}`;
-      const fallbackUrl = `https://www.google.com/travel/flights?q=${encodeURIComponent(qStr)}`;
-      try {
-        if (await Linking.canOpenURL(fallbackUrl)) {
-          await Linking.openURL(fallbackUrl);
-        } else {
-          Alert.alert('Error', 'Could not open booking link.');
-        }
-      } catch {
-        Alert.alert('Error', 'Could not open booking link.');
-      }
+      Alert.alert('Error', 'Could not open booking link.');
     } finally {
       setBookLoading(false);
     }
@@ -103,78 +116,179 @@ export function FlightDetailsModal({
 
   if (!option) return null;
 
-  const validatingCode = option.validatingAirlines?.[0];
-  const validatingName = getAirlineName(validatingCode) ?? validatingCode ?? 'Flight';
+  const carrierCode =
+    option.primaryDisplayCarrier
+    || option.validatingAirlines?.[0]
+    || option.legs?.[0]?.segments?.find((s) => s.marketingCarrier?.code)?.marketingCarrier?.code
+    || '';
+  const airlineName = (carrierCode ? getAirlineName(carrierCode) : '') || carrierCode || '';
 
-  const { width } = useWindowDimensions();
-  const isNarrow = width < 600;
-  const modalStyle = isNarrow
-    ? [styles.card, styles.cardBottomSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]
-    : [styles.card, styles.cardCentered, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }];
+  const { amount: priceAmount, currency: priceCurrency } = getDisplayPrice(
+    option.price.amount,
+    option.price.currency,
+    displayCurrency,
+  );
+
+  const totalStops = option.legs.reduce(
+    (acc, leg) => acc + Math.max(0, (leg.segments?.length ?? 1) - 1),
+    0,
+  );
+  const stopsLabel =
+    totalStops === 0 ? t('direct') : totalStops === 1 ? `1 ${t('stop')}` : `${totalStops} ${t('stops')}`;
+
+  const totalDur =
+    (option.outboundSummary?.durationMinutes ?? 0) > 0
+      ? option.outboundSummary!.durationMinutes
+      : option.durationMinutes > 0
+        ? option.durationMinutes
+        : option.legs.reduce((sum, leg) => sum + legDuration(leg.segments), 0);
+
+  const hasBaggage = option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED';
+  const baggageStr = option.baggageClass === 'BAG_INCLUDED'
+    ? `${t('checked_bag')}: ${t('included')}`
+    : option.baggageClass === 'BAG_OK'
+      ? `${t('checked_bag')}: ${t('not_included')}`
+      : '';
+
+  const firstSegCabin = option.legs?.[0]?.segments?.[0]?.cabinClass;
+  const cabinStr = cabinLabel(firstSegCabin, t);
+
+  const containerStyle = isNarrow
+    ? [s.card, s.cardSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]
+    : [s.card, s.cardCentered, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }];
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }, isNarrow && styles.overlayBottomSheet]}>
-        <View style={modalStyle}>
-          <View style={[styles.header, { borderBottomColor: theme.cardBorder }]}>
-            <Text style={[styles.title, { color: theme.text }]}>{t('flight_details')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={[styles.closeText, { color: theme.primary }]}>{t('close')}</Text>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[s.overlay, isNarrow && s.overlaySheet]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+        <View style={containerStyle}>
+          {/* ── Header ── */}
+          <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
+            <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <Text style={[s.headerClose, { color: theme.primary }]}>✕</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-            <Text style={[styles.price, { color: theme.primary }]}>
-              {(() => {
-                const { amount, currency } = getDisplayPrice(
-                  option.price.amount,
-                  option.price.currency,
-                  displayCurrency
-                );
-                return `${currency} ${amount.toFixed(2)}`;
-              })()}
-            </Text>
-            <Text style={[styles.airline, { color: theme.text }]}>{validatingName}</Text>
-            <Text style={[styles.meta, { color: theme.textMuted }]}>
-              {formatDuration(option.durationMinutes)} ·{' '}
-              {option.legs.reduce((a, l) => a + l.segments.length - 1, 0) === 0
-                ? t('direct')
-                : `${option.legs.reduce((a, l) => a + l.segments.length - 1, 0)} ${t('stops')}`}
-            </Text>
-            {option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED' ? (
-              <View style={styles.badgeWrap}>
-                <Text style={[styles.badge, { color: theme.textMuted }]}>
-                  {baggageLabel(option.baggageClass, t)}
+
+          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} bounces={false}>
+            {/* ── Summary row ── */}
+            <View style={s.summaryRow}>
+              <Text style={[s.price, { color: theme.primary }]}>
+                {priceCurrency} {priceAmount.toFixed(0)}
+              </Text>
+              <View style={s.summaryMeta}>
+                {airlineName ? (
+                  <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
+                ) : null}
+                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                  {formatDuration(totalDur)} · {stopsLabel}
                 </Text>
               </View>
-            ) : null}
+            </View>
+
+            {/* ── Badges ── */}
+            {(cabinStr || hasBaggage) && (
+              <View style={s.badges}>
+                {cabinStr ? (
+                  <View style={[s.badge, { borderColor: theme.cardBorder }]}>
+                    <Text style={[s.badgeText, { color: theme.textMuted }]}>{cabinStr}</Text>
+                  </View>
+                ) : null}
+                {hasBaggage ? (
+                  <View style={[s.badge, { borderColor: theme.cardBorder }]}>
+                    <Text style={[s.badgeText, { color: theme.textMuted }]}>{baggageStr}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+
+            {/* ── Legs ── */}
             {option.legs.map((leg, legIdx) => {
-              const legDateStr = legDate(leg.segments);
+              const segs = leg.segments ?? [];
+              if (!segs.length) return null;
               const legLabel =
                 option.legs.length > 1
-                  ? legIdx === 0
-                    ? t('outbound')
-                    : t('return_leg')
+                  ? legIdx === 0 ? t('outbound') : t('return_leg')
                   : t('flight_leg');
+              const dateStr = safeDate(segs[0].departureTime);
+              const legStops = Math.max(0, segs.length - 1);
+              const legStopsLabel =
+                legStops === 0 ? t('direct') : legStops === 1 ? `1 ${t('stop')}` : `${legStops} ${t('stops')}`;
+              const dur = legDuration(segs);
+
               return (
-                <View key={legIdx} style={styles.legBlock}>
-                  <Text style={[styles.legLabel, { color: theme.textMuted }]}>
-                    {legLabel}{legDateStr ? ` · ${legDateStr}` : ''}
-                  </Text>
-                  {leg.segments.map((seg, segIdx) => {
-                    const layover = layoverMinutes(leg.segments, segIdx);
-                    const depTime = formatSegmentTime(seg.departureTime);
-                    const arrTime = formatSegmentTime(seg.arrivalTime);
-                    const carrier = seg.marketingCarrier?.code || seg.marketingCarrier?.name || '';
+                <View key={legIdx} style={[s.legBlock, { borderTopColor: theme.cardBorder }]}>
+                  {/* Leg header */}
+                  <View style={s.legHeader}>
+                    <Text style={[s.legTitle, { color: theme.text }]}>
+                      {legLabel}
+                    </Text>
+                    <Text style={[s.legMeta, { color: theme.textMuted }]}>
+                      {dateStr ? `${dateStr} · ` : ''}{formatDuration(dur)} · {legStopsLabel}
+                    </Text>
+                  </View>
+
+                  {/* Segments */}
+                  {segs.map((seg, segIdx) => {
+                    const lo = layoverBetween(segs, segIdx);
+                    const carrier = seg.marketingCarrier?.code || '';
+                    const carrierName = carrier ? (getAirlineName(carrier) || carrier) : '';
+                    const segCabin = cabinLabel(seg.cabinClass, t);
+
                     return (
-                      <View key={segIdx} style={styles.segmentBlock}>
-                        {segIdx > 0 && layover > 0 && (
-                          <Text style={[styles.layoverText, { color: theme.textMuted }]}>
-                            {t('layover_in')} {leg.segments[segIdx - 1].to.code} · {Math.floor(layover / 60)}h {layover % 60}m
-                          </Text>
+                      <View key={segIdx}>
+                        {/* Layover divider */}
+                        {segIdx > 0 && lo > 0 && (
+                          <View style={[s.layoverRow, { backgroundColor: theme.controlBg }]}>
+                            <Text style={[s.layoverText, { color: theme.textMuted }]}>
+                              {t('layover_in')} {segs[segIdx - 1].to?.code || '?'} · {formatDuration(lo)}
+                            </Text>
+                          </View>
                         )}
-                        <Text style={[styles.segmentLine, { color: theme.text }]}>
-                          {seg.from.code} {depTime} → {seg.to.code} {arrTime} · {carrier} {seg.flightNumber}
-                        </Text>
+
+                        {/* Segment card */}
+                        <View style={s.segRow}>
+                          {/* Departure */}
+                          <View style={s.segEndpoint}>
+                            <Text style={[s.segTime, { color: theme.text }]}>
+                              {safeTime(seg.departureTime)}
+                            </Text>
+                            <Text style={[s.segAirport, { color: theme.textMuted }]}>
+                              {seg.from?.code || '?'}
+                            </Text>
+                          </View>
+
+                          {/* Middle: line + duration */}
+                          <View style={s.segMiddle}>
+                            <View style={[s.segLine, { backgroundColor: theme.cardBorder }]} />
+                            <Text style={[s.segDuration, { color: theme.textMuted }]}>
+                              {formatDuration(seg.durationMinutes || 0)}
+                            </Text>
+                            <View style={[s.segLine, { backgroundColor: theme.cardBorder }]} />
+                          </View>
+
+                          {/* Arrival */}
+                          <View style={[s.segEndpoint, s.segEndpointRight]}>
+                            <Text style={[s.segTime, { color: theme.text }]}>
+                              {safeTime(seg.arrivalTime)}
+                            </Text>
+                            <Text style={[s.segAirport, { color: theme.textMuted }]}>
+                              {seg.to?.code || '?'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Segment details line */}
+                        <View style={s.segDetails}>
+                          <Text style={[s.segDetailText, { color: theme.textMuted }]}>
+                            {[
+                              carrierName,
+                              seg.flightNumber ? `${carrier} ${seg.flightNumber}` : '',
+                              segCabin,
+                            ].filter(Boolean).join(' · ')}
+                          </Text>
+                        </View>
                       </View>
                     );
                   })}
@@ -182,23 +296,21 @@ export function FlightDetailsModal({
               );
             })}
           </ScrollView>
-          <View style={[styles.footer, { borderTopColor: theme.cardBorder }]}>
+
+          {/* ── Footer ── */}
+          <View style={[s.footer, { borderTopColor: theme.cardBorder }]}>
             <TouchableOpacity
-              style={[styles.bookBtn, { backgroundColor: theme.primary }]}
+              style={[s.bookBtn, { backgroundColor: theme.primary }]}
               onPress={handleBook}
               disabled={bookLoading}
             >
               {bookLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.bookBtnText}>
-                  {t('book')}
-                </Text>
+                <Text style={s.bookBtnText}>{t('book_now')}</Text>
               )}
             </TouchableOpacity>
-            <Text style={[styles.disclaimer, { color: theme.textMuted }]}>
-              {t('booking_disclaimer')}
-            </Text>
+            <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
           </View>
         </View>
       </View>
@@ -206,29 +318,37 @@ export function FlightDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
-  overlayBottomSheet: {
+  overlaySheet: {
     justifyContent: 'flex-end',
+    padding: 0,
   },
   card: {
     borderWidth: 1,
+    overflow: 'hidden',
   },
-  cardBottomSheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '90%',
+  cardSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+    width: '100%',
   },
   cardCentered: {
-    alignSelf: 'center',
-    marginVertical: 24,
-    borderRadius: 16,
-    maxHeight: '85%',
-    maxWidth: 480,
+    borderRadius: 20,
+    maxHeight: '88%',
+    width: '100%',
+    maxWidth: 520,
   },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -237,21 +357,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
   },
-  title: { fontSize: 20, fontWeight: '700' },
-  closeBtn: { paddingVertical: 8, paddingHorizontal: 12 },
-  closeText: { fontSize: 16, fontWeight: '600' },
-  scroll: { maxHeight: 400 },
-  scrollContent: { padding: 20, paddingBottom: 24 },
-  price: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  airline: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  meta: { fontSize: 15, marginBottom: 12 },
-  badgeWrap: { flexDirection: 'row', gap: 12, marginBottom: 16, flexWrap: 'wrap' },
-  badge: { fontSize: 13 },
-  legBlock: { marginTop: 16 },
-  legLabel: { fontWeight: '600', marginBottom: 8, fontSize: 16 },
-  segmentBlock: { marginBottom: 4 },
-  layoverText: { fontSize: 13, marginBottom: 4 },
-  segmentLine: { fontSize: 15 },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  headerClose: { fontSize: 22, fontWeight: '400', lineHeight: 24 },
+
+  scroll: {},
+  scrollContent: { padding: 20, paddingBottom: 8 },
+
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  price: { fontSize: 26, fontWeight: '700' },
+  summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
+  summaryText: { fontSize: 15, fontWeight: '600' },
+  summaryMuted: { fontSize: 14, marginTop: 2 },
+
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  badge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  badgeText: { fontSize: 12 },
+
+  legBlock: { borderTopWidth: 1, paddingTop: 16, marginTop: 8 },
+  legHeader: { marginBottom: 12 },
+  legTitle: { fontSize: 16, fontWeight: '700' },
+  legMeta: { fontSize: 13, marginTop: 2 },
+
+  layoverRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginVertical: 6,
+    alignItems: 'center',
+  },
+  layoverText: { fontSize: 13 },
+
+  segRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  segEndpoint: { alignItems: 'center', width: 56 },
+  segEndpointRight: { alignItems: 'center' },
+  segTime: { fontSize: 18, fontWeight: '700' },
+  segAirport: { fontSize: 12, marginTop: 2 },
+  segMiddle: { flex: 1, flexDirection: 'row', alignItems: 'center', marginHorizontal: 8 },
+  segLine: { flex: 1, height: 1 },
+  segDuration: { fontSize: 12, marginHorizontal: 6 },
+  segDetails: { alignItems: 'center', marginBottom: 8 },
+  segDetailText: { fontSize: 12, textAlign: 'center' },
+
   footer: {
     padding: 20,
     borderTopWidth: 1,
@@ -264,5 +419,5 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   bookBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  disclaimer: { marginTop: 12, fontSize: 13 },
+  disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
 });

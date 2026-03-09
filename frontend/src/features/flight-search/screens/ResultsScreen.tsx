@@ -49,29 +49,30 @@ const defaultFormParams: CreateSearchSessionRequest = {
 };
 
 function SkeletonCard({ theme }: { theme: import('../../../theme/ThemeContext').Theme }) {
+  const bg = theme.controlBg;
   return (
-    <View style={[skeletonStyles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-      <View style={[skeletonStyles.line, { backgroundColor: theme.controlBg }]} />
-      <View style={[skeletonStyles.lineShort, { backgroundColor: theme.controlBg }]} />
-      <View style={skeletonStyles.row}>
-        <View style={[skeletonStyles.lineShort, { backgroundColor: theme.controlBg }]} />
-        <View style={[skeletonStyles.lineShort, { backgroundColor: theme.controlBg }]} />
+    <View style={[sk.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+      <View style={sk.topRow}>
+        <View style={{ flex: 1 }}>
+          <View style={[sk.line, { backgroundColor: bg, width: '75%' }]} />
+          <View style={[sk.line, { backgroundColor: bg, width: '50%', height: 12 }]} />
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <View style={[sk.line, { backgroundColor: bg, width: 64, height: 22 }]} />
+          <View style={[sk.line, { backgroundColor: bg, width: 80, height: 30, borderRadius: 8, marginTop: 6 }]} />
+        </View>
       </View>
+      <View style={[sk.divider, { backgroundColor: theme.cardBorder }]} />
+      <View style={[sk.line, { backgroundColor: bg, width: '40%', height: 12 }]} />
     </View>
   );
 }
 
-const skeletonStyles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  line: { height: 20, borderRadius: 6, width: '60%', marginBottom: 8 },
-  lineShort: { height: 14, borderRadius: 4, width: 72 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+const sk = StyleSheet.create({
+  card: { marginHorizontal: 12, marginVertical: 5, padding: 14, borderRadius: 14, borderWidth: 1 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  line: { height: 18, borderRadius: 6, marginBottom: 6 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
 });
 
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
@@ -131,9 +132,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const handleBookFromCard = async (option: FlightOption) => {
+    if (!sessionId) {
+      Alert.alert('', 'Session expired. Please run a new search.');
+      return;
+    }
     setBookLoadingId(option.id);
     try {
-      const url = getUniformBookingRedirectUrl(sessionId, option.id);
+      const url = getUniformBookingRedirectUrl(sessionId, option.id, option);
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
@@ -141,15 +146,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         Alert.alert('', 'Cannot open booking link.');
       }
     } catch {
-      const origin = option.legs[0]?.segments[0]?.from?.code ?? '';
-      const dest = option.legs[option.legs.length - 1]?.segments?.slice(-1)[0]?.to?.code ?? '';
-      const q = `Flights ${dest} from ${origin}`;
-      const fallback = `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}`;
-      try {
-        if (await Linking.canOpenURL(fallback)) {
-          await Linking.openURL(fallback);
-        }
-      } catch (_) {}
+      Alert.alert('', 'Cannot open booking link.');
     } finally {
       setBookLoadingId(null);
     }
@@ -356,7 +353,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             onDetails={() => setDetailsOption(item)}
             onBook={() => handleBookFromCard(item)}
             bookLoading={bookLoadingId === item.id}
-            bookLabel={t('book')}
+            bookLabel={t('book_now')}
           />
         )}
         ListEmptyComponent={
@@ -397,7 +394,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
-      {/* Sticky search summary bar + Edit */}
+      {/* Summary bar */}
       <View
         style={[
           styles.summaryBar,
@@ -405,17 +402,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           isRTL && { flexDirection: 'row-reverse' },
         ]}
       >
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-            <Ionicons name="airplane-outline" size={20} color={theme.text} />
-            <Text style={[styles.summaryText, { color: theme.text }]} numberOfLines={2}>
-              {summaryStr || t('search_results')}
-            </Text>
-          </View>
+        <Text style={[styles.summaryText, { color: theme.text }]} numberOfLines={1}>
+          {summaryStr || t('search_results')}
+        </Text>
         <TouchableOpacity
-          style={[styles.editSearchBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+          style={[styles.editSearchBtn, { borderColor: theme.cardBorder, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
           onPress={() => setShowEditSearchModal(true)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="create-outline" size={18} color={theme.primary} />
+          <Ionicons name="create-outline" size={16} color={theme.primary} />
           <Text style={[styles.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
         </TouchableOpacity>
       </View>
@@ -448,12 +443,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       </Modal>
 
       {isLoading && (
-        <View
-          style={[
-            styles.banner,
-            { backgroundColor: theme.isDark ? theme.controlBg : '#e0e7ff' },
-          ]}
-        >
+        <View style={[styles.banner, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
           <ActivityIndicator size="small" color={theme.primary} />
           <Text style={[styles.bannerText, { color: theme.primary }]}>
             {t('loading_more_results')}
@@ -563,25 +553,28 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   summaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    gap: 16,
+    gap: 12,
   },
-  summaryText: { fontSize: 16, fontWeight: '600', flex: 1 },
+  summaryText: { fontSize: 14, fontWeight: '600', flex: 1 },
   editSearchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
   },
-  editSearchBtnText: { fontSize: 15, fontWeight: '600' },
+  editSearchBtnText: { fontSize: 13, fontWeight: '600' },
+
   editSearchOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -591,9 +584,9 @@ const styles = StyleSheet.create({
   },
   editSearchModalCard: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 480,
     maxHeight: '90%',
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -601,58 +594,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderBottomWidth: 1,
   },
-  editSearchModalTitle: { fontSize: 20, fontWeight: '700' },
-  editSearchModalClose: { padding: 8 },
+  editSearchModalTitle: { fontSize: 18, fontWeight: '700' },
+  editSearchModalClose: { padding: 6 },
   editSearchModalCloseText: { fontSize: 20 },
   editSearchModalScroll: { maxHeight: 480 },
-  editSearchModalContent: { padding: 20, paddingBottom: 32 },
+  editSearchModalContent: { padding: 18, paddingBottom: 28 },
+
   searchColumn: {
-    width: 320,
-    minWidth: 260,
-    maxWidth: 380,
+    width: 280,
+    minWidth: 240,
+    maxWidth: 340,
     borderRightWidth: 1,
   },
-  searchColumnRTL: {
-    borderRightWidth: 0,
-    borderLeftWidth: 1,
-  },
+  searchColumnRTL: { borderRightWidth: 0, borderLeftWidth: 1 },
   searchColumnScroll: { flex: 1 },
-  searchColumnContent: { padding: 16, paddingBottom: 32 },
+  searchColumnContent: { padding: 14, paddingBottom: 28 },
+
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
-  bannerText: { marginLeft: 12, fontSize: 16 },
+  bannerText: { marginLeft: 10, fontSize: 13, fontWeight: '500' },
+
   main: { flex: 1, flexDirection: 'row' },
   resultsColumn: { flex: 1, minWidth: 0 },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
     borderBottomWidth: 1,
     zIndex: 10,
-    position: 'sticky',
+    position: 'sticky' as any,
     top: 0,
   },
   filtersBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginRight: 8,
   },
-  filtersBtnText: { fontSize: 15, fontWeight: '600' },
-  listContent: { paddingVertical: 8, paddingBottom: 24 },
+  filtersBtnText: { fontSize: 13, fontWeight: '600' },
+
+  listContent: { paddingVertical: 6, paddingBottom: 20 },
   listContentEmpty: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
-  emptyText: { fontSize: 15, textAlign: 'center', paddingHorizontal: 24 },
+  emptyText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 24, lineHeight: 20 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   error: { fontSize: 18 },
 });

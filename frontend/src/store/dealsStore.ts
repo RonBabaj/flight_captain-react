@@ -6,6 +6,8 @@ interface DealsState {
   year: number;
   month: number;
   durationDays: number;
+  /** 0=Sun … 6=Sat. Empty array means "any day". */
+  preferredDays: number[];
   data: MonthDealsResponse | null;
   isLoading: boolean;
   error: string | null;
@@ -18,6 +20,7 @@ export const useDealsStore = create<DealsState>(() => ({
   year: now.getFullYear(),
   month: now.getMonth() + 1,
   durationDays: 7,
+  preferredDays: [],
   data: null,
   isLoading: false,
   error: null,
@@ -54,6 +57,15 @@ export const dealsActions = {
 
   setDurationDays: (durationDays: number) =>
     useDealsStore.setState({ durationDays }),
+
+  togglePreferredDay: (day: number) =>
+    useDealsStore.setState(state => {
+      const has = state.preferredDays.includes(day);
+      return { preferredDays: has ? state.preferredDays.filter(d => d !== day) : [...state.preferredDays, day] };
+    }),
+
+  clearPreferredDays: () =>
+    useDealsStore.setState({ preferredDays: [] }),
 
   setData: (data: MonthDealsResponse | null) =>
     useDealsStore.setState({ data }),

@@ -44,6 +44,21 @@ export interface FlightLeg {
   segments: FlightSegment[];
 }
 
+// --- Outbound summary (canonical; used by result card and details modal) ---
+
+export interface LayoverSummary {
+  airportCode: string;
+  minutes: number;
+}
+
+export interface OutboundSummary {
+  departureTime: string;   // ISO 8601
+  arrivalTime: string;
+  durationMinutes: number;
+  stopsCount: number;
+  layovers?: LayoverSummary[];
+}
+
 // --- Flight option (one bookable result) ---
 
 export type BaggageClass = 'BAG_OK' | 'BAG_UNKNOWN' | 'BAG_INCLUDED';
@@ -53,6 +68,7 @@ export interface FlightOption {
   price: MonetaryAmount;
   durationMinutes: number;
   legs: FlightLeg[];
+  outboundSummary?: OutboundSummary;
   score?: number;
   provider?: string;
   source?: string;  // "amadeus" | "duffel" | "compare" - backend sends this

@@ -15,19 +15,19 @@ import (
 )
 
 const (
-	gf2Timeout       = 15 * time.Second
-	gf2CacheTTL      = 10 * time.Minute
+	gf2Timeout         = 15 * time.Second
+	gf2CacheTTL        = 10 * time.Minute
 	gf2RateLimitPerMin = 5
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
 type GoogleFlights2Provider struct {
-	apiKey   string
-	host     string
-	path     string // endpoint path e.g. /search or /
-	client   *http.Client
-	cache    *gf2Cache
-	limiter  *gf2RateLimiter
+	apiKey  string
+	host    string
+	path    string // endpoint path e.g. /search or /
+	client  *http.Client
+	cache   *gf2Cache
+	limiter *gf2RateLimiter
 }
 
 type gf2Cache struct {
@@ -41,8 +41,8 @@ type gf2CacheEntry struct {
 }
 
 type gf2RateLimiter struct {
-	mu       sync.Mutex
-	tokens   int
+	mu         sync.Mutex
+	tokens     int
 	lastRefill time.Time
 }
 
@@ -271,10 +271,10 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 		return nil, fmt.Errorf("GF2 status %d", resp.StatusCode)
 	}
 
-	return parseGF2Response(body, req.Origin, req.Destination, currency)
+	return parseGF2Response(body, req.Origin, req.Destination, currency, req.DepartureDate)
 }
 
-func parseGF2Response(body []byte, origin, dest, currency string) ([]ProviderResult, error) {
+func parseGF2Response(body []byte, origin, dest, currency, departureDate string) ([]ProviderResult, error) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("parse GF2 response: %w", err)
@@ -307,7 +307,7 @@ func parseGF2Response(body []byte, origin, dest, currency string) ([]ProviderRes
 			} else {
 				log.Printf("[GF2_DEBUG] itineraries type=%T (not []interface{})", data["itineraries"])
 			}
-				if ph, ok := data["priceHistory"].(map[string]interface{}); ok {
+			if ph, ok := data["priceHistory"].(map[string]interface{}); ok {
 				phKeys := make([]string, 0, len(ph))
 				for k := range ph {
 					phKeys = append(phKeys, k)
@@ -359,7 +359,7 @@ func parseGF2Response(body []byte, origin, dest, currency string) ([]ProviderRes
 			if !ok {
 				continue
 			}
-			pr := extractGF2Flight(f, origin, dest, currency, i)
+			pr := extractGF2Flight(f, origin, dest, currency, i, departureDate)
 			if pr != nil && pr.Price.Amount > 0 {
 				results = append(results, *pr)
 			}
@@ -391,10 +391,10 @@ func parseGF2Response(body []byte, origin, dest, currency string) ([]ProviderRes
 		// GF2 API: data.itineraries (map or array) + data.priceHistory
 		priceHistory := data["priceHistory"]
 		if itinsArr, ok := data["itineraries"].([]interface{}); ok {
-			extractGF2Itineraries(itinsArr, priceHistory, origin, dest, currency, &results)
+			extractGF2Itineraries(itinsArr, priceHistory, origin, dest, currency, departureDate, &results)
 		}
 		if itinsMap, ok := data["itineraries"].(map[string]interface{}); ok {
-			extractGF2ItinerariesFromMap(itinsMap, priceHistory, origin, dest, currency, &results)
+			extractGF2ItinerariesFromMap(itinsMap, priceHistory, origin, dest, currency, departureDate, &results)
 		}
 		// Nested: data.data.flights or data.search_results etc
 		if inner, ok := data["data"].(map[string]interface{}); ok {
@@ -452,7 +452,7 @@ func parseGF2Response(body []byte, origin, dest, currency string) ([]ProviderRes
 }
 
 // extractGF2ItinerariesFromMap parses GF2 data.itineraries when it's a map (id -> itinerary).
-func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory interface{}, origin, dest, currency string, results *[]ProviderResult) {
+func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory interface{}, origin, dest, currency, departureDate string, results *[]ProviderResult) {
 	defaultPrice := extractGF2PriceFromHistory(priceHistory)
 	log.Printf("[GF2_DEBUG] itineraries map len=%d defaultPrice=%.2f", len(itinsMap), defaultPrice)
 	idx := 0
@@ -482,10 +482,12 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 				if amount <= 0 {
 					continue
 				}
-				pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx)
-				pr.ID = fmt.Sprintf("gf2_%s_%d", id, idx)
-				*results = append(*results, *pr)
-				idx++
+				pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate)
+				if pr != nil {
+					pr.ID = fmt.Sprintf("gf2_%s_%d", id, idx)
+					*results = append(*results, *pr)
+					idx++
+				}
 			}
 			continue
 		}
@@ -510,10 +512,12 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 		if amount <= 0 {
 			continue
 		}
-		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx)
-		pr.ID = fmt.Sprintf("gf2_%s", id)
-		*results = append(*results, *pr)
-		idx++
+		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate)
+		if pr != nil {
+			pr.ID = fmt.Sprintf("gf2_%s", id)
+			*results = append(*results, *pr)
+			idx++
+		}
 	}
 }
 
@@ -546,7 +550,7 @@ func extractGF2PriceFromHistory(priceHistory interface{}) float64 {
 }
 
 // extractGF2Itineraries parses GF2 data.itineraries + priceHistory structure (array form).
-func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin, dest, currency string, results *[]ProviderResult) {
+func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin, dest, currency, departureDate string, results *[]ProviderResult) {
 	priceByID := make(map[string]float64)
 	defaultPrice := extractGF2PriceFromHistory(priceHistory)
 	if defaultPrice > 0 {
@@ -595,12 +599,14 @@ func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin
 			continue
 		}
 
-		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, i)
-		*results = append(*results, *pr)
+		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, i, departureDate)
+		if pr != nil {
+			*results = append(*results, *pr)
+		}
 	}
 }
 
-func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, currency string, amount float64, idx int) *ProviderResult {
+func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, currency string, amount float64, idx int, departureDate string) *ProviderResult {
 	var legs []Leg
 	var totalDur int
 
@@ -612,7 +618,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 			if s == nil {
 				continue
 			}
-			seg := extractGF2SegmentFromFlight(s, origin, dest)
+			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += seg.DurationMinutes
@@ -622,15 +628,42 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 			legs = append(legs, Leg{Segments: segs})
 		}
 	}
+	// segments array (some APIs use "segments" instead of "flights")
+	if len(legs) == 0 {
+		if segsArr, ok := itin["segments"].([]interface{}); ok && len(segsArr) > 0 {
+			var segs []Segment
+			for _, sAny := range segsArr {
+				s, _ := sAny.(map[string]interface{})
+				if s == nil {
+					continue
+				}
+				seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
+				if seg == nil {
+					var segDur int
+					seg, segDur = extractGF2Segment(s, origin, dest, departureDate)
+					if seg != nil {
+						segs = append(segs, *seg)
+						totalDur += segDur
+					}
+				} else {
+					segs = append(segs, *seg)
+					totalDur += seg.DurationMinutes
+				}
+			}
+			if len(segs) > 0 {
+				legs = append(legs, Leg{Segments: segs})
+			}
+		}
+	}
 	// legs array
 	if len(legs) == 0 {
 		if legsArr, ok := itin["legs"].([]interface{}); ok {
 			for _, lAny := range legsArr {
-			l, _ := lAny.(map[string]interface{})
-			if l == nil {
-				continue
-			}
-				seg, dur := extractGF2Leg(l, origin, dest)
+				l, _ := lAny.(map[string]interface{})
+				if l == nil {
+					continue
+				}
+				seg, dur := extractGF2Leg(l, origin, dest, departureDate)
 				if len(seg) > 0 {
 					legs = append(legs, Leg{Segments: seg})
 					totalDur += dur
@@ -639,13 +672,68 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 		}
 	}
 	if totalDur == 0 {
-		if td, ok := itin["total_duration"].(float64); ok {
-			totalDur = int(td)
+		totalDur = extractGF2DurationMinutes(itin, "total_duration", "duration", "duration_minutes")
+	}
+	if totalDur == 0 {
+		if depS, _ := itin["departure_time"].(string); depS != "" {
+			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
+							totalDur = mins
+						}
+					}
+				}
+			}
 		}
 	}
+	if totalDur == 0 && len(legs) > 0 {
+		durVal := itin["duration"]
+		depVal := itin["departure_time"]
+		arrVal := itin["arrival_time"]
+		log.Printf("[GF2_DEBUG] itinerary totalDur=0; duration=%v(%T) departure_time=%v(%T) arrival_time=%v(%T)",
+			durVal, durVal, depVal, depVal, arrVal, arrVal)
+	}
 	if len(legs) == 0 {
-		legs = []Leg{{Segments: []Segment{{From: origin, To: dest, DurationMinutes: 60, CabinClass: "ECONOMY"}}}}
-		totalDur = 60
+		return nil
+	}
+
+	// When we have a total duration but individual segments don't, distribute to the single-segment case
+	// so computeOutboundSummary can pick it up.
+	if totalDur > 0 && len(legs) == 1 && len(legs[0].Segments) == 1 && legs[0].Segments[0].DurationMinutes <= 0 {
+		legs[0].Segments[0].DurationMinutes = totalDur
+	}
+
+	// Propagate itinerary-level departure_time/arrival_time to segments when segment times are zero.
+	if len(legs) > 0 {
+		firstSeg := &legs[0].Segments[0]
+		lastLeg := &legs[len(legs)-1]
+		lastSeg := &lastLeg.Segments[len(lastLeg.Segments)-1]
+
+		if firstSeg.DepartureTime.IsZero() {
+			if depS, _ := itin["departure_time"].(string); depS != "" {
+				if t, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil {
+					firstSeg.DepartureTime = t
+				}
+			}
+		}
+		if lastSeg.ArrivalTime.IsZero() {
+			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
+				if t, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil {
+					lastSeg.ArrivalTime = t
+				}
+			}
+		}
+		// If we now have both times on a single-segment flight, derive arrival from dep+dur or vice versa.
+		if len(legs) == 1 && len(legs[0].Segments) == 1 {
+			seg := &legs[0].Segments[0]
+			if seg.ArrivalTime.IsZero() && !seg.DepartureTime.IsZero() && seg.DurationMinutes > 0 {
+				seg.ArrivalTime = seg.DepartureTime.Add(time.Duration(seg.DurationMinutes) * time.Minute)
+			}
+			if seg.DepartureTime.IsZero() && !seg.ArrivalTime.IsZero() && seg.DurationMinutes > 0 {
+				seg.DepartureTime = seg.ArrivalTime.Add(-time.Duration(seg.DurationMinutes) * time.Minute)
+			}
+		}
 	}
 
 	deepLink := ""
@@ -679,7 +767,7 @@ func toFloat64(v interface{}) float64 {
 	}
 }
 
-func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, idx int) *ProviderResult {
+func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, idx int, departureDate string) *ProviderResult {
 	amount := extractGF2Price(f)
 	if amount <= 0 {
 		return nil
@@ -696,7 +784,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 			if s == nil {
 				continue
 			}
-			seg := extractGF2SegmentFromFlight(s, origin, dest)
+			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += seg.DurationMinutes
@@ -714,7 +802,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 				if l == nil {
 					continue
 				}
-				seg, dur := extractGF2Leg(l, origin, dest)
+				seg, dur := extractGF2Leg(l, origin, dest, departureDate)
 				if len(seg) > 0 {
 					legs = append(legs, Leg{Segments: seg})
 					totalDur += dur
@@ -724,7 +812,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	}
 	if len(legs) == 0 {
 		if outbound, ok := f["outbound"].(map[string]interface{}); ok {
-			seg, dur := extractGF2Leg(outbound, origin, dest)
+			seg, dur := extractGF2Leg(outbound, origin, dest, departureDate)
 			if len(seg) > 0 {
 				legs = append(legs, Leg{Segments: seg})
 				totalDur += dur
@@ -732,28 +820,30 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 		}
 	}
 	if ret, ok := f["return"].(map[string]interface{}); ok {
-		seg, dur := extractGF2Leg(ret, dest, origin)
+		seg, dur := extractGF2Leg(ret, dest, origin, departureDate)
 		if len(seg) > 0 {
 			legs = append(legs, Leg{Segments: seg})
 			totalDur += dur
 		}
 	}
-	// SerpAPI: total_duration in minutes
 	if totalDur == 0 {
-		if td, ok := f["total_duration"].(float64); ok {
-			totalDur = int(td)
-		}
-		if td, ok := f["total_duration"].(int); ok {
-			totalDur = td
+		totalDur = extractGF2DurationMinutes(f, "total_duration", "duration", "duration_minutes")
+	}
+	if totalDur == 0 {
+		if depS, _ := f["departure_time"].(string); depS != "" {
+			if arrS, _ := f["arrival_time"].(string); arrS != "" {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
+							totalDur = mins
+						}
+					}
+				}
+			}
 		}
 	}
 	if len(legs) == 0 {
-		legs = []Leg{{
-			Segments: []Segment{
-				{From: origin, To: dest, DurationMinutes: 60, CabinClass: "ECONOMY"},
-			},
-		}}
-		totalDur = 60
+		return nil
 	}
 
 	deepLink := ""
@@ -853,7 +943,7 @@ func parsePriceString(s string) float64 {
 	return v
 }
 
-func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([]Segment, int) {
+func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departureDate string) ([]Segment, int) {
 	var segs []Segment
 	totalDur := 0
 
@@ -871,10 +961,10 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 		to = a
 	}
 	if dt, ok := leg["departure_time"].(string); ok {
-		depTime, _ = parseGF2Time(dt)
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
 	}
 	if at, ok := leg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2Time(at)
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
 	}
 	if c, ok := leg["airline"].(string); ok {
 		carrier = c
@@ -893,26 +983,22 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 	}
 	if o, ok := leg["departure_airport"].(string); ok && o != "" {
 		from = o
+	} else if depMap, ok := leg["departure_airport"].(map[string]interface{}); ok {
+		if code := gf2AirportCode(depMap); code != "" {
+			from = code
+		}
 	}
 	if d, ok := leg["arrival_airport"].(string); ok && d != "" {
 		to = d
+	} else if arrMap, ok := leg["arrival_airport"].(map[string]interface{}); ok {
+		if code := gf2AirportCode(arrMap); code != "" {
+			to = code
+		}
 	}
 
-	durMin := 0
-	if dur, ok := leg["duration"].(float64); ok {
-		durMin = int(dur)
-	}
-	if dur, ok := leg["duration_minutes"].(float64); ok {
-		durMin = int(dur)
-	}
-	if dur, ok := leg["duration"].(string); ok && dur != "" {
-		durMin = parseGF2DurationMinutes(dur)
-	}
+	durMin := extractGF2DurationMinutes(leg, "duration", "duration_minutes", "total_duration")
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
-	}
-	if durMin <= 0 {
-		durMin = 60
 	}
 
 	// Handle segments array
@@ -922,7 +1008,7 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 			if s == nil {
 				continue
 			}
-			seg, dur := extractGF2Segment(s, defaultFrom, defaultTo)
+			seg, dur := extractGF2Segment(s, defaultFrom, defaultTo, departureDate)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += dur
@@ -955,30 +1041,48 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo string) ([
 	return segs, totalDur
 }
 
+// gf2AirportCode extracts the IATA code from an airport map, trying common field names.
+func gf2AirportCode(m map[string]interface{}) string {
+	for _, key := range []string{"id", "airport_code", "code", "iata", "iata_code"} {
+		if v, ok := m[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // extractGF2SegmentFromFlight parses SerpAPI-style segment: departure_airport{id,time}, arrival_airport{id,time}, duration, airline, flight_number.
-func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultTo string) *Segment {
+func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultTo, departureDate string) *Segment {
 	from := defaultFrom
 	to := defaultTo
 	depTime := time.Time{}
 	arrTime := time.Time{}
 	carrier := ""
 	flightNum := ""
-	durMin := 60
+	durMin := 0
 
 	if dep, ok := s["departure_airport"].(map[string]interface{}); ok {
-		if id, ok := dep["id"].(string); ok && id != "" {
-			from = id
+		if code := gf2AirportCode(dep); code != "" {
+			from = code
 		}
 		if t, ok := dep["time"].(string); ok {
-			depTime, _ = parseGF2Time(t)
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
 		}
 	}
 	if arr, ok := s["arrival_airport"].(map[string]interface{}); ok {
-		if id, ok := arr["id"].(string); ok && id != "" {
-			to = id
+		if code := gf2AirportCode(arr); code != "" {
+			to = code
 		}
 		if t, ok := arr["time"].(string); ok {
-			arrTime, _ = parseGF2Time(t)
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+		}
+	}
+	if depTime.IsZero() && arrTime.IsZero() {
+		if t, ok := s["departure_time"].(string); ok {
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+		}
+		if t, ok := s["arrival_time"].(string); ok {
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
 		}
 	}
 	if c, ok := s["airline"].(string); ok {
@@ -994,11 +1098,8 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			}
 		}
 	}
-	if d, ok := s["duration"].(float64); ok {
-		durMin = int(d)
-	}
-	if d, ok := s["duration"].(int); ok {
-		durMin = d
+	if durMin == 0 {
+		durMin = extractGF2DurationMinutes(s, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
@@ -1009,8 +1110,14 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
 		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
 	}
-	if durMin <= 0 {
-		durMin = 60
+
+	if depTime.IsZero() || arrTime.IsZero() {
+		rawDep := s["departure_airport"]
+		rawArr := s["arrival_airport"]
+		rawDepT := s["departure_time"]
+		rawArrT := s["arrival_time"]
+		log.Printf("[GF2_TIME_DEBUG] segment depZero=%t arrZero=%t departure_airport=%v(%T) arrival_airport=%v(%T) departure_time=%v(%T) arrival_time=%v(%T) dateHint=%s",
+			depTime.IsZero(), arrTime.IsZero(), rawDep, rawDep, rawArr, rawArr, rawDepT, rawDepT, rawArrT, rawArrT, departureDate)
 	}
 
 	return &Segment{
@@ -1025,14 +1132,14 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 	}
 }
 
-func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo string) (*Segment, int) {
+func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate string) (*Segment, int) {
 	from := defaultFrom
 	to := defaultTo
 	depTime := time.Time{}
 	arrTime := time.Time{}
 	carrier := ""
 	flightNum := ""
-	durMin := 60
+	durMin := 0
 
 	if o, ok := seg["origin"].(string); ok && o != "" {
 		from = o
@@ -1041,10 +1148,10 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo string
 		to = d
 	}
 	if dt, ok := seg["departure_time"].(string); ok {
-		depTime, _ = parseGF2Time(dt)
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
 	}
 	if at, ok := seg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2Time(at)
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
 	}
 	if c, ok := seg["airline"].(string); ok {
 		carrier = c
@@ -1052,8 +1159,8 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo string
 	if fn, ok := seg["flight_number"].(string); ok {
 		flightNum = fn
 	}
-	if dur, ok := seg["duration"].(float64); ok {
-		durMin = int(dur)
+	if durMin == 0 {
+		durMin = extractGF2DurationMinutes(seg, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
 	if !depTime.IsZero() && !arrTime.IsZero() {
 		durMin = int(arrTime.Sub(depTime).Minutes())
@@ -1084,6 +1191,61 @@ func truncateGF2(s string, max int) string {
 	return s[:max] + "..."
 }
 
+// parseGF2TimeWithDateHint first tries parseGF2Time (full datetime), then combines
+// time-only strings with the provided date hint (e.g. "2026-04-10") to produce a full datetime.
+func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty")
+	}
+	// Try full datetime first.
+	if t, err := parseGF2Time(s); err == nil {
+		return t, nil
+	}
+	// If no date hint available, we cannot resolve time-only strings.
+	dateHint = strings.TrimSpace(dateHint)
+	if dateHint == "" {
+		return time.Time{}, fmt.Errorf("time-only %q with no date hint", s)
+	}
+	// Time-only formats: combine with date hint.
+	timeOnlyFormats := []string{
+		"3:04 PM",
+		"03:04 PM",
+		"3:04PM",
+		"03:04PM",
+		"15:04",
+		"3:04 pm",
+		"03:04 pm",
+	}
+	for _, tf := range timeOnlyFormats {
+		combined := dateHint + " " + s
+		fullFmt := "2006-01-02 " + tf
+		if t, err := time.ParseInLocation(fullFmt, combined, time.UTC); err == nil {
+			return t, nil
+		}
+	}
+	// Also try "date, time" composite formats the API might return.
+	compositeFormats := []string{
+		"2006-01-02, 3:04 PM",
+		"2006-01-02 3:04 PM",
+		"2006-01-02, 03:04 PM",
+		"2006-01-02 03:04 PM",
+		"Jan 2, 2006, 3:04 PM",
+		"Jan 2, 2006 3:04 PM",
+		"January 2, 2006 3:04 PM",
+		"January 2, 2006, 3:04 PM",
+		"2 Jan 2006 15:04",
+		"2 Jan 2006, 15:04",
+		"Mon, Jan 2, 3:04 PM",
+	}
+	for _, cf := range compositeFormats {
+		if t, err := time.ParseInLocation(cf, s, time.UTC); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("could not parse %q with date hint %q", s, dateHint)
+}
+
 // parseGF2Time parses full date-time strings only. Time-only (e.g. "15:04") is rejected
 // to avoid 0001-01-01 and identical depart/arrive display ("02:20 → 02:20" bug).
 func parseGF2Time(s string) (time.Time, error) {
@@ -1097,8 +1259,16 @@ func parseGF2Time(s string) (time.Time, error) {
 		"2006-01-02T15:04:05.999Z",
 		"2006-01-02T15:04:05Z",
 		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
+		"2006-1-2 15:04",
+		"2006-1-2 15:04:05",
+		"2006-1-2T15:04:05",
+		"2006-1-2T15:04",
+		"Jan 2, 2006, 3:04 PM",
+		"Jan 2, 2006 3:04 PM",
+		"Jan 2, 3:04 PM",
 	}
 	for _, f := range formats {
 		if t, err := time.ParseInLocation(f, s, time.UTC); err == nil {
@@ -1109,6 +1279,73 @@ func parseGF2Time(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("could not parse %q", s)
+}
+
+// extractGF2DurationMinutes reads duration from a map using multiple possible API field names and types.
+// Tries each key in order; for each key tries: number (float64/int), string (parsed), or object with "minutes"/"min"/"value".
+func extractGF2DurationMinutes(m map[string]interface{}, keys ...string) int {
+	for _, key := range keys {
+		v, ok := m[key]
+		if !ok {
+			continue
+		}
+		switch x := v.(type) {
+		case float64:
+			if x > 0 {
+				return int(x)
+			}
+		case int:
+			if x > 0 {
+				return x
+			}
+		case string:
+			if n := parseGF2DurationMinutes(x); n > 0 {
+				return n
+			}
+		case map[string]interface{}:
+			// Direct: minutes, min, value, text (number or string)
+			for _, k := range []string{"minutes", "min", "value", "text"} {
+				if n, ok := x[k]; ok {
+					switch vv := n.(type) {
+					case float64:
+						if vv > 0 {
+							return int(vv)
+						}
+					case int:
+						if vv > 0 {
+							return vv
+						}
+					case string:
+						if nn := parseGF2DurationMinutes(vv); nn > 0 {
+							return nn
+						}
+					}
+				}
+			}
+			// hours + minutes (e.g. {"hours": 3, "minutes": 45})
+			hours, mins := 0, 0
+			if h, ok := x["hours"]; ok {
+				switch vv := h.(type) {
+				case float64:
+					hours = int(vv)
+				case int:
+					hours = vv
+				}
+			}
+			if m, ok := x["minutes"]; ok {
+				switch vv := m.(type) {
+				case float64:
+					mins = int(vv)
+				case int:
+					mins = vv
+				}
+			}
+			if hours > 0 || mins > 0 {
+				return hours*60 + mins
+			}
+		}
+	}
+	return 0
 }
 
 // parseGF2DurationMinutes parses duration string (e.g. "PT2H20M", "2h 20m", "140") into minutes.
@@ -1158,6 +1395,20 @@ func parseGF2DurationMinutes(s string) int {
 	_, _ = fmt.Sscanf(s, "%dh%dm", &h, &m)
 	if h != 0 || m != 0 {
 		return h*60 + m
+	}
+	// "2 hr 20 min" or "2 hours 20 minutes"
+	_, _ = fmt.Sscanf(s, "%d hr %d min", &h, &m)
+	if h != 0 || m != 0 {
+		return h*60 + m
+	}
+	_, _ = fmt.Sscanf(s, "%d hours %d minutes", &h, &m)
+	if h != 0 || m != 0 {
+		return h*60 + m
+	}
+	// "2 hr" (no minutes)
+	_, _ = fmt.Sscanf(s, "%d hr", &h)
+	if h > 0 {
+		return h * 60
 	}
 	var mins int
 	if _, err := fmt.Sscanf(s, "%d", &mins); err == nil && mins >= 0 {

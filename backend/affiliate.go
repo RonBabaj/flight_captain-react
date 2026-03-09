@@ -297,6 +297,7 @@ func ParseOptionIndex(optionID string) int {
 }
 
 // GetSessionAndOption looks up session and option by sessionId and optionId. Returns nil if not found.
+// Tries index first (opt_N -> Results[N]), then finds by option ID in case of reordering.
 func GetSessionAndOption(sessionID, optionID string) (*SearchSessionResultsResponse, *FlightOption) {
 	sessionsMu.RLock()
 	defer sessionsMu.RUnlock()
@@ -305,9 +306,14 @@ func GetSessionAndOption(sessionID, optionID string) (*SearchSessionResultsRespo
 		return nil, nil
 	}
 	idx := ParseOptionIndex(optionID)
-	if idx < 0 || idx >= len(resp.Results) {
-		return nil, nil
+	if idx >= 0 && idx < len(resp.Results) && resp.Results[idx].ID == optionID {
+		return &resp, &resp.Results[idx]
 	}
-	option := &resp.Results[idx]
-	return &resp, option
+	// Fallback: find by ID (handles client/server ordering mismatch)
+	for i := range resp.Results {
+		if resp.Results[i].ID == optionID {
+			return &resp, &resp.Results[i]
+		}
+	}
+	return nil, nil
 }

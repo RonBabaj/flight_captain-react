@@ -71,7 +71,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   no_flights_tip: { en: 'Try different dates or airports', he: 'נסה תאריכים או שדות תעופה אחרים', ru: 'Попробуйте другие даты или аэропорты' },
   compare_prices: { en: 'Compare prices and book with one click', he: 'השווה מחירים והזמן בלחיצה', ru: 'Сравните цены и забронируйте' },
   city_or_airport: { en: 'City or airport', he: 'עיר או שדה תעופה', ru: 'Город или аэропорт' },
-  search_these_dates: { en: 'Search these dates', he: 'חפש בתאריכים אלה', ru: 'Искать на эти даты' },
+  search_these_dates: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   direct: { en: 'Direct', he: 'ישיר', ru: 'Прямой' },
   stop: { en: 'stop', he: 'תחנה', ru: 'пересадка' },
   stops: { en: 'stops', he: 'תחנות', ru: 'пересадок' },
@@ -118,6 +118,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   loading_flight_details: { en: 'Loading flight details…', he: 'טוען פרטי טיסה…', ru: 'Загрузка деталей рейса…' },
   loading_more_results: { en: 'Loading more results…', he: 'טוען תוצאות…', ru: 'Загрузка результатов…' },
   book: { en: 'Book', he: 'הזמן', ru: 'Забронировать' },
+  book_now: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   prices_include: { en: 'Prices include taxes & fees. Final price may vary on partner site.', he: 'המחירים כוללים מסים ואגרות. המחיר הסופי עשוי להשתנות באתר השותף.', ru: 'Цены включают налоги и сборы. Итоговая цена может отличаться на сайте партнёра.' },
   source_amadeus: { en: 'Amadeus', he: 'Amadeus', ru: 'Amadeus' },
   source_duffel: { en: 'Duffel', he: 'Duffel', ru: 'Duffel' },
@@ -128,6 +129,15 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   no_booking_link: { en: 'No booking link', he: 'אין קישור להזמנה', ru: 'Нет ссылки на бронирование' },
   monthly_deals_hero: { en: 'Find the cheapest round-trip dates for a month. Tap a deal to see details and search.', he: 'מצא את התאריכים הזולים ביותר לחודש. הקש על דיל לפרטים וחיפוש.', ru: 'Найдите самые дешёвые даты на месяц. Нажмите на предложение для деталей и поиска.' },
   type_min_chars: { en: 'Type at least {n} characters', he: 'הקלד לפחות {n} תווים', ru: 'Введите не менее {n} символов' },
+  preferred_days: { en: 'Preferred departure days', he: 'ימי יציאה מועדפים', ru: 'Предпочтительные дни вылета' },
+  day_sun: { en: 'Sun', he: 'א׳', ru: 'Вс' },
+  day_mon: { en: 'Mon', he: 'ב׳', ru: 'Пн' },
+  day_tue: { en: 'Tue', he: 'ג׳', ru: 'Вт' },
+  day_wed: { en: 'Wed', he: 'ד׳', ru: 'Ср' },
+  day_thu: { en: 'Thu', he: 'ה׳', ru: 'Чт' },
+  day_fri: { en: 'Fri', he: 'ו׳', ru: 'Пт' },
+  day_sat: { en: 'Sat', he: 'ש׳', ru: 'Сб' },
+  any_day: { en: 'Any', he: 'כל יום', ru: 'Любой' },
 };
 
 export function getTranslation(key: string, language: LanguageCode): string {
