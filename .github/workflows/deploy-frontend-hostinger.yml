@@ -41,4 +41,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: frontend-build
           publish_dir: frontend/dist
+          destination_dir: public_html
           force_orphan: true
