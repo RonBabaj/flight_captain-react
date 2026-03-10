@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { DayDeal, MonthDealsResponse } from '../types';
 
+export type DealsSortField = 'price' | 'duration' | 'best';
+
 interface DealsState {
   route: { origin: string; destination: string } | null;
   year: number;
@@ -8,6 +10,11 @@ interface DealsState {
   durationDays: number;
   /** 0=Sun … 6=Sat. Empty array means "any day". */
   preferredDays: number[];
+  sortField: DealsSortField;
+  sortOrder: 'asc' | 'desc';
+  maxPrice: number | null;
+  maxStops: number | null;      // null = any, 0 = direct, 1 = 1 stop, 2 = 2+
+  selectedAirlines: string[];   // empty = all airlines
   data: MonthDealsResponse | null;
   isLoading: boolean;
   error: string | null;
@@ -21,6 +28,11 @@ export const useDealsStore = create<DealsState>(() => ({
   month: now.getMonth() + 1,
   durationDays: 7,
   preferredDays: [],
+  sortField: 'price' as DealsSortField,
+  sortOrder: 'asc',
+  maxPrice: null,
+  maxStops: null,
+  selectedAirlines: [],
   data: null,
   isLoading: false,
   error: null,
@@ -66,6 +78,24 @@ export const dealsActions = {
 
   clearPreferredDays: () =>
     useDealsStore.setState({ preferredDays: [] }),
+
+  setSort: (field: DealsSortField, order: 'asc' | 'desc') =>
+    useDealsStore.setState({ sortField: field, sortOrder: order }),
+
+  setMaxPrice: (maxPrice: number | null) =>
+    useDealsStore.setState({ maxPrice }),
+
+  setMaxStops: (maxStops: number | null) =>
+    useDealsStore.setState({ maxStops }),
+
+  toggleAirline: (code: string) =>
+    useDealsStore.setState(state => {
+      const has = state.selectedAirlines.includes(code);
+      return { selectedAirlines: has ? state.selectedAirlines.filter(c => c !== code) : [...state.selectedAirlines, code] };
+    }),
+
+  clearAirlines: () =>
+    useDealsStore.setState({ selectedAirlines: [] }),
 
   setData: (data: MonthDealsResponse | null) =>
     useDealsStore.setState({ data }),

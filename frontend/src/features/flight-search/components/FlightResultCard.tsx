@@ -33,6 +33,12 @@ function fmtTime(iso: string | undefined | null): string {
   return new Date(iso!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function fmtShortDate(iso: string | undefined | null): string {
+  const ms = toValidMs(iso);
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function fmtDuration(min: number): string {
   if (min <= 0) return '—';
   const h = Math.floor(min / 60);
@@ -72,18 +78,17 @@ function buildSummary(option: FlightOption) {
   return { departureTime, arrivalTime, durationMinutes, stopsCount, origin: first.from?.code || '', destination: last.to?.code || '' };
 }
 
-function getLayovers(segments: FlightSegment[]): { airport: string; minutes: number }[] {
-  if (!segments || segments.length < 2) return [];
-  const dest = segments[segments.length - 1].to?.code || '';
-  const out: { airport: string; minutes: number }[] = [];
-  for (let i = 0; i < segments.length - 1; i++) {
-    const ap = segments[i].to?.code || '';
-    if (!ap || ap === dest) continue;
-    const a = toValidMs(segments[i].arrivalTime), d = toValidMs(segments[i + 1].departureTime);
-    const mins = Number.isFinite(a) && Number.isFinite(d) && d > a ? Math.round((d - a) / 60000) : 0;
-    out.push({ airport: ap, minutes: mins });
+/** Returns every airport code in order: origin, all layovers, destination */
+function buildRoutePath(segments: FlightSegment[]): string[] {
+  if (!segments?.length) return [];
+  const codes: string[] = [];
+  const first = segments[0].from?.code;
+  if (first) codes.push(first);
+  for (const seg of segments) {
+    const to = seg.to?.code;
+    if (to) codes.push(to);
   }
-  return out;
+  return codes;
 }
 
 function airlineName(option: FlightOption): string {
@@ -103,9 +108,13 @@ export interface FlightResultCardProps {
   onBook: () => void;
   bookLoading?: boolean;
   bookLabel?: string;
+  /** 'round-trip' when the search had a return date — used to show return route even when legs[1] is missing */
+  tripType?: 'one-way' | 'round-trip';
+  /** Return date from search params, used as fallback when legs[1] has no date */
+  searchReturnDate?: string;
 }
 
-export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel }: FlightResultCardProps) {
+export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate }: FlightResultCardProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency } = useLocale();
   const summary = buildSummary(option);
@@ -113,13 +122,22 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
 
   const dep = fmtTime(summary?.departureTime) || '—';
   const arr = fmtTime(summary?.arrivalTime) || '—';
-  const origin = summary?.origin || '';
-  const dest = summary?.destination || '';
   const dur = fmtDuration(summary?.durationMinutes ?? 0);
   const stops = summary?.stopsCount ?? Math.max(0, segments.length - 1);
   const stopsText = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
-  const layovers = getLayovers(segments);
-  const layoverStr = layovers.map((l) => `${l.airport}${l.minutes > 0 ? ` (${fmtDuration(l.minutes)})` : ''}`).join(', ');
+
+  // Full route paths including all layover airports
+  const sep = isRTL ? ' ← ' : ' → ';
+  const outboundPath = buildRoutePath(segments);
+  const outboundRouteStr = outboundPath.join(sep);
+  const returnSegs = option.legs?.[1]?.segments ?? [];
+  const returnPath = buildRoutePath(returnSegs);
+  const returnRouteStr = returnPath.join(sep);
+
+  // Dates: outbound departure + return departure (if round-trip)
+  const outboundDate = fmtShortDate(segments[0]?.departureTime);
+  const returnDate = fmtShortDate(returnSegs[0]?.departureTime) || (tripType === 'round-trip' ? fmtShortDate(searchReturnDate) : '');
+  const isRoundTrip = !!(returnDate || returnRouteStr);
   const airline = airlineName(option);
 
   const cabinRaw = segments[0]?.cabinClass;
@@ -150,8 +168,18 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
             <Text style={[c.timeSep, { color: theme.textMuted }]}>{isRTL ? ' ← ' : ' → '}</Text>
             <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
           </View>
-          {/* Route codes */}
-          <Text style={[c.route, { color: theme.textMuted }]}>{origin}{origin && dest ? (isRTL ? ' ← ' : ' → ') : ''}{dest}</Text>
+          {/* Outbound route: origin → layover(s) → destination */}
+          <Text style={[c.route, { color: theme.textMuted }]} numberOfLines={1}>{outboundRouteStr}</Text>
+          {/* Return route (round-trip only): destination → layover(s) → origin */}
+          {isRoundTrip && returnRouteStr ? (
+            <Text style={[c.route, { color: theme.textMuted }]} numberOfLines={1}>{returnRouteStr}</Text>
+          ) : null}
+          {/* Dates: "Mar 26 → Apr 2" for round-trips, "Mar 26" for one-way */}
+          {outboundDate ? (
+            <Text style={[c.dateStr, { color: theme.textMuted }]}>
+              {isRoundTrip ? `${outboundDate}${sep}${returnDate}` : outboundDate}
+            </Text>
+          ) : null}
           {/* Duration + Stops */}
           <View style={[c.metaRow, ...row()]}>
             <Text style={[c.metaText, { color: theme.textMuted }]}>{dur}</Text>
@@ -159,12 +187,6 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
               <Text style={[c.stopsChipText, stops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text }]}>{stopsText}</Text>
             </View>
           </View>
-          {/* Layover detail */}
-          {layoverStr ? (
-            <Text style={[c.layoverText, { color: theme.textMuted }]} numberOfLines={1}>
-              {layovers.length === 1 ? t('stop_at') : t('stops_at')} {layoverStr}
-            </Text>
-          ) : null}
         </View>
 
         {/* Price + actions column */}
@@ -224,13 +246,12 @@ const c = StyleSheet.create({
   timesRow: { flexDirection: 'row', alignItems: 'baseline' },
   time: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
   timeSep: { fontSize: 13, marginHorizontal: 2 },
-  route: { fontSize: 12, marginTop: 1, letterSpacing: 0.5 },
+  route: { fontSize: 12, marginTop: 1, letterSpacing: 0.3 },
+  dateStr: { fontSize: 12, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   metaText: { fontSize: 13, fontWeight: '500' },
   stopsChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   stopsChipText: { fontSize: 12, fontWeight: '600' },
-  layoverText: { fontSize: 11, marginTop: 3 },
-
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 100 },
   price: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
   bookBtn: {

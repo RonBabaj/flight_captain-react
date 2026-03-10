@@ -17,6 +17,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 
 ### Flight Search
 - Multi-provider search: Amadeus, Duffel, Google Flights results merged and deduplicated.
+- **Round-trip support**: for GF2, two separate one-way searches are made (outbound + return) and combined — matching the Amadeus mixed round-trip approach — so every result has full route data for both legs.
 - Sort by price, duration, or "best" (weighted score).
 - Filter by stops count and airlines.
 - Responsive three-column layout on desktop (search form | results | filters), single-column on mobile.
@@ -25,14 +26,15 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 
 ### Flight Result Cards
 - Skyscanner/Kiwi-inspired cards with strong hierarchy: bold departure/arrival times, prominent price, compact stops/duration badges.
+- Full route path with all layover airports shown on the card (e.g. `TLV → LCA → DOH → HND`).
+- Round-trip cards show both the outbound and return route paths, plus departure and return dates (e.g. `Mar 30 → Apr 7`).
 - Direct flights get a green-tinted badge for quick scanning.
-- Inline layover details with airport codes and wait times.
 - Airline name, cabin class, and baggage info at a glance.
 - Tap anywhere to open details; dedicated "Book now" button.
 
 ### Flight Details Modal
 - Desktop: centered modal. Mobile: bottom-sheet drawer.
-- Full itinerary: all legs, all segments with visual timeline (departure → duration line → arrival).
+- Full itinerary: **all legs** (outbound and return), all segments with visual timeline (departure → duration line → arrival).
 - Layover rows between segments with airport and formatted duration.
 - Per-segment airline name, flight number, and cabin class.
 - Cabin and baggage badges.
@@ -45,17 +47,24 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Works for both search results (with session/option) and monthly deals (params-only fallback).
 - Affiliate tracking via configurable IDs and subid.
 
+### Filters & Sorting
+- **Stops filter**: "Any / Direct / 1 stop / 2+" based on max stops per leg (not total across all legs), so round-trip results filter correctly.
+- **Airlines filter**: matches results where any leg includes the selected carrier (supports mixed-carrier round-trips).
+- **Sort**: Price (cheapest first), Duration (fastest), Best (weighted price + duration + stops score).
+
 ### Monthly Deals
 - Search cheapest round-trip dates for any month.
 - Controls: origin/destination, passengers, non-stop toggle, trip duration stepper, month navigator.
-- **Preferred departure days filter** — select specific weekdays (Sun–Sat) to only see deals departing on those days.
-- Deal cards show date, route, and price; tap for full flight details modal (same design as search results).
-- "Book now" from deal details redirects to Skyscanner.
+- **Sort bar**: Cheapest / Fastest / Best — matches the main search engine sort options.
+- **Filter panel**: Stops (Any / Direct / 1 stop / 2+), Airlines, Preferred departure days (Sun–Sat), Max price — all applied client-side without re-fetching.
+- Deal cards show full outbound and return route paths with layovers and departure + return dates.
+- Tap a deal for the full flight details modal (same design as search results).
+- "Book now" from deal details redirects directly to Skyscanner.
 
 ### UI Polish
 - Consistent design language across search results and monthly deals.
 - Pill-shaped sort buttons, lightweight collapsible filter sidebar, compact search form.
-- Responsive layout: sidebar columns on desktop, single column + bottom-sheet modals on mobile.
+- Responsive layout: three-column desktop (hero | deals | filters), single column + bottom-sheet modals on mobile.
 - Dark and light themes with full RTL support (English, Hebrew, Russian).
 
 ---
@@ -149,8 +158,8 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 
 ## Flows
 
-1. **Flight search** – Enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results with sort/filter → View details modal → Book now (redirects to partner site).
-2. **Monthly deals** – Set route, trip duration, month, optionally filter by preferred departure days → Search deals → Tap deal for details modal → Book now (redirects to Skyscanner).
+1. **Flight search** – Enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site).
+2. **Monthly deals** – Set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner).
 
 ---
 
@@ -160,3 +169,4 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 - Airport autocomplete uses a frontend dictionary (`src/data/airports.ts`). The backend `/api/airports/search` is also available.
 - Theme: indigo accent, shared nav bar and radii; dark theme tuned for readability.
 - RTL support: Hebrew and Russian layouts are fully mirrored.
+- GF2 round-trips use two separate one-way API calls (outbound + return) combined server-side, ensuring both legs and their layover airports are always available in results and the details modal.

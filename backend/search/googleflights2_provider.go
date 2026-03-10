@@ -168,6 +168,22 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		return cached, nil
 	}
 
+	// For round-trip: search outbound and return separately (one-way each), then combine legs.
+	// This mirrors the Amadeus approach and guarantees we always have the actual return flight data.
+	if req.ReturnDate != "" {
+		results, err := p.searchRoundTrip(ctx, req)
+		if err != nil {
+			errLog = err.Error()
+			return nil, err
+		}
+		resultCount = len(results)
+		if len(results) > 0 {
+			cheapest = results[0].Price.Amount
+			p.cache.set(cacheKey, results)
+		}
+		return results, nil
+	}
+
 	results, err := p.doSearch(ctx, req)
 	if err != nil {
 		errLog = err.Error()
@@ -179,6 +195,75 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		p.cache.set(cacheKey, results)
 	}
 	return results, nil
+}
+
+// searchRoundTrip performs two one-way GF2 searches (outbound + return) and combines their legs,
+// mirroring the Amadeus mixed round-trip approach so every result has both legs with full route data.
+func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	// Outbound: origin → dest on departureDate (one-way)
+	outboundReq := req
+	outboundReq.ReturnDate = ""
+	outboundResults, err := p.doSearch(ctx, outboundReq)
+	if err != nil || len(outboundResults) == 0 {
+		// Fall back to the combined search if outbound fails
+		return p.doSearch(ctx, req)
+	}
+
+	// Return: dest → origin on returnDate (one-way)
+	returnReq := req
+	returnReq.Origin = req.Destination
+	returnReq.Destination = req.Origin
+	returnReq.DepartureDate = req.ReturnDate
+	returnReq.ReturnDate = ""
+	returnResults, err := p.doSearch(ctx, returnReq)
+	if err != nil || len(returnResults) == 0 {
+		log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(returnResults))
+		return outboundResults, nil
+	}
+
+	log.Printf("[GF2_RT] outbound=%d return=%d; combining into round-trip results", len(outboundResults), len(returnResults))
+
+	// Combine: pair each outbound result with the cheapest matching return leg.
+	// Use the first (cheapest) return result's legs as the return leg for all outbound results.
+	// This mirrors what Amadeus does with buildCombinedOffer.
+	const maxCombinations = 30
+	var combined []ProviderResult
+	for i, ob := range outboundResults {
+		if i >= maxCombinations {
+			break
+		}
+		for j, ret := range returnResults {
+			if j >= maxCombinations {
+				break
+			}
+			// Build a new combined result: outbound leg(s) + return leg(s)
+			var legs []Leg
+			legs = append(legs, ob.Legs...)
+			legs = append(legs, ret.Legs...)
+			combinedResult := ProviderResult{
+				ID:                    fmt.Sprintf("gf2rt_%d_%d", i, j),
+				Price:                 Monetary{Currency: ob.Price.Currency, Amount: ob.Price.Amount + ret.Price.Amount},
+				DurationMinutes:       ob.DurationMinutes + ret.DurationMinutes,
+				Legs:                  legs,
+				Source:                "googleflights2",
+				DeepLink:              ob.DeepLink,
+				PrimaryDisplayCarrier: ob.PrimaryDisplayCarrier,
+				BaggageClass:          ob.BaggageClass,
+			}
+			combined = append(combined, combinedResult)
+		}
+	}
+
+	// Sort by total price ascending
+	for i := 0; i < len(combined); i++ {
+		for j := i + 1; j < len(combined); j++ {
+			if combined[j].Price.Amount < combined[i].Price.Amount {
+				combined[i], combined[j] = combined[j], combined[i]
+			}
+		}
+	}
+
+	return combined, nil
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
@@ -352,6 +437,24 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 
 	var results []ProviderResult
 
+	// Debug: log top-level keys to diagnose round-trip return_flights availability
+	{
+		topKeys := make([]string, 0, len(raw))
+		for k := range raw {
+			topKeys = append(topKeys, k)
+		}
+		log.Printf("[GF2_RT_DEBUG] top-level keys=%v hasReturnFlights=%t", topKeys, raw["return_flights"] != nil)
+		if best, ok := raw["best_flights"].([]interface{}); ok && len(best) > 0 {
+			if f0, ok := best[0].(map[string]interface{}); ok {
+				itemKeys := make([]string, 0, len(f0))
+				for k := range f0 {
+					itemKeys = append(itemKeys, k)
+				}
+				log.Printf("[GF2_RT_DEBUG] best_flights[0] keys=%v", itemKeys)
+			}
+		}
+	}
+
 	// Try common response shapes: best_flights, other_flights, flights, data.flights
 	extractFlights := func(arr []interface{}) {
 		for i, fAny := range arr {
@@ -416,6 +519,39 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 			if results[j].Price.Amount < results[i].Price.Amount {
 				results[i], results[j] = results[j], results[i]
 			}
+		}
+	}
+
+	// SerpAPI round-trip: top-level return_flights array holds return options separate from best_flights.
+	// Attach the best available return leg to any outbound-only result (1 leg).
+	attachReturnLegsFromArray := func(retArr []interface{}) {
+		var bestReturnLeg *Leg
+		for _, rAny := range retArr {
+			r, _ := rAny.(map[string]interface{})
+			if r == nil {
+				continue
+			}
+			if flightsArr, ok := r["flights"].([]interface{}); ok && len(flightsArr) > 0 {
+				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, departureDate); leg != nil {
+					bestReturnLeg = leg
+					break
+				}
+			}
+		}
+		if bestReturnLeg != nil {
+			for i := range results {
+				if len(results[i].Legs) == 1 {
+					results[i].Legs = append(results[i].Legs, *bestReturnLeg)
+				}
+			}
+		}
+	}
+	if retFlights, ok := raw["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
+		attachReturnLegsFromArray(retFlights)
+	}
+	if data, ok := raw["data"].(map[string]interface{}); ok {
+		if retFlights, ok := data["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
+			attachReturnLegsFromArray(retFlights)
 		}
 	}
 
@@ -671,6 +807,12 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 			}
 		}
 	}
+	// SerpAPI round-trip: return_flights embedded within this itinerary item
+	if retFlightsArr, ok := itin["return_flights"].([]interface{}); ok && len(retFlightsArr) > 0 {
+		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate); retLeg != nil {
+			legs = append(legs, *retLeg)
+		}
+	}
 	if totalDur == 0 {
 		totalDur = extractGF2DurationMinutes(itin, "total_duration", "duration", "duration_minutes")
 	}
@@ -826,6 +968,12 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 			totalDur += dur
 		}
 	}
+	// SerpAPI round-trip: return_flights embedded within each result item
+	if retFlightsArr, ok := f["return_flights"].([]interface{}); ok && len(retFlightsArr) > 0 {
+		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate); retLeg != nil {
+			legs = append(legs, *retLeg)
+		}
+	}
 	if totalDur == 0 {
 		totalDur = extractGF2DurationMinutes(f, "total_duration", "duration", "duration_minutes")
 	}
@@ -865,6 +1013,27 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 		Source:          "googleflights2",
 		DeepLink:        deepLink,
 	}
+}
+
+// extractGF2LegFromFlightsArray converts a SerpAPI-style "flights" array (segment list) into a single Leg.
+// Used to parse embedded return_flights within a result item.
+func extractGF2LegFromFlightsArray(flightsArr []interface{}, defaultFrom, defaultTo, departureDate string) *Leg {
+	var segs []Segment
+	for _, sAny := range flightsArr {
+		s, _ := sAny.(map[string]interface{})
+		if s == nil {
+			continue
+		}
+		seg := extractGF2SegmentFromFlight(s, defaultFrom, defaultTo, departureDate)
+		if seg != nil {
+			segs = append(segs, *seg)
+		}
+	}
+	if len(segs) == 0 {
+		return nil
+	}
+	l := Leg{Segments: segs}
+	return &l
 }
 
 func extractGF2Price(f map[string]interface{}) float64 {

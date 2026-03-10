@@ -275,15 +275,19 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     let list = results;
     if (filters.maxStops != null) {
       list = list.filter((opt) => {
-        const stops = opt.legs.reduce((acc, leg) => acc + leg.segments.length - 1, 0);
-        return stops <= filters.maxStops!;
+        // Use max stops per leg (not sum), so a 2-stop outbound + 2-stop return = 2 max, not 4
+        const maxPerLeg = opt.legs.length > 0
+          ? Math.max(...opt.legs.map((leg) => Math.max(0, leg.segments.length - 1)))
+          : 0;
+        return maxPerLeg <= filters.maxStops!;
       });
     }
     if (filters.airlines.length > 0) {
       const set = new Set(filters.airlines);
+      // Match if ANY leg contains the selected airline (not every leg — round-trips use different carriers per leg)
       list = list.filter((opt) =>
-        opt.legs.every((leg) =>
-          leg.segments.some((seg) => set.has(seg.marketingCarrier.code))
+        opt.legs.some((leg) =>
+          leg.segments.some((seg) => set.has(seg.marketingCarrier?.code))
         )
       );
     }
@@ -354,6 +358,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             onBook={() => handleBookFromCard(item)}
             bookLoading={bookLoadingId === item.id}
             bookLabel={t('book_now')}
+            tripType={tripType}
+            searchReturnDate={formParams.returnDate || storeParams?.returnDate}
           />
         )}
         ListEmptyComponent={

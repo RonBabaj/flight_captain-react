@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useDealsStore, dealsActions } from '../../../store';
+import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl } from '../../../api';
 import { getDisplayPrice } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
@@ -28,6 +29,36 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+// ─── Deals sort helpers (mirrors ResultsScreen logic) ───────────────────────
+
+function dealBestScore(stops: number, price: number, maxPrice: number): number {
+  const priceNorm = maxPrice > 0 ? price / maxPrice : 0;
+  const stopsPenalty = stops * 0.25; // more weight on stops since no duration data
+  return priceNorm + stopsPenalty;
+}
+
+function sortDeals(
+  list: import('../../../types').DayDeal[],
+  field: import('../../../store/dealsStore').DealsSortField,
+  order: 'asc' | 'desc',
+  maxPrice: number,
+): import('../../../types').DayDeal[] {
+  return [...list].sort((a, b) => {
+    const mul = order === 'asc' ? 1 : -1;
+    if (field === 'price') return mul * (a.lowestPrice!.amount - b.lowestPrice!.amount);
+    if (field === 'duration') {
+      // Fastest = fewest stops; then price as tiebreaker
+      const stopsDiff = (a.stops ?? 99) - (b.stops ?? 99);
+      if (stopsDiff !== 0) return mul * stopsDiff;
+      return mul * (a.lowestPrice!.amount - b.lowestPrice!.amount);
+    }
+    // best: weighted score (price + stops penalty); lower is better — always asc
+    const scoreA = dealBestScore(a.stops ?? 1, a.lowestPrice!.amount, maxPrice);
+    const scoreB = dealBestScore(b.stops ?? 1, b.lowestPrice!.amount, maxPrice);
+    return scoreA - scoreB;
+  });
+}
 
 // ─── Shared helpers (same logic as FlightDetailsModal) ──────────────────────
 
@@ -90,7 +121,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const { currency, locale, t, isRTL } = useLocale();
   const isMobile = useIsMobile();
   const { width: screenW } = useWindowDimensions();
-  const { route, year, month, durationDays, preferredDays, data, isLoading, error } = useDealsStore();
+  const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
   const pending = typeof window !== 'undefined' ? getPendingDealsParams() : null;
   const [origin, setOrigin] = useState(pending?.origin ?? route?.origin ?? 'TLV');
   const [destination, setDestination] = useState(pending?.destination ?? route?.destination ?? 'HND');
@@ -105,6 +136,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const [details, setDetails] = useState<FlightDetailsResponse | null>(null);
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [stopsOpen, setStopsOpen] = useState(true);
+  const [daysOpen, setDaysOpen] = useState(true);
+  const [priceOpen, setPriceOpen] = useState(true);
+  const [airlinesOpen, setAirlinesOpen] = useState(true);
 
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
@@ -149,14 +185,41 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adults, children, nonStop]);
 
-  const bestDeals: DayDeal[] = (data?.days ?? [])
-    .filter(d => d.lowestPrice != null && d.lowestPrice.amount > 0)
+  const allDealsWithPrice = (data?.days ?? []).filter(d => d.lowestPrice != null && d.lowestPrice.amount > 0);
+  const allPrices = allDealsWithPrice.map(d => d.lowestPrice!.amount);
+  const highestPrice = allPrices.length > 0 ? Math.max(...allPrices) : 0;
+
+  // Build airline list from deals that have carrier data
+  const dealsAirlines: { code: string; count: number }[] = (() => {
+    const map: Record<string, number> = {};
+    allDealsWithPrice.forEach(d => {
+      (d.carriers ?? []).forEach(c => { map[c] = (map[c] ?? 0) + 1; });
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ code, count }));
+  })();
+
+  const filteredDeals: DayDeal[] = allDealsWithPrice
     .filter(d => {
       if (preferredDays.length === 0) return true;
       const dow = new Date(d.date + 'T00:00:00Z').getUTCDay();
       return preferredDays.includes(dow);
     })
-    .sort((a, b) => a.lowestPrice!.amount - b.lowestPrice!.amount);
+    .filter(d => {
+      if (maxPrice == null) return true;
+      return d.lowestPrice!.amount <= maxPrice;
+    })
+    .filter(d => {
+      if (maxStops == null) return true;
+      if (d.stops == null) return true; // no stops data — don't filter out
+      if (maxStops === 2) return d.stops >= 2; // "2+" means 2 or more
+      return d.stops <= maxStops;
+    })
+    .filter(d => {
+      if (selectedAirlines.length === 0) return true;
+      if (!d.carriers?.length) return true; // no data — don't filter out
+      return d.carriers.some(c => selectedAirlines.includes(c));
+    });
+  const bestDeals = sortDeals(filteredDeals, sortField, sortOrder, highestPrice);
   const visibleDeals = bestDeals.slice(0, visibleCount);
   const hasMore = bestDeals.length > visibleCount;
   const hasResultsLayout = data != null && !isMobile;
@@ -216,6 +279,216 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     }
   };
 
+  const handleDealSort = (field: DealsSortField) => {
+    if (field === 'best') {
+      // Best is a fixed composite score — no direction toggle
+      dealsActions.setSort('best', 'asc');
+      return;
+    }
+    const newOrder = sortField === field && sortOrder === 'asc' ? 'desc' : 'asc';
+    dealsActions.setSort(field, newOrder);
+  };
+
+  // ─── Sort bar ──────────────────────────────────────────────────────────────
+
+  const SORT_ICONS: Record<DealsSortField, string> = { price: '💰', duration: '⚡', best: '⭐' };
+  const SORT_KEYS: Record<DealsSortField, string> = { price: 'cheapest', duration: 'fastest', best: 'best' };
+
+  const sortBar = (
+    <View style={[sb.bar, isRTL && sb.barRTL]}>
+      <Text style={[sb.label, { color: theme.textMuted }]}>{t('sort_by')}</Text>
+      <View style={[sb.pills, isRTL && sb.pillsRTL]}>
+        {(['price', 'duration', 'best'] as DealsSortField[]).map((opt) => {
+          const active = sortField === opt;
+          const arrow = (active && opt !== 'best') ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
+          return (
+            <TouchableOpacity
+              key={opt}
+              style={[sb.pill, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              onPress={() => handleDealSort(opt)}
+              activeOpacity={0.7}
+            >
+              <Text style={[sb.pillText, { color: theme.text }, active && { color: '#fff', fontWeight: '700' }]}>
+                {`${SORT_ICONS[opt]} ${t(SORT_KEYS[opt])}${arrow}`}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {isMobile && data != null && (
+        <TouchableOpacity
+          style={[sb.filterBtn, { borderColor: theme.cardBorder }]}
+          onPress={() => setShowFilters(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="options-outline" size={16} color={theme.text} />
+          <Text style={[sb.filterBtnText, { color: theme.text }]}>{t('filters')}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  // ─── Filters content (shared between sidebar and modal) ────────────────────
+
+  const DAY_KEYS = ['day_sun', 'day_mon', 'day_tue', 'day_wed', 'day_thu', 'day_fri', 'day_sat'] as const;
+
+  const SectionHeader = ({ title, open, toggle }: { title: string; open: boolean; toggle: () => void }) => (
+    <TouchableOpacity style={[fl.secHeader, { borderBottomColor: theme.cardBorder }]} onPress={toggle} activeOpacity={0.6}>
+      <Text style={[fl.secTitle, { color: theme.text }]}>{title}</Text>
+      <Text style={[fl.chevron, { color: theme.textMuted }]}>{open ? '▾' : '▸'}</Text>
+    </TouchableOpacity>
+  );
+
+  const filtersContent = (
+    <>
+      {/* Stops */}
+      <SectionHeader title={t('stops_section')} open={stopsOpen} toggle={() => setStopsOpen(o => !o)} />
+      {stopsOpen && (
+        <View style={fl.secBody}>
+          <View style={fl.chipRow}>
+            {([
+              { val: null,  label: t('filter_any') },
+              { val: 0,     label: t('direct') },
+              { val: 1,     label: t('stops_1') },
+              { val: 2,     label: t('stops_2_plus') },
+            ] as const).map(({ val, label }) => {
+              const active = maxStops === val;
+              return (
+                <TouchableOpacity
+                  key={String(val)}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  onPress={() => dealsActions.setMaxStops(val)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* Departure days */}
+      <SectionHeader title={t('departure_days_section')} open={daysOpen} toggle={() => setDaysOpen(o => !o)} />
+      {daysOpen && (
+        <View style={fl.secBody}>
+          <View style={fl.chipRow}>
+            {([0, 1, 2, 3, 4, 5, 6] as const).map((dow) => {
+              const active = preferredDays.includes(dow);
+              return (
+                <TouchableOpacity
+                  key={dow}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  onPress={() => dealsActions.togglePreferredDay(dow)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>{t(DAY_KEYS[dow])}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {preferredDays.length > 0 && (
+            <TouchableOpacity onPress={() => dealsActions.clearPreferredDays()} activeOpacity={0.7} style={{ marginTop: 6 }}>
+              <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>{t('any_day')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Max price */}
+      <SectionHeader title={t('price_section')} open={priceOpen} toggle={() => setPriceOpen(o => !o)} />
+      {priceOpen && (
+        <View style={fl.secBody}>
+          <View style={fl.chipRow}>
+            <TouchableOpacity
+              style={[fl.chip, { borderColor: theme.cardBorder }, maxPrice == null && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              onPress={() => dealsActions.setMaxPrice(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={[fl.chipText, { color: theme.text }, maxPrice == null && { color: '#fff', fontWeight: '600' }]}>{t('any_price')}</Text>
+            </TouchableOpacity>
+            {highestPrice > 0 && ([0.25, 0.5, 0.75] as const).map((frac) => {
+              const limit = Math.round(highestPrice * frac);
+              if (limit <= 0) return null;
+              const active = maxPrice === limit;
+              const { currency: cur } = getDisplayPrice(limit, data?.days?.[0]?.lowestPrice?.currency ?? 'USD', currency);
+              return (
+                <TouchableOpacity
+                  key={frac}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  onPress={() => dealsActions.setMaxPrice(active ? null : limit)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>≤ {cur} {limit}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* Airlines */}
+      {dealsAirlines.length > 0 && (
+        <>
+          <SectionHeader title={t('airlines_section')} open={airlinesOpen} toggle={() => setAirlinesOpen(o => !o)} />
+          {airlinesOpen && (
+            <View style={fl.secBody}>
+              {dealsAirlines.map(({ code, count }) => {
+                const name = getAirlineName(code) || code;
+                const sel = selectedAirlines.includes(code);
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    style={fl.airlineRow}
+                    onPress={() => dealsActions.toggleAirline(code)}
+                    activeOpacity={0.6}
+                  >
+                    <View style={[fl.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
+                      {sel && <Text style={fl.checkMark}>✓</Text>}
+                    </View>
+                    <Text style={[fl.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
+                    <Text style={[fl.airlineCount, { color: theme.textMuted }]}>{count}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  // ─── Filters sidebar header + modal wrapper ────────────────────────────────
+
+  const filtersHeader = (isModal: boolean) => (
+    <View style={[fl.headerRow, { borderBottomColor: theme.cardBorder }]}>
+      <Text style={[fl.headerTitle, { color: theme.text }]}>{t('filters')}</Text>
+      {isModal && (
+        <TouchableOpacity onPress={() => setShowFilters(false)} style={fl.closeBtn}>
+          <Text style={[fl.closeText, { color: theme.primary }]}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const filtersSidebar = (
+    <View style={fl.sidebarInner}>
+      {filtersHeader(false)}
+      <ScrollView contentContainerStyle={fl.scrollContent}>{filtersContent}</ScrollView>
+    </View>
+  );
+
+  const filtersModal = (
+    <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+      <Pressable style={fl.modalOverlay} onPress={() => setShowFilters(false)}>
+        <View style={[fl.modalCard, { backgroundColor: theme.cardBg }]} onStartShouldSetResponder={() => true}>
+          {filtersHeader(true)}
+          <ScrollView contentContainerStyle={fl.scrollContent}>{filtersContent}</ScrollView>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+
   // ─── Hero card ──────────────────────────────────────────────────────────────
 
   const heroCard = (
@@ -235,17 +508,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         label={t('passengers_cabin')} passengersOnly
       />
 
-      {/* Non-stop toggle */}
-      <View style={[p.toggleRow, { borderColor: theme.cardBorder }]}>
-        <Text style={[p.toggleLabel, { color: theme.text }]}>{t('non_stop_only')}</Text>
-        <TouchableOpacity
-          style={[p.toggle, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, nonStop && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-          onPress={() => setNonStop(!nonStop)}
-        >
-          <Text style={{ color: nonStop ? '#fff' : theme.text, fontSize: 14, fontWeight: '600' }}>{nonStop ? '✓' : ''}</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Trip duration stepper */}
       <Text style={[p.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
       <View style={p.stepperRow}>
@@ -256,25 +518,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         <TouchableOpacity style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}>
           <Text style={[p.stepBtnText, { color: theme.text }]}>+</Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Preferred departure days */}
-      <Text style={[p.label, { color: theme.text }]}>{t('preferred_days')}</Text>
-      <View style={p.daysRow}>
-        {([0, 1, 2, 3, 4, 5, 6] as const).map((dow) => {
-          const keys = ['day_sun', 'day_mon', 'day_tue', 'day_wed', 'day_thu', 'day_fri', 'day_sat'] as const;
-          const active = preferredDays.includes(dow);
-          return (
-            <TouchableOpacity
-              key={dow}
-              style={[p.dayChip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-              onPress={() => dealsActions.togglePreferredDay(dow)}
-              activeOpacity={0.7}
-            >
-              <Text style={[p.dayChipText, { color: theme.text }, active && { color: '#fff', fontWeight: '700' }]}>{t(keys[dow])}</Text>
-            </TouchableOpacity>
-          );
-        })}
       </View>
 
       {/* Month navigator */}
@@ -317,17 +560,27 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         <Text style={[p.loaderText, { color: theme.textMuted }]}>{t('loading_deals')}</Text>
       </View>
     ) : data != null && bestDeals.length === 0 ? (
-      <View style={[p.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-        <Text style={[p.emptyTitle, { color: theme.text }]}>{t('no_deals_month')}</Text>
-        <Text style={[p.emptySub, { color: theme.textMuted }]}>{t('try_another_route')}</Text>
-      </View>
+      <>
+        {sortBar}
+        <View style={[p.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+          <Text style={[p.emptyTitle, { color: theme.text }]}>{t('no_deals_month')}</Text>
+          <Text style={[p.emptySub, { color: theme.textMuted }]}>{t('try_another_route')}</Text>
+        </View>
+      </>
     ) : data != null ? (
       <View style={p.list}>
+        {sortBar}
         <Text style={[p.listTitle, { color: theme.textMuted }]}>
-          {t('best_deals_first')}{bestDeals.length > 0 ? ` · ${bestDeals.length} total` : ''}
+          {bestDeals.length > 0 ? `${bestDeals.length} ${t('results_lower') || 'results'}` : ''}
         </Text>
         {visibleDeals.map((day) => {
           const { amount, currency: cur } = getDisplayPrice(day.lowestPrice!.amount, day.lowestPrice!.currency, currency);
+          const depDate = new Date(day.date + 'T00:00:00Z');
+          const retDate = new Date(depDate);
+          retDate.setUTCDate(retDate.getUTCDate() + durationDays);
+          const retStr = formatDealDate(retDate.toISOString().slice(0, 10));
+          const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
+          const routeSep = isRTL ? ' ← ' : ' → ';
           return (
             <TouchableOpacity
               key={day.date}
@@ -336,9 +589,23 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               activeOpacity={0.7}
             >
               <View style={p.dealTop}>
-                <View>
-                  <Text style={[p.dealDate, { color: theme.text }]}>{formatDealDate(day.date)}</Text>
-                  <Text style={[p.dealRoute, { color: theme.textMuted }]}>{origin.trim().toUpperCase()} → {destination.trim().toUpperCase()}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {/* Departure → Return dates */}
+                  <Text style={[p.dealDate, { color: theme.text }]}>
+                    {formatDealDate(day.date)}{routeSep}{retStr}
+                  </Text>
+                  {/* Outbound route: TLV → ADD → BKK → HND */}
+                  <Text style={[p.dealRoute, { color: theme.textMuted }]} numberOfLines={1}>
+                    {(day.outboundPath && day.outboundPath.length > 1)
+                      ? day.outboundPath.join(routeSep)
+                      : `${o}${routeSep}${d}`}
+                  </Text>
+                  {/* Return route: HND → DOH → LCA → TLV */}
+                  {(day.returnPath && day.returnPath.length > 1) && (
+                    <Text style={[p.dealRoute, { color: theme.textMuted }]} numberOfLines={1}>
+                      {day.returnPath.join(routeSep)}
+                    </Text>
+                  )}
                 </View>
                 <Text style={[p.dealPrice, { color: theme.primary }]}>{cur} {amount.toFixed(0)}</Text>
               </View>
@@ -446,6 +713,8 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
 
   // ─── Layout ─────────────────────────────────────────────────────────────────
 
+  const hasFilters = data != null;
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       {hasResultsLayout ? (
@@ -454,6 +723,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             <ScrollView contentContainerStyle={p.heroColContent} keyboardShouldPersistTaps="handled">{heroCard}</ScrollView>
           </View>
           <ScrollView style={p.resultsCol} contentContainerStyle={p.resultsColContent}>{resultsContent}</ScrollView>
+          {hasFilters && (
+            <View style={[p.filterCol, isRTL ? { borderRightWidth: 1, borderRightColor: theme.cardBorder, borderLeftWidth: 0 } : { borderLeftWidth: 1, borderLeftColor: theme.cardBorder }]}>
+              {filtersSidebar}
+            </View>
+          )}
         </View>
       ) : (
         <ScrollView contentContainerStyle={p.contentSingle} keyboardShouldPersistTaps="handled">
@@ -467,6 +741,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         </ScrollView>
       )}
       {detailsModal}
+      {filtersModal}
     </View>
   );
 }
@@ -543,6 +818,7 @@ const p = StyleSheet.create({
   heroColContent: { padding: 14, paddingBottom: 40 },
   resultsCol: { flex: 1, minWidth: 0 },
   resultsColContent: { padding: 16, paddingBottom: 40 },
+  filterCol: { width: 240, minWidth: 200 },
   contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%' },
 
   hero: { borderRadius: 16, padding: 18, borderWidth: 1 },
@@ -553,18 +829,10 @@ const p = StyleSheet.create({
 
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
 
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
-  toggleLabel: { fontSize: 14, fontWeight: '600' },
-  toggle: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-
   stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
   stepBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   stepBtnText: { fontSize: 20, fontWeight: '600' },
   stepValue: { fontSize: 16, minWidth: 56, textAlign: 'center' },
-
-  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  dayChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, minWidth: 40, alignItems: 'center' },
-  dayChipText: { fontSize: 12 },
 
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12, borderWidth: 1, borderRadius: 12 },
   navBtn: { padding: 6 },
@@ -588,8 +856,9 @@ const p = StyleSheet.create({
 
   dealCard: { borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
   dealTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  dealDate: { fontSize: 15, fontWeight: '600' },
+  dealDate: { fontSize: 14, fontWeight: '600' },
   dealRoute: { fontSize: 12, marginTop: 2 },
+  dealStops: { fontSize: 11, marginTop: 2 },
   dealPrice: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
   dealCta: { marginTop: 8, fontSize: 13, fontWeight: '600' },
 
@@ -647,4 +916,59 @@ const m = StyleSheet.create({
   bookBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
   bookBtnText: { fontSize: 17, fontWeight: '600' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
+});
+
+// ─── Sort bar styles ────────────────────────────────────────────────────────
+
+const sb = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 2, flexWrap: 'wrap' },
+  barRTL: { flexDirection: 'row-reverse' },
+  label: { fontSize: 13, fontWeight: '500' },
+  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  pillsRTL: { flexDirection: 'row-reverse' },
+  pill: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontSize: 13 },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, marginLeft: 'auto' as any },
+  filterBtnText: { fontSize: 13, fontWeight: '600' },
+});
+
+// ─── Filters panel styles (matches search engine FiltersPanel) ───────────────
+
+const fl = StyleSheet.create({
+  sidebarInner: { flex: 1 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  headerTitle: { fontSize: 15, fontWeight: '700' },
+  closeBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  closeText: { fontSize: 22, fontWeight: '400' },
+  scrollContent: { paddingHorizontal: 14, paddingBottom: 24 },
+
+  secHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  secTitle: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  chevron: { fontSize: 12 },
+  secBody: { paddingBottom: 10 },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1 },
+  chipText: { fontSize: 12 },
+
+  airlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  airlineName: { fontSize: 13, flex: 1 },
+  airlineCount: { fontSize: 12 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
 });

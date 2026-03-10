@@ -118,6 +118,10 @@ export interface DayDeal {
   date: string; // YYYY-MM-DD
   lowestPrice?: MonetaryAmount;
   sampleOptionId?: string;
+  stops?: number;           // outbound stop count (0 = direct)
+  carriers?: string[];      // outbound marketing carrier codes
+  outboundPath?: string[];  // ordered airport codes e.g. ["TLV","ADD","BKK","HND"]
+  returnPath?: string[];    // ordered airport codes e.g. ["HND","DOH","LCA","TLV"]
 }
 
 export interface MonthDealsResponse {

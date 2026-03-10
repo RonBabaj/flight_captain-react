@@ -1544,8 +1544,95 @@ func (r *CreateSearchSessionRequest) CurrencyOrDefault() string {
 // --- Monthly deals API (per backend_api_contracts.md) ---
 
 type DayDeal struct {
-	Date        string          `json:"date"`
-	LowestPrice *MonetaryAmount `json:"lowestPrice,omitempty"`
+	Date         string          `json:"date"`
+	LowestPrice  *MonetaryAmount `json:"lowestPrice,omitempty"`
+	Stops        *int            `json:"stops,omitempty"`        // outbound stop count (segments-1)
+	Carriers     []string        `json:"carriers,omitempty"`     // outbound marketing carrier codes
+	OutboundPath []string        `json:"outboundPath,omitempty"` // e.g. ["TLV","ADD","BKK","HND"]
+	ReturnPath   []string        `json:"returnPath,omitempty"`   // e.g. ["HND","DOH","LCA","TLV"]
+}
+
+// iataCode safely extracts an IATA code from a nested Amadeus endpoint map
+// (e.g. segment.departure or segment.arrival).
+func iataCode(endpoint interface{}) string {
+	m, ok := endpoint.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	code, _ := m["iataCode"].(string)
+	return code
+}
+
+// extractRoutePath returns the ordered list of airport codes for one itinerary
+// from a raw Amadeus flight offer (e.g. ["TLV","ADD","BKK","HND"]).
+func extractRoutePath(offer map[string]interface{}) []string {
+	if offer == nil {
+		return nil
+	}
+	itinsRaw, ok := offer["itineraries"].([]interface{})
+	if !ok || len(itinsRaw) == 0 {
+		return nil
+	}
+	firstItin, ok := itinsRaw[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	segsRaw, ok := firstItin["segments"].([]interface{})
+	if !ok || len(segsRaw) == 0 {
+		return nil
+	}
+	var path []string
+	for i, segAny := range segsRaw {
+		seg, ok := segAny.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if i == 0 {
+			if dep := iataCode(seg["departure"]); dep != "" {
+				path = append(path, dep)
+			}
+		}
+		if arr := iataCode(seg["arrival"]); arr != "" {
+			path = append(path, arr)
+		}
+	}
+	return path
+}
+
+// extractDealMeta derives stop count, carrier codes, and route path
+// from a raw Amadeus flight offer map stored in FullRoundTrip.OutboundFlight.
+func extractDealMeta(offer map[string]interface{}) (stops int, carriers []string, path []string) {
+	path = extractRoutePath(offer)
+	if offer == nil {
+		return 0, nil, nil
+	}
+	itinsRaw, ok := offer["itineraries"].([]interface{})
+	if !ok || len(itinsRaw) == 0 {
+		return 0, nil, path
+	}
+	firstItin, ok := itinsRaw[0].(map[string]interface{})
+	if !ok {
+		return 0, nil, path
+	}
+	segsRaw, ok := firstItin["segments"].([]interface{})
+	if !ok || len(segsRaw) == 0 {
+		return 0, nil, path
+	}
+	stops = len(segsRaw) - 1
+	seen := make(map[string]struct{})
+	for _, segAny := range segsRaw {
+		seg, ok := segAny.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if code, ok := seg["carrierCode"].(string); ok && code != "" {
+			seen[code] = struct{}{}
+		}
+	}
+	for code := range seen {
+		carriers = append(carriers, code)
+	}
+	return stops, carriers, path
 }
 
 type MonthDealsResponse struct {
@@ -1879,6 +1966,34 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	var rangeYear, rangeMonth int
 	var err error
 
+	// tripByDate maps outbound date → cheapest FullRoundTrip (for meta extraction)
+	type tripMeta struct {
+		price        float64
+		stops        int
+		carriers     []string
+		outboundPath []string
+		returnPath   []string
+	}
+	metaByDate := make(map[string]tripMeta)
+
+	populateMeta := func(tripList []FullRoundTrip) {
+		for _, trip := range tripList {
+			d := trip.OutboundDate
+			if existing, ok := metaByDate[d]; ok && existing.price <= trip.TotalCost {
+				continue
+			}
+			stops, carriers, outPath := extractDealMeta(trip.OutboundFlight)
+			_, _, retPath := extractDealMeta(trip.ReturnFlight)
+			metaByDate[d] = tripMeta{
+				price:        trip.TotalCost,
+				stops:        stops,
+				carriers:     carriers,
+				outboundPath: outPath,
+				returnPath:   retPath,
+			}
+		}
+	}
+
 	if useRange {
 		startDate, err1 := time.Parse("2006-01-02", startDateStr)
 		endDate, err2 := time.Parse("2006-01-02", endDateStr)
@@ -1899,11 +2014,16 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 				byDate[d] = trip.TotalCost
 			}
 		}
+		populateMeta(deals)
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
 			date := d.Format("2006-01-02")
 			dayDeal := DayDeal{Date: date}
-			if amount, ok := byDate[date]; ok && amount > 0 {
-				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: amount}
+			if meta, ok := metaByDate[date]; ok && meta.price > 0 {
+				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: meta.price}
+				dayDeal.Stops = &meta.stops
+				dayDeal.Carriers = meta.carriers
+				dayDeal.OutboundPath = meta.outboundPath
+				dayDeal.ReturnPath = meta.returnPath
 			}
 			days = append(days, dayDeal)
 		}
@@ -1924,12 +2044,17 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 				byDate[d] = trip.TotalCost
 			}
 		}
+		populateMeta(deals)
 		daysInMonth := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
 		for d := 1; d <= daysInMonth; d++ {
 			date := fmt.Sprintf("%04d-%02d-%02d", year, month, d)
 			dayDeal := DayDeal{Date: date}
-			if amount, ok := byDate[date]; ok && amount > 0 {
-				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: amount}
+			if meta, ok := metaByDate[date]; ok && meta.price > 0 {
+				dayDeal.LowestPrice = &MonetaryAmount{Currency: currency, Amount: meta.price}
+				dayDeal.Stops = &meta.stops
+				dayDeal.Carriers = meta.carriers
+				dayDeal.OutboundPath = meta.outboundPath
+				dayDeal.ReturnPath = meta.returnPath
 			}
 			days = append(days, dayDeal)
 		}

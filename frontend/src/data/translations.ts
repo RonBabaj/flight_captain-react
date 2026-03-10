@@ -138,6 +138,12 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   day_fri: { en: 'Fri', he: 'ו׳', ru: 'Пт' },
   day_sat: { en: 'Sat', he: 'ש׳', ru: 'Сб' },
   any_day: { en: 'Any', he: 'כל יום', ru: 'Любой' },
+  results_lower: { en: 'results', he: 'תוצאות', ru: 'результатов' },
+  earliest: { en: 'Earliest', he: 'הכי מוקדם', ru: 'Раньше' },
+  max_price: { en: 'Max price', he: 'מחיר מקסימלי', ru: 'Макс. цена' },
+  any_price: { en: 'Any price', he: 'כל מחיר', ru: 'Любая цена' },
+  departure_days_section: { en: 'Departure days', he: 'ימי יציאה', ru: 'Дни вылета' },
+  price_section: { en: 'Price', he: 'מחיר', ru: 'Цена' },
 };
 
 export function getTranslation(key: string, language: LanguageCode): string {
