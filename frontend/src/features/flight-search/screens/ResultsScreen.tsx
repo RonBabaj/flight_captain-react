@@ -717,7 +717,9 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
                 ]}
               >
-                <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                <View style={styles.toolbarSortWrap}>
+                  <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                </View>
                 {isMobile && (
                   <TouchableOpacity
                     style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
@@ -941,12 +943,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
     position: 'sticky' as any,
     top: 0,
+    minWidth: 0,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+  },
+  toolbarSortWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   filtersBtn: {
+    flexShrink: 0,
     paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: 20,
-    marginRight: 8,
+    marginLeft: 4,
   },
   filtersBtnText: { fontSize: 13, fontWeight: '600' },
 
