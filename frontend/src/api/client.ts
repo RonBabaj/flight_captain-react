@@ -7,25 +7,56 @@
  * Fallbacks (for backwards compatibility/local dev):
  * - EXPO_PUBLIC_API_URL
  * - VITE_API_BASE_URL
- * - http://localhost:8080
+ * - http://localhost:8080 (ONLY when running on localhost)
  */
-function resolveApiBase(): string {
-  if (typeof process === 'undefined') return 'http://localhost:8080';
-  const env = process.env as Record<string, string | undefined>;
-  let raw =
-    env.EXPO_PUBLIC_API_BASE_URL ||
-    env.EXPO_PUBLIC_API_URL ||
-    env.VITE_API_BASE_URL ||
-    'http://localhost:8080';
+function isLocalHostname(): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      const h = window.location.hostname;
+      return h === 'localhost' || h === '127.0.0.1';
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
 
-  raw = raw.trim();
+function resolveApiBase(): string {
+  const env = (typeof process !== 'undefined' ? process.env : undefined) as
+    | Record<string, string | undefined>
+    | undefined;
+
+  const fromEnv =
+    env?.EXPO_PUBLIC_API_BASE_URL ||
+    env?.EXPO_PUBLIC_API_URL ||
+    env?.VITE_API_BASE_URL ||
+    '';
+
+  let raw = fromEnv.trim();
+
+  // No env configured.
+  if (!raw) {
+    if (!isLocalHostname()) {
+      throw new Error(
+        '[API_BASE_URL] EXPO_PUBLIC_API_BASE_URL is required in production/non-local environments'
+      );
+    }
+    raw = 'http://localhost:8080';
+  }
+
+  // Add scheme when missing.
   if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
-    // If the value is a bare host, choose scheme based on whether it's local or remote.
     const isLocal =
       raw.startsWith('localhost') ||
       raw.startsWith('127.0.0.1');
     raw = `${isLocal ? 'http' : 'https'}://${raw}`;
   }
+
+  // Strip trailing slashes to keep url join logic simple.
+  while (raw.endsWith('/')) {
+    raw = raw.slice(0, -1);
+  }
+
   return raw;
 }
 
