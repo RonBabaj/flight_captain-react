@@ -8,7 +8,9 @@
     "newArchEnabled": true,
     "scheme": "flight-captain",
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "description": "Compare flight prices and find cheap deals. Search one-way and round-trip flights, filter by stops and airlines, and discover cheaper routes from hub cities.",
+      "themeColor": "#6366f1"
     },
     "plugins": []
   }
