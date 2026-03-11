@@ -20,13 +20,22 @@ function resolveApiBase(): string {
 
   raw = raw.trim();
   if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
-    // Assume https if scheme missing.
-    raw = `https://${raw}`;
+    // If the value is a bare host, choose scheme based on whether it's local or remote.
+    const isLocal =
+      raw.startsWith('localhost') ||
+      raw.startsWith('127.0.0.1');
+    raw = `${isLocal ? 'http' : 'https'}://${raw}`;
   }
   return raw;
 }
 
 export const API_BASE = resolveApiBase();
+
+// Log at startup so we can verify what the frontend is calling in each environment.
+if (typeof console !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.log('[API_BASE_URL]', API_BASE);
+}
 
 export function getApiBase(): string {
   return API_BASE;
