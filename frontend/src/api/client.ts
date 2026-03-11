@@ -11,8 +11,10 @@
  */
 function isLocalHostname(): boolean {
   try {
-    if (typeof window !== 'undefined' && window.location?.hostname) {
-      const h = window.location.hostname;
+    const g = typeof globalThis !== 'undefined' ? (globalThis as any) : undefined;
+    const hostname: string | undefined = g?.window?.location?.hostname;
+    if (hostname) {
+      const h = hostname;
       return h === 'localhost' || h === '127.0.0.1';
     }
   } catch {
