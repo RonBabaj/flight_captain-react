@@ -23,12 +23,22 @@ import { getAirlineName } from '../../../data/airlines';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import type { DayDeal, FlightDetailsResponse, FlightSegment } from '../../../types';
+import type { DayDeal, FlightDetailsResponse, FlightSegment, MonetaryAmount } from '../../../types';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+const HUB_AIRPORTS = [
+  'ATH',
+  'VIE',
+  'BUD',
+  'FCO',
+  'MXP',
+  'SOF',
+  'OTP',
+] as const;
 
 // ─── Deals sort helpers (mirrors ResultsScreen logic) ───────────────────────
 
@@ -142,6 +152,17 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const [priceOpen, setPriceOpen] = useState(true);
   const [airlinesOpen, setAirlinesOpen] = useState(true);
 
+  const [positioningOptions, setPositioningOptions] = useState<
+    {
+      hubAirport: string;
+      positioningPrice: MonetaryAmount;
+      hubFlightPrice: MonetaryAmount;
+      totalPrice: MonetaryAmount;
+      savings: MonetaryAmount;
+    }[]
+  >([]);
+  const [positioningLoading, setPositioningLoading] = useState(false);
+
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
     dealsActions.setRoute(origin.trim(), destination.trim());
@@ -234,6 +255,99 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
   };
+
+  // ─── Positioning Flight Optimizer (Deals) ───────────────────────────────────
+
+  useEffect(() => {
+    if (!data || !origin.trim() || !destination.trim() || allDealsWithPrice.length === 0) {
+      setPositioningOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const o = origin.trim().toUpperCase();
+    const d = destination.trim().toUpperCase();
+    const cur = currency;
+    const directCheapest = Math.min(
+      ...allDealsWithPrice.map((day) => day.lowestPrice!.amount)
+    );
+
+    const run = async () => {
+      setPositioningLoading(true);
+      const found: typeof positioningOptions = [];
+
+      for (const hub of HUB_AIRPORTS) {
+        if (hub === o || hub === d) continue;
+        try {
+          const [posRes, hubRes] = await Promise.all([
+            getMonthDeals({
+              origin: o,
+              destination: hub,
+              year,
+              month,
+              durationDays,
+              currency: cur,
+              adults,
+              children,
+              nonStop,
+            }),
+            getMonthDeals({
+              origin: hub,
+              destination: d,
+              year,
+              month,
+              durationDays,
+              currency: cur,
+              adults,
+              children,
+              nonStop,
+            }),
+          ]);
+
+          const posDays =
+            (posRes.days ?? []).filter(
+              (dd) => dd.lowestPrice && dd.lowestPrice.amount > 0
+            );
+          const hubDays =
+            (hubRes.days ?? []).filter(
+              (dd) => dd.lowestPrice && dd.lowestPrice.amount > 0
+            );
+          if (!posDays.length || !hubDays.length) continue;
+
+          const posMin = Math.min(
+            ...posDays.map((dd) => dd.lowestPrice!.amount)
+          );
+          const hubMin = Math.min(
+            ...hubDays.map((dd) => dd.lowestPrice!.amount)
+          );
+
+          const totalAmount = posMin + hubMin;
+          const savingsAmount = directCheapest - totalAmount;
+          if (savingsAmount <= 80) continue;
+
+          found.push({
+            hubAirport: hub,
+            positioningPrice: { amount: posMin, currency: cur },
+            hubFlightPrice: { amount: hubMin, currency: cur },
+            totalPrice: { amount: totalAmount, currency: cur },
+            savings: { amount: savingsAmount, currency: cur },
+          });
+        } catch {
+          // ignore failed hubs
+        }
+      }
+
+      if (cancelled) return;
+      found.sort((a, b) => b.savings.amount - a.savings.amount);
+      setPositioningOptions(found);
+      setPositioningLoading(false);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, destination, year, month, durationDays, currency, adults, children, nonStop, data]);
 
   const openDetails = async (date: string) => {
     const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
@@ -626,6 +740,64 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             </Text>
           </TouchableOpacity>
         )}
+        {positioningLoading ? (
+          <View style={[p.positioningSection, { borderTopColor: theme.cardBorder }]}>
+            <Text style={[p.positioningTitle, { color: theme.textMuted }]}>
+              {t('searching_cheaper_cities')}
+            </Text>
+          </View>
+        ) : positioningOptions.length > 0 ? (
+          <View style={[p.positioningSection, { borderTopColor: theme.cardBorder }]}>
+            <Text style={[p.positioningTitle, { color: theme.text }]}>
+              {t('cheaper_departure_cities')}
+            </Text>
+            {positioningOptions.map((opt) => (
+              <View
+                key={opt.hubAirport}
+                style={[p.positioningRow, { borderColor: theme.cardBorder }]}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[p.positioningHub, { color: theme.text }]}>
+                    {opt.hubAirport}
+                  </Text>
+                  <Text style={[p.positioningMeta, { color: theme.textMuted }]}>
+                    {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} ·{' '}
+                    {t('save_label') || 'save'} {opt.savings.currency}{' '}
+                    {opt.savings.amount.toFixed(0)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[p.positioningBtn, { backgroundColor: theme.controlBg }]}
+                  onPress={() => {
+                    const o = origin.trim().toUpperCase();
+                    const d = destination.trim().toUpperCase();
+                    Alert.alert(
+                      `${o} → ${opt.hubAirport} → ${d}`,
+                      `${t('optimizer_deals_hint') || 'Search monthly deals separately for each leg:'}\n\n` +
+                        `${o} → ${opt.hubAirport} (${opt.positioningPrice.currency} ${opt.positioningPrice.amount.toFixed(
+                          0
+                        )})\n` +
+                        `${opt.hubAirport} → ${d} (${opt.hubFlightPrice.currency} ${opt.hubFlightPrice.amount.toFixed(
+                          0
+                        )})\n\n` +
+                        `${t('total_label') || 'Total'}: ${opt.totalPrice.currency} ${opt.totalPrice.amount.toFixed(
+                          0
+                        )}\n` +
+                        `${t('you_save_label') || 'You save'}: ${opt.savings.currency} ${opt.savings.amount.toFixed(
+                          0
+                        )}`,
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[p.positioningBtnText, { color: theme.primary }]}>
+                    {t('view_combination') || 'View'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
     ) : null
   );
@@ -916,6 +1088,47 @@ const m = StyleSheet.create({
   bookBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
   bookBtnText: { fontSize: 17, fontWeight: '600' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
+
+  positioningSection: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+  },
+  positioningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  positioningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 6,
+  },
+  positioningHub: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  positioningMeta: {
+    fontSize: 11,
+  },
+  positioningBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+  },
+  positioningBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
 
 // ─── Sort bar styles ────────────────────────────────────────────────────────

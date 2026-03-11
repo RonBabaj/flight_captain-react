@@ -330,7 +330,10 @@ const s = StyleSheet.create({
   },
   overlaySheet: {
     justifyContent: 'flex-end',
-    padding: 0,
+    alignItems: 'stretch',
+    paddingHorizontal: 0,
+    paddingTop: 24,
+    paddingBottom: 0,
   },
   card: {
     borderWidth: 1,
@@ -339,8 +342,9 @@ const s = StyleSheet.create({
   cardSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '92%',
+    maxHeight: '80%',
     width: '100%',
+    alignSelf: 'stretch',
   },
   cardCentered: {
     borderRadius: 20,

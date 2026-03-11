@@ -23,11 +23,13 @@ interface FiltersPanelProps {
   sidebarPosition?: 'left' | 'right';
   visible?: boolean;
   onClose?: () => void;
+  /** Extra content rendered below the filter controls (sidebar mode only). */
+  footer?: React.ReactNode;
 }
 
 export function FiltersPanel({
   filters, onFiltersChange, results, noResults,
-  variant, sidebarPosition = 'left', visible, onClose,
+  variant, sidebarPosition = 'left', visible, onClose, footer,
 }: FiltersPanelProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
@@ -133,6 +135,7 @@ export function FiltersPanel({
       <View style={[f.sidebar, { backgroundColor: theme.cardBg }, border]}>
         {header}
         <ScrollView style={f.scroll} contentContainerStyle={f.scrollContent}>{content}</ScrollView>
+        {footer ? <View style={[f.footer, { borderTopColor: theme.cardBorder }]}>{footer}</View> : null}
       </View>
     );
   }
@@ -188,4 +191,6 @@ const f = StyleSheet.create({
   airlineCount: { fontSize: 12 },
 
   hint: { fontSize: 13, marginTop: 16, fontStyle: 'italic' },
+
+  footer: { borderTopWidth: StyleSheet.hairlineWidth },
 });
