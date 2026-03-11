@@ -720,7 +720,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 <View style={styles.toolbarSortWrap}>
                   <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
                 </View>
-                {isMobile && (
+                {!isMobile && (
                   <TouchableOpacity
                     style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
                     onPress={() => setShowFiltersModal(true)}
@@ -730,6 +730,20 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   </TouchableOpacity>
                 )}
               </View>
+              {isMobile && (
+                <TouchableOpacity
+                  style={[
+                    styles.filtersRowMobile,
+                    { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+                    isRTL && { flexDirection: 'row-reverse' },
+                  ]}
+                  onPress={() => setShowFiltersModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="filter-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
+                </TouchableOpacity>
+              )}
               {isMobile && (
                 <FiltersPanel
                   variant="modal"
@@ -959,6 +973,17 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   filtersBtnText: { fontSize: 13, fontWeight: '600' },
+
+  filtersRowMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
 
   listContent: { paddingVertical: 6, paddingBottom: 20 },
   listContentEmpty: { flexGrow: 1, justifyContent: 'center', padding: 24 },
