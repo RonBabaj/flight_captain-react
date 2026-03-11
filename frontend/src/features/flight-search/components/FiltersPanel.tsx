@@ -154,8 +154,19 @@ export function FiltersPanel({
 
 const f = StyleSheet.create({
   sidebar: { width: 240, paddingTop: 0 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  panel: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+    alignItems: 'stretch',
+  },
+  panel: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    width: '100%',
+    alignSelf: 'stretch',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
