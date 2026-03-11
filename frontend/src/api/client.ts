@@ -24,17 +24,14 @@ function isLocalHostname(): boolean {
 }
 
 function resolveApiBase(): string {
-  const env = (typeof process !== 'undefined' ? process.env : undefined) as
-    | Record<string, string | undefined>
-    | undefined;
-
+  // IMPORTANT: Expo inlines EXPO_PUBLIC_* only when accessed directly via process.env.X,
+  // so we avoid going through an intermediate env object.
   const fromEnv =
-    env?.EXPO_PUBLIC_API_BASE_URL ||
-    env?.EXPO_PUBLIC_API_URL ||
-    env?.VITE_API_BASE_URL ||
+    (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_API_BASE_URL) ||
+    (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_API_URL) ||
     '';
 
-  let raw = fromEnv.trim();
+  let raw = (fromEnv || '').trim();
 
   // No env configured.
   if (!raw) {
