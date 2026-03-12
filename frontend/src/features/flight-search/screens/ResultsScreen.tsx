@@ -403,13 +403,6 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [sessionId, storeParams, updateUrl]);
 
-  useEffect(() => {
-    if (results.length > 0) {
-      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-    } else {
-      fadeAnim.setValue(0);
-    }
-  }, [results.length]);
   // Frontend debug: log how many positioning options we received.
   useEffect(() => {
     // eslint-disable-next-line no-console
@@ -568,10 +561,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   const isLoading = status === 'PENDING' || status === 'PARTIAL';
   const hasResults = filtered.length > 0;
-  const showEmpty = !isLoading && results.length === 0;
+  // Empty = we are on a results session, backend is not loading, and the raw list is empty
+  const hasActiveSession = !!sessionId;
+  const showEmpty = !isLoading && hasActiveSession && results.length === 0;
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
 
   const [showSlowPopup, setShowSlowPopup] = useState(false);
+
+  // Fade in whenever we have any visual content (results, empty-state, or no-match)
+  useEffect(() => {
+    const hasVisualContent = results.length > 0 || showEmpty || showNoMatch;
+    if (hasVisualContent) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [results.length, showEmpty, showNoMatch, fadeAnim]);
 
   useEffect(() => {
     if (!(status === 'PENDING' || status === 'PARTIAL')) {
@@ -638,6 +643,25 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           <SkeletonCard key={i} theme={theme} />
         ))}
       </View>
+    ) : showEmpty ? (
+      <View style={styles.listContentEmpty}>
+        <View
+          style={[
+            styles.emptyWrap,
+            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+          ]}
+        >
+          <View style={{ marginBottom: 12 }}>
+            <Ionicons name="airplane-outline" size={48} color={theme.textMuted} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            {t('no_flights_found')}
+          </Text>
+          <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+            {t('no_flights_tip')}
+          </Text>
+        </View>
+      </View>
     ) : (
       <FlatList
         data={filtered}
@@ -654,20 +678,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           />
         )}
         ListEmptyComponent={
-          showEmpty ? (
-            <View style={styles.emptyWrap}>
-              <View style={{ marginBottom: 12 }}>
-                <Ionicons name="airplane-outline" size={48} color={theme.textMuted} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                {t('no_flights_found')}
-              </Text>
-              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                {t('no_flights_tip')}
-              </Text>
-            </View>
-          ) : showNoMatch ? (
-            <View style={styles.emptyWrap}>
+          showNoMatch ? (
+            <View
+              style={[
+                styles.emptyWrap,
+                { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+              ]}
+            >
               <View style={{ marginBottom: 12 }}>
                 <Ionicons name="filter-outline" size={48} color={theme.textMuted} />
               </View>
@@ -1102,8 +1119,15 @@ const styles = StyleSheet.create({
   filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
 
   listContent: { paddingVertical: 6, paddingBottom: 20 },
-  listContentEmpty: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  listContentEmpty: { flex: 1, justifyContent: 'center', padding: 24 },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
   emptyText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 24, lineHeight: 20 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },

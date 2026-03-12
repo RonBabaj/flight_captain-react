@@ -39,12 +39,15 @@ export function DateRangePicker({
   mode = 'single',
 }: DateRangePickerProps) {
   const { theme } = useTheme();
+  const todayUtc = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayMonthStart = useMemo(() => getMonthStart(new Date()), []);
   const initial = useMemo(() => {
-    if (!initialDate) return getMonthStart(new Date());
+    if (!initialDate) return todayMonthStart;
     const parsed = new Date(initialDate + 'T12:00:00Z');
-    if (Number.isNaN(parsed.getTime())) return getMonthStart(new Date());
-    return getMonthStart(parsed);
-  }, [initialDate]);
+    if (Number.isNaN(parsed.getTime())) return todayMonthStart;
+    const month = getMonthStart(parsed);
+    return month < todayMonthStart ? todayMonthStart : month;
+  }, [initialDate, todayMonthStart]);
 
   const [monthStart, setMonthStart] = useState<Date>(initial);
   const [rangeStart, setRangeStart] = useState<string | null>(initialDate ?? null);
@@ -72,7 +75,8 @@ export function DateRangePicker({
   const goOffset = (offset: number) => {
     const d = new Date(monthStart);
     d.setUTCMonth(d.getUTCMonth() + offset);
-    setMonthStart(getMonthStart(d));
+    const next = getMonthStart(d);
+    setMonthStart(next < todayMonthStart ? todayMonthStart : next);
   };
 
   const handleDayPress = (date: string) => {
@@ -129,20 +133,23 @@ export function DateRangePicker({
               <View key={`pad-${i}`} style={styles.cell} />
             ))}
             {days.map((date) => {
-              const selected = isInRange(date);
+              const isPast = date < todayUtc;
+              const selected = !isPast && isInRange(date);
               return (
                 <TouchableOpacity
                   key={date}
                   style={[
                     styles.cell,
+                    isPast && { opacity: 0.3 },
                     selected && { backgroundColor: theme.primary, borderRadius: 999 },
                   ]}
+                  disabled={isPast}
                   onPress={() => handleDayPress(date)}
                 >
                   <Text
                     style={[
                       styles.dayNum,
-                      { color: theme.text },
+                      { color: isPast ? theme.textMuted : theme.text },
                       selected && { color: '#fff' },
                     ]}
                   >
