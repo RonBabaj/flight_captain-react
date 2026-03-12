@@ -567,6 +567,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
 
   const [showSlowPopup, setShowSlowPopup] = useState(false);
+  const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fade in whenever we have any visual content (results, empty-state, or no-match)
   useEffect(() => {
@@ -579,18 +580,38 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   }, [results.length, showEmpty, showNoMatch, fadeAnim]);
 
   useEffect(() => {
-    if (!(status === 'PENDING' || status === 'PARTIAL')) {
+    const loading = status === 'PENDING' || status === 'PARTIAL';
+
+    // If we are no longer loading, clear any timer and hide popup.
+    if (!loading) {
       setShowSlowPopup(false);
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
       return;
     }
-    setShowSlowPopup(false);
-    const timeout = setTimeout(() => {
+
+    // Already scheduled or already visible – do nothing.
+    if (slowPopupTimerRef.current || showSlowPopup) {
+      return;
+    }
+
+    // Show hint if we stay loading for more than 10 seconds.
+    slowPopupTimerRef.current = setTimeout(() => {
+      slowPopupTimerRef.current = null;
       if (status === 'PENDING' || status === 'PARTIAL') {
         setShowSlowPopup(true);
       }
-    }, 30000);
-    return () => clearTimeout(timeout);
-  }, [status, sessionId]);
+    }, 10000);
+
+    return () => {
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
+    };
+  }, [status, sessionId, showSlowPopup]);
 
   const makeViewCombinationHandler = (opt: PositioningOption) => () => {
     setPositioningDetails(opt);
