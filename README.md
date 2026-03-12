@@ -61,11 +61,32 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Tap a deal for the full flight details modal (same design as search results).
 - "Book now" from deal details redirects directly to Skyscanner.
 
+### Cheaper departure cities (positioning optimizer)
+- After results load, the app checks whether flying from a nearby hub would reduce total cost.
+- **Hub airports:** ATH, VIE, BUD, FCO, MXP, SOF, OTP. Works for **any origin/destination** (no TLV-only restriction).
+- Options with savings over $80 are shown in a **"Cheaper departure cities"** section: hub code, total price, savings, and per-leg prices.
+- **Desktop:** section appears in the right sidebar below the filters. **Mobile:** section appears below the flight cards.
+- **"View combination"** opens a modal with both legs (positioning + main flight) and a **"Book both legs"** button that opens partner booking URLs for each leg.
+
+### Loading & progress
+- **Search (main form):** On "Search", a full-screen **SearchLoadingOverlay** appears with a spinner, route (e.g. TLV → HND), and **rotating status text** (e.g. "Searching hundreds of airlines…", "Comparing prices…") in the active language (EN/HE/RU).
+- **Search button:** While loading, the button shows a spinner and the same rotating phrases instead of static "Searching…".
+- **Results page:** While the session is PENDING/PARTIAL, a **LoadingBanner** shows an **animated progress bar** and rotating status phrases. Re-searching from the sidebar (edit-search modal) also shows the full-screen overlay.
+- **Monthly deals:** Search button shows spinner + rotating deals phrases; the main loader shows an animated progress bar and rotating text (e.g. "Scanning deals for the whole month…").
+
 ### UI Polish
 - Consistent design language across search results and monthly deals.
 - Pill-shaped sort buttons, lightweight collapsible filter sidebar, compact search form.
-- Responsive layout: three-column desktop (hero | deals | filters), single column + bottom-sheet modals on mobile.
+- **Responsive layout:** Three-column desktop (hero | deals | filters), single column + bottom-sheet modals on mobile.
+  - **Header:** On narrow viewports, nav collapses into a **hamburger menu** ("Navigation" with Search / Monthly deals).
+  - **Results toolbar (mobile):** The **Filters** button sits on its own row **between** the sort options and the flight cards to avoid overflow.
+  - **Flight details modal:** Bottom-sheet on mobile with constrained height/width so it stays within the viewport (e.g. Samsung S24 Ultra, iPhone).
 - Dark and light themes with full RTL support (English, Hebrew, Russian).
+
+### Favicon & SEO
+- **Favicon:** `frontend/public/favicon.png` — paper plane in a dark purple circle with a light border (used as primary icon in `index.html`).
+- **Custom `index.html`:** Favicon links, `meta` keywords and robots, **Open Graph** (og:type, title, description, image, site_name), **Twitter Card** (card, title, description). Description and theme color can be injected from `app.json` (Expo web).
+- Optional: add `public/og-image.png` for social previews and `public/favicon.ico` for legacy browsers.
 
 ---
 
@@ -166,7 +187,21 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 ## Notes
 
 - No authentication in this version.
-- Airport autocomplete uses a frontend dictionary (`src/data/airports.ts`). The backend `/api/airports/search` is also available.
+- Airport autocomplete uses a frontend dictionary (`src/data/airports.ts`) with a large set of commercial airports and EN/HE/RU names; the backend `/api/airports/search` is also available.
 - Theme: indigo accent, shared nav bar and radii; dark theme tuned for readability.
 - RTL support: Hebrew and Russian layouts are fully mirrored.
 - GF2 round-trips use two separate one-way API calls (outbound + return) combined server-side, ensuring both legs and their layover airports are always available in results and the details modal.
+
+---
+
+## Recent enhancements
+
+Summary of recent changes:
+
+| Area | Change |
+|------|--------|
+| **Loading UX** | Full-screen search overlay with rotating status text (EN/HE/RU); search button shows spinner + rotating phrases; results page loading banner with animated progress bar and cycling messages; monthly deals search and loader use spinner + progress bar + rotating phrases. |
+| **Positioning optimizer** | "Cheaper departure cities" for any origin/destination; hub list ATH, VIE, BUD, FCO, MXP, SOF, OTP; section in sidebar (desktop) or below results (mobile); "View combination" modal with "Book both legs" for each leg. |
+| **Responsive** | Hamburger nav on small screens; Filters button moved to its own row between sort and cards on mobile; flight details modal sized for narrow viewports (max height/width). |
+| **Favicon** | Primary favicon: PNG (paper plane in dark purple circle with light border) at `frontend/public/favicon.png`. |
+| **SEO** | Custom `frontend/public/index.html` with favicon, meta keywords/robots, Open Graph, Twitter Card; `app.json` web description and theme color for injection. |

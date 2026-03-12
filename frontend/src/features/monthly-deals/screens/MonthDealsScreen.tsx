@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Animated,
   Modal,
   Pressable,
   Linking,
@@ -128,7 +129,7 @@ function formatDealDate(dateStr: string): string {
 
 export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
-  const { currency, locale, t, isRTL } = useLocale();
+  const { currency, locale, t, isRTL, language } = useLocale();
   const isMobile = useIsMobile();
   const { width: screenW } = useWindowDimensions();
   const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
@@ -139,6 +140,36 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const [children, setChildren] = useState(pending?.children ?? 0);
   const [nonStop, setNonStop] = useState(pending?.nonStop ?? false);
   const [visibleCount, setVisibleCount] = useState(10);
+
+  // Rotating loading phrases
+  const DEALS_PHRASES: Record<string, string[]> = {
+    en: ['Scanning deals for the whole month…', 'Comparing lowest fares…', 'Finding the best dates…', 'Almost ready…'],
+    he: ['סורק דילים לכל החודש…', 'משווה את המחירים הנמוכים…', 'מוצא את התאריכים הטובים…', 'כמעט מוכן…'],
+    ru: ['Сканируем предложения за весь месяц…', 'Сравниваем самые низкие тарифы…', 'Ищем лучшие даты…', 'Почти готово…'],
+  };
+  const dealsLang = language ?? 'en';
+  const dealsPhrases = DEALS_PHRASES[dealsLang] ?? DEALS_PHRASES.en;
+  const [dealsPhrase, setDealsPhrase] = useState(0);
+  const dealsFade = useRef(new Animated.Value(1)).current;
+  const dealsProgress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isLoading) { setDealsPhrase(0); dealsFade.setValue(1); dealsProgress.setValue(0); return; }
+    const anim = Animated.loop(Animated.sequence([
+      Animated.timing(dealsProgress, { toValue: 1, duration: 2400, useNativeDriver: false }),
+      Animated.timing(dealsProgress, { toValue: 0, duration: 0, useNativeDriver: false }),
+    ]));
+    anim.start();
+    const id = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(dealsFade, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(dealsFade, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+      setDealsPhrase((i) => (i + 1) % dealsPhrases.length);
+    }, 2400);
+    return () => { clearInterval(id); anim.stop(); };
+  }, [isLoading, dealsPhrases.length]);
+  const dealsProgressWidth = dealsProgress.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
+
   const [showDetails, setShowDetails] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -654,7 +685,12 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         activeOpacity={0.8}
       >
         {isLoading ? (
-          <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('loading_deals')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <ActivityIndicator size="small" color={theme.buttonText} />
+            <Animated.Text style={[p.searchBtnText, { color: theme.buttonText, opacity: dealsFade }]}>
+              {dealsPhrases[dealsPhrase]}
+            </Animated.Text>
+          </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Ionicons name="search" size={16} color={theme.buttonText} />
@@ -670,8 +706,13 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const resultsContent = (
     isLoading && !data ? (
       <View style={p.loaderWrap}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[p.loaderText, { color: theme.textMuted }]}>{t('loading_deals')}</Text>
+        <ActivityIndicator size="large" color={theme.primary} style={{ marginBottom: 16 }} />
+        <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
+          <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
+        </View>
+        <Animated.Text style={[p.loaderText, { color: theme.textMuted, opacity: dealsFade }]}>
+          {dealsPhrases[dealsPhrase]}
+        </Animated.Text>
       </View>
     ) : data != null && bestDeals.length === 0 ? (
       <>
@@ -906,8 +947,13 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           {heroCard}
           {isLoading && !data ? (
             <View style={p.loaderWrap}>
-              <ActivityIndicator size="large" color={theme.primary} />
-              <Text style={[p.loaderText, { color: theme.textMuted }]}>{t('loading_deals')}</Text>
+              <ActivityIndicator size="large" color={theme.primary} style={{ marginBottom: 16 }} />
+              <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
+                <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
+              </View>
+              <Animated.Text style={[p.loaderText, { color: theme.textMuted, opacity: dealsFade }]}>
+                {dealsPhrases[dealsPhrase]}
+              </Animated.Text>
             </View>
           ) : resultsContent}
         </ScrollView>
@@ -1017,7 +1063,9 @@ const p = StyleSheet.create({
   searchBtnText: { fontSize: 16, fontWeight: '600' },
 
   loaderWrap: { alignItems: 'center', paddingVertical: 40 },
-  loaderText: { marginTop: 12, fontSize: 14 },
+  loaderText: { marginTop: 12, fontSize: 14, textAlign: 'center' },
+  dealsProgressTrack: { width: '70%', maxWidth: 280, height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
+  dealsProgressFill: { height: 4, borderRadius: 2 },
 
   emptyCard: { borderRadius: 14, padding: 28, borderWidth: 1, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },

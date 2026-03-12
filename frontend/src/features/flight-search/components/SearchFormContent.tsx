@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -19,13 +19,58 @@ export interface SearchFormContentProps {
   compact?: boolean;
 }
 
+const SEARCH_PHRASES: Record<string, string[]> = {
+  en: [
+    'Searching hundreds of airlines…',
+    'Comparing prices…',
+    'Checking direct flights…',
+    'Looking for the best deals…',
+    'Almost there…',
+  ],
+  he: [
+    'מחפש מאות חברות תעופה…',
+    'משווה מחירים…',
+    'בודק טיסות ישירות…',
+    'מחפש את הדילים הטובים…',
+    'עוד רגע…',
+  ],
+  ru: [
+    'Ищем сотни авиакомпаний…',
+    'Сравниваем цены…',
+    'Проверяем прямые рейсы…',
+    'Ищем лучшие предложения…',
+    'Почти готово…',
+  ],
+};
+
 export function SearchFormContent({
   params, update, tripType, setTripType, onSearch, loading, error, compact = false,
 }: SearchFormContentProps) {
   const { theme } = useTheme();
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const [showCalendar, setShowCalendar] = useState(false);
   const ts = makeThemedStyles(theme);
+
+  const phrases = SEARCH_PHRASES[language] ?? SEARCH_PHRASES.en;
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!loading) {
+      setPhraseIdx(0);
+      fadeAnim.setValue(1);
+      return;
+    }
+    const cycle = () => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+      setPhraseIdx((i) => (i + 1) % phrases.length);
+    };
+    const id = setInterval(cycle, 2000);
+    return () => clearInterval(id);
+  }, [loading, phrases.length]);
 
   const dateLabel =
     tripType === 'round-trip'
@@ -131,7 +176,12 @@ export function SearchFormContent({
         activeOpacity={0.8}
       >
         {loading ? (
-          <Text style={[ts.buttonText, compact && { fontSize: 15 }]}>{t('searching')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <ActivityIndicator size="small" color={theme.buttonText} />
+            <Animated.Text style={[ts.buttonText, compact && { fontSize: 15 }, { opacity: fadeAnim }]}>
+              {phrases[phraseIdx]}
+            </Animated.Text>
+          </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <Ionicons name="search" size={16} color={theme.buttonText} />

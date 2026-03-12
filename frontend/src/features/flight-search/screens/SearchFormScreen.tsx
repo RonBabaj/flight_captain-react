@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView } from 'react-native';
+import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
 import { searchActions } from '../../../store';
 import { createSearchSession } from '../../../api';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
+import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
 import { useSearchParams } from '../../../hooks/useSearchParams';
 
@@ -112,21 +113,28 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.screenBg }}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <SearchFormContent
-        params={params}
-        update={update}
-        tripType={tripType}
-        setTripType={setTripType}
-        onSearch={handleSearch}
-        loading={loading}
-        error={error}
+    <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <SearchFormContent
+          params={params}
+          update={update}
+          tripType={tripType}
+          setTripType={setTripType}
+          onSearch={handleSearch}
+          loading={loading}
+          error={error}
+        />
+      </ScrollView>
+      <SearchLoadingOverlay
+        visible={loading}
+        origin={params.origin || undefined}
+        destination={params.destination || undefined}
       />
-    </ScrollView>
+    </View>
   );
 }
 

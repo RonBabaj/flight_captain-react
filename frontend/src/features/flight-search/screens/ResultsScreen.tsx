@@ -30,6 +30,7 @@ import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
+import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -101,6 +102,83 @@ const sk = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
 });
 
+const LOADING_PHRASES: Record<string, string[]> = {
+  en: [
+    'Searching hundreds of airlines…',
+    'Comparing prices across providers…',
+    'Checking direct and connecting flights…',
+    'Finding the best fares…',
+    'Almost done…',
+  ],
+  he: [
+    'מחפש מאות חברות תעופה…',
+    'משווה מחירים בין ספקים…',
+    'בודק טיסות ישירות ועם עצירות…',
+    'מוצא את המחירים הטובים…',
+    'עוד רגע…',
+  ],
+  ru: [
+    'Ищем сотни авиакомпаний…',
+    'Сравниваем цены у провайдеров…',
+    'Проверяем прямые и стыковочные рейсы…',
+    'Ищем лучшие тарифы…',
+    'Почти готово…',
+  ],
+};
+
+function LoadingBanner({ language, theme }: {
+  language: string;
+  theme: import('../../../theme/ThemeContext').Theme;
+}) {
+  const phrases = LOADING_PHRASES[language] ?? LOADING_PHRASES.en;
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(progressAnim, { toValue: 1, duration: 2200, useNativeDriver: false }),
+        Animated.timing(progressAnim, { toValue: 0, duration: 0, useNativeDriver: false }),
+      ])
+    ).start();
+
+    const cycle = () => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+      setPhraseIdx((i) => (i + 1) % phrases.length);
+    };
+    const id = setInterval(cycle, 2200);
+    return () => { clearInterval(id); progressAnim.stopAnimation(); };
+  }, [phrases.length]);
+
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
+
+  return (
+    <View style={[lb.wrap, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
+      <View style={[lb.track, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
+        <Animated.View style={[lb.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
+      </View>
+      <View style={lb.row}>
+        <ActivityIndicator size="small" color={theme.primary} />
+        <Animated.Text style={[lb.text, { color: theme.primary, opacity: fadeAnim }]}>
+          {phrases[phraseIdx]}
+        </Animated.Text>
+      </View>
+    </View>
+  );
+}
+
+const lb = StyleSheet.create({
+  wrap: { paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14 },
+  track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
+  fill: { height: 3, borderRadius: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  text: { fontSize: 13, fontWeight: '500', flex: 1 },
+});
+
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
 function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
   const priceNorm = maxPrice > 0 ? opt.price.amount / maxPrice : 0;
@@ -168,7 +246,7 @@ async function findCheapestOptionForParams(
 
 export function ResultsScreen({ route }: { route: { params: { sessionId: string } } }) {
   const { theme } = useTheme();
-  const { currency, locale, t, isRTL } = useLocale();
+  const { currency, locale, t, isRTL, language } = useLocale();
   const { updateUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
@@ -645,14 +723,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         </View>
       </Modal>
 
-      {isLoading && (
-        <View style={[styles.banner, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.bannerText, { color: theme.primary }]}>
-            {t('loading_more_results')}
-          </Text>
-        </View>
-      )}
+      {isLoading && <LoadingBanner language={language} theme={theme} />}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (
@@ -870,6 +941,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         onClose={() => setDetailsOption(null)}
         sessionId={sessionId}
         option={detailsOption}
+      />
+
+      <SearchLoadingOverlay
+        visible={sidebarSearchLoading}
+        origin={formParams.origin || storeParams?.origin}
+        destination={formParams.destination || storeParams?.destination}
       />
     </View>
   );
