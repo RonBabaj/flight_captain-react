@@ -1274,3 +1274,5 @@
 {"data":{"departureDate":"2026-03-19","destination":"CDG","hasReturnDate":false,"origin":"OTP"},"hypothesisId":"backend-A","location":"backend/server.go:handleCreateSession","message":"Create session request","sessionId":"68d1d3","timestamp":1773315214332}
 {"data":{"resultsCount":2,"sessionId":"sess_dh0rs3in89jz"},"hypothesisId":"backend-A","location":"backend/server.go:handleCreateSession","message":"Create session success","sessionId":"68d1d3","timestamp":1773315215252}
 {"data":{"id":"sess_dh0rs3in89jz","resultsCount":2,"version":1},"hypothesisId":"backend-B","location":"backend/server.go:handleGetSession","message":"Get session success","sessionId":"68d1d3","timestamp":1773315215269}
+{"data":{"resultsCount":50,"sessionId":"sess_dh0rs3xxu7qm"},"hypothesisId":"backend-A","location":"backend/server.go:handleCreateSession","message":"Create session success","sessionId":"68d1d3","timestamp":1773315216177}
+{"data":{"id":"sess_dh0rs3xxu7qm","resultsCount":50,"version":1},"hypothesisId":"backend-B","location":"backend/server.go:handleGetSession","message":"Get session success","sessionId":"68d1d3","timestamp":1773315216181}
