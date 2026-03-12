@@ -571,6 +571,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const showEmpty = !isLoading && results.length === 0;
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
 
+  const [showSlowPopup, setShowSlowPopup] = useState(false);
+
+  useEffect(() => {
+    if (!(status === 'PENDING' || status === 'PARTIAL')) {
+      setShowSlowPopup(false);
+      return;
+    }
+    setShowSlowPopup(false);
+    const timeout = setTimeout(() => {
+      if (status === 'PENDING' || status === 'PARTIAL') {
+        setShowSlowPopup(true);
+      }
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, [status, sessionId]);
+
   const makeViewCombinationHandler = (opt: PositioningOption) => () => {
     setPositioningDetails(opt);
   };
@@ -948,6 +964,29 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         origin={formParams.origin || storeParams?.origin}
         destination={formParams.destination || storeParams?.destination}
       />
+
+      {showSlowPopup && (
+        <View
+          style={[
+            styles.slowPopup,
+            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+          ]}
+        >
+          <View style={styles.slowPopupRow}>
+            <Ionicons name="time-outline" size={14} color={theme.textMuted} />
+            <Text style={[styles.slowPopupText, { color: theme.textMuted }]}>
+              {t('results_slow_hint')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowSlowPopup(false)}
+              style={styles.slowPopupClose}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={14} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -1121,5 +1160,33 @@ const styles = StyleSheet.create({
   positioningPrimaryBtnText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  slowPopup: {
+    position: 'absolute',
+    right: 12,
+    bottom: 20,
+    maxWidth: 320,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  slowPopupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  slowPopupText: {
+    flex: 1,
+    fontSize: 11,
+    marginHorizontal: 6,
+  },
+  slowPopupClose: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
 });
