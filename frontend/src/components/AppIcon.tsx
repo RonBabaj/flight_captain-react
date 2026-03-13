@@ -2,11 +2,13 @@
  * Centralized icon component for cross-platform compatibility.
  * Uses only @expo/vector-icons (Ionicons, MaterialIcons, Feather).
  * Prefer Ionicons for broad support on Expo web, iOS, and Android.
+ * When icon fonts failed to load, shows fallbackText visibly so UI stays usable.
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { useIconFontsLoaded } from './IconFontsContext';
 
 export type AppIconLibrary = 'ion' | 'material' | 'feather';
 
@@ -36,7 +38,10 @@ export function AppIcon({
   fallbackText,
   style,
 }: AppIconProps) {
+  const iconFontsLoaded = useIconFontsLoaded();
   const IconComponent = ICON_SET[library];
+
+  const showFallback = !iconFontsLoaded && fallbackText;
 
   return (
     <View
@@ -45,7 +50,17 @@ export function AppIcon({
       accessibilityLabel={fallbackText}
       accessibilityRole="image"
     >
-      <IconComponent name={name as any} size={size} color={color} />
+      {showFallback ? (
+        <Text
+          style={[styles.fallbackText, { color }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {fallbackText}
+        </Text>
+      ) : (
+        <IconComponent name={name as any} size={size} color={color} />
+      )}
     </View>
   );
 }
@@ -54,5 +69,12 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 24,
+    minHeight: 24,
+  },
+  fallbackText: {
+    fontSize: Platform.OS === 'web' ? 12 : 10,
+    fontWeight: '600',
+    maxWidth: 72,
   },
 });
