@@ -287,8 +287,16 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 	ctx, cancel := context.WithTimeout(ctx, gf2Timeout)
 	defer cancel()
 
+	cabin := req.CabinPreference
+	if cabin == "" {
+		cabin = req.CabinClass
+	}
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
+	cabin = strings.ToUpper(cabin)
 	travelClass := "ECONOMY"
-	switch strings.ToUpper(req.CabinPreference) {
+	switch cabin {
 	case "PREMIUM_ECONOMY":
 		travelClass = "PREMIUM_ECONOMY"
 	case "BUSINESS":
@@ -356,10 +364,10 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 		return nil, fmt.Errorf("GF2 status %d", resp.StatusCode)
 	}
 
-	return parseGF2Response(body, req.Origin, req.Destination, currency, req.DepartureDate)
+	return parseGF2Response(body, req.Origin, req.Destination, currency, req.DepartureDate, cabin)
 }
 
-func parseGF2Response(body []byte, origin, dest, currency, departureDate string) ([]ProviderResult, error) {
+func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin string) ([]ProviderResult, error) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("parse GF2 response: %w", err)
@@ -462,7 +470,7 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 			if !ok {
 				continue
 			}
-			pr := extractGF2Flight(f, origin, dest, currency, i, departureDate)
+			pr := extractGF2Flight(f, origin, dest, currency, i, departureDate, cabin)
 			if pr != nil && pr.Price.Amount > 0 {
 				results = append(results, *pr)
 			}
@@ -494,10 +502,10 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 		// GF2 API: data.itineraries (map or array) + data.priceHistory
 		priceHistory := data["priceHistory"]
 		if itinsArr, ok := data["itineraries"].([]interface{}); ok {
-			extractGF2Itineraries(itinsArr, priceHistory, origin, dest, currency, departureDate, &results)
+			extractGF2Itineraries(itinsArr, priceHistory, origin, dest, currency, departureDate, cabin, &results)
 		}
 		if itinsMap, ok := data["itineraries"].(map[string]interface{}); ok {
-			extractGF2ItinerariesFromMap(itinsMap, priceHistory, origin, dest, currency, departureDate, &results)
+			extractGF2ItinerariesFromMap(itinsMap, priceHistory, origin, dest, currency, departureDate, cabin, &results)
 		}
 		// Nested: data.data.flights or data.search_results etc
 		if inner, ok := data["data"].(map[string]interface{}); ok {
@@ -532,7 +540,7 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 				continue
 			}
 			if flightsArr, ok := r["flights"].([]interface{}); ok && len(flightsArr) > 0 {
-				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, departureDate); leg != nil {
+				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, departureDate, cabin); leg != nil {
 					bestReturnLeg = leg
 					break
 				}
@@ -588,7 +596,10 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate string)
 }
 
 // extractGF2ItinerariesFromMap parses GF2 data.itineraries when it's a map (id -> itinerary).
-func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory interface{}, origin, dest, currency, departureDate string, results *[]ProviderResult) {
+func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory interface{}, origin, dest, currency, departureDate, cabin string, results *[]ProviderResult) {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	defaultPrice := extractGF2PriceFromHistory(priceHistory)
 	log.Printf("[GF2_DEBUG] itineraries map len=%d defaultPrice=%.2f", len(itinsMap), defaultPrice)
 	idx := 0
@@ -618,7 +629,7 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 				if amount <= 0 {
 					continue
 				}
-				pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate)
+				pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate, cabin)
 				if pr != nil {
 					pr.ID = fmt.Sprintf("gf2_%s_%d", id, idx)
 					*results = append(*results, *pr)
@@ -648,7 +659,7 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 		if amount <= 0 {
 			continue
 		}
-		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate)
+		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate, cabin)
 		if pr != nil {
 			pr.ID = fmt.Sprintf("gf2_%s", id)
 			*results = append(*results, *pr)
@@ -686,7 +697,10 @@ func extractGF2PriceFromHistory(priceHistory interface{}) float64 {
 }
 
 // extractGF2Itineraries parses GF2 data.itineraries + priceHistory structure (array form).
-func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin, dest, currency, departureDate string, results *[]ProviderResult) {
+func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin, dest, currency, departureDate, cabin string, results *[]ProviderResult) {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	priceByID := make(map[string]float64)
 	defaultPrice := extractGF2PriceFromHistory(priceHistory)
 	if defaultPrice > 0 {
@@ -735,14 +749,17 @@ func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin
 			continue
 		}
 
-		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, i, departureDate)
+		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, i, departureDate, cabin)
 		if pr != nil {
 			*results = append(*results, *pr)
 		}
 	}
 }
 
-func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, currency string, amount float64, idx int, departureDate string) *ProviderResult {
+func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, currency string, amount float64, idx int, departureDate, cabin string) *ProviderResult {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	var legs []Leg
 	var totalDur int
 
@@ -754,7 +771,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 			if s == nil {
 				continue
 			}
-			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
+			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate, cabin)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += seg.DurationMinutes
@@ -773,10 +790,10 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 				if s == nil {
 					continue
 				}
-				seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
+				seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate, cabin)
 				if seg == nil {
 					var segDur int
-					seg, segDur = extractGF2Segment(s, origin, dest, departureDate)
+					seg, segDur = extractGF2Segment(s, origin, dest, departureDate, cabin)
 					if seg != nil {
 						segs = append(segs, *seg)
 						totalDur += segDur
@@ -799,7 +816,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 				if l == nil {
 					continue
 				}
-				seg, dur := extractGF2Leg(l, origin, dest, departureDate)
+				seg, dur := extractGF2Leg(l, origin, dest, departureDate, cabin)
 				if len(seg) > 0 {
 					legs = append(legs, Leg{Segments: seg})
 					totalDur += dur
@@ -809,7 +826,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 	}
 	// SerpAPI round-trip: return_flights embedded within this itinerary item
 	if retFlightsArr, ok := itin["return_flights"].([]interface{}); ok && len(retFlightsArr) > 0 {
-		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate); retLeg != nil {
+		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate, cabin); retLeg != nil {
 			legs = append(legs, *retLeg)
 		}
 	}
@@ -909,7 +926,10 @@ func toFloat64(v interface{}) float64 {
 	}
 }
 
-func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, idx int, departureDate string) *ProviderResult {
+func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, idx int, departureDate, cabin string) *ProviderResult {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	amount := extractGF2Price(f)
 	if amount <= 0 {
 		return nil
@@ -926,7 +946,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 			if s == nil {
 				continue
 			}
-			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate)
+			seg := extractGF2SegmentFromFlight(s, origin, dest, departureDate, cabin)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += seg.DurationMinutes
@@ -944,7 +964,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 				if l == nil {
 					continue
 				}
-				seg, dur := extractGF2Leg(l, origin, dest, departureDate)
+				seg, dur := extractGF2Leg(l, origin, dest, departureDate, cabin)
 				if len(seg) > 0 {
 					legs = append(legs, Leg{Segments: seg})
 					totalDur += dur
@@ -954,7 +974,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	}
 	if len(legs) == 0 {
 		if outbound, ok := f["outbound"].(map[string]interface{}); ok {
-			seg, dur := extractGF2Leg(outbound, origin, dest, departureDate)
+			seg, dur := extractGF2Leg(outbound, origin, dest, departureDate, cabin)
 			if len(seg) > 0 {
 				legs = append(legs, Leg{Segments: seg})
 				totalDur += dur
@@ -962,7 +982,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 		}
 	}
 	if ret, ok := f["return"].(map[string]interface{}); ok {
-		seg, dur := extractGF2Leg(ret, dest, origin, departureDate)
+		seg, dur := extractGF2Leg(ret, dest, origin, departureDate, cabin)
 		if len(seg) > 0 {
 			legs = append(legs, Leg{Segments: seg})
 			totalDur += dur
@@ -970,7 +990,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	}
 	// SerpAPI round-trip: return_flights embedded within each result item
 	if retFlightsArr, ok := f["return_flights"].([]interface{}); ok && len(retFlightsArr) > 0 {
-		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate); retLeg != nil {
+		if retLeg := extractGF2LegFromFlightsArray(retFlightsArr, dest, origin, departureDate, cabin); retLeg != nil {
 			legs = append(legs, *retLeg)
 		}
 	}
@@ -1017,14 +1037,17 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 
 // extractGF2LegFromFlightsArray converts a SerpAPI-style "flights" array (segment list) into a single Leg.
 // Used to parse embedded return_flights within a result item.
-func extractGF2LegFromFlightsArray(flightsArr []interface{}, defaultFrom, defaultTo, departureDate string) *Leg {
+func extractGF2LegFromFlightsArray(flightsArr []interface{}, defaultFrom, defaultTo, departureDate, cabin string) *Leg {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	var segs []Segment
 	for _, sAny := range flightsArr {
 		s, _ := sAny.(map[string]interface{})
 		if s == nil {
 			continue
 		}
-		seg := extractGF2SegmentFromFlight(s, defaultFrom, defaultTo, departureDate)
+		seg := extractGF2SegmentFromFlight(s, defaultFrom, defaultTo, departureDate, cabin)
 		if seg != nil {
 			segs = append(segs, *seg)
 		}
@@ -1112,7 +1135,10 @@ func parsePriceString(s string) float64 {
 	return v
 }
 
-func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departureDate string) ([]Segment, int) {
+func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) ([]Segment, int) {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	var segs []Segment
 	totalDur := 0
 
@@ -1174,10 +1200,10 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 	if segsArr, ok := leg["segments"].([]interface{}); ok && len(segsArr) > 0 {
 		for _, sAny := range segsArr {
 			s, _ := sAny.(map[string]interface{})
-			if s == nil {
-				continue
+		if s == nil {
+			continue
 			}
-			seg, dur := extractGF2Segment(s, defaultFrom, defaultTo, departureDate)
+			seg, dur := extractGF2Segment(s, defaultFrom, defaultTo, departureDate, cabin)
 			if seg != nil {
 				segs = append(segs, *seg)
 				totalDur += dur
@@ -1202,7 +1228,7 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 			MarketingCarrier: carrier,
 			FlightNumber:     flightNum,
 			DurationMinutes:  durMin,
-			CabinClass:       "ECONOMY",
+			CabinClass:       cabin,
 		})
 		totalDur = durMin
 	}
@@ -1221,7 +1247,10 @@ func gf2AirportCode(m map[string]interface{}) string {
 }
 
 // extractGF2SegmentFromFlight parses SerpAPI-style segment: departure_airport{id,time}, arrival_airport{id,time}, duration, airline, flight_number.
-func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultTo, departureDate string) *Segment {
+func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) *Segment {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	from := defaultFrom
 	to := defaultTo
 	depTime := time.Time{}
@@ -1297,11 +1326,14 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 		MarketingCarrier: carrier,
 		FlightNumber:     flightNum,
 		DurationMinutes:  durMin,
-		CabinClass:       "ECONOMY",
+		CabinClass:       cabin,
 	}
 }
 
-func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate string) (*Segment, int) {
+func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
 	from := defaultFrom
 	to := defaultTo
 	depTime := time.Time{}
@@ -1349,7 +1381,7 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		MarketingCarrier: carrier,
 		FlightNumber:     flightNum,
 		DurationMinutes:  durMin,
-		CabinClass:       "ECONOMY",
+		CabinClass:       cabin,
 	}, durMin
 }
 

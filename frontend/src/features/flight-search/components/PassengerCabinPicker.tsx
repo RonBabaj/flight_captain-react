@@ -28,6 +28,8 @@ export interface PassengerCabinPickerProps {
   label?: string;
   /** When true, hide cabin class selector (e.g. for deals page) */
   passengersOnly?: boolean;
+  /** Called when user taps Done; use to trigger a re-search with updated params */
+  onDone?: () => void;
 }
 
 export function PassengerCabinPicker({
@@ -39,6 +41,7 @@ export function PassengerCabinPicker({
   onCabinChange,
   label,
   passengersOnly = false,
+  onDone,
 }: PassengerCabinPickerProps) {
   const { theme } = useTheme();
   const { t } = useLocale();
@@ -148,7 +151,10 @@ export function PassengerCabinPicker({
             )}
             <TouchableOpacity
               style={[styles.doneBtn, { backgroundColor: theme.primary }]}
-              onPress={() => setOpen(false)}
+              onPress={() => {
+                setOpen(false);
+                onDone?.();
+              }}
             >
               <Text style={styles.doneBtnText}>{t('done')}</Text>
             </TouchableOpacity>

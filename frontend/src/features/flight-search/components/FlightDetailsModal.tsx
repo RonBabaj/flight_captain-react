@@ -16,7 +16,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
-import { getDisplayPrice } from '../../../utils/exchangeRates';
+import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -87,9 +87,10 @@ interface FlightDetailsModalProps {
   onClose: () => void;
   sessionId: string;
   option: FlightOption | null;
+  passengerCount?: number;
 }
 
-export function FlightDetailsModal({ visible, onClose, sessionId, option }: FlightDetailsModalProps) {
+export function FlightDetailsModal({ visible, onClose, sessionId, option, passengerCount }: FlightDetailsModalProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency } = useLocale();
   const [bookLoading, setBookLoading] = useState(false);
@@ -123,11 +124,44 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option }: Flig
     || '';
   const airlineName = (carrierCode ? getAirlineName(carrierCode) : '') || carrierCode || '';
 
-  const { amount: priceAmount, currency: priceCurrency } = getDisplayPrice(
-    option.price.amount,
-    option.price.currency,
-    displayCurrency,
-  );
+  const passengers = passengerCount && passengerCount > 0 ? passengerCount : 1;
+  // API price is per passenger. Total = pricePerPassenger * passengerCount.
+  const pricePerPassenger = option.price.amount;
+  const totalPriceRaw = pricePerPassenger * passengers;
+  const { amount: totalAmount, currency: priceCurrency } = getDisplayPrice(totalPriceRaw, option.price.currency, displayCurrency);
+  const { amount: perPassengerAmount } = getDisplayPrice(pricePerPassenger, option.price.currency, displayCurrency);
+  const priceSymbol = getCurrencySymbol(priceCurrency);
+
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[PRICE_CALC]', {
+      apiPrice: option.price.amount,
+      passengers,
+      pricePerPassenger: pricePerPassenger,
+      totalPrice: totalPriceRaw,
+    });
+  }
+
+  const fare = option.fare;
+  const breakdownParts: string[] = [];
+  if (fare?.adultsTotal && fare.adultsCount) {
+    const { amount: aAmt } = getDisplayPrice(fare.adultsTotal, fare.currency, displayCurrency);
+    breakdownParts.push(
+      `${fare.adultsCount} ${fare.adultsCount === 1 ? t('adult') : t('adults')}: ${priceSymbol} ${aAmt.toFixed(0)}`,
+    );
+  }
+  if (fare?.childrenTotal && fare.childrenCount) {
+    const { amount: cAmt } = getDisplayPrice(fare.childrenTotal, fare.currency, displayCurrency);
+    breakdownParts.push(
+      `${fare.childrenCount} ${fare.childrenCount === 1 ? t('child') : t('children')}: ${priceSymbol} ${cAmt.toFixed(0)}`,
+    );
+  }
+  if (fare?.infantsTotal && fare.infantsCount) {
+    const { amount: iAmt } = getDisplayPrice(fare.infantsTotal, fare.currency, displayCurrency);
+    breakdownParts.push(
+      `${fare.infantsCount} ${fare.infantsCount === 1 ? t('infant') : t('infants')}: ${priceSymbol} ${iAmt.toFixed(0)}`,
+    );
+  }
 
   const totalStops = option.legs.reduce(
     (acc, leg) => acc + Math.max(0, (leg.segments?.length ?? 1) - 1),
@@ -174,9 +208,21 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option }: Flig
           <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} bounces={false}>
             {/* ── Summary row ── */}
             <View style={s.summaryRow}>
-              <Text style={[s.price, { color: theme.primary }]}>
-                {priceCurrency} {priceAmount.toFixed(0)}
-              </Text>
+              <View>
+                <Text style={[s.price, { color: theme.primary }]}>
+                  {priceSymbol} {totalAmount.toFixed(0)}
+                </Text>
+                {passengers > 1 && (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
+                    {priceSymbol} {perPassengerAmount.toFixed(0)} {t('per_passenger')}
+                  </Text>
+                )}
+                {breakdownParts.length > 0 && (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
+                    {breakdownParts.join('   ')}
+                  </Text>
+                )}
+              </View>
               <View style={s.summaryMeta}>
                 {airlineName ? (
                   <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>

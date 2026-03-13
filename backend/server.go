@@ -176,6 +176,7 @@ type FlightOption struct {
 	Price                 MonetaryAmount   `json:"price"`
 	DurationMinutes       int              `json:"durationMinutes"`
 	Legs                  []FlightLeg      `json:"legs"`
+	Fare                  *FareBreakdown   `json:"fare,omitempty"`
 	OutboundSummary       *OutboundSummary `json:"outboundSummary,omitempty"`
 	ValidatingAirlines    []string         `json:"validatingAirlines,omitempty"`
 	BaggageClass          string           `json:"baggageClass,omitempty"`          // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
@@ -245,30 +246,35 @@ func offerMatchesCabin(offer map[string]interface{}, cabin string) bool {
 	if !ok || len(tps) == 0 {
 		return false
 	}
+	// Accept an offer when at least one segment across any traveler pricing matches
+	// the requested cabin. This handles the common case where a long-haul First/Business
+	// itinerary includes a short Economy connecting hop — requiring every segment to match
+	// would eliminate every such offer.
+	anyMatch := false
 	for _, tpAny := range tps {
 		tp, ok := tpAny.(map[string]interface{})
 		if !ok {
-			return false
+			continue
 		}
 		fds, ok := tp["fareDetailsBySegment"].([]interface{})
 		if !ok || len(fds) == 0 {
-			return false
+			continue
 		}
 		for _, fdAny := range fds {
 			fd, ok := fdAny.(map[string]interface{})
 			if !ok {
-				return false
+				continue
 			}
 			c, ok := fd["cabin"].(string)
 			if !ok || c == "" {
-				return false
+				continue
 			}
-			if !strings.EqualFold(c, cabin) {
-				return false
+			if strings.EqualFold(c, cabin) {
+				anyMatch = true
 			}
 		}
 	}
-	return true
+	return anyMatch
 }
 
 // classifyOfferBaggage returns BAG_OK, BAG_UNKNOWN, or BAG_INCLUDED based on fareDetailsBySegment.
@@ -820,10 +826,14 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	offers = selected
 
 	// Fallback if filtering yielded no offers.
+	// Only fall back within the same cabin tier (baggage filter → cabin-filtered set).
+	// Never fall back to offersInitial when a non-ECONOMY cabin was explicitly requested:
+	// that would silently substitute Economy results for a First/Business/PremiumEconomy search.
 	if len(offers) == 0 && len(offersAfterCabin) > 0 {
 		offers = offersAfterCabin
 	}
-	if len(offers) == 0 && len(offersInitial) > 0 {
+	explicitPremiumCabin := cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY")
+	if len(offers) == 0 && len(offersInitial) > 0 && !explicitPremiumCabin {
 		offers = offersInitial
 		offersAfterCabin = offers
 	}
@@ -979,6 +989,32 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			gf2Opts := providerResultsToFlightOptions(gf2Results)
 			options = append(options, gf2Opts...)
 		}
+	}
+
+	// Final cabin enforcement across all providers:
+	// when a non-Economy cabin was explicitly requested, keep only options that
+	// contain at least one segment in that cabin. This prevents Duffel/GF2
+	// economy fallbacks from appearing as results for First/Business/Premium searches.
+	if cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY") {
+		filtered := options[:0]
+		for _, opt := range options {
+			match := false
+			for _, leg := range opt.Legs {
+				for _, seg := range leg.Segments {
+					if strings.EqualFold(seg.CabinClass, cabinPref) {
+						match = true
+						break
+					}
+				}
+				if match {
+					break
+				}
+			}
+			if match {
+				filtered = append(filtered, opt)
+			}
+		}
+		options = filtered
 	}
 
 	// Best-effort dedupe: same origin+dest, depart within 10 min, same carrier+flight when available.
@@ -1156,12 +1192,37 @@ func convertPrice(amount float64, fromCurr, toCurr string) (float64, string) {
 func convertOptionsToCurrency(options []FlightOption, requestedCurr string) {
 	for i := range options {
 		p := &options[i].Price
-		if p.Currency == requestedCurr {
-			continue
+		if p.Currency != requestedCurr {
+			converted, _ := convertPrice(p.Amount, p.Currency, requestedCurr)
+			p.Amount = converted
+			p.Currency = requestedCurr
 		}
-		converted, _ := convertPrice(p.Amount, p.Currency, requestedCurr)
-		p.Amount = converted
-		p.Currency = requestedCurr
+		if options[i].Fare != nil {
+			f := options[i].Fare
+			if f.Currency != "" && f.Currency != requestedCurr {
+				if f.Total > 0 {
+					if conv, _ := convertPrice(f.Total, f.Currency, requestedCurr); conv > 0 {
+						f.Total = conv
+					}
+				}
+				if f.AdultsTotal > 0 {
+					if conv, _ := convertPrice(f.AdultsTotal, f.Currency, requestedCurr); conv > 0 {
+						f.AdultsTotal = conv
+					}
+				}
+				if f.ChildrenTotal > 0 {
+					if conv, _ := convertPrice(f.ChildrenTotal, f.Currency, requestedCurr); conv > 0 {
+						f.ChildrenTotal = conv
+					}
+				}
+				if f.InfantsTotal > 0 {
+					if conv, _ := convertPrice(f.InfantsTotal, f.Currency, requestedCurr); conv > 0 {
+						f.InfantsTotal = conv
+					}
+				}
+				f.Currency = requestedCurr
+			}
+		}
 	}
 }
 
@@ -1272,11 +1333,63 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 			totalDuration = computed
 		}
 
+		// Build optional fare breakdown from travelerPricings when available.
+		var fare *FareBreakdown
+		if tps, ok := offer["travelerPricings"].([]interface{}); ok && len(tps) > 0 {
+			fb := &FareBreakdown{Currency: req.CurrencyOrDefault()}
+			for _, tpAny := range tps {
+				tp, ok := tpAny.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				priceMap, ok := tp["price"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				var amt float64
+				switch v := priceMap["total"].(type) {
+				case float64:
+					amt = v
+				case string:
+					if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+						amt = parsed
+					}
+				}
+				if amt <= 0 {
+					continue
+				}
+				if curr, ok := priceMap["currency"].(string); ok && curr != "" {
+					fb.Currency = curr
+				}
+				tType, _ := tp["travelerType"].(string)
+				switch strings.ToUpper(tType) {
+				case "ADULT", "SENIOR":
+					fb.AdultsTotal += amt
+					fb.AdultsCount++
+				case "CHILD":
+					fb.ChildrenTotal += amt
+					fb.ChildrenCount++
+				case "HELD_INFANT", "SEATED_INFANT", "INFANT":
+					fb.InfantsTotal += amt
+					fb.InfantsCount++
+				default:
+					// Treat unknown traveler types as adults.
+					fb.AdultsTotal += amt
+					fb.AdultsCount++
+				}
+			}
+			if fb.AdultsTotal > 0 || fb.ChildrenTotal > 0 || fb.InfantsTotal > 0 {
+				fb.Total = fb.AdultsTotal + fb.ChildrenTotal + fb.InfantsTotal
+				fare = fb
+			}
+		}
+
 		opt := FlightOption{
 			ID:                    fmt.Sprintf("opt_%d", idx),
 			Price:                 MonetaryAmount{Currency: req.CurrencyOrDefault(), Amount: price},
 			DurationMinutes:       totalDuration,
 			Legs:                  legs,
+			Fare:                  fare,
 			ValidatingAirlines:    validating,
 			BaggageClass:          baggageClass,
 			PrimaryDisplayCarrier: primaryCarrier,
@@ -1714,8 +1827,14 @@ func handleAirportSearch(w http.ResponseWriter, r *http.Request) {
 // --- Flight details API (for monthly deals modal) ---
 
 type FareBreakdown struct {
-	Currency string  `json:"currency"`
-	Total    float64 `json:"total"`
+	Currency      string  `json:"currency"`
+	Total         float64 `json:"total,omitempty"`
+	AdultsTotal   float64 `json:"adultsTotal,omitempty"`
+	ChildrenTotal float64 `json:"childrenTotal,omitempty"`
+	InfantsTotal  float64 `json:"infantsTotal,omitempty"`
+	AdultsCount   int     `json:"adultsCount,omitempty"`
+	ChildrenCount int     `json:"childrenCount,omitempty"`
+	InfantsCount  int     `json:"infantsCount,omitempty"`
 }
 
 type StopsSummary struct {

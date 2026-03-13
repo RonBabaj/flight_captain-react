@@ -30,6 +30,7 @@ import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
+import { getCurrencySymbol } from '../../../utils/exchangeRates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 
 const POLL_INTERVAL_MS = 1500;
@@ -338,7 +339,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
         cabinClass: cabin,
         cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
-        includeCheckedBag: p.includeCheckedBag ?? false,
+        includeCheckedBag: false,
         currency: currency || 'USD',
         locale: locale || 'en-US',
       };
@@ -503,17 +504,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         const maxPerLeg = opt.legs.length > 0
           ? Math.max(...opt.legs.map((leg) => Math.max(0, leg.segments.length - 1)))
           : 0;
-        return maxPerLeg <= filters.maxStops!;
+        if (filters.maxStops === 0) return maxPerLeg === 0;       // Direct only
+        if (filters.maxStops === 1) return maxPerLeg === 1;       // Exactly 1 stop
+        if (filters.maxStops === 2) return maxPerLeg >= 2;        // 2+ stops
+        return true;
       });
     }
     if (filters.airlines.length > 0) {
-      const set = new Set(filters.airlines);
-      // Match if ANY leg contains the selected airline (not every leg — round-trips use different carriers per leg)
-      list = list.filter((opt) =>
-        opt.legs.some((leg) =>
-          leg.segments.some((seg) => set.has(seg.marketingCarrier?.code))
-        )
-      );
+      const set = new Set(filters.airlines.map((c) => c.toUpperCase()));
+      list = list.filter((opt) => {
+        const primary =
+          opt.primaryDisplayCarrier ||
+          opt.validatingAirlines?.[0] ||
+          opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
+        if (!primary) return false;
+        return set.has(primary.toUpperCase());
+      });
     }
     if (filters.maxDurationMinutes != null) {
       list = list.filter((opt) => opt.durationMinutes <= filters.maxDurationMinutes!);
@@ -639,8 +645,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 {opt.hubAirport}
               </Text>
               <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
-                {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} · save{' '}
-                {opt.savings.currency} {opt.savings.amount.toFixed(0)}
+                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
+                {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
               </Text>
             </View>
             <TouchableOpacity
@@ -676,10 +682,14 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             <Ionicons name="airplane-outline" size={48} color={theme.textMuted} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            {t('no_flights_found')}
+            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+              ? t('no_flights_cabin')
+              : t('no_flights_found')}
           </Text>
           <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-            {t('no_flights_tip')}
+            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+              ? t('no_flights_cabin_tip')
+              : t('no_flights_tip')}
           </Text>
         </View>
       </View>
@@ -696,6 +706,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             bookLabel={t('book_now')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
+            passengerCount={
+              (storeParams?.adults ?? 0) +
+              (storeParams?.children ?? 0) +
+              (storeParams?.infants ?? 0)
+            }
           />
         )}
         ListEmptyComponent={
@@ -768,6 +783,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 tripType={tripType}
                 setTripType={setTripType}
                 onSearch={handleSidebarSearch}
+                onPassengerCabinDone={() => {
+                  setShowEditSearchModal(false);
+                  handleSidebarSearch();
+                }}
                 loading={sidebarSearchLoading}
                 error={sidebarSearchError}
                 compact
@@ -787,7 +806,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               <>
                 <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
                   <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
+                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} onPassengerCabinDone={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
                   </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
@@ -810,7 +829,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               <>
                 <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
                   <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
+                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} onPassengerCabinDone={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
                   </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
@@ -995,6 +1014,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         onClose={() => setDetailsOption(null)}
         sessionId={sessionId}
         option={detailsOption}
+        passengerCount={
+          (storeParams?.adults ?? 0) +
+          (storeParams?.children ?? 0) +
+          (storeParams?.infants ?? 0)
+        }
       />
 
       <SearchLoadingOverlay

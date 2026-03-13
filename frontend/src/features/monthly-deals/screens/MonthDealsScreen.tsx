@@ -18,7 +18,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { useDealsStore, dealsActions } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl } from '../../../api';
-import { getDisplayPrice } from '../../../utils/exchangeRates';
+import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
@@ -557,6 +557,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               if (limit <= 0) return null;
               const active = maxPrice === limit;
               const { currency: cur } = getDisplayPrice(limit, data?.days?.[0]?.lowestPrice?.currency ?? 'USD', currency);
+              const sym = getCurrencySymbol(cur);
               return (
                 <TouchableOpacity
                   key={frac}
@@ -564,7 +565,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   onPress={() => dealsActions.setMaxPrice(active ? null : limit)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>≤ {cur} {limit}</Text>
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>≤ {sym} {limit}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -730,6 +731,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         </Text>
         {visibleDeals.map((day) => {
           const { amount, currency: cur } = getDisplayPrice(day.lowestPrice!.amount, day.lowestPrice!.currency, currency);
+          const sym = getCurrencySymbol(cur);
           const depDate = new Date(day.date + 'T00:00:00Z');
           const retDate = new Date(depDate);
           retDate.setUTCDate(retDate.getUTCDate() + durationDays);
@@ -762,7 +764,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     </Text>
                   )}
                 </View>
-                <Text style={[p.dealPrice, { color: theme.primary }]}>{cur} {amount.toFixed(0)}</Text>
+                  <Text style={[p.dealPrice, { color: theme.primary }]}>{sym} {amount.toFixed(0)}</Text>
               </View>
               <Text style={[p.dealCta, { color: theme.primary }]}>
                 {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
@@ -885,7 +887,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               {/* Price + summary */}
               <View style={m.summaryRow}>
                 <Text style={[m.price, { color: theme.primary }]}>
-                  {(() => { const { amount: a, currency: c } = getDisplayPrice(details.totalPrice.amount, details.totalPrice.currency, currency); return `${c} ${a.toFixed(0)}`; })()}
+                  {(() => {
+                    const { amount: a, currency: c } = getDisplayPrice(details.totalPrice.amount, details.totalPrice.currency, currency);
+                    const sym = getCurrencySymbol(c);
+                    return `${sym} ${a.toFixed(0)}`;
+                  })()}
                 </Text>
                 <View style={m.summaryMeta}>
                   <Text style={[m.summaryMuted, { color: theme.textMuted }]}>

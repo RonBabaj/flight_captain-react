@@ -94,7 +94,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         returnDate: tripType === 'one-way' ? undefined : params.returnDate || undefined,
         cabinClass: cabin,
         cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
-        includeCheckedBag: params.includeCheckedBag ?? false,
+        includeCheckedBag: false,
         currency: currency || 'USD',
         locale: locale || 'en-US',
       };

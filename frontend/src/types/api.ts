@@ -68,6 +68,7 @@ export interface FlightOption {
   price: MonetaryAmount;
   durationMinutes: number;
   legs: FlightLeg[];
+  fare?: FareBreakdown;
   outboundSummary?: OutboundSummary;
   score?: number;
   provider?: string;
@@ -139,7 +140,13 @@ export interface MonthDealsResponse {
 
 export interface FareBreakdown {
   currency: string;
-  total: number;
+  total?: number;
+  adultsTotal?: number;
+  childrenTotal?: number;
+  infantsTotal?: number;
+  adultsCount?: number;
+  childrenCount?: number;
+  infantsCount?: number;
 }
 
 export interface StopsSummary {
@@ -159,6 +166,9 @@ export interface FlightDetailsResponse {
   fare?: FareBreakdown;
   stops: StopsSummary;
 }
+
+// Fare breakdown for a live search option (same shape as for monthly deals).
+// Attached to FlightOption when the backend can derive per-type totals.
 
 // --- Airport / city autocomplete ---
 

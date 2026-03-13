@@ -73,15 +73,15 @@ func (c *DuffelClient) searchOffers(origin, destination, departureDate, returnDa
 	}
 	if returnDate != "" {
 		slices = append(slices, map[string]string{
-			"origin":          strings.ToUpper(destination),
-			"destination":     strings.ToUpper(origin),
-			"departure_date":   returnDate,
+			"origin":         strings.ToUpper(destination),
+			"destination":    strings.ToUpper(origin),
+			"departure_date": returnDate,
 		})
 	}
 	body := map[string]interface{}{
-		"slices":       slices,
-		"passengers":   []map[string]string{{"type": "adult"}},
-		"cabin_class":  duffelCabin(cabinPreference),
+		"slices":      slices,
+		"passengers":  []map[string]string{{"type": "adult"}},
+		"cabin_class": duffelCabin(cabinPreference),
 	}
 	payload, _ := json.Marshal(map[string]interface{}{"data": body})
 

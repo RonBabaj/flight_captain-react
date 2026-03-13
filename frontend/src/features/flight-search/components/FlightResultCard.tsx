@@ -15,7 +15,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
-import { getDisplayPrice } from '../../../utils/exchangeRates';
+import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -112,9 +112,11 @@ export interface FlightResultCardProps {
   tripType?: 'one-way' | 'round-trip';
   /** Return date from search params, used as fallback when legs[1] has no date */
   searchReturnDate?: string;
+  /** Total number of travelers in the search (adults + children + infants) */
+  passengerCount?: number;
 }
 
-export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate }: FlightResultCardProps) {
+export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate, passengerCount }: FlightResultCardProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency } = useLocale();
   const summary = buildSummary(option);
@@ -140,12 +142,56 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
   const isRoundTrip = !!(returnDate || returnRouteStr);
   const airline = airlineName(option);
 
-  const cabinRaw = segments[0]?.cabinClass;
-  const cabinKey = cabinRaw === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : cabinRaw === 'BUSINESS' ? 'cabin_business' : cabinRaw === 'FIRST' ? 'cabin_first' : '';
+  const allSegments = option.legs.flatMap((l) => l.segments ?? []);
+  const rankCabin = (cabin: string | undefined | null): number => {
+    switch (cabin) {
+      case 'FIRST':
+        return 3;
+      case 'BUSINESS':
+        return 2;
+      case 'PREMIUM_ECONOMY':
+        return 1;
+      case 'ECONOMY':
+      default:
+        return 0;
+    }
+  };
+  const bestCabinRaw =
+    allSegments.reduce<string | undefined>((best, seg) => {
+      const current = seg.cabinClass || best;
+      if (!current) return best;
+      if (!best) return current;
+      return rankCabin(current) > rankCabin(best) ? current : best;
+    }, undefined) || segments[0]?.cabinClass;
+  const cabinKey =
+    bestCabinRaw === 'PREMIUM_ECONOMY'
+      ? 'cabin_premium_economy'
+      : bestCabinRaw === 'BUSINESS'
+        ? 'cabin_business'
+        : bestCabinRaw === 'FIRST'
+          ? 'cabin_first'
+          : '';
   const cabinStr = cabinKey ? t(cabinKey) : '';
 
-  const { amount, currency: cur } = getDisplayPrice(option.price.amount, option.price.currency, displayCurrency);
-  const priceStr = `${cur} ${amount.toFixed(0)}`;
+  // API price is per passenger. Total = pricePerPassenger * passengerCount.
+  const passengers = passengerCount && passengerCount > 0 ? passengerCount : 1;
+  const pricePerPassenger = option.price.amount;
+  const totalPriceRaw = pricePerPassenger * passengers;
+  const { amount: totalAmount, currency: cur } = getDisplayPrice(totalPriceRaw, option.price.currency, displayCurrency);
+  const { amount: perPassengerAmount } = getDisplayPrice(pricePerPassenger, option.price.currency, displayCurrency);
+  const symbol = getCurrencySymbol(cur);
+  const priceStr = `${symbol} ${totalAmount.toFixed(0)}`;
+  const perPassengerStr = passengers > 1 ? `${symbol} ${perPassengerAmount.toFixed(0)} ${t('per_passenger')}` : null;
+
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[PRICE_CALC]', {
+      apiPrice: option.price.amount,
+      passengers,
+      pricePerPassenger: pricePerPassenger,
+      totalPrice: totalPriceRaw,
+    });
+  }
 
   const hasBagBadge = option.baggageClass === 'BAG_OK' || option.baggageClass === 'BAG_INCLUDED';
   const bagStr = option.baggageClass === 'BAG_INCLUDED' ? t('included') : option.baggageClass === 'BAG_OK' ? t('not_included') : '';
@@ -192,6 +238,9 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
         {/* Price + actions column */}
         <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
           <Text style={[c.price, { color: theme.primary }]}>{priceStr}</Text>
+          {perPassengerStr ? (
+            <Text style={[c.perPerson, { color: theme.textMuted }]}>{perPassengerStr}</Text>
+          ) : null}
           <TouchableOpacity
             style={[c.bookBtn, { backgroundColor: theme.primary }]}
             onPress={(e) => { e.stopPropagation(); onBook(); }}
@@ -254,6 +303,7 @@ const c = StyleSheet.create({
   stopsChipText: { fontSize: 12, fontWeight: '600' },
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 100 },
   price: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  perPerson: { fontSize: 11, marginTop: 2 },
   bookBtn: {
     marginTop: 8,
     paddingVertical: 9,

@@ -5,7 +5,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { useLocale } from '../context/LocaleContext';
-import { getDisplayPrice } from '../utils/exchangeRates';
+import { getDisplayPrice, getCurrencySymbol } from '../utils/exchangeRates';
 
 interface DisplayPriceProps {
   amount: number;
@@ -22,5 +22,6 @@ export function DisplayPrice({ amount, currency, decimals = 0, style }: DisplayP
     displayCurrency
   );
   const formatted = displayAmount.toFixed(decimals);
-  return <Text style={style}>{outCurr} {formatted}</Text>;
+  const symbol = getCurrencySymbol(outCurr);
+  return <Text style={style}>{symbol} {formatted}</Text>;
 }

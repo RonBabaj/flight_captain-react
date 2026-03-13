@@ -40,14 +40,21 @@ export function FiltersPanel({
   const airlines = useMemo(() => {
     const map: Record<string, number> = {};
     results.forEach((opt) => {
-      const codes = new Set<string>();
-      opt.legs.forEach((l) => l.segments.forEach((s) => { if (s.marketingCarrier?.code) codes.add(s.marketingCarrier.code); }));
-      codes.forEach((c) => { map[c] = (map[c] ?? 0) + 1; });
+      const primary =
+        opt.primaryDisplayCarrier ||
+        opt.validatingAirlines?.[0] ||
+        opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
+      if (!primary) return;
+      const code = primary.toUpperCase();
+      map[code] = (map[code] ?? 0) + 1;
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ code, count }));
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, count]) => ({ code, count }));
   }, [results]);
 
-  const toggleAirline = (code: string) => {
+  const toggleAirline = (rawCode: string) => {
+    const code = rawCode.toUpperCase();
     const list = filters.airlines.includes(code)
       ? filters.airlines.filter((c) => c !== code)
       : [...filters.airlines, code];

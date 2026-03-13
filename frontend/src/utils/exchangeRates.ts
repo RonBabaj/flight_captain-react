@@ -71,3 +71,17 @@ export function getDisplayPrice(
   const converted = convertPrice(amount, fromCurrency, displayCurrency);
   return { amount: converted, currency: displayCurrency };
 }
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  ILS: '₪',
+  JPY: '¥',
+};
+
+/** Map currency code to display symbol. Falls back to the code if unknown. */
+export function getCurrencySymbol(code: string): string {
+  const key = code.toUpperCase();
+  return CURRENCY_SYMBOLS[key] ?? key;
+}

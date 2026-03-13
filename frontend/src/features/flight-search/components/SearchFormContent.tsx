@@ -17,6 +17,8 @@ export interface SearchFormContentProps {
   loading: boolean;
   error: string | null;
   compact?: boolean;
+  /** When set, tapping Done in Passenger & cabin triggers this (e.g. re-search on results page) */
+  onPassengerCabinDone?: () => void;
 }
 
 const SEARCH_PHRASES: Record<string, string[]> = {
@@ -45,6 +47,7 @@ const SEARCH_PHRASES: Record<string, string[]> = {
 
 export function SearchFormContent({
   params, update, tripType, setTripType, onSearch, loading, error, compact = false,
+  onPassengerCabinDone,
 }: SearchFormContentProps) {
   const { theme } = useTheme();
   const { t, language } = useLocale();
@@ -148,24 +151,8 @@ export function SearchFormContent({
         onChildrenChange={(n) => update('children', n)}
         onCabinChange={(c) => { update('cabinClass', c); update('cabinPreference', c as any); }}
         label={t('passengers_cabin')}
+        onDone={onPassengerCabinDone}
       />
-
-      <Text style={[ts.label, compact && { fontSize: 13 }]}>{t('checked_bag')}</Text>
-      <View style={s.bagRow}>
-        {([false, true] as const).map((val) => {
-          const active = params.includeCheckedBag === val;
-          return (
-            <TouchableOpacity
-              key={String(val)}
-              style={[s.bagBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-              onPress={() => update('includeCheckedBag', val as any)}
-              activeOpacity={0.7}
-            >
-              <Text style={active ? ts.bagTextActive : ts.bagText}>{t(val ? 'included' : 'not_included')}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
 
       {error ? <Text style={ts.error}>{error}</Text> : null}
 
@@ -201,8 +188,6 @@ function makeThemedStyles(theme: import('../../../theme/ThemeContext').Theme) {
     tabText: { color: theme.text, fontSize: 14 },
     tabTextActive: { color: '#fff', fontWeight: '600' as const, fontSize: 14 },
     dateText: { fontSize: 15, color: theme.text },
-    bagText: { color: theme.text, fontSize: 13 },
-    bagTextActive: { color: '#fff', fontSize: 13 },
     error: { color: theme.error, marginTop: 10, fontSize: 14 },
     button: {
       marginTop: 20,
@@ -224,7 +209,5 @@ const s = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   dateBtn: { marginBottom: 4, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1 },
   dateBtnCompact: { paddingVertical: 8 },
-  bagRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  bagBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   btnDisabled: { opacity: 0.6 },
 });
