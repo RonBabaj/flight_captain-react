@@ -1,14 +1,14 @@
 /**
  * Centralized icon component for cross-platform compatibility.
  * Uses only @expo/vector-icons (Ionicons, MaterialIcons, Feather).
- * Prefer Ionicons for broad support on Expo web, iOS, and Android.
- * When icon fonts failed to load, shows fallbackText visibly so UI stays usable.
+ * On web, critical icons (airplane, globe, sun, moon, menu) use inline SVG so they always render.
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { useIconFontsLoaded } from './IconFontsContext';
+import { getWebIconSvgDataUri, hasWebSvgFallback } from './WebIconSvg';
 
 export type AppIconLibrary = 'ion' | 'material' | 'feather';
 
@@ -41,7 +41,28 @@ export function AppIcon({
   const iconFontsLoaded = useIconFontsLoaded();
   const IconComponent = ICON_SET[library];
 
-  const showFallback = !iconFontsLoaded && fallbackText;
+  const useWebSvg = Platform.OS === 'web' && library === 'ion' && hasWebSvgFallback(name);
+  const showFallback = !iconFontsLoaded && fallbackText && !useWebSvg;
+
+  if (useWebSvg) {
+    const uri = getWebIconSvgDataUri(name, color);
+    if (uri) {
+      return (
+        <View
+          style={[styles.wrap, { width: size, height: size }, style]}
+          accessible={!!fallbackText}
+          accessibilityLabel={fallbackText}
+          accessibilityRole="image"
+        >
+          <Image
+            source={{ uri }}
+            style={{ width: size, height: size }}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    }
+  }
 
   return (
     <View
