@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import type { CreateSearchSessionRequest } from '../../../types';
@@ -56,7 +57,7 @@ export function PassengerCabinPicker({
   const summary =
     `${adults} ${adults === 1 ? t('adult') : t('adults')}` +
     (children > 0 ? `, ${children} ${children === 1 ? t('child') : t('children')}` : '') +
-    (passengersOnly ? '' : ` · ${t(cabinLabelKey)}`);
+    (passengersOnly ? '' : ` | ${t(cabinLabelKey)}`);
 
   return (
     <View style={styles.container}>
@@ -74,7 +75,7 @@ export function PassengerCabinPicker({
         <Text style={[styles.triggerText, { color: theme.text }]} numberOfLines={1}>
           {summary}
         </Text>
-        <Text style={[styles.chevron, { color: theme.textMuted }]}>▼</Text>
+        <Ionicons name="chevron-down" size={16} color={theme.textMuted} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade">
@@ -92,7 +93,7 @@ export function PassengerCabinPicker({
                   onPress={() => onAdultsChange(Math.max(1, adults - 1))}
                   style={[styles.stepperBtn, { backgroundColor: theme.controlBg }]}
                 >
-                  <Text style={[styles.stepperBtnText, { color: theme.text }]}>−</Text>
+                  <Text style={[styles.stepperBtnText, { color: theme.text }]}>-</Text>
                 </TouchableOpacity>
                 <Text style={[styles.stepperValue, { color: theme.text }]}>{adults}</Text>
                 <TouchableOpacity
@@ -110,7 +111,7 @@ export function PassengerCabinPicker({
                   onPress={() => onChildrenChange(Math.max(0, children - 1))}
                   style={[styles.stepperBtn, { backgroundColor: theme.controlBg }]}
                 >
-                  <Text style={[styles.stepperBtnText, { color: theme.text }]}>−</Text>
+                  <Text style={[styles.stepperBtnText, { color: theme.text }]}>-</Text>
                 </TouchableOpacity>
                 <Text style={[styles.stepperValue, { color: theme.text }]}>{children}</Text>
                 <TouchableOpacity

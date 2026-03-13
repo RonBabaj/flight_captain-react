@@ -234,7 +234,7 @@ export function TopNavMenu() {
                 onPress={() => setLanguage(code as LanguageCode)}
               >
                 <Text style={[styles.localeOptionText, { color: theme.text }]}>{label}</Text>
-                {language === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
+                {language === code && <Ionicons name="checkmark" size={18} color={theme.tabActive} />}
               </TouchableOpacity>
             ))}
             <Text style={[styles.localeSectionLabel, { color: theme.textMuted, marginTop: 16 }]}>{t('locale_currency')}</Text>
@@ -245,7 +245,7 @@ export function TopNavMenu() {
                 onPress={() => setCurrency(code as CurrencyCode)}
               >
                 <Text style={[styles.localeOptionText, { color: theme.text }]}>{symbol ?? code} – {label}</Text>
-                {currency === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
+                {currency === code && <Ionicons name="checkmark" size={18} color={theme.tabActive} />}
               </TouchableOpacity>
             ))}
           </ScrollView>

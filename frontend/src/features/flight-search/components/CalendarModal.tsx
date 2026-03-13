@@ -118,11 +118,11 @@ export function CalendarModal({
         <View style={styles.card}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => goOffset(-1)} style={styles.navBtn}>
-              <Text style={styles.navText}>←</Text>
+              <Text style={styles.navText}>{"<"}</Text>
             </TouchableOpacity>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <TouchableOpacity onPress={() => goOffset(1)} style={styles.navBtn}>
-              <Text style={styles.navText}>→</Text>
+              <Text style={styles.navText}>{'>'}</Text>
             </TouchableOpacity>
           </View>
 

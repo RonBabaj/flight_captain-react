@@ -7,11 +7,10 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { searchAirportsLocal } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
 import type { AirportCityResult } from '../../../types';
-
-const AIRPLANE_ICON = '✈';
 
 interface Props {
   label: string;
@@ -87,13 +86,13 @@ export function AirportInput({ label, value, onChange, placeholder }: Props) {
                     onPress={() => handleSelect(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.optionIcon, { color: theme.textMuted }]}>{AIRPLANE_ICON}</Text>
+                    <Ionicons name="airplane-outline" size={18} color={theme.textMuted} style={styles.optionIcon} />
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
                         {item.cityName || item.name} ({code})
                       </Text>
                       <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
-                        {item.name} · {item.countryCode}
+                        {item.name} | {item.countryCode}
                       </Text>
                     </View>
                   </TouchableOpacity>

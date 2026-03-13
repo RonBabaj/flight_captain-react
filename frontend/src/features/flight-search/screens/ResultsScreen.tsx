@@ -562,7 +562,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const cabinKey = params.cabinClass === 'ECONOMY' ? 'cabin_economy' : params.cabinClass === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : params.cabinClass === 'BUSINESS' ? 'cabin_business' : 'cabin_first';
     summaryParts.push(t(cabinKey));
   }
-  const summaryStr = summaryParts.join(' · ');
+  const summaryStr = summaryParts.join(' | ');
   const showSearchBesideResults = !isMobile;
 
   const isLoading = status === 'PENDING' || status === 'PARTIAL';
@@ -645,7 +645,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 {opt.hubAirport}
               </Text>
               <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
-                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
+                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} | save{' '}
                 {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
               </Text>
             </View>
@@ -942,12 +942,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 contentContainerStyle={styles.editSearchModalContent}
               >
                 <Text style={{ color: theme.text, fontSize: 14, marginBottom: 12 }}>
-                  {storeParams?.origin} → {positioningDetails.hubAirport} →{' '}
+                  {storeParams?.origin} {'>'} {positioningDetails.hubAirport} {'> '}
                   {storeParams?.destination}
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
                   Total: {positioningDetails.totalPrice.currency}{' '}
-                  {positioningDetails.totalPrice.amount.toFixed(0)} · Save{' '}
+                  {positioningDetails.totalPrice.amount.toFixed(0)} | Save{' '}
                   {positioningDetails.savings.currency}{' '}
                   {positioningDetails.savings.amount.toFixed(0)} vs. cheapest direct
                 </Text>
@@ -956,7 +956,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   Leg 1 – Positioning
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 4 }}>
-                  {storeParams?.origin} → {positioningDetails.hubAirport}{' '}
+                  {storeParams?.origin} {'>'} {positioningDetails.hubAirport}{' '}
                   ({positioningDetails.positioningPrice.currency}{' '}
                   {positioningDetails.positioningPrice.amount.toFixed(0)})
                 </Text>
@@ -965,7 +965,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   Leg 2 – Main flight
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
-                  {positioningDetails.hubAirport} → {storeParams?.destination}{' '}
+                  {positioningDetails.hubAirport} {'>'} {storeParams?.destination}{' '}
                   ({positioningDetails.hubFlightPrice.currency}{' '}
                   {positioningDetails.hubFlightPrice.amount.toFixed(0)})
                 </Text>

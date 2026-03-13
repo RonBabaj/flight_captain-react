@@ -66,7 +66,7 @@ export function SearchLoadingOverlay({ visible, origin, destination }: Props) {
 
   if (!visible) return null;
 
-  const route = origin && destination ? `${origin} → ${destination}` : null;
+  const route = origin && destination ? `${origin} > ${destination}` : null;
 
   return (
     <View style={[s.overlay, { backgroundColor: theme.screenBg }]}>

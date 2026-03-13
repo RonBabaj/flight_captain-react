@@ -78,12 +78,12 @@ export function SearchFormContent({
   const dateLabel =
     tripType === 'round-trip'
       ? params.departureDate && params.returnDate
-        ? `${params.departureDate} → ${params.returnDate}`
+        ? `${params.departureDate} > ${params.returnDate}`
         : t('select_dates')
       : params.departureDate || t('select_date');
 
   const routeSummary =
-    params.origin && params.destination ? `${params.origin} → ${params.destination}` : null;
+    params.origin && params.destination ? `${params.origin} > ${params.destination}` : null;
 
   return (
     <View style={[s.hero, compact && s.heroCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>

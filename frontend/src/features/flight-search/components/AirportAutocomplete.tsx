@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -118,13 +119,13 @@ export function AirportAutocomplete({
                     onPress={() => handleSelect(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.optionIcon, { color: theme.textMuted }]}>✈</Text>
+                    <Ionicons name="airplane-outline" size={18} color={theme.textMuted} style={styles.optionIcon} />
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
                         {cityDisplay} ({code})
                       </Text>
                       <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
-                        {nameDisplay} · {item.countryCode}
+                        {nameDisplay} | {item.countryCode}
                       </Text>
                     </View>
                   </TouchableOpacity>
