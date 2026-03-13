@@ -12,7 +12,6 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getUniformBookingRedirectUrl } from '../../../api';
@@ -202,7 +201,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={24} color={theme.primary} />
+              <Text style={[s.headerClose, { color: theme.primary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -229,7 +228,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                   <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
                 ) : null}
                 <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
-                  {formatDuration(totalDur)} | {stopsLabel}
+                  {formatDuration(totalDur)} · {stopsLabel}
                 </Text>
               </View>
             </View>
@@ -272,7 +271,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                       {legLabel}
                     </Text>
                     <Text style={[s.legMeta, { color: theme.textMuted }]}>
-                      {dateStr ? `${dateStr} | ` : ''}{formatDuration(dur)} | {legStopsLabel}
+                      {dateStr ? `${dateStr} · ` : ''}{formatDuration(dur)} · {legStopsLabel}
                     </Text>
                   </View>
 
@@ -289,7 +288,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                         {segIdx > 0 && lo > 0 && (
                           <View style={[s.layoverRow, { backgroundColor: theme.controlBg }]}>
                             <Text style={[s.layoverText, { color: theme.textMuted }]}>
-                              {t('layover_in')} {segs[segIdx - 1].to?.code || '?'} | {formatDuration(lo)}
+                              {t('layover_in')} {segs[segIdx - 1].to?.code || '?'} · {formatDuration(lo)}
                             </Text>
                           </View>
                         )}
@@ -333,7 +332,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                               carrierName,
                               seg.flightNumber ? `${carrier} ${seg.flightNumber}` : '',
                               segCabin,
-                            ].filter(Boolean).join(' | ')}
+                            ].filter(Boolean).join(' · ')}
                           </Text>
                         </View>
                       </View>

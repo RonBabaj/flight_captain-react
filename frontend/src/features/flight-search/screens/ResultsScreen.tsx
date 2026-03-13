@@ -13,7 +13,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
 import type { FlightOption, MonetaryAmount } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
@@ -562,7 +562,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const cabinKey = params.cabinClass === 'ECONOMY' ? 'cabin_economy' : params.cabinClass === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : params.cabinClass === 'BUSINESS' ? 'cabin_business' : 'cabin_first';
     summaryParts.push(t(cabinKey));
   }
-  const summaryStr = summaryParts.join(' | ');
+  const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
 
   const isLoading = status === 'PENDING' || status === 'PARTIAL';
@@ -645,7 +645,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 {opt.hubAirport}
               </Text>
               <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
-                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} | save{' '}
+                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
                 {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
               </Text>
             </View>
@@ -679,7 +679,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           ]}
         >
           <View style={{ marginBottom: 12 }}>
-            <Ionicons name="airplane-outline" size={48} color={theme.textMuted} />
+            <AppIcon library="ion" name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
             {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
@@ -722,7 +722,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               ]}
             >
               <View style={{ marginBottom: 12 }}>
-                <Ionicons name="filter-outline" size={48} color={theme.textMuted} />
+                <AppIcon library="ion" name="filter-outline" size={48} color={theme.textMuted} fallbackText={t('filters')} />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('no_flights_match')}
@@ -760,7 +760,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           onPress={() => setShowEditSearchModal(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="create-outline" size={16} color={theme.primary} />
+          <AppIcon library="ion" name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
           <Text style={[styles.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
         </TouchableOpacity>
       </View>
@@ -773,7 +773,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             <View style={[styles.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
               <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>{t('change_search')}</Text>
               <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={styles.editSearchModalClose}>
-                <Ionicons name="close" size={24} color={theme.textMuted} />
+                <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.editSearchModalScroll} contentContainerStyle={styles.editSearchModalContent} keyboardShouldPersistTaps="handled">
@@ -869,7 +869,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                     style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
                     onPress={() => setShowFiltersModal(true)}
                   >
-                    <Ionicons name="filter-outline" size={18} color={theme.text} />
+                    <AppIcon library="ion" name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
                     <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
                   </TouchableOpacity>
                 )}
@@ -884,7 +884,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   onPress={() => setShowFiltersModal(true)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="filter-outline" size={20} color={theme.primary} />
+                  <AppIcon library="ion" name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
                   <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
                 </TouchableOpacity>
               )}
@@ -934,7 +934,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   onPress={() => setPositioningDetails(null)}
                   style={styles.editSearchModalClose}
                 >
-                  <Ionicons name="close" size={24} color={theme.textMuted} />
+                  <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
                 </TouchableOpacity>
               </View>
               <ScrollView
@@ -942,12 +942,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                 contentContainerStyle={styles.editSearchModalContent}
               >
                 <Text style={{ color: theme.text, fontSize: 14, marginBottom: 12 }}>
-                  {storeParams?.origin} {'>'} {positioningDetails.hubAirport} {'> '}
+                  {storeParams?.origin} → {positioningDetails.hubAirport} →{' '}
                   {storeParams?.destination}
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
                   Total: {positioningDetails.totalPrice.currency}{' '}
-                  {positioningDetails.totalPrice.amount.toFixed(0)} | Save{' '}
+                  {positioningDetails.totalPrice.amount.toFixed(0)} · Save{' '}
                   {positioningDetails.savings.currency}{' '}
                   {positioningDetails.savings.amount.toFixed(0)} vs. cheapest direct
                 </Text>
@@ -956,7 +956,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   Leg 1 – Positioning
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 4 }}>
-                  {storeParams?.origin} {'>'} {positioningDetails.hubAirport}{' '}
+                  {storeParams?.origin} → {positioningDetails.hubAirport}{' '}
                   ({positioningDetails.positioningPrice.currency}{' '}
                   {positioningDetails.positioningPrice.amount.toFixed(0)})
                 </Text>
@@ -965,7 +965,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   Leg 2 – Main flight
                 </Text>
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
-                  {positioningDetails.hubAirport} {'>'} {storeParams?.destination}{' '}
+                  {positioningDetails.hubAirport} → {storeParams?.destination}{' '}
                   ({positioningDetails.hubFlightPrice.currency}{' '}
                   {positioningDetails.hubFlightPrice.amount.toFixed(0)})
                 </Text>
@@ -1035,7 +1035,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           ]}
         >
           <View style={styles.slowPopupRow}>
-            <Ionicons name="time-outline" size={14} color={theme.textMuted} />
+            <AppIcon library="ion" name="time-outline" size={14} color={theme.textMuted} fallbackText="" />
             <Text style={[styles.slowPopupText, { color: theme.textMuted }]}>
               {t('results_slow_hint')}
             </Text>
@@ -1044,7 +1044,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               style={styles.slowPopupClose}
               activeOpacity={0.7}
             >
-              <Ionicons name="close" size={14} color={theme.textMuted} />
+              <AppIcon library="ion" name="close" size={14} color={theme.textMuted} fallbackText={t('close')} />
             </TouchableOpacity>
           </View>
         </View>

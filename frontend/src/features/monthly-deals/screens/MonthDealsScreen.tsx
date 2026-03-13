@@ -12,7 +12,7 @@ import {
   Linking,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useDealsStore, dealsActions } from '../../../store';
@@ -466,7 +466,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           onPress={() => setShowFilters(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="options-outline" size={16} color={theme.text} />
+          <AppIcon library="ion" name="options-outline" size={16} color={theme.text} fallbackText={t('filters')} />
           <Text style={[sb.filterBtnText, { color: theme.text }]}>{t('filters')}</Text>
         </TouchableOpacity>
       )}
@@ -590,7 +590,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     activeOpacity={0.6}
                   >
                     <View style={[fl.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
-                      {sel && <Ionicons name="checkmark" size={14} color="#fff" />}
+                      {sel && <Text style={fl.checkMark}>✓</Text>}
                     </View>
                     <Text style={[fl.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
                     <Text style={[fl.airlineCount, { color: theme.textMuted }]}>{count}</Text>
@@ -611,7 +611,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       <Text style={[fl.headerTitle, { color: theme.text }]}>{t('filters')}</Text>
       {isModal && (
         <TouchableOpacity onPress={() => setShowFilters(false)} style={fl.closeBtn}>
-          <Ionicons name="close" size={24} color={theme.primary} />
+          <Text style={[fl.closeText, { color: theme.primary }]}>✕</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -640,7 +640,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const heroCard = (
     <View style={[p.hero, hasResultsLayout ? p.heroSide : p.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Ionicons name="calendar-outline" size={20} color={theme.text} />
+        <AppIcon library="ion" name="calendar-outline" size={20} color={theme.text} fallbackText={t('dates')} />
         <Text style={[p.heroTitle, { color: theme.text }]}>{t('monthly_deals')}</Text>
       </View>
       <Text style={[p.heroSub, { color: theme.textMuted }]}>{t('monthly_deals_hero')}</Text>
@@ -658,7 +658,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       <Text style={[p.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
       <View style={p.stepperRow}>
         <TouchableOpacity style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}>
-          <Text style={[p.stepBtnText, { color: theme.text }]}>-</Text>
+          <Text style={[p.stepBtnText, { color: theme.text }]}>−</Text>
         </TouchableOpacity>
         <Text style={[p.stepValue, { color: theme.text }]}>{durationDays} {t('days')}</Text>
         <TouchableOpacity style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}>
@@ -669,11 +669,11 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       {/* Month navigator */}
       <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
         <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={p.navBtn}>
-          <Text style={[p.navText, { color: theme.primary }]}>{"< "}{t('prev')}</Text>
+          <Text style={[p.navText, { color: theme.primary }]}>← {t('prev')}</Text>
         </TouchableOpacity>
         <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
         <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={p.navBtn}>
-          <Text style={[p.navText, { color: theme.primary }]}>{t('next')} {">"}</Text>
+          <Text style={[p.navText, { color: theme.primary }]}>{t('next')} →</Text>
         </TouchableOpacity>
       </View>
 
@@ -694,7 +694,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="search" size={16} color={theme.buttonText} />
+            <AppIcon library="ion" name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
             <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
           </View>
         )}
@@ -737,7 +737,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           retDate.setUTCDate(retDate.getUTCDate() + durationDays);
           const retStr = formatDealDate(retDate.toISOString().slice(0, 10));
           const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
-          const routeSep = isRTL ? ' < ' : ' > ';
+          const routeSep = isRTL ? ' ← ' : ' → ';
           return (
             <TouchableOpacity
               key={day.date}
@@ -767,7 +767,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                   <Text style={[p.dealPrice, { color: theme.primary }]}>{sym} {amount.toFixed(0)}</Text>
               </View>
               <Text style={[p.dealCta, { color: theme.primary }]}>
-                {isRTL ? `< ${t('view_details')}` : `${t('view_details')} >`}
+                {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
               </Text>
             </TouchableOpacity>
           );
@@ -804,7 +804,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     {opt.hubAirport}
                   </Text>
                   <Text style={[p.positioningMeta, { color: theme.textMuted }]}>
-                    {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} |{' '}
+                    {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} ·{' '}
                     {t('save_label') || 'save'} {opt.savings.currency}{' '}
                     {opt.savings.amount.toFixed(0)}
                   </Text>
@@ -815,12 +815,12 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     const o = origin.trim().toUpperCase();
                     const d = destination.trim().toUpperCase();
                     Alert.alert(
-                      `${o} > ${opt.hubAirport} > ${d}`,
+                      `${o} → ${opt.hubAirport} → ${d}`,
                       `${t('optimizer_deals_hint') || 'Search monthly deals separately for each leg:'}\n\n` +
-                        `${o} > ${opt.hubAirport} (${opt.positioningPrice.currency} ${opt.positioningPrice.amount.toFixed(
+                        `${o} → ${opt.hubAirport} (${opt.positioningPrice.currency} ${opt.positioningPrice.amount.toFixed(
                           0
                         )})\n` +
-                        `${opt.hubAirport} > ${d} (${opt.hubFlightPrice.currency} ${opt.hubFlightPrice.amount.toFixed(
+                        `${opt.hubAirport} → ${d} (${opt.hubFlightPrice.currency} ${opt.hubFlightPrice.amount.toFixed(
                           0
                         )})\n\n` +
                         `${t('total_label') || 'Total'}: ${opt.totalPrice.currency} ${opt.totalPrice.amount.toFixed(
@@ -864,7 +864,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               {selectedDate && <Text style={[m.headerSub, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>}
             </View>
             <TouchableOpacity onPress={() => setShowDetails(false)} hitSlop={8}>
-              <Ionicons name="close" size={24} color={theme.primary} />
+              <Text style={[m.headerClose, { color: theme.primary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -990,7 +990,7 @@ function renderLeg(
       <View style={m.legHeader}>
         <Text style={[m.legTitle, { color: theme.text }]}>{label}</Text>
         <Text style={[m.legMeta, { color: theme.textMuted }]}>
-          {legDate ? `${legDate} | ` : ''}{fmtDur(dur)} | {stopsLabel}
+          {legDate ? `${legDate} · ` : ''}{fmtDur(dur)} · {stopsLabel}
         </Text>
       </View>
       {segs.map((seg, idx) => {
@@ -1003,7 +1003,7 @@ function renderLeg(
             {idx > 0 && lo > 0 && (
               <View style={[m.layoverRow, { backgroundColor: theme.controlBg }]}>
                 <Text style={[m.layoverText, { color: theme.textMuted }]}>
-                  {t('layover_in')} {segs[idx - 1].to?.code || '?'} | {fmtDur(lo)}
+                  {t('layover_in')} {segs[idx - 1].to?.code || '?'} · {fmtDur(lo)}
                 </Text>
               </View>
             )}
@@ -1024,7 +1024,7 @@ function renderLeg(
             </View>
             <View style={m.segDetails}>
               <Text style={[m.segDetailText, { color: theme.textMuted }]}>
-                {[carrierName, seg.flightNumber ? `${carrier} ${seg.flightNumber}` : ''].filter(Boolean).join(' | ')}
+                {[carrierName, seg.flightNumber ? `${carrier} ${seg.flightNumber}` : ''].filter(Boolean).join(' · ')}
               </Text>
             </View>
           </View>

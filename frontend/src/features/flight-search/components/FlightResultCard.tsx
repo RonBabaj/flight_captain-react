@@ -12,7 +12,6 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
@@ -130,7 +129,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
   const stopsText = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
 
   // Full route paths including all layover airports
-  const sep = isRTL ? ' < ' : ' > ';
+  const sep = isRTL ? ' ← ' : ' → ';
   const outboundPath = buildRoutePath(segments);
   const outboundRouteStr = outboundPath.join(sep);
   const returnSegs = option.legs?.[1]?.segments ?? [];
@@ -212,7 +211,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           {/* Times */}
           <View style={[c.timesRow, ...row()]}>
             <Text style={[c.time, { color: theme.text }]}>{dep}</Text>
-            <Text style={[c.timeSep, { color: theme.textMuted }]}>{isRTL ? ' < ' : ' > '}</Text>
+            <Text style={[c.timeSep, { color: theme.textMuted }]}>{isRTL ? ' ← ' : ' → '}</Text>
             <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
           </View>
           {/* Outbound route: origin → layover(s) → destination */}
@@ -248,7 +247,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
             disabled={bookLoading}
             activeOpacity={0.8}
           >
-            <Text style={c.bookBtnText}>{bookLoading ? '...' : bookLabel ?? t('book_now')}</Text>
+            <Text style={c.bookBtnText}>{bookLoading ? '…' : bookLabel ?? t('book_now')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation(); onDetails(); }}
@@ -256,7 +255,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
             hitSlop={6}
           >
             <Text style={[c.detailsBtnText, { color: theme.primary }]}>
-              {isRTL ? `< ${t('view_details')}` : `${t('view_details')} >`}
+              {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -265,14 +264,11 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
       {/* ── Row 2: Airline · cabin ── */}
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
         <Text style={[c.airlineText, { color: theme.text }]} numberOfLines={1}>
-          {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' | ')}
+          {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
         </Text>
         {hasBagBadge && (
           <View style={[c.bagBadge, { backgroundColor: theme.controlBg }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="bag-outline" size={14} color={theme.textMuted} />
-              <Text style={[c.bagBadgeText, { color: theme.textMuted }]}>{bagStr}</Text>
-            </View>
+            <Text style={[c.bagBadgeText, { color: theme.textMuted }]}>🧳 {bagStr}</Text>
           </View>
         )}
       </View>

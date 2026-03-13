@@ -114,11 +114,11 @@ export function DateRangePicker({
         <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => goOffset(-1)} style={styles.navBtn}>
-              <Text style={[styles.navText, { color: theme.text }]}>{"<"}</Text>
+              <Text style={[styles.navText, { color: theme.text }]}>←</Text>
             </TouchableOpacity>
             <Text style={[styles.monthLabel, { color: theme.text }]}>{monthLabel}</Text>
             <TouchableOpacity onPress={() => goOffset(1)} style={styles.navBtn}>
-              <Text style={[styles.navText, { color: theme.text }]}>{'>'}</Text>
+              <Text style={[styles.navText, { color: theme.text }]}>→</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.weekRow}>

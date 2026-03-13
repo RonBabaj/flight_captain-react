@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../components/AppIcon';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
@@ -82,7 +82,7 @@ export function TopNavMenu() {
                 onPress={() => setShowMobileMenu(true)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="menu-outline" size={22} color={theme.tabInactive} />
+                <AppIcon library="ion" name="menu-outline" size={22} color={theme.tabInactive} fallbackText="Menu" />
               </TouchableOpacity>
             </View>
             <View style={styles.titleWrap}>
@@ -92,13 +92,15 @@ export function TopNavMenu() {
             </View>
             <View style={[styles.rightActions, { justifyContent: 'flex-end' }]}>
               <TouchableOpacity style={styles.localeBtn} onPress={() => setShowLocaleModal(true)}>
-                <Ionicons name="globe-outline" size={20} color={theme.tabInactive} />
+                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-                <Ionicons
+                <AppIcon
+                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
+                  fallbackText={theme.isDark ? 'Light' : 'Dark'}
                 />
               </TouchableOpacity>
             </View>
@@ -107,17 +109,19 @@ export function TopNavMenu() {
           <>
             <View style={[styles.rightActions, styles.rightActionsRTL]}>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-                <Ionicons
+                <AppIcon
+                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
+                  fallbackText={theme.isDark ? 'Light' : 'Dark'}
                 />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.localeBtn}
                 onPress={() => setShowLocaleModal(true)}
               >
-                <Ionicons name="globe-outline" size={20} color={theme.tabInactive} />
+                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
             </View>
             <View style={styles.titleWrap}>
@@ -202,13 +206,15 @@ export function TopNavMenu() {
                 style={styles.localeBtn}
                 onPress={() => setShowLocaleModal(true)}
               >
-                <Ionicons name="globe-outline" size={20} color={theme.tabInactive} />
+                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-                <Ionicons
+                <AppIcon
+                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
+                  fallbackText={theme.isDark ? 'Light' : 'Dark'}
                 />
               </TouchableOpacity>
             </View>
@@ -222,7 +228,7 @@ export function TopNavMenu() {
           <View style={[styles.localeModalHeader, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[styles.localeModalTitle, { color: theme.text }]}>{t('locale_language')} / {t('locale_currency')}</Text>
             <TouchableOpacity onPress={() => setShowLocaleModal(false)} style={styles.localeModalClose}>
-              <Ionicons name="close" size={24} color={theme.textMuted} />
+              <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText="Close" />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.localeModalScroll} contentContainerStyle={styles.localeModalContent}>
@@ -234,7 +240,7 @@ export function TopNavMenu() {
                 onPress={() => setLanguage(code as LanguageCode)}
               >
                 <Text style={[styles.localeOptionText, { color: theme.text }]}>{label}</Text>
-                {language === code && <Ionicons name="checkmark" size={18} color={theme.tabActive} />}
+                {language === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
               </TouchableOpacity>
             ))}
             <Text style={[styles.localeSectionLabel, { color: theme.textMuted, marginTop: 16 }]}>{t('locale_currency')}</Text>
@@ -245,7 +251,7 @@ export function TopNavMenu() {
                 onPress={() => setCurrency(code as CurrencyCode)}
               >
                 <Text style={[styles.localeOptionText, { color: theme.text }]}>{symbol ?? code} – {label}</Text>
-                {currency === code && <Ionicons name="checkmark" size={18} color={theme.tabActive} />}
+                {currency === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -279,7 +285,7 @@ export function TopNavMenu() {
                 onPress={() => setShowMobileMenu(false)}
                 style={styles.localeModalClose}
               >
-                <Ionicons name="close" size={24} color={theme.textMuted} />
+                <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText="Close" />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>

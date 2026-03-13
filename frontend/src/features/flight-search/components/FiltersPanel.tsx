@@ -8,7 +8,6 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
@@ -108,7 +107,7 @@ export function FiltersPanel({
                 return (
                   <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>
                     <View style={[f.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
-                      {sel && <Ionicons name="checkmark" size={14} color="#fff" />}
+                      {sel && <Text style={f.checkMark}>✓</Text>}
                     </View>
                     <Text style={[f.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
                     <Text style={[f.airlineCount, { color: theme.textMuted }]}>{count}</Text>

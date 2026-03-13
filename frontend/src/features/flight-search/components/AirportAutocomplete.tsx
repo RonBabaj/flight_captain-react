@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../../components/AppIcon';
 import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -119,13 +119,15 @@ export function AirportAutocomplete({
                     onPress={() => handleSelect(item)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="airplane-outline" size={18} color={theme.textMuted} style={styles.optionIcon} />
+                    <View style={styles.optionIcon}>
+                      <AppIcon library="ion" name="airplane-outline" size={20} color={theme.textMuted} />
+                    </View>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
                         {cityDisplay} ({code})
                       </Text>
                       <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
-                        {nameDisplay} | {item.countryCode}
+                        {nameDisplay} · {item.countryCode}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -176,7 +178,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  optionIcon: { fontSize: 20, marginRight: 12 },
+  optionIcon: { marginRight: 12 },
   optionTextWrap: { flex: 1 },
   optionTitle: { fontSize: 17, fontWeight: '600' },
   optionSubtitle: { fontSize: 14, marginTop: 2 },

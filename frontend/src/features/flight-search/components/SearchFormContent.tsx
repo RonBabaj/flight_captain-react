@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import type { CreateSearchSessionRequest } from '../../../types';
@@ -78,12 +78,12 @@ export function SearchFormContent({
   const dateLabel =
     tripType === 'round-trip'
       ? params.departureDate && params.returnDate
-        ? `${params.departureDate} > ${params.returnDate}`
+        ? `${params.departureDate} → ${params.returnDate}`
         : t('select_dates')
       : params.departureDate || t('select_date');
 
   const routeSummary =
-    params.origin && params.destination ? `${params.origin} > ${params.destination}` : null;
+    params.origin && params.destination ? `${params.origin} → ${params.destination}` : null;
 
   return (
     <View style={[s.hero, compact && s.heroCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
@@ -92,7 +92,7 @@ export function SearchFormContent({
       ) : (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="airplane-outline" size={20} color={theme.text} />
+            <AppIcon library="ion" name="airplane-outline" size={20} color={theme.text} fallbackText={t('find_flights')} />
             <Text style={ts.heroTitle}>{t('find_flights')}</Text>
           </View>
           <Text style={ts.heroSubtitle}>{t('compare_prices')}</Text>
@@ -171,7 +171,7 @@ export function SearchFormContent({
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <Ionicons name="search" size={16} color={theme.buttonText} />
+            <AppIcon library="ion" name="search" size={16} color={theme.buttonText} fallbackText={t('search_flights')} />
             <Text style={[ts.buttonText, compact && { fontSize: 15 }]}>{t('search_flights')}</Text>
           </View>
         )}
