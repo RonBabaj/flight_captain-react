@@ -301,6 +301,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const [positioningLoading, setPositioningLoading] = useState(false);
   const optimizerSessionRef = useRef<string | null>(null);
   const [positioningDetails, setPositioningDetails] = useState<PositioningOption | null>(null);
+  const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
 
   useEffect(() => {
     if (storeParams) {
@@ -632,34 +633,57 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       </View>
     ) : positioningOptions && positioningOptions.length > 0 ? (
       <View style={styles.positioningSection}>
-        <Text style={[styles.positioningTitle, { color: theme.text }]}>
-          Cheaper departure cities
-        </Text>
-        {positioningOptions.map((opt) => (
-          <View
-            key={opt.hubAirport}
-            style={[styles.positioningRow, { borderColor: theme.cardBorder }]}
-          >
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.positioningHub, { color: theme.text }]}>
-                {opt.hubAirport}
+        <TouchableOpacity
+          style={styles.positioningHeaderRow}
+          onPress={() => isMobile && setCheaperCitiesFolded((f) => !f)}
+          activeOpacity={isMobile ? 0.7 : 1}
+          disabled={!isMobile}
+        >
+          <Text style={[styles.positioningTitle, { color: theme.text }]}>
+            Cheaper departure cities
+          </Text>
+          {isMobile && (
+            <View style={styles.positioningFoldTrigger}>
+              <Text style={[styles.positioningFoldTriggerText, { color: theme.primary }]}>
+                {cheaperCitiesFolded
+                  ? `Show ${positioningOptions.length} cities`
+                  : 'Collapse'}
               </Text>
-              <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
-                {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
-                {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
-              </Text>
+              <AppIcon
+                library="ion"
+                name={cheaperCitiesFolded ? 'chevron-down' : 'chevron-up'}
+                size={18}
+                color={theme.primary}
+              />
             </View>
-            <TouchableOpacity
-              style={[styles.positioningBtn, { backgroundColor: theme.controlBg }]}
-              onPress={makeViewCombinationHandler(opt)}
-              activeOpacity={0.7}
+          )}
+        </TouchableOpacity>
+        {(!isMobile || !cheaperCitiesFolded) &&
+          positioningOptions.map((opt) => (
+            <View
+              key={opt.hubAirport}
+              style={[styles.positioningRow, { borderColor: theme.cardBorder }]}
             >
-              <Text style={[styles.positioningBtnText, { color: theme.primary }]}>
-                View
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.positioningHub, { color: theme.text }]}>
+                  {opt.hubAirport}
+                </Text>
+                <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
+                  {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
+                  {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.positioningBtn, { backgroundColor: theme.controlBg }]}
+                onPress={makeViewCombinationHandler(opt)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.positioningBtnText, { color: theme.primary }]}>
+                  View
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
       </View>
     ) : null;
 
@@ -1184,12 +1208,26 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 4,
   },
+  positioningHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
   positioningTitle: {
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 6,
+  },
+  positioningFoldTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  positioningFoldTriggerText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   positioningRow: {
     flexDirection: 'row',

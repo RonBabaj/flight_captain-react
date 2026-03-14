@@ -16,6 +16,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
+import { getAirportNameByCode } from '../../../data/airports';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import type { FlightOption, FlightSegment } from '../../../types';
 
@@ -92,7 +93,7 @@ interface FlightDetailsModalProps {
 
 export function FlightDetailsModal({ visible, onClose, sessionId, option, passengerCount }: FlightDetailsModalProps) {
   const { theme } = useTheme();
-  const { t, isRTL, currency: displayCurrency } = useLocale();
+  const { t, isRTL, language, currency: displayCurrency } = useLocale();
   const [bookLoading, setBookLoading] = useState(false);
   const { width } = useWindowDimensions();
   const isNarrow = width < 600;
@@ -288,7 +289,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                         {segIdx > 0 && lo > 0 && (
                           <View style={[s.layoverRow, { backgroundColor: theme.controlBg }]}>
                             <Text style={[s.layoverText, { color: theme.textMuted }]}>
-                              {t('layover_in')} {segs[segIdx - 1].to?.code || '?'} · {formatDuration(lo)}
+                              {t('layover_in')} {getAirportNameByCode(segs[segIdx - 1].to?.code, language)} · {formatDuration(lo)}
                             </Text>
                           </View>
                         )}
@@ -301,7 +302,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                               {safeTime(seg.departureTime)}
                             </Text>
                             <Text style={[s.segAirport, { color: theme.textMuted }]}>
-                              {seg.from?.code || '?'}
+                              {getAirportNameByCode(seg.from?.code, language)}
                             </Text>
                           </View>
 
@@ -320,7 +321,7 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                               {safeTime(seg.arrivalTime)}
                             </Text>
                             <Text style={[s.segAirport, { color: theme.textMuted }]}>
-                              {seg.to?.code || '?'}
+                              {getAirportNameByCode(seg.to?.code, language)}
                             </Text>
                           </View>
                         </View>

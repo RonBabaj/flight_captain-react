@@ -551,3 +551,16 @@ export function getAirportDisplayName(a: AirportCityResult, language: LanguageCo
   if (language === 'ru' && a.nameRu) return a.nameRu;
   return a.name || '';
 }
+
+/** Get full display name for an airport by IATA code (e.g. "TLV" → "Tel Aviv (Ben Gurion Intl)"). Falls back to code if not in dictionary. */
+export function getAirportNameByCode(code: string | undefined | null, language: LanguageCode): string {
+  if (!code || typeof code !== 'string') return code || '?';
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return code;
+  const a = AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed);
+  if (!a) return code;
+  const city = getCityDisplayName(a, language);
+  const airport = getAirportDisplayName(a, language);
+  if (city && airport) return `${city} (${airport})`;
+  return city || airport || code;
+}

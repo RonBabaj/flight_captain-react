@@ -21,6 +21,8 @@ import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl } from '.
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
+import { getAirportNameByCode } from '../../../data/airports';
+import type { LanguageCode } from '../../../data/translations';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -901,8 +903,8 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               </View>
 
               {/* Legs */}
-              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t)}
-              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t)}
+              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language)}
+              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language)}
             </ScrollView>
           )}
 
@@ -978,6 +980,7 @@ function renderLeg(
   dateStr: string,
   theme: import('../../../theme/ThemeContext').Theme,
   t: (k: string) => string,
+  language: LanguageCode,
 ) {
   if (!segs?.length) return null;
   const stops = Math.max(0, segs.length - 1);
@@ -1003,14 +1006,14 @@ function renderLeg(
             {idx > 0 && lo > 0 && (
               <View style={[m.layoverRow, { backgroundColor: theme.controlBg }]}>
                 <Text style={[m.layoverText, { color: theme.textMuted }]}>
-                  {t('layover_in')} {segs[idx - 1].to?.code || '?'} · {fmtDur(lo)}
+                  {t('layover_in')} {getAirportNameByCode(segs[idx - 1].to?.code, language)} · {fmtDur(lo)}
                 </Text>
               </View>
             )}
             <View style={m.segRow}>
               <View style={m.segEnd}>
                 <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.departureTime)}</Text>
-                <Text style={[m.segAirport, { color: theme.textMuted }]}>{seg.from?.code || '?'}</Text>
+                <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.from?.code, language)}</Text>
               </View>
               <View style={m.segMid}>
                 <View style={[m.segLine, { backgroundColor: theme.cardBorder }]} />
@@ -1019,7 +1022,7 @@ function renderLeg(
               </View>
               <View style={[m.segEnd, m.segEndRight]}>
                 <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.arrivalTime)}</Text>
-                <Text style={[m.segAirport, { color: theme.textMuted }]}>{seg.to?.code || '?'}</Text>
+                <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.to?.code, language)}</Text>
               </View>
             </View>
             <View style={m.segDetails}>
