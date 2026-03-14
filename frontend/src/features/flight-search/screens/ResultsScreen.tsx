@@ -405,17 +405,25 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [sessionId, storeParams, updateUrl]);
 
-  // Frontend debug: log how many positioning options we received.
+  // Only reset positioning when sessionId actually changes (not on every mount). Prevents "Cheaper departure cities" disappearing on Chrome iOS when component re-mounts or effect re-runs with same sessionId.
+  const positioningSessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (positioningSessionIdRef.current !== sessionId) {
+      positioningSessionIdRef.current = sessionId;
+      setPositioningOptions([]);
+      optimizerSessionRef.current = null;
+    }
+  }, [sessionId]);
+
+  // Debug: positioning section visibility (helps diagnose disappearing section).
   useEffect(() => {
     // eslint-disable-next-line no-console
-    console.log('[POSITIONING_FRONTEND]', positioningOptions?.length ?? 0);
-  }, [positioningOptions?.length]);
-
-  // Reset positioning options when the session changes.
-  useEffect(() => {
-    setPositioningOptions([]);
-    optimizerSessionRef.current = null;
-  }, [sessionId]);
+    console.log('[POSITIONING_SECTION]', {
+      loading: positioningLoading,
+      positioningOptionsLength: positioningOptions?.length ?? 0,
+      hasData: !!(positioningOptions && positioningOptions.length > 0),
+    });
+  }, [positioningLoading, positioningOptions]);
 
   // Positioning Flight Optimizer — runs once per session after results load.
   const runPositioningOptimizer = useCallback(async () => {
@@ -650,7 +658,6 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   : 'Collapse'}
               </Text>
               <AppIcon
-                library="ion"
                 name={cheaperCitiesFolded ? 'chevron-down' : 'chevron-up'}
                 size={18}
                 color={theme.primary}
@@ -703,7 +710,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           ]}
         >
           <View style={{ marginBottom: 12 }}>
-            <AppIcon library="ion" name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
+            <AppIcon name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
             {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
@@ -746,7 +753,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               ]}
             >
               <View style={{ marginBottom: 12 }}>
-                <AppIcon library="ion" name="filter-outline" size={48} color={theme.textMuted} fallbackText={t('filters')} />
+                <AppIcon name="filter-outline" size={48} color={theme.textMuted} fallbackText={t('filters')} />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('no_flights_match')}
@@ -784,7 +791,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           onPress={() => setShowEditSearchModal(true)}
           activeOpacity={0.7}
         >
-          <AppIcon library="ion" name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
+          <AppIcon name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
           <Text style={[styles.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
         </TouchableOpacity>
       </View>
@@ -797,7 +804,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             <View style={[styles.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
               <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>{t('change_search')}</Text>
               <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={styles.editSearchModalClose}>
-                <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
+                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.editSearchModalScroll} contentContainerStyle={styles.editSearchModalContent} keyboardShouldPersistTaps="handled">
@@ -893,7 +900,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                     style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
                     onPress={() => setShowFiltersModal(true)}
                   >
-                    <AppIcon library="ion" name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
+                    <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
                     <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
                   </TouchableOpacity>
                 )}
@@ -908,7 +915,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   onPress={() => setShowFiltersModal(true)}
                   activeOpacity={0.7}
                 >
-                  <AppIcon library="ion" name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
+                  <AppIcon name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
                   <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
                 </TouchableOpacity>
               )}
@@ -958,7 +965,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
                   onPress={() => setPositioningDetails(null)}
                   style={styles.editSearchModalClose}
                 >
-                  <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
+                  <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
                 </TouchableOpacity>
               </View>
               <ScrollView
@@ -1059,7 +1066,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           ]}
         >
           <View style={styles.slowPopupRow}>
-            <AppIcon library="ion" name="time-outline" size={14} color={theme.textMuted} fallbackText="" />
+            <AppIcon name="time-outline" size={14} color={theme.textMuted} fallbackText="" />
             <Text style={[styles.slowPopupText, { color: theme.textMuted }]}>
               {t('results_slow_hint')}
             </Text>
@@ -1068,7 +1075,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               style={styles.slowPopupClose}
               activeOpacity={0.7}
             >
-              <AppIcon library="ion" name="close" size={14} color={theme.textMuted} fallbackText={t('close')} />
+              <AppIcon name="close" size={14} color={theme.textMuted} fallbackText={t('close')} />
             </TouchableOpacity>
           </View>
         </View>

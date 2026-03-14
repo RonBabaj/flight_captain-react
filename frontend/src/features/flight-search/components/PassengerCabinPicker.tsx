@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { AppIcon } from '../../../components/AppIcon';
 import type { CreateSearchSessionRequest } from '../../../types';
 
 const CABIN_OPTIONS: Array<CreateSearchSessionRequest['cabinClass']> = [
@@ -74,7 +75,7 @@ export function PassengerCabinPicker({
         <Text style={[styles.triggerText, { color: theme.text }]} numberOfLines={1}>
           {summary}
         </Text>
-        <Text style={[styles.chevron, { color: theme.textMuted }]}>▼</Text>
+        <AppIcon name="chevron-down" size={18} color={theme.textMuted} fallbackText="" />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade">

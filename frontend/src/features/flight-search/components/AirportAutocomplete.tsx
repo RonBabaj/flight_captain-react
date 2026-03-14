@@ -120,7 +120,7 @@ export function AirportAutocomplete({
                     activeOpacity={0.7}
                   >
                     <View style={styles.optionIcon}>
-                      <AppIcon library="ion" name="airplane-outline" size={20} color={theme.textMuted} />
+                      <AppIcon name="airplane-outline" size={20} color={theme.textMuted} />
                     </View>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>

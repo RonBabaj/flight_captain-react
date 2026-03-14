@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
+import { AppIcon } from '../../../components/AppIcon';
 
 function getMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -114,11 +115,11 @@ export function DateRangePicker({
         <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => goOffset(-1)} style={styles.navBtn}>
-              <Text style={[styles.navText, { color: theme.text }]}>←</Text>
+              <AppIcon name="chevron-back" size={24} color={theme.text} fallbackText="Prev" />
             </TouchableOpacity>
             <Text style={[styles.monthLabel, { color: theme.text }]}>{monthLabel}</Text>
             <TouchableOpacity onPress={() => goOffset(1)} style={styles.navBtn}>
-              <Text style={[styles.navText, { color: theme.text }]}>→</Text>
+              <AppIcon name="chevron-forward" size={24} color={theme.text} fallbackText="Next" />
             </TouchableOpacity>
           </View>
           <View style={styles.weekRow}>

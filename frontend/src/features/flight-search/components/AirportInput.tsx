@@ -87,7 +87,7 @@ export function AirportInput({ label, value, onChange, placeholder }: Props) {
                     activeOpacity={0.7}
                   >
                     <View style={styles.optionIcon}>
-                      <AppIcon library="ion" name="airplane-outline" size={20} color={theme.textMuted} fallbackText="" />
+                      <AppIcon name="airplane-outline" size={20} color={theme.textMuted} fallbackText="" />
                     </View>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>

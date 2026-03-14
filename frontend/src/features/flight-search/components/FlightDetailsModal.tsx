@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { AppIcon } from '../../../components/AppIcon';
 import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
@@ -202,13 +203,13 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <Text style={[s.headerClose, { color: theme.primary }]}>✕</Text>
+              <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} bounces={false}>
-            {/* ── Summary row ── */}
-            <View style={s.summaryRow}>
+            {/* ── Summary row (price + meta; RTL swaps sides) ── */}
+            <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View>
                 <Text style={[s.price, { color: theme.primary }]}>
                   {priceSymbol} {totalAmount.toFixed(0)}

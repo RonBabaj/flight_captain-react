@@ -82,7 +82,7 @@ export function TopNavMenu() {
                 onPress={() => setShowMobileMenu(true)}
                 activeOpacity={0.8}
               >
-                <AppIcon library="ion" name="menu-outline" size={22} color={theme.tabInactive} fallbackText="Menu" />
+                <AppIcon name="menu-outline" size={22} color={theme.tabInactive} fallbackText="Menu" />
               </TouchableOpacity>
             </View>
             <View style={styles.titleWrap}>
@@ -92,11 +92,10 @@ export function TopNavMenu() {
             </View>
             <View style={[styles.rightActions, { justifyContent: 'flex-end' }]}>
               <TouchableOpacity style={styles.localeBtn} onPress={() => setShowLocaleModal(true)}>
-                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
+                <AppIcon name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
                 <AppIcon
-                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
@@ -110,7 +109,6 @@ export function TopNavMenu() {
             <View style={[styles.rightActions, styles.rightActionsRTL]}>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
                 <AppIcon
-                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
@@ -121,7 +119,7 @@ export function TopNavMenu() {
                 style={styles.localeBtn}
                 onPress={() => setShowLocaleModal(true)}
               >
-                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
+                <AppIcon name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
             </View>
             <View style={styles.titleWrap}>
@@ -206,11 +204,10 @@ export function TopNavMenu() {
                 style={styles.localeBtn}
                 onPress={() => setShowLocaleModal(true)}
               >
-                <AppIcon library="ion" name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
+                <AppIcon name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
                 <AppIcon
-                  library="ion"
                   name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
                   size={20}
                   color={theme.tabInactive}
@@ -228,7 +225,7 @@ export function TopNavMenu() {
           <View style={[styles.localeModalHeader, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[styles.localeModalTitle, { color: theme.text }]}>{t('locale_language')} / {t('locale_currency')}</Text>
             <TouchableOpacity onPress={() => setShowLocaleModal(false)} style={styles.localeModalClose}>
-              <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText="Close" />
+              <AppIcon name="close" size={24} color={theme.textMuted} fallbackText="Close" />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.localeModalScroll} contentContainerStyle={styles.localeModalContent}>
@@ -285,7 +282,7 @@ export function TopNavMenu() {
                 onPress={() => setShowMobileMenu(false)}
                 style={styles.localeModalClose}
               >
-                <AppIcon library="ion" name="close" size={24} color={theme.textMuted} fallbackText="Close" />
+                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText="Close" />
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>

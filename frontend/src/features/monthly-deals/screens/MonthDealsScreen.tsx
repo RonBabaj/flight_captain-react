@@ -468,7 +468,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           onPress={() => setShowFilters(true)}
           activeOpacity={0.7}
         >
-          <AppIcon library="ion" name="options-outline" size={16} color={theme.text} fallbackText={t('filters')} />
+          <AppIcon name="options-outline" size={16} color={theme.text} fallbackText={t('filters')} />
           <Text style={[sb.filterBtnText, { color: theme.text }]}>{t('filters')}</Text>
         </TouchableOpacity>
       )}
@@ -613,7 +613,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       <Text style={[fl.headerTitle, { color: theme.text }]}>{t('filters')}</Text>
       {isModal && (
         <TouchableOpacity onPress={() => setShowFilters(false)} style={fl.closeBtn}>
-          <Text style={[fl.closeText, { color: theme.primary }]}>✕</Text>
+          <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
         </TouchableOpacity>
       )}
     </View>
@@ -642,7 +642,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const heroCard = (
     <View style={[p.hero, hasResultsLayout ? p.heroSide : p.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <AppIcon library="ion" name="calendar-outline" size={20} color={theme.text} fallbackText={t('dates')} />
+        <AppIcon name="calendar-outline" size={20} color={theme.text} fallbackText={t('dates')} />
         <Text style={[p.heroTitle, { color: theme.text }]}>{t('monthly_deals')}</Text>
       </View>
       <Text style={[p.heroSub, { color: theme.textMuted }]}>{t('monthly_deals_hero')}</Text>
@@ -671,11 +671,17 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       {/* Month navigator */}
       <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
         <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={p.navBtn}>
-          <Text style={[p.navText, { color: theme.primary }]}>← {t('prev')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <AppIcon name="chevron-back" size={18} color={theme.primary} fallbackText={t('prev')} />
+            <Text style={[p.navText, { color: theme.primary }]}>{t('prev')}</Text>
+          </View>
         </TouchableOpacity>
         <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
         <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={p.navBtn}>
-          <Text style={[p.navText, { color: theme.primary }]}>{t('next')} →</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
+            <AppIcon name="chevron-forward" size={18} color={theme.primary} fallbackText={t('next')} />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -696,7 +702,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <AppIcon library="ion" name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
+            <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
             <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
           </View>
         )}
@@ -866,7 +872,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               {selectedDate && <Text style={[m.headerSub, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>}
             </View>
             <TouchableOpacity onPress={() => setShowDetails(false)} hitSlop={8}>
-              <Text style={[m.headerClose, { color: theme.primary }]}>✕</Text>
+              <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
             </TouchableOpacity>
           </View>
 

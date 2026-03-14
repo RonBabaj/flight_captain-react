@@ -92,7 +92,7 @@ export function SearchFormContent({
       ) : (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <AppIcon library="ion" name="airplane-outline" size={20} color={theme.text} fallbackText={t('find_flights')} />
+            <AppIcon name="airplane-outline" size={20} color={theme.text} fallbackText={t('find_flights')} />
             <Text style={ts.heroTitle}>{t('find_flights')}</Text>
           </View>
           <Text style={ts.heroSubtitle}>{t('compare_prices')}</Text>
@@ -171,7 +171,7 @@ export function SearchFormContent({
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <AppIcon library="ion" name="search" size={16} color={theme.buttonText} fallbackText={t('search_flights')} />
+            <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_flights')} />
             <Text style={[ts.buttonText, compact && { fontSize: 15 }]}>{t('search_flights')}</Text>
           </View>
         )}

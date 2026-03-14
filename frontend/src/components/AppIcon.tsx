@@ -1,77 +1,60 @@
 /**
- * Centralized icon component for cross-platform compatibility.
- * Uses only @expo/vector-icons (Ionicons, MaterialIcons, Feather).
- * On web, critical icons (airplane, globe, sun, moon, menu) use inline SVG so they always render.
+ * Centralized icon component using only local static SVG (no runtime icon fonts).
+ * Reliable across Expo web, iOS/Android browsers, normal and incognito/private browsing.
  */
 
 import React from 'react';
-import { View, Text, Image, StyleSheet, Platform } from 'react-native';
-import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
-import { useIconFontsLoaded } from './IconFontsContext';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { getWebIconSvgDataUri, hasWebSvgFallback } from './WebIconSvg';
 
 export type AppIconLibrary = 'ion' | 'material' | 'feather';
 
 export interface AppIconProps {
-  /** Icon name from the chosen library (e.g. "search", "close", "airplane-outline") */
+  /** Icon name (e.g. "search", "close", "airplane-outline"). Must be in LOCAL_ICON_NAMES. */
   name: string;
   library?: AppIconLibrary;
   size?: number;
   color?: string;
-  /** Optional text fallback for accessibility and when icon fails to render */
+  /** Optional text fallback for accessibility and when icon is missing */
   fallbackText?: string;
-  /** Optional style for the wrapper view */
   style?: object;
 }
 
-const ICON_SET = {
-  ion: Ionicons,
-  material: MaterialIcons,
-  feather: Feather,
-};
-
 export function AppIcon({
   name,
-  library = 'ion',
   size = 24,
   color = '#000',
   fallbackText,
   style,
 }: AppIconProps) {
-  const iconFontsLoaded = useIconFontsLoaded();
-  const IconComponent = ICON_SET[library];
+  const useLocalSvg = hasWebSvgFallback(name);
+  const uri = useLocalSvg ? getWebIconSvgDataUri(name, color) : null;
 
-  const useWebSvg = Platform.OS === 'web' && library === 'ion' && hasWebSvgFallback(name);
-  const showFallback = !iconFontsLoaded && fallbackText && !useWebSvg;
-
-  if (useWebSvg) {
-    const uri = getWebIconSvgDataUri(name, color);
-    if (uri) {
-      return (
-        <View
-          style={[styles.wrap, { width: size, height: size }, style]}
-          accessible={!!fallbackText}
-          accessibilityLabel={fallbackText}
-          accessibilityRole="image"
-        >
-          <Image
-            source={{ uri }}
-            style={{ width: size, height: size }}
-            resizeMode="contain"
-          />
-        </View>
-      );
-    }
+  if (uri) {
+    return (
+      <View
+        style={[styles.wrap, { width: size, height: size }, style]}
+        accessible={!!fallbackText}
+        accessibilityLabel={fallbackText}
+        accessibilityRole="image"
+      >
+        <Image
+          source={{ uri }}
+          style={{ width: size, height: size }}
+          resizeMode="contain"
+        />
+      </View>
+    );
   }
 
   return (
     <View
-      style={[styles.wrap, style]}
+      style={[styles.wrap, { width: size, height: size }, style]}
       accessible={!!fallbackText}
       accessibilityLabel={fallbackText}
       accessibilityRole="image"
     >
-      {showFallback ? (
+      {fallbackText ? (
         <Text
           style={[styles.fallbackText, { color }]}
           numberOfLines={1}
@@ -79,9 +62,7 @@ export function AppIcon({
         >
           {fallbackText}
         </Text>
-      ) : (
-        <IconComponent name={name as any} size={size} color={color} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -94,7 +75,7 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   fallbackText: {
-    fontSize: Platform.OS === 'web' ? 12 : 10,
+    fontSize: 12,
     fontWeight: '600',
     maxWidth: 72,
   },

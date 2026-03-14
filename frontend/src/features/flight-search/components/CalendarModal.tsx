@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { AppIcon } from '../../../components/AppIcon';
 
 interface Props {
   visible: boolean;
@@ -118,11 +119,11 @@ export function CalendarModal({
         <View style={styles.card}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => goOffset(-1)} style={styles.navBtn}>
-              <Text style={styles.navText}>←</Text>
+              <AppIcon name="chevron-back" size={24} color="#333" fallbackText="Prev" />
             </TouchableOpacity>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <TouchableOpacity onPress={() => goOffset(1)} style={styles.navBtn}>
-              <Text style={styles.navText}>→</Text>
+              <AppIcon name="chevron-forward" size={24} color="#333" fallbackText="Next" />
             </TouchableOpacity>
           </View>
 

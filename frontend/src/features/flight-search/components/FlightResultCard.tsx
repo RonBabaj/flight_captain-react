@@ -215,14 +215,14 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
             <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
           </View>
           {/* Outbound route: origin → layover(s) → destination */}
-          <Text style={[c.route, { color: theme.textMuted }]} numberOfLines={1}>{outboundRouteStr}</Text>
+          <Text style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>{outboundRouteStr}</Text>
           {/* Return route (round-trip only): destination → layover(s) → origin */}
           {isRoundTrip && returnRouteStr ? (
-            <Text style={[c.route, { color: theme.textMuted }]} numberOfLines={1}>{returnRouteStr}</Text>
+            <Text style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>{returnRouteStr}</Text>
           ) : null}
           {/* Dates: "Mar 26 → Apr 2" for round-trips, "Mar 26" for one-way */}
           {outboundDate ? (
-            <Text style={[c.dateStr, { color: theme.textMuted }]}>
+            <Text style={[c.dateStr, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
               {isRoundTrip ? `${outboundDate}${sep}${returnDate}` : outboundDate}
             </Text>
           ) : null}
