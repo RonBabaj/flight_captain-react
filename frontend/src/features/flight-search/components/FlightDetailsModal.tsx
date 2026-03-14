@@ -344,6 +344,35 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
             })}
           </ScrollView>
 
+          {/* ── Available sellers (same flight, other carriers/providers) ── */}
+          {option.sellerOptions && option.sellerOptions.length > 0 && (
+            <View style={[s.sellersBlock, { borderTopColor: theme.cardBorder }]}>
+              <Text style={[s.sellersTitle, { color: theme.text }]}>{t('available_sellers')}</Text>
+              {option.sellerOptions.map((seller, idx) => (
+                <View key={idx} style={[s.sellerRow, { borderColor: theme.cardBorder }]}>
+                  <View style={s.sellerInfo}>
+                    <Text style={[s.sellerCarrier, { color: theme.text }]}>
+                      {seller.carrierCode ? (getAirlineName(seller.carrierCode) || seller.carrierCode) : seller.provider || seller.vendorName || '—'}
+                    </Text>
+                    <Text style={[s.sellerMeta, { color: theme.textMuted }]}>
+                      {getCurrencySymbol(seller.price.currency)} {seller.price.amount.toFixed(0)}
+                      {seller.vendorName ? ` · ${seller.vendorName}` : ''}
+                    </Text>
+                  </View>
+                  {seller.bookingUrl ? (
+                    <TouchableOpacity
+                      style={[s.sellerBookBtn, { backgroundColor: theme.controlBg }]}
+                      onPress={() => Linking.openURL(seller.bookingUrl!)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.sellerBookText, { color: theme.primary }]}>{t('book_now')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* ── Footer ── */}
           <View style={[s.footer, { borderTopColor: theme.cardBorder }]}>
             <TouchableOpacity
@@ -457,6 +486,40 @@ const s = StyleSheet.create({
   segDuration: { fontSize: 12, marginHorizontal: 6 },
   segDetails: { alignItems: 'center', marginBottom: 8 },
   segDetailText: { fontSize: 12, textAlign: 'center' },
+
+  sellersBlock: {
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  sellersTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  sellerInfo: { flex: 1, minWidth: 0 },
+  sellerCarrier: { fontSize: 14, fontWeight: '600' },
+  sellerMeta: { fontSize: 12, marginTop: 2 },
+  sellerBookBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  sellerBookText: { fontSize: 14, fontWeight: '600' },
 
   footer: {
     padding: 20,

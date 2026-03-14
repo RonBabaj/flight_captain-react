@@ -261,11 +261,25 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
         </View>
       </View>
 
-      {/* ── Row 2: Airline · cabin ── */}
+      {/* ── Row 2: Airline · cabin (and codeshare: Operated by / Also sold by) ── */}
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
-        <Text style={[c.airlineText, { color: theme.text }]} numberOfLines={1}>
-          {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
-        </Text>
+        <View style={c.airlineCol}>
+          <Text style={[c.airlineText, { color: theme.text }]} numberOfLines={1}>
+            {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
+          </Text>
+          {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
+            <Text style={[c.codeshareText, { color: theme.textMuted }]} numberOfLines={1}>
+              {option.primaryOperatingCarrier
+                ? `${t('operated_by')} ${getAirlineName(option.primaryOperatingCarrier) || option.primaryOperatingCarrier}`
+                : ''}
+              {option.primaryOperatingCarrier && option.marketedBy && option.marketedBy.length > 1
+                ? ` · ${t('also_sold_by')} ${option.marketedBy.filter((c) => c !== option.primaryOperatingCarrier).map((c) => getAirlineName(c) || c).join(', ')}`
+                : option.marketedBy && option.marketedBy.length > 1
+                  ? `${t('also_sold_by')} ${option.marketedBy.map((c) => getAirlineName(c) || c).join(', ')}`
+                  : ''}
+            </Text>
+          )}
+        </View>
         {hasBagBadge && (
           <View style={[c.bagBadge, { backgroundColor: theme.controlBg }]}>
             <Text style={[c.bagBadgeText, { color: theme.textMuted }]}>🧳 {bagStr}</Text>
@@ -325,7 +339,9 @@ const c = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
-  airlineText: { fontSize: 13, fontWeight: '500', flex: 1 },
+  airlineCol: { flex: 1, minWidth: 0 },
+  airlineText: { fontSize: 13, fontWeight: '500' },
+  codeshareText: { fontSize: 11, marginTop: 2 },
   bagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   bagBadgeText: { fontSize: 11 },
 });

@@ -196,3 +196,55 @@ func CanonicalFingerprint(option *FlightOption) string {
 	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(h[:16])
 }
+
+// roundTimeToMinutes rounds t to the nearest 5-minute bucket (e.g. for fingerprint tolerance).
+func roundTimeToMinutes(t time.Time, bucketMin int) time.Time {
+	if bucketMin <= 0 {
+		return t
+	}
+	unix := t.Unix()
+	bucketSec := int64(bucketMin * 60)
+	rounded := (unix / bucketSec) * bucketSec
+	return time.Unix(rounded, 0).UTC()
+}
+
+// CodeshareFingerprint returns a stable hash for the *operated* flight: uses operating carrier and operating flight number when present, else marketing. Same physical flight (e.g. AZ operated, sold as AZ/LY/AF) gets the same fingerprint. Times rounded to 5 min for tolerance.
+func CodeshareFingerprint(option *FlightOption) string {
+	if option == nil || len(option.Legs) == 0 {
+		return ""
+	}
+	const timeBucketMin = 5
+	var parts []string
+	for _, leg := range option.Legs {
+		if len(leg.Segments) == 0 {
+			continue
+		}
+		first := leg.Segments[0]
+		last := leg.Segments[len(leg.Segments)-1]
+		parts = append(parts, strings.ToUpper(first.From.Code), strings.ToUpper(last.To.Code))
+		depRounded := roundTimeToMinutes(first.DepartureTime, timeBucketMin)
+		arrRounded := roundTimeToMinutes(last.ArrivalTime, timeBucketMin)
+		parts = append(parts, depRounded.Format(time.RFC3339), arrRounded.Format(time.RFC3339))
+		stops := len(leg.Segments) - 1
+		parts = append(parts, fmt.Sprintf("%d", stops))
+		var carriers, numbers []string
+		for _, s := range leg.Segments {
+			carrier := s.MarketingCarrier.Code
+			num := s.FlightNumber
+			if s.OperatingCarrier != nil && s.OperatingCarrier.Code != "" {
+				carrier = s.OperatingCarrier.Code
+				if s.OperatingFlightNum != "" {
+					num = s.OperatingFlightNum
+				}
+			}
+			carriers = append(carriers, strings.ToUpper(carrier))
+			numbers = append(numbers, num)
+		}
+		sort.Strings(carriers)
+		sort.Strings(numbers)
+		parts = append(parts, strings.Join(carriers, ","), strings.Join(numbers, ","))
+	}
+	parts = append(parts, fmt.Sprintf("%d", option.DurationMinutes))
+	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return hex.EncodeToString(h[:16])
+}

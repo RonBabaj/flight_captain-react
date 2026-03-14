@@ -33,6 +33,7 @@ export interface FlightSegment {
   marketingCarrier: Carrier;
   operatingCarrier?: Carrier;
   flightNumber: string;
+  operatingFlightNumber?: string;
   durationMinutes: number;
   cabinClass: string;
   bookingClass?: string;
@@ -63,6 +64,15 @@ export interface OutboundSummary {
 
 export type BaggageClass = 'BAG_OK' | 'BAG_UNKNOWN' | 'BAG_INCLUDED';
 
+/** One way to book the same physical flight (e.g. different marketing carrier or provider). */
+export interface SellerOption {
+  carrierCode: string;
+  provider?: string;
+  vendorName?: string;
+  price: MonetaryAmount;
+  bookingUrl?: string;
+}
+
 export interface FlightOption {
   id: string;
   price: MonetaryAmount;
@@ -78,6 +88,13 @@ export interface FlightOption {
   baggageClass?: BaggageClass;
   deepLink?: string;    // booking URL when present (e.g. Duffel, OTA)
   vendorName?: string;  // OTA name (kayak/expedia etc) when source=compare
+  // Codeshare / multi-seller (additive)
+  primaryMarketingCarrier?: string;
+  primaryOperatingCarrier?: string;
+  isCodeshare?: boolean;
+  marketedBy?: string[];
+  cheapestSeller?: string;
+  sellerOptions?: SellerOption[];
 }
 
 // --- Search session ---

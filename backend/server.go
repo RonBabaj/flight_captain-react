@@ -142,14 +142,16 @@ type Carrier struct {
 }
 
 type FlightSegment struct {
-	From             AirportLike `json:"from"`
-	To               AirportLike `json:"to"`
-	DepartureTime    time.Time   `json:"departureTime"`
-	ArrivalTime      time.Time   `json:"arrivalTime"`
-	MarketingCarrier Carrier     `json:"marketingCarrier"`
-	FlightNumber     string      `json:"flightNumber"`
-	DurationMinutes  int         `json:"durationMinutes"`
-	CabinClass       string      `json:"cabinClass"`
+	From               AirportLike `json:"from"`
+	To                 AirportLike `json:"to"`
+	DepartureTime      time.Time   `json:"departureTime"`
+	ArrivalTime        time.Time   `json:"arrivalTime"`
+	MarketingCarrier   Carrier     `json:"marketingCarrier"`
+	OperatingCarrier   *Carrier    `json:"operatingCarrier,omitempty"`   // when present, flight is codeshare (marketing != operating)
+	FlightNumber       string      `json:"flightNumber"`
+	OperatingFlightNum string      `json:"operatingFlightNumber,omitempty"` // effective flight number when operated by different carrier
+	DurationMinutes    int         `json:"durationMinutes"`
+	CabinClass         string      `json:"cabinClass"`
 }
 
 type FlightLeg struct {
@@ -171,6 +173,15 @@ type OutboundSummary struct {
 	Layovers        []LayoverSummary `json:"layovers,omitempty"`
 }
 
+// SellerOption represents one way to book the same physical flight (e.g. different marketing carrier or provider).
+type SellerOption struct {
+	CarrierCode string         `json:"carrierCode"` // marketing carrier for this offer
+	Provider    string         `json:"provider,omitempty"` // "amadeus" | "duffel" | "compare"
+	VendorName  string         `json:"vendorName,omitempty"`
+	Price       MonetaryAmount `json:"price"`
+	BookingURL  string         `json:"bookingUrl,omitempty"` // empty if not available
+}
+
 type FlightOption struct {
 	ID                    string           `json:"id"`
 	Price                 MonetaryAmount   `json:"price"`
@@ -181,11 +192,19 @@ type FlightOption struct {
 	ValidatingAirlines    []string         `json:"validatingAirlines,omitempty"`
 	BaggageClass          string           `json:"baggageClass,omitempty"`          // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
-	Source                string           `json:"source,omitempty"`                // "amadeus" | "duffel" | "compare"
+	Source                string           `json:"source,omitempty"`               // "amadeus" | "duffel" | "compare"
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link (e.g. Duffel)
 	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
-	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia etc) when source=compare
+	VendorName            string           `json:"vendorName,omitempty"`             // OTA name (kayak/expedia etc) when source=compare
 	CanonicalFingerprint  string           `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
+
+	// Codeshare / multi-seller (additive)
+	PrimaryMarketingCarrier string         `json:"primaryMarketingCarrier,omitempty"` // first segment marketing
+	PrimaryOperatingCarrier  string         `json:"primaryOperatingCarrier,omitempty"` // first segment operating (if codeshare)
+	IsCodeshare             bool           `json:"isCodeshare,omitempty"`
+	MarketedBy              []string       `json:"marketedBy,omitempty"`   // distinct marketing carriers selling this flight
+	CheapestSeller          string         `json:"cheapestSeller,omitempty"` // provider/source of the main (cheapest) offer
+	SellerOptions           []SellerOption `json:"sellerOptions,omitempty"` // other sellers for same physical flight
 }
 
 type SearchSessionResultsResponse struct {
@@ -1017,8 +1036,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		options = filtered
 	}
 
-	// Best-effort dedupe: same origin+dest, depart within 10 min, same carrier+flight when available.
-	options = dedupeFlightOptions(options)
+	// Codeshare-aware grouping: same operated flight (by CodeshareFingerprint) merged into one result; cheapest = main, others = sellerOptions.
+	options = groupCodeshareAndMerge(options)
 
 	// Ensure every option has sanitized segment times, carrier, and canonical outbound summary.
 	for i := range options {
@@ -1284,6 +1303,16 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 
 				carrierCode, _ := seg["carrierCode"].(string)
 				number, _ := seg["number"].(string)
+				var operatingCarrier *Carrier
+				var operatingFlightNum string
+				if op, ok := seg["operating"].(map[string]interface{}); ok {
+					if oc, ok := op["carrierCode"].(string); ok && oc != "" {
+						operatingCarrier = &Carrier{Code: strings.ToUpper(oc)}
+					}
+					if on, ok := op["number"].(string); ok && on != "" {
+						operatingFlightNum = on
+					}
+				}
 
 				cabinClass := req.CabinClass
 				if travelerPricings, ok := offer["travelerPricings"].([]interface{}); ok && len(travelerPricings) > 0 {
@@ -1299,14 +1328,16 @@ func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSess
 				}
 
 				segments = append(segments, FlightSegment{
-					From:             AirportLike{Code: strings.ToUpper(depCode)},
-					To:               AirportLike{Code: strings.ToUpper(arrCode)},
-					DepartureTime:    depTime,
-					ArrivalTime:      arrTime,
-					MarketingCarrier: Carrier{Code: carrierCode},
-					FlightNumber:     number,
-					DurationMinutes:  duration,
-					CabinClass:       cabinClass,
+					From:                 AirportLike{Code: strings.ToUpper(depCode)},
+					To:                   AirportLike{Code: strings.ToUpper(arrCode)},
+					DepartureTime:        depTime,
+					ArrivalTime:          arrTime,
+					MarketingCarrier:     Carrier{Code: strings.ToUpper(carrierCode)},
+					OperatingCarrier:     operatingCarrier,
+					FlightNumber:         number,
+					OperatingFlightNum:   operatingFlightNum,
+					DurationMinutes:      duration,
+					CabinClass:            cabinClass,
 				})
 				totalDuration += duration
 			}
@@ -1622,6 +1653,111 @@ func dedupeFlightOptions(opts []FlightOption) []FlightOption {
 	// Renumber IDs so GetSessionAndOption works (opt_0, opt_1, ...)
 	for i := range out {
 		out[i].ID = fmt.Sprintf("opt_%d", i)
+	}
+	return out
+}
+
+// groupCodeshareAndMerge groups options by operated-flight fingerprint (CodeshareFingerprint), keeps cheapest as main, attaches others as sellerOptions. One result per physical flight.
+func groupCodeshareAndMerge(opts []FlightOption) []FlightOption {
+	if len(opts) == 0 {
+		return opts
+	}
+	type keyIndex struct {
+		fp string
+		i  int
+	}
+	var withFP []keyIndex
+	for i := range opts {
+		if opts[i].CanonicalFingerprint == "" {
+			opts[i].CanonicalFingerprint = CanonicalFingerprint(&opts[i])
+		}
+		fp := CodeshareFingerprint(&opts[i])
+		if fp == "" {
+			fp = fmt.Sprintf("legacy_%d", i)
+		}
+		withFP = append(withFP, keyIndex{fp, i})
+	}
+	groups := make(map[string][]int)
+	for _, ki := range withFP {
+		groups[ki.fp] = append(groups[ki.fp], ki.i)
+	}
+	var out []FlightOption
+	for _, indices := range groups {
+		if len(indices) == 0 {
+			continue
+		}
+		sort.Slice(indices, func(a, b int) bool {
+			return opts[indices[a]].Price.Amount < opts[indices[b]].Price.Amount
+		})
+		cheapestIdx := indices[0]
+		main := opts[cheapestIdx]
+		main.CanonicalFingerprint = CanonicalFingerprint(&main)
+		var sellers []SellerOption
+		marketedBySet := make(map[string]struct{})
+		if len(main.Legs) > 0 && len(main.Legs[0].Segments) > 0 {
+			marketedBySet[strings.ToUpper(main.Legs[0].Segments[0].MarketingCarrier.Code)] = struct{}{}
+		}
+		for _, idx := range indices[1:] {
+			o := &opts[idx]
+			bookingURL := normalizeProviderBookingURL(o.DeepLink)
+			if bookingURL == "" {
+				bookingURL = normalizeProviderBookingURL(o.BookingURL)
+			}
+			carrier := ""
+			if len(o.Legs) > 0 && len(o.Legs[0].Segments) > 0 {
+				carrier = strings.ToUpper(o.Legs[0].Segments[0].MarketingCarrier.Code)
+				marketedBySet[carrier] = struct{}{}
+			}
+			sellers = append(sellers, SellerOption{
+				CarrierCode: carrier,
+				Provider:    o.Source,
+				VendorName:  o.VendorName,
+				Price:       o.Price,
+				BookingURL:  bookingURL,
+			})
+		}
+		main.SellerOptions = sellers
+		main.CheapestSeller = main.Source
+		for c := range marketedBySet {
+			main.MarketedBy = append(main.MarketedBy, c)
+		}
+		sort.Strings(main.MarketedBy)
+		isCodeshare := false
+		var primaryOperating string
+		for _, leg := range main.Legs {
+			for _, seg := range leg.Segments {
+				if seg.OperatingCarrier != nil && seg.OperatingCarrier.Code != "" {
+					if seg.OperatingCarrier.Code != seg.MarketingCarrier.Code {
+						isCodeshare = true
+					}
+					if primaryOperating == "" {
+						primaryOperating = seg.OperatingCarrier.Code
+					}
+					break
+				}
+			}
+		}
+		main.IsCodeshare = isCodeshare
+		main.PrimaryOperatingCarrier = primaryOperating
+		if len(main.Legs) > 0 && len(main.Legs[0].Segments) > 0 {
+			main.PrimaryMarketingCarrier = main.Legs[0].Segments[0].MarketingCarrier.Code
+		}
+		out = append(out, main)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Price.Amount < out[j].Price.Amount
+	})
+	for i := range out {
+		out[i].ID = fmt.Sprintf("opt_%d", i)
+	}
+	for i := range out {
+		fp := CodeshareFingerprint(&out[i])
+		if fp != "" {
+			if g, ok := groups[fp]; ok && len(g) > 1 {
+				log.Printf("[CODESHARE_GROUP] fingerprint=%s groupSize=%d isCodeshare=%t mainCarrier=%s operatedBy=%s marketedBy=%v cheapest=%.0f",
+					fp, len(g), out[i].IsCodeshare, out[i].PrimaryMarketingCarrier, out[i].PrimaryOperatingCarrier, out[i].MarketedBy, out[i].Price.Amount)
+			}
+		}
 	}
 	return out
 }
