@@ -9,7 +9,8 @@
     "scheme": "flight-captain",
     "web": {
       "bundler": "metro",
-      "description": "Compare flight prices and find cheap deals. Search one-way and round-trip flights, filter by stops and airlines, and discover cheaper routes from hub cities.",
+      "name": "Flight Captain – Compare Flight Prices & Find Cheap Deals",
+      "description": "Compare flight prices across airlines and find the cheapest deals. Search one-way and round-trip flights, filter by stops and airlines, explore monthly deals, and discover cheaper routes from hub cities. Book with one click.",
       "themeColor": "#6366f1"
     },
     "plugins": []

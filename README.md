@@ -89,6 +89,14 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - **Custom `index.html`:** Favicon links, `meta` keywords and robots, **Open Graph** (og:type, title, description, image, site_name), **Twitter Card** (card, title, description). Description and theme color can be injected from `app.json` (Expo web).
 - Optional: add `public/og-image.png` for social previews and `public/favicon.ico` for legacy browsers.
 
+### AdSense & consent (CMP)
+- **AdSense** script is loaded from `frontend/public/index.html` (client ID in the script `client=ca-pub-...`).
+- **Consent message (Google CMP)** for EEA, UK, and Switzerland: no extra code is required. The AdSense tag automatically shows the consent message once it is created and **published** in the AdSense UI:
+  1. In AdSense, go to **Privacy & messaging**.
+  2. Under **European regulations**, choose **Use Google's CMP** (e.g. 2 choices: Consent + Manage options, or 3 choices with Do not consent).
+  3. Create and **publish** the message; it will then appear for eligible users.
+- Test the message by appending `?fc=alwaysshow&fctype=gdpr` to a page URL (see [AdSense Help](https://support.google.com/adsense/answer/10924669)).
+
 ---
 
 ## Tech Stack
