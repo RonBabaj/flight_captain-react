@@ -195,6 +195,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     }[]
   >([]);
   const [positioningLoading, setPositioningLoading] = useState(false);
+  const positioningSessionKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
@@ -290,10 +291,15 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   };
 
   // ─── Positioning Flight Optimizer (Deals) ───────────────────────────────────
+  // Only clear positioning when search session actually changes (avoids wipe on re-render/Chrome iOS).
+  const positioningSessionKey = `${origin.trim().toUpperCase()}|${destination.trim().toUpperCase()}|${year}|${month}`;
 
   useEffect(() => {
-    if (!data || !origin.trim() || !destination.trim() || allDealsWithPrice.length === 0) {
+    if (positioningSessionKey !== positioningSessionKeyRef.current) {
+      positioningSessionKeyRef.current = positioningSessionKey;
       setPositioningOptions([]);
+    }
+    if (!data || !origin.trim() || !destination.trim() || allDealsWithPrice.length === 0) {
       return;
     }
     let cancelled = false;
@@ -379,8 +385,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination, year, month, durationDays, currency, adults, children, nonStop, data]);
+  }, [positioningSessionKey, origin, destination, year, month, durationDays, currency, adults, children, nonStop, data, allDealsWithPrice.length]);
 
   const openDetails = async (date: string) => {
     const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
@@ -442,7 +447,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const SORT_KEYS: Record<DealsSortField, string> = { price: 'cheapest', duration: 'fastest', best: 'best' };
 
   const sortBar = (
-    <View style={[sb.bar, isRTL && sb.barRTL]}>
+    <View style={[sb.bar, isRTL && { direction: 'rtl' }]}>
       <Text style={[sb.label, { color: theme.textMuted }]}>{t('sort_by')}</Text>
       <View style={[sb.pills, isRTL && sb.pillsRTL]}>
         {(['price', 'duration', 'best'] as DealsSortField[]).map((opt) => {
@@ -464,7 +469,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       </View>
       {isMobile && data != null && (
         <TouchableOpacity
-          style={[sb.filterBtn, { borderColor: theme.cardBorder }]}
+          style={[sb.filterBtn, { borderColor: theme.cardBorder }, isRTL && { marginLeft: 0, marginRight: 'auto' }]}
           onPress={() => setShowFilters(true)}
           activeOpacity={0.7}
         >
@@ -609,7 +614,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   // ─── Filters sidebar header + modal wrapper ────────────────────────────────
 
   const filtersHeader = (isModal: boolean) => (
-    <View style={[fl.headerRow, { borderBottomColor: theme.cardBorder }]}>
+    <View style={[fl.headerRow, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
       <Text style={[fl.headerTitle, { color: theme.text }]}>{t('filters')}</Text>
       {isModal && (
         <TouchableOpacity onPress={() => setShowFilters(false)} style={fl.closeBtn}>
@@ -668,19 +673,19 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         </TouchableOpacity>
       </View>
 
-      {/* Month navigator */}
-      <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
+      {/* Month navigator: in RTL, natural flow puts first child (Prev) on right, last (Next) on left — no row-reverse */}
+      <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
         <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={p.navBtn}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <AppIcon name="chevron-back" size={18} color={theme.primary} fallbackText={t('prev')} />
+          <View style={p.navBtnInner}>
+            <AppIcon name={isRTL ? 'chevron-forward' : 'chevron-back'} size={18} color={theme.primary} fallbackText={t('prev')} />
             <Text style={[p.navText, { color: theme.primary }]}>{t('prev')}</Text>
           </View>
         </TouchableOpacity>
         <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
         <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={p.navBtn}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={p.navBtnInner}>
             <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
-            <AppIcon name="chevron-forward" size={18} color={theme.primary} fallbackText={t('next')} />
+            <AppIcon name={isRTL ? 'chevron-back' : 'chevron-forward'} size={18} color={theme.primary} fallbackText={t('next')} />
           </View>
         </TouchableOpacity>
       </View>
@@ -694,12 +699,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         activeOpacity={0.8}
       >
         {isLoading ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <ActivityIndicator size="small" color={theme.buttonText} />
-            <Animated.Text style={[p.searchBtnText, { color: theme.buttonText, opacity: dealsFade }]}>
-              {dealsPhrases[dealsPhrase]}
-            </Animated.Text>
-          </View>
+          <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('searching')}</Text>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
@@ -715,7 +715,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const resultsContent = (
     isLoading && !data ? (
       <View style={p.loaderWrap}>
-        <ActivityIndicator size="large" color={theme.primary} style={{ marginBottom: 16 }} />
         <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
           <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
         </View>
@@ -753,21 +752,21 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
               onPress={() => openDetails(day.date)}
               activeOpacity={0.7}
             >
-              <View style={p.dealTop}>
+              <View style={[p.dealTop, isRTL && { flexDirection: 'row-reverse' }]}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {/* Departure → Return dates */}
-                  <Text style={[p.dealDate, { color: theme.text }]}>
+                  <Text style={[p.dealDate, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
                     {formatDealDate(day.date)}{routeSep}{retStr}
                   </Text>
                   {/* Outbound route: TLV → ADD → BKK → HND */}
-                  <Text style={[p.dealRoute, { color: theme.textMuted }]} numberOfLines={1}>
+                  <Text style={[p.dealRoute, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
                     {(day.outboundPath && day.outboundPath.length > 1)
                       ? day.outboundPath.join(routeSep)
                       : `${o}${routeSep}${d}`}
                   </Text>
                   {/* Return route: HND → DOH → LCA → TLV */}
                   {(day.returnPath && day.returnPath.length > 1) && (
-                    <Text style={[p.dealRoute, { color: theme.textMuted }]} numberOfLines={1}>
+                    <Text style={[p.dealRoute, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
                       {day.returnPath.join(routeSep)}
                     </Text>
                   )}
@@ -805,13 +804,13 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             {positioningOptions.map((opt) => (
               <View
                 key={opt.hubAirport}
-                style={[p.positioningRow, { borderColor: theme.cardBorder }]}
+                style={[p.positioningRow, { borderColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}
               >
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[p.positioningHub, { color: theme.text }]}>
+                  <Text style={[p.positioningHub, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
                     {opt.hubAirport}
                   </Text>
-                  <Text style={[p.positioningMeta, { color: theme.textMuted }]}>
+                  <Text style={[p.positioningMeta, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
                     {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} ·{' '}
                     {t('save_label') || 'save'} {opt.savings.currency}{' '}
                     {opt.savings.amount.toFixed(0)}
@@ -865,8 +864,8 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       <View style={[m.overlay, isNarrow && m.overlaySheet]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDetails(false)} />
         <View style={modalContainerStyle}>
-          {/* Header */}
-          <View style={[m.header, { borderBottomColor: theme.cardBorder }]}>
+          {/* Header (RTL swaps title and close) */}
+          <View style={[m.header, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
             <View>
               <Text style={[m.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
               {selectedDate && <Text style={[m.headerSub, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>}
@@ -892,8 +891,8 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           {/* Content */}
           {details && !detailsLoading && (
             <ScrollView style={m.scroll} contentContainerStyle={m.scrollContent} bounces={false}>
-              {/* Price + summary */}
-              <View style={m.summaryRow}>
+              {/* Price + summary (RTL swaps sides) */}
+              <View style={[m.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
                 <Text style={[m.price, { color: theme.primary }]}>
                   {(() => {
                     const { amount: a, currency: c } = getDisplayPrice(details.totalPrice.amount, details.totalPrice.currency, currency);
@@ -901,7 +900,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                     return `${sym} ${a.toFixed(0)}`;
                   })()}
                 </Text>
-                <View style={m.summaryMeta}>
+                <View style={[m.summaryMeta, isRTL && { alignItems: 'flex-start' }]}>
                   <Text style={[m.summaryMuted, { color: theme.textMuted }]}>
                     {details.stops.outbound + details.stops.return === 0 ? t('direct') : `${details.stops.outbound + details.stops.return} ${t('stops')}`}
                   </Text>
@@ -945,8 +944,9 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       {hasResultsLayout ? (
-        <View style={[p.twoCols, isRTL && { flexDirection: 'row-reverse' }]}>
-          <View style={[p.heroCol, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightColor: theme.cardBorder }]}>
+        /* Same as main search: parent direction:rtl puts 1st col (search) on right, 3rd (filters) on left. No row-reverse. */
+        <View style={p.twoCols}>
+          <View style={[p.heroCol, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightWidth: 1, borderRightColor: theme.cardBorder }]}>
             <ScrollView contentContainerStyle={p.heroColContent} keyboardShouldPersistTaps="handled">{heroCard}</ScrollView>
           </View>
           <ScrollView style={p.resultsCol} contentContainerStyle={p.resultsColContent}>{resultsContent}</ScrollView>
@@ -961,7 +961,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           {heroCard}
           {isLoading && !data ? (
             <View style={p.loaderWrap}>
-              <ActivityIndicator size="large" color={theme.primary} style={{ marginBottom: 16 }} />
               <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
                 <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
               </View>
@@ -1047,10 +1046,10 @@ function renderLeg(
 
 const p = StyleSheet.create({
   twoCols: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
-  heroCol: { width: 280, minWidth: 240, borderRightWidth: 1 },
-  heroColContent: { padding: 14, paddingBottom: 40 },
+  heroCol: { width: 320, minWidth: 280, borderRightWidth: 1 },
+  heroColContent: { padding: 18, paddingBottom: 40 },
   resultsCol: { flex: 1, minWidth: 0 },
-  resultsColContent: { padding: 16, paddingBottom: 40 },
+  resultsColContent: { padding: 20, paddingBottom: 40 },
   filterCol: { width: 240, minWidth: 200 },
   contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%' },
 
@@ -1067,10 +1066,11 @@ const p = StyleSheet.create({
   stepBtnText: { fontSize: 20, fontWeight: '600' },
   stepValue: { fontSize: 16, minWidth: 56, textAlign: 'center' },
 
-  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12, borderWidth: 1, borderRadius: 12 },
-  navBtn: { padding: 6 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 18, marginBottom: 12, borderWidth: 1, borderRadius: 12 },
+  navBtn: {},
+  navBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   navText: { fontWeight: '600', fontSize: 14 },
-  monthTitle: { fontSize: 16, fontWeight: '700' },
+  monthTitle: { fontSize: 16, fontWeight: '700', marginHorizontal: 16 },
 
   error: { marginTop: 10, fontSize: 14 },
 
@@ -1089,8 +1089,8 @@ const p = StyleSheet.create({
   list: { marginTop: 4 },
   listTitle: { fontSize: 13, marginBottom: 10 },
 
-  dealCard: { borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
-  dealTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  dealCard: { borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1 },
+  dealTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
   dealDate: { fontSize: 14, fontWeight: '600' },
   dealRoute: { fontSize: 12, marginTop: 2 },
   dealStops: { fontSize: 11, marginTop: 2 },
@@ -1198,7 +1198,6 @@ const m = StyleSheet.create({
 
 const sb = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 2, flexWrap: 'wrap' },
-  barRTL: { flexDirection: 'row-reverse' },
   label: { fontSize: 13, fontWeight: '500' },
   pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pillsRTL: { flexDirection: 'row-reverse' },

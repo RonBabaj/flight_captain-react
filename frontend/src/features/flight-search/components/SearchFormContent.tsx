@@ -50,7 +50,7 @@ export function SearchFormContent({
   onPassengerCabinDone,
 }: SearchFormContentProps) {
   const { theme } = useTheme();
-  const { t, language } = useLocale();
+  const { t, language, isRTL } = useLocale();
   const [showCalendar, setShowCalendar] = useState(false);
   const ts = makeThemedStyles(theme);
 
@@ -78,7 +78,9 @@ export function SearchFormContent({
   const dateLabel =
     tripType === 'round-trip'
       ? params.departureDate && params.returnDate
-        ? `${params.departureDate} → ${params.returnDate}`
+        ? isRTL
+          ? `${params.returnDate} ← ${params.departureDate}`
+          : `${params.departureDate} → ${params.returnDate}`
         : t('select_dates')
       : params.departureDate || t('select_date');
 
@@ -125,7 +127,7 @@ export function SearchFormContent({
         onPress={() => setShowCalendar(true)}
         activeOpacity={0.7}
       >
-        <Text style={[ts.dateText, compact && { fontSize: 14 }]}>{dateLabel}</Text>
+        <Text style={[ts.dateText, compact && { fontSize: 14 }, isRTL && { textAlign: 'right' }]}>{dateLabel}</Text>
       </TouchableOpacity>
 
       <DateRangePicker

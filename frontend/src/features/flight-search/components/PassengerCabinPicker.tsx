@@ -168,7 +168,7 @@ export function PassengerCabinPicker({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  label: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 8 },
   trigger: {
     borderWidth: 1,
     borderRadius: 12,

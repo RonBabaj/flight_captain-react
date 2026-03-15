@@ -330,13 +330,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
   },
   titleWrap: {
     minWidth: 0,
     flex: 1,
+    paddingHorizontal: 16,
   },
   title: {
     fontSize: 18,
@@ -371,12 +372,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   localeBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   localeBtnText: { fontSize: 18 },
   themeToggle: {
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingHorizontal: 10,
   },
   themeToggleRTL: {},
@@ -425,8 +426,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mobileMenuBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   mobileMenuPanel: {
     width: '100%',

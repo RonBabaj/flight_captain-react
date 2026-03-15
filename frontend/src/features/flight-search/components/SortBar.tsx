@@ -21,7 +21,7 @@ export function SortBar({ sortField, sortOrder, onSort }: SortBarProps) {
   const opts: SortOption[] = ['price', 'duration', 'best'];
 
   return (
-    <View style={[s.bar, isRTL && s.barRTL]}>
+    <View style={[s.bar, isRTL && { direction: 'rtl' }]}>
       <Text style={[s.label, { color: theme.textMuted }]}>{t('sort_by')}</Text>
       <View style={[s.pills, isRTL && s.pillsRTL]}>
         {opts.map((opt) => {
@@ -65,7 +65,6 @@ const s = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  barRTL: { flexDirection: 'row-reverse' },
   label: { fontSize: 13, fontWeight: '500' },
   pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 },
   pillsRTL: { flexDirection: 'row-reverse' },
