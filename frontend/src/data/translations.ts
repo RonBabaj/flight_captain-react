@@ -66,6 +66,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   load_more: { en: 'Load more', he: 'טען עוד', ru: 'Ещё' },
   searching: { en: 'Searching…', he: 'מחפש…', ru: 'Поиск…' },
   searching_flights: { en: 'Searching for flights…', he: 'מחפש טיסות…', ru: 'Ищем рейсы…' },
+  searching_cheaper_cities: { en: 'Searching cheaper departure cities…', he: 'מחפש ערי יציאה זולות יותר…', ru: 'Ищем более дешёвые города вылета…' },
   no_flights_match: { en: 'No flights match your filters', he: 'אין טיסות תואמות', ru: 'Нет подходящих рейсов' },
   no_flights_found: { en: 'No flights found for these dates', he: 'לא נמצאו טיסות לתאריכים אלו', ru: 'Рейсы на эти даты не найдены' },
   no_flights_tip: { en: 'Try different dates or airports', he: 'נסה תאריכים או שדות תעופה אחרים', ru: 'Попробуйте другие даты или аэропорты' },

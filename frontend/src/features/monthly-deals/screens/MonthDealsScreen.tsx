@@ -232,7 +232,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         dealsActions.setData(res);
         if (typeof window !== 'undefined') {
           setPendingDealsParams({ origin: o, destination: d, year, month, durationDays, adults, children, nonStop });
-          window.location.reload();
         }
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
@@ -298,8 +297,10 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     if (positioningSessionKey !== positioningSessionKeyRef.current) {
       positioningSessionKeyRef.current = positioningSessionKey;
       setPositioningOptions([]);
+      setPositioningLoading(false);
     }
     if (!data || !origin.trim() || !destination.trim() || allDealsWithPrice.length === 0) {
+      setPositioningLoading(false);
       return;
     }
     let cancelled = false;
@@ -384,6 +385,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     run();
     return () => {
       cancelled = true;
+      setPositioningLoading(false);
     };
   }, [positioningSessionKey, origin, destination, year, month, durationDays, currency, adults, children, nonStop, data, allDealsWithPrice.length]);
 
