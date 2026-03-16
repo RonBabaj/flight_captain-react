@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Flight Captain",
-    "slug": "flight-captain-web",
+    "name": "Fly-Fix",
+    "slug": "fly-fix-web",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "flight-captain",
+    "scheme": "fly-fix",
     "web": {
       "bundler": "metro",
-      "name": "Flight Captain – Compare Flight Prices & Find Cheap Deals",
+      "name": "Fly-Fix – Compare Flight Prices & Find Cheap Deals",
       "description": "Compare flight prices across airlines and find the cheapest deals. Search one-way and round-trip flights, filter by stops and airlines, explore monthly deals, and discover cheaper routes from hub cities. Book with one click.",
       "themeColor": "#6366f1"
     },

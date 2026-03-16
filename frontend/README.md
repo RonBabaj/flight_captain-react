@@ -1,4 +1,4 @@
-# Flight Captain – Frontend
+# Fly-Fix – Frontend
 
 React Native + Expo frontend for the flight search engine (Skyscanner-style). Works on web (React Native Web), iOS, and Android.
 

@@ -1,4 +1,4 @@
-# Flight Captain
+# Fly-Fix
 
 A Skyscanner-style flight metasearch app: **Go backend** (Amadeus, Duffel, Google Flights) + **React Native (Expo) frontend** for web, iOS, and Android.
 
