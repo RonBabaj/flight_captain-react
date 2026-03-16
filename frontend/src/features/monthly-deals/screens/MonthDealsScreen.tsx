@@ -960,7 +960,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           )}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={p.contentSingle} keyboardShouldPersistTaps="handled">
+        <ScrollView style={p.scrollSingle} contentContainerStyle={p.contentSingle} keyboardShouldPersistTaps="handled">
           {heroCard}
           {isLoading && !data ? (
             <View style={p.loaderWrap}>
@@ -1054,7 +1054,8 @@ const p = StyleSheet.create({
   resultsCol: { flex: 1, minWidth: 0 },
   resultsColContent: { padding: 20, paddingBottom: 40 },
   filterCol: { width: 240, minWidth: 200 },
-  contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  scrollSingle: { flex: 1 },
+  contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%', flexGrow: 1 },
 
   hero: { borderRadius: 16, padding: 18, borderWidth: 1 },
   heroCenter: { marginBottom: 20 },
