@@ -19,6 +19,7 @@ import { useDealsStore, dealsActions } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl } from '../../../api';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
+import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
@@ -134,11 +135,12 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const isMobile = useIsMobile();
   const { width: screenW } = useWindowDimensions();
   const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
-  const [origin, setOrigin] = useState(route?.origin ?? 'TLV');
-  const [destination, setDestination] = useState(route?.destination ?? 'HND');
-  const [adults, setAdults] = useState(1);
-  const [children, setChildren] = useState(0);
-  const [nonStop, setNonStop] = useState(false);
+  const pending = typeof window !== 'undefined' ? getPendingDealsParams() : null;
+  const [origin, setOrigin] = useState(pending?.origin ?? route?.origin ?? 'TLV');
+  const [destination, setDestination] = useState(pending?.destination ?? route?.destination ?? 'HND');
+  const [adults, setAdults] = useState(pending?.adults ?? 1);
+  const [children, setChildren] = useState(pending?.children ?? 0);
+  const [nonStop, setNonStop] = useState(pending?.nonStop ?? false);
   const [visibleCount, setVisibleCount] = useState(10);
 
   // Rotating loading phrases
@@ -203,12 +205,36 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   useEffect(() => { setVisibleCount(10); }, [data]);
 
   useEffect(() => {
+    const toRestore = typeof window !== 'undefined' ? getPendingDealsParams() : null;
+    if (!toRestore || !toRestore.origin?.trim() || !toRestore.destination?.trim()) return;
+    if (toRestore.year) dealsActions.setMonth(toRestore.year, toRestore.month);
+    if (toRestore.durationDays) dealsActions.setDurationDays(toRestore.durationDays);
+    clearPendingDealsParams();
+    dealsActions.setLoading(true);
+    dealsActions.setError(null);
+    getMonthDeals({
+      origin: toRestore.origin.trim(), destination: toRestore.destination.trim(),
+      year: toRestore.year, month: toRestore.month, durationDays: toRestore.durationDays,
+      currency, adults: toRestore.adults, children: toRestore.children, nonStop: toRestore.nonStop,
+    })
+      .then(res => dealsActions.setData(res))
+      .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
+      .finally(() => dealsActions.setLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (!data || !origin.trim() || !destination.trim()) return;
     const o = origin.trim(), d = destination.trim();
     dealsActions.setLoading(true);
     dealsActions.setError(null);
     getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
-      .then(res => dealsActions.setData(res))
+      .then(res => {
+        dealsActions.setData(res);
+        if (typeof window !== 'undefined') {
+          setPendingDealsParams({ origin: o, destination: d, year, month, durationDays, adults, children, nonStop });
+          window.location.reload();
+        }
+      })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
