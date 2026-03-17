@@ -121,10 +121,25 @@ function layoverBetween(segs: FlightSegment[], idx: number): number {
 }
 
 function formatDealDate(dateStr: string): string {
-  const d = new Date(dateStr + 'Z');
+  const safe = (dateStr ?? '').slice(0, 10); // tolerate 'YYYY-MM-DD...' inputs
+  const d = new Date(`${safe}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return safe || String(dateStr);
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const monthShort = MONTHS[d.getUTCMonth()].slice(0, 3);
   return `${weekdays[d.getUTCDay()]}, ${monthShort} ${d.getUTCDate()}`;
+}
+
+function parseDealYmdToUTCDate(dateStr: string): Date | null {
+  const safe = (dateStr ?? '').slice(0, 10);
+  const d = new Date(`${safe}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toYmdUTC(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
@@ -741,10 +756,13 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         {visibleDeals.map((day) => {
           const { amount, currency: cur } = getDisplayPrice(day.lowestPrice!.amount, day.lowestPrice!.currency, currency);
           const sym = getCurrencySymbol(cur);
-          const depDate = new Date(day.date + 'T00:00:00Z');
-          const retDate = new Date(depDate);
-          retDate.setUTCDate(retDate.getUTCDate() + durationDays);
-          const retStr = formatDealDate(retDate.toISOString().slice(0, 10));
+          const depDate = parseDealYmdToUTCDate(day.date);
+          const retStr = (() => {
+            if (!depDate) return '';
+            const retDate = new Date(depDate);
+            retDate.setUTCDate(retDate.getUTCDate() + durationDays);
+            return formatDealDate(toYmdUTC(retDate));
+          })();
           const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
           const routeSep = isRTL ? ' ← ' : ' → ';
           return (
@@ -758,7 +776,7 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {/* Departure → Return dates */}
                   <Text style={[p.dealDate, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-                    {formatDealDate(day.date)}{routeSep}{retStr}
+                    {formatDealDate(day.date)}{retStr ? `${routeSep}${retStr}` : ''}
                   </Text>
                   {/* Outbound route: TLV → ADD → BKK → HND */}
                   <Text style={[p.dealRoute, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
