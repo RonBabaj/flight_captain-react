@@ -19,6 +19,42 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, errorValue: error };
   }
 
+  private onWindowError: ((event: any) => void) | null = null;
+  private onUnhandledRejection: ((event: any) => void) | null = null;
+
+  componentDidMount() {
+    if (typeof window === 'undefined') return;
+
+    this.onWindowError = (event: any) => {
+      // eslint-disable-next-line no-console
+      console.error('[GlobalError]', {
+        message: event?.message,
+        error: event?.error,
+        filename: event?.filename,
+        lineno: event?.lineno,
+        colno: event?.colno,
+        href: window.location?.href,
+      });
+    };
+
+    this.onUnhandledRejection = (event: any) => {
+      // eslint-disable-next-line no-console
+      console.error('[UnhandledRejection]', {
+        reason: event?.reason,
+        href: window.location?.href,
+      });
+    };
+
+    window.addEventListener('error', this.onWindowError);
+    window.addEventListener('unhandledrejection', this.onUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    if (typeof window === 'undefined') return;
+    if (this.onWindowError) window.removeEventListener('error', this.onWindowError);
+    if (this.onUnhandledRejection) window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
+  }
+
   componentDidCatch(error: unknown, info: { componentStack: string }) {
     // This captures React's component stack even if `error` is `null`.
     // It’s intentionally noisy until we nail the root cause.
@@ -43,6 +79,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    const err = this.state.errorValue as any;
+    const errText =
+      err == null ? String(err) : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    const errStack = err && typeof err === 'object' && 'stack' in err ? String(err.stack) : '';
+
     return (
       <View style={s.wrap}>
         <Text style={s.title}>{this.props.title ?? 'Something went wrong'}</Text>
@@ -50,11 +91,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <Pressable onPress={this.reset} style={s.btn}>
           <Text style={s.btnText}>Try again</Text>
         </Pressable>
-        {!!this.state.componentStack && (
-          <Text style={s.stack} numberOfLines={8}>
-            {this.state.componentStack.trim()}
-          </Text>
-        )}
+        <Text style={s.stack}>
+          {`Thrown value: ${errText}`}
+        </Text>
+        {!!errStack && <Text style={s.stack}>{errStack}</Text>}
+        {!!this.state.componentStack && <Text style={s.stack}>{this.state.componentStack.trim()}</Text>}
       </View>
     );
   }
