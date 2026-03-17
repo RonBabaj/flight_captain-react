@@ -232,7 +232,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
         dealsActions.setData(res);
         if (typeof window !== 'undefined') {
           setPendingDealsParams({ origin: o, destination: d, year, month, durationDays, adults, children, nonStop });
-          window.location.reload();
         }
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
