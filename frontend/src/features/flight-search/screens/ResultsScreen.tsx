@@ -32,6 +32,7 @@ import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { getCurrencySymbol } from '../../../utils/exchangeRates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
+import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -632,67 +633,19 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     setPositioningDetails(opt);
   };
 
-  const positioningSection =
-    positioningLoading ? (
-      <View style={styles.positioningSection}>
-        <Text style={[styles.positioningTitle, { color: theme.textMuted }]}>
-          Searching for cheaper departure cities…
-        </Text>
-      </View>
-    ) : positioningOptions && positioningOptions.length > 0 ? (
-      <View style={styles.positioningSection}>
-        <TouchableOpacity
-          style={styles.positioningHeaderRow}
-          onPress={() => isMobile && setCheaperCitiesFolded((f) => !f)}
-          activeOpacity={isMobile ? 0.7 : 1}
-          disabled={!isMobile}
-        >
-          <Text style={[styles.positioningTitle, { color: theme.text }]}>
-            Cheaper departure cities
-          </Text>
-          {isMobile && (
-            <View style={styles.positioningFoldTrigger}>
-              <Text style={[styles.positioningFoldTriggerText, { color: theme.primary }]}>
-                {cheaperCitiesFolded
-                  ? `Show ${positioningOptions.length} cities`
-                  : 'Collapse'}
-              </Text>
-              <AppIcon
-                name={cheaperCitiesFolded ? 'chevron-down' : 'chevron-up'}
-                size={18}
-                color={theme.primary}
-              />
-            </View>
-          )}
-        </TouchableOpacity>
-        {(!isMobile || !cheaperCitiesFolded) &&
-          positioningOptions.map((opt) => (
-            <View
-              key={opt.hubAirport}
-              style={[styles.positioningRow, { borderColor: theme.cardBorder }]}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.positioningHub, { color: theme.text }]}>
-                  {opt.hubAirport}
-                </Text>
-                <Text style={[styles.positioningMeta, { color: theme.textMuted }]}>
-                  {getCurrencySymbol(opt.totalPrice.currency)} {opt.totalPrice.amount.toFixed(0)} · save{' '}
-                  {getCurrencySymbol(opt.savings.currency)} {opt.savings.amount.toFixed(0)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.positioningBtn, { backgroundColor: theme.controlBg }]}
-                onPress={makeViewCombinationHandler(opt)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.positioningBtnText, { color: theme.primary }]}>
-                  View
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-      </View>
-    ) : null;
+  const positioningSection = (
+    <CheaperCitiesSection
+      loading={positioningLoading}
+      options={positioningOptions}
+      isMobile={isMobile}
+      folded={cheaperCitiesFolded}
+      onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+      onView={(hub) => {
+        const opt = positioningOptions.find((o) => o.hubAirport === hub);
+        if (opt) setPositioningDetails(opt);
+      }}
+    />
+  );
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (

@@ -17,3 +17,8 @@ export type RootStackParamList = {
 
 export type SearchFormProps = NativeStackScreenProps<SearchStackParamList, 'SearchForm'>;
 export type ResultsProps = NativeStackScreenProps<SearchStackParamList, 'Results'>;
+
+export type MonthDealsStackParamList = {
+  MonthDealsForm: undefined;
+  MonthDealsResults: undefined;
+};

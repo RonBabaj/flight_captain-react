@@ -67,7 +67,11 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Options with savings over $80 are shown in a **"Cheaper departure cities"** section: hub code, total price, savings, and per-leg prices.
 - **Desktop:** section appears in the right sidebar below the filters. **Mobile:** section appears below the flight cards.
 - **"View combination"** opens a modal with both legs (positioning + main flight) and a **"Book both legs"** button that opens partner booking URLs for each leg.
-- **Stability:** The section is only cleared when the search session (origin/destination/year/month) actually changes, so it no longer disappears on re-render or on Chrome iOS.
+- **Monthly Deals parity:** Monthly Deals reuses the same `CheaperCitiesSection` UI component as the main search results.
+- **Click behavior (Monthly Deals):** Clicking a hub runs the Monthly Deals flow again using the hub as an extra leg (origin → hub → destination), preserving month/duration/passenger/cabin inputs.
+- **Stability:** The section is only cleared when the search session (origin/destination/year/month) actually changes, and the optimizer is resilient to intermittent API failures (module-scope promise cache + single-leg retry). Debug logs:
+  - `[MONTHLY_POSITIONING] origin=... hub=... dest=... total=... savings=...`
+  - `[MONTHLY_POSITIONING_RENDER] optionsCount=...`
 
 ### Loading & progress
 - **Search (main form):** On "Search", a full-screen **SearchLoadingOverlay** appears with a spinner, route (e.g. TLV → HND), and **rotating status text** (e.g. "Searching hundreds of airlines…", "Comparing prices…") in the active language (EN/HE/RU).
@@ -215,11 +219,11 @@ Summary of recent changes:
 |------|--------|
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
-| **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Same logic on main search and monthly deals. |
+| **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Monthly Deals uses the shared `CheaperCitiesSection` UI and the positioning optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry). |
 | **Fly-Fix: Production 404** | `frontend/public/.htaccess` rewrites non-file requests to `/index.html` for SPA routing on Hostinger/Apache. |
 | **Fly-Fix: Monthly Deals UX** | Loading: single rotating message below progress bar only; search button shows static "Searching…". Layout: wider search column (320px), more padding in hero and results; month nav has horizontal margins; deal cards have more padding/gap; nav buttons have no extra padding. |
 | **Loading UX** | Full-screen search overlay with rotating status text (EN/HE/RU); search button shows spinner + rotating phrases; results page loading banner with animated progress bar and cycling messages; monthly deals use progress bar + single rotating text below (see Fly-Fix). |
-| **Positioning optimizer** | "Cheaper departure cities" for any origin/destination; hub list ATH, VIE, BUD, FCO, MXP, SOF, OTP; section in sidebar (desktop) or below results (mobile); "View combination" modal with "Book both legs" for each leg. |
+| **Positioning optimizer** | "Cheaper departure cities" for any origin/destination; hub list ATH, VIE, BUD, FCO, MXP, SOF, OTP; UI rendered via shared `CheaperCitiesSection` on both main search and Monthly Deals; selecting a hub re-runs Monthly Deals as origin → hub → destination. Optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry) and emits `[MONTHLY_POSITIONING]` / `[MONTHLY_POSITIONING_RENDER]` logs. |
 | **Responsive** | Hamburger nav on small screens; Filters button moved to its own row between sort and cards on mobile; flight details modal sized for narrow viewports (max height/width). |
 | **Favicon** | Primary favicon: PNG (paper plane in dark purple circle with light border) at `frontend/public/favicon.png`. |
 | **SEO** | Custom `frontend/public/index.html` with favicon, meta keywords/robots, Open Graph, Twitter Card; `app.json` web description and theme color for injection. |

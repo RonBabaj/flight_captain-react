@@ -20,7 +20,13 @@ const linking = {
           Results: 'results',
         },
       },
-      MonthDeals: 'deals',
+      MonthDeals: {
+        path: 'deals',
+        screens: {
+          MonthDealsForm: '',
+          MonthDealsResults: 'results',
+        },
+      },
     },
   },
 };

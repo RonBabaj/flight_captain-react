@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Animated,
   Modal,
   Pressable,
   Linking,
@@ -26,7 +25,14 @@ import type { LanguageCode } from '../../../data/translations';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import type { DayDeal, FlightDetailsResponse, FlightSegment, MonetaryAmount } from '../../../types';
+import type { DayDeal, FlightDetailsResponse, FlightSegment, MonetaryAmount, MonthDealsResponse } from '../../../types';
+import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
+import { CheaperCitiesSection } from '../../flight-search/components/CheaperCitiesSection';
+import type { CheaperCitiesOption } from '../../flight-search/components/CheaperCitiesSection';
+
+// Module-scope cache so the optimizer remains stable across dev-mode remounts
+// (React StrictMode can mount/unmount components during development).
+const POSITIONING_DEALS_PROMISE_CACHE = new Map<string, Promise<MonthDealsResponse>>();
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -142,9 +148,28 @@ function toYmdUTC(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function getMonthDealsPositioningCached(params: {
+  origin: string;
+  destination: string;
+  year: number;
+  month: number;
+  durationDays: number;
+  currency: string;
+  adults: number;
+  children: number;
+  nonStop: boolean;
+}): Promise<MonthDealsResponse> {
+  const key = `${params.origin}|${params.destination}|${params.year}|${params.month}|${params.durationDays}|${params.currency}|${params.adults}|${params.children}|${params.nonStop ? 1 : 0}`;
+  const cached = POSITIONING_DEALS_PROMISE_CACHE.get(key);
+  if (cached) return cached;
+  const p = getMonthDeals(params);
+  POSITIONING_DEALS_PROMISE_CACHE.set(key, p);
+  return p;
+}
+
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
-export function MonthDealsScreen({ navigation }: { navigation: any }) {
+export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: any; view?: 'form' | 'results' }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language } = useLocale();
   const isMobile = useIsMobile();
@@ -158,35 +183,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const [nonStop, setNonStop] = useState(pending?.nonStop ?? false);
   const [visibleCount, setVisibleCount] = useState(10);
 
-  // Rotating loading phrases
-  const DEALS_PHRASES: Record<string, string[]> = {
-    en: ['Scanning deals for the whole month…', 'Comparing lowest fares…', 'Finding the best dates…', 'Almost ready…'],
-    he: ['סורק דילים לכל החודש…', 'משווה את המחירים הנמוכים…', 'מוצא את התאריכים הטובים…', 'כמעט מוכן…'],
-    ru: ['Сканируем предложения за весь месяц…', 'Сравниваем самые низкие тарифы…', 'Ищем лучшие даты…', 'Почти готово…'],
-  };
-  const dealsLang = language ?? 'en';
-  const dealsPhrases = DEALS_PHRASES[dealsLang] ?? DEALS_PHRASES.en;
-  const [dealsPhrase, setDealsPhrase] = useState(0);
-  const dealsFade = useRef(new Animated.Value(1)).current;
-  const dealsProgress = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!isLoading) { setDealsPhrase(0); dealsFade.setValue(1); dealsProgress.setValue(0); return; }
-    const anim = Animated.loop(Animated.sequence([
-      Animated.timing(dealsProgress, { toValue: 1, duration: 2400, useNativeDriver: false }),
-      Animated.timing(dealsProgress, { toValue: 0, duration: 0, useNativeDriver: false }),
-    ]));
-    anim.start();
-    const id = setInterval(() => {
-      Animated.sequence([
-        Animated.timing(dealsFade, { toValue: 0, duration: 220, useNativeDriver: true }),
-        Animated.timing(dealsFade, { toValue: 1, duration: 220, useNativeDriver: true }),
-      ]).start();
-      setDealsPhrase((i) => (i + 1) % dealsPhrases.length);
-    }, 2400);
-    return () => { clearInterval(id); anim.stop(); };
-  }, [isLoading, dealsPhrases.length]);
-  const dealsProgressWidth = dealsProgress.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
-
   const [showDetails, setShowDetails] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -195,22 +191,17 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const [stopsOpen, setStopsOpen] = useState(true);
   const [daysOpen, setDaysOpen] = useState(true);
   const [priceOpen, setPriceOpen] = useState(true);
   const [airlinesOpen, setAirlinesOpen] = useState(true);
 
-  const [positioningOptions, setPositioningOptions] = useState<
-    {
-      hubAirport: string;
-      positioningPrice: MonetaryAmount;
-      hubFlightPrice: MonetaryAmount;
-      totalPrice: MonetaryAmount;
-      savings: MonetaryAmount;
-    }[]
-  >([]);
+  const [positioningOptions, setPositioningOptions] = useState<CheaperCitiesOption[]>([]);
   const [positioningLoading, setPositioningLoading] = useState(false);
+  const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
   const positioningSessionKeyRef = useRef<string>('');
+  const positioningLoadTokenRef = useRef(0);
 
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
@@ -299,110 +290,298 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     dealsActions.setLoading(true);
     dealsActions.setError(null);
     getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
-      .then(res => dealsActions.setData(res))
+      .then(res => {
+        dealsActions.setData(res);
+        setShowEditSearchModal(false);
+        try {
+          navigation?.navigate?.('MonthDealsResults');
+        } catch {}
+      })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
   };
 
-  // ─── Positioning Flight Optimizer (Deals) ───────────────────────────────────
-  // Only clear positioning when search session actually changes (avoids wipe on re-render/Chrome iOS).
-  const positioningSessionKey = `${origin.trim().toUpperCase()}|${destination.trim().toUpperCase()}|${year}|${month}`;
+  const mergePathOutbound = (p1?: string[], p2?: string[], fallback?: string[]) => {
+    if (p1 && p2 && p1.length > 0 && p2.length > 0) {
+      if (p1[p1.length - 1] === p2[0]) return [...p1, ...p2.slice(1)];
+      return [...p1, ...p2];
+    }
+    return fallback;
+  };
+
+  const mergePathReturn = (rDestToHub?: string[], rHubToOrigin?: string[], fallback?: string[]) => {
+    // For the combined round-trip, we want: destination -> ... -> hub -> ... -> origin
+    // leg2.returnPath is destination -> ... -> hub
+    // leg1.returnPath is hub -> ... -> origin
+    if (rDestToHub && rHubToOrigin && rDestToHub.length > 0 && rHubToOrigin.length > 0) {
+      if (rDestToHub[rDestToHub.length - 1] === rHubToOrigin[0]) {
+        return [...rDestToHub, ...rHubToOrigin.slice(1)];
+      }
+      return [...rDestToHub, ...rHubToOrigin];
+    }
+    return fallback;
+  };
+
+  const combineLegsForHub = (leg1: MonthDealsResponse, leg2: MonthDealsResponse, hubAirport: string, o: string, d: string): MonthDealsResponse => {
+    const byDateLeg2 = new Map<string, DayDeal>(leg2.days.map((x) => [x.date, x]));
+    const days: DayDeal[] = leg1.days.map((day1) => {
+      const day2 = byDateLeg2.get(day1.date);
+
+      const lp1 = day1.lowestPrice;
+      const lp2 = day2?.lowestPrice;
+      const hasAnyPrice = !!lp1 || !!lp2;
+
+      const lowestPrice = hasAnyPrice
+        ? {
+            currency: lp1?.currency ?? lp2?.currency ?? currency,
+            amount: (lp1?.amount ?? 0) + (lp2?.amount ?? 0),
+          }
+        : undefined;
+
+      const stops = (day1.stops ?? 0) + (day2?.stops ?? 0);
+
+      const carriers = Array.from(new Set([...(day1.carriers ?? []), ...((day2?.carriers ?? []) as string[])]));
+
+      const outboundPath = mergePathOutbound(
+        day1.outboundPath,
+        day2?.outboundPath,
+        [o, hubAirport, d],
+      );
+
+      const returnPath = mergePathReturn(
+        day2?.returnPath,
+        day1.returnPath,
+        [d, hubAirport, o],
+      );
+
+      return {
+        date: day1.date,
+        lowestPrice,
+        stops,
+        carriers: carriers.length ? carriers : undefined,
+        outboundPath,
+        returnPath,
+        sampleOptionId: day1.sampleOptionId ?? day2?.sampleOptionId,
+      };
+    });
+
+    return {
+      route: { origin: { code: o }, destination: { code: d } },
+      year: leg1.year,
+      month: leg1.month,
+      currency: leg1.currency,
+      days,
+    };
+  };
+
+  const handleViewOptimizedHub = async (hubAirport: string) => {
+    const o = origin.trim().toUpperCase();
+    const d = destination.trim().toUpperCase();
+    if (!o || !d || !hubAirport) return;
+
+    dealsActions.setLoading(true);
+    dealsActions.setError(null);
+
+    try {
+      const [leg1Res, leg2Res] = await Promise.all([
+        getMonthDeals({ origin: o, destination: hubAirport, year, month, durationDays, currency, adults, children, nonStop }),
+        getMonthDeals({ origin: hubAirport, destination: d, year, month, durationDays, currency, adults, children, nonStop }),
+      ]);
+
+      const combined = combineLegsForHub(leg1Res, leg2Res, hubAirport, o, d);
+      dealsActions.setData(combined);
+    } catch (e) {
+      dealsActions.setError(e instanceof Error ? e.message : 'Failed to load optimized deals');
+    } finally {
+      dealsActions.setLoading(false);
+    }
+  };
+
+  // ─── Positioning Flight Optimizer (Deals) ──────────────────────────────────
+  // Clean parallel implementation: fires all hub requests at once, shows results
+  // after all finish. ~6s total instead of minutes.
+  const positioningCalcKey = `${origin.trim().toUpperCase()}|${destination.trim().toUpperCase()}|${year}|${month}|${durationDays}|${currency}|${adults}|${children}|${nonStop ? 1 : 0}`;
 
   useEffect(() => {
-    if (positioningSessionKey !== positioningSessionKeyRef.current) {
-      positioningSessionKeyRef.current = positioningSessionKey;
-      setPositioningOptions([]);
-      setPositioningLoading(false);
-    }
-    if (!data || !origin.trim() || !destination.trim() || allDealsWithPrice.length === 0) {
+    const o = origin.trim().toUpperCase();
+    const d = destination.trim().toUpperCase();
+
+    if (!o || !d || !data || allDealsWithPrice.length === 0) {
       setPositioningLoading(false);
       return;
     }
-    let cancelled = false;
-    const o = origin.trim().toUpperCase();
-    const d = destination.trim().toUpperCase();
-    const cur = currency;
-    const directCheapest = Math.min(
-      ...allDealsWithPrice.map((day) => day.lowestPrice!.amount)
+
+    if (positioningCalcKey === positioningSessionKeyRef.current) return;
+    positioningSessionKeyRef.current = positioningCalcKey;
+
+    const token = ++positioningLoadTokenRef.current;
+    setPositioningOptions([]);
+    setCheaperCitiesFolded(true);
+    setPositioningLoading(true);
+
+    // Monthly Deals: when combining legs we match by `day.date`,
+    // so savings must be computed against the direct (origin->destination)
+    // lowest price for the same date.
+    const directByDate = new Map<string, number>();
+    for (const day of allDealsWithPrice) {
+      const lp = day.lowestPrice;
+      if (!lp || typeof lp.amount !== 'number') continue;
+      directByDate.set(day.date, lp.amount);
+    }
+    const directCheapest = (() => {
+      const vals = Array.from(directByDate.values());
+      return vals.length ? Math.min(...vals) : Infinity;
+    })();
+    const hubsToTry = (HUB_AIRPORTS as readonly string[]).filter((h) => h !== o && h !== d);
+
+    console.log(
+      '[MONTHLY_POSITIONING] origin=' +
+        o +
+        ' dest=' +
+        d +
+        ' hubs=' +
+        hubsToTry.join(',') +
+        ' year=' +
+        year +
+        ' month=' +
+        month +
+        ' durationDays=' +
+        durationDays +
+        ' currency=' +
+        currency +
+        ' adults=' +
+        adults +
+        ' children=' +
+        children +
+        ' nonStop=' +
+        (nonStop ? 1 : 0),
     );
 
-    const run = async () => {
-      setPositioningLoading(true);
-      const found: typeof positioningOptions = [];
+    // Hard cap so we don't wait forever, but we must not cut valid responses.
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+      Promise.race([
+        p,
+        new Promise<null>((resolve) =>
+          setTimeout(() => {
+            resolve(null);
+          }, ms),
+        ),
+      ]);
 
-      for (const hub of HUB_AIRPORTS) {
-        if (hub === o || hub === d) continue;
-        try {
-          const [posRes, hubRes] = await Promise.all([
-            getMonthDeals({
-              origin: o,
-              destination: hub,
+    Promise.allSettled(
+      hubsToTry.map(async (hub) => {
+        const fetchLeg = async (from: string, to: string) => {
+          // Retry once: intermittent `net::ERR_EMPTY_RESPONSE` / timeouts.
+          const p1 = withTimeout(
+            getMonthDealsPositioningCached({
+              origin: from,
+              destination: to,
               year,
               month,
               durationDays,
-              currency: cur,
+              currency,
               adults,
               children,
               nonStop,
             }),
-            getMonthDeals({
-              origin: hub,
-              destination: d,
+            25000,
+          );
+          const r1 = await p1;
+          if (r1) return r1;
+
+          return await withTimeout(
+            getMonthDealsPositioningCached({
+              origin: from,
+              destination: to,
               year,
               month,
               durationDays,
-              currency: cur,
+              currency,
               adults,
               children,
               nonStop,
             }),
-          ]);
-
-          const posDays =
-            (posRes.days ?? []).filter(
-              (dd) => dd.lowestPrice && dd.lowestPrice.amount > 0
-            );
-          const hubDays =
-            (hubRes.days ?? []).filter(
-              (dd) => dd.lowestPrice && dd.lowestPrice.amount > 0
-            );
-          if (!posDays.length || !hubDays.length) continue;
-
-          const posMin = Math.min(
-            ...posDays.map((dd) => dd.lowestPrice!.amount)
+            45000,
           );
-          const hubMin = Math.min(
-            ...hubDays.map((dd) => dd.lowestPrice!.amount)
-          );
+        };
 
-          const totalAmount = posMin + hubMin;
-          const savingsAmount = directCheapest - totalAmount;
-          if (savingsAmount <= 80) continue;
+        const [posRes, hubRes] = await Promise.all([fetchLeg(o, hub), fetchLeg(hub, d)]);
 
-          found.push({
-            hubAirport: hub,
-            positioningPrice: { amount: posMin, currency: cur },
-            hubFlightPrice: { amount: hubMin, currency: cur },
-            totalPrice: { amount: totalAmount, currency: cur },
-            savings: { amount: savingsAmount, currency: cur },
-          });
-        } catch {
-          // ignore failed hubs
+        if (!posRes || !hubRes) return null;
+
+        const posDays = (posRes.days ?? []).filter((dd) => dd.lowestPrice && dd.lowestPrice.amount > 0);
+        const hubDays = (hubRes.days ?? []).filter((dd) => dd.lowestPrice && dd.lowestPrice.amount > 0);
+        if (!posDays.length || !hubDays.length) return null;
+
+        // IMPORTANT: Monthly Deals combines legs by matching `day.date`.
+        // So we must compute the best (min) combined total for shared dates,
+        // not by independently taking the cheapest date from each leg.
+        const posByDate = new Map<string, number>();
+        for (const dd of posDays) posByDate.set(dd.date, dd.lowestPrice!.amount);
+        const hubByDate = new Map<string, number>();
+        for (const dd of hubDays) hubByDate.set(dd.date, dd.lowestPrice!.amount);
+
+        let bestTotal = Infinity;
+        let bestPosAmount = 0;
+        let bestHubAmount = 0;
+        let sharedDateCount = 0;
+
+        for (const [date, posAmount] of posByDate.entries()) {
+          const hubAmount = hubByDate.get(date);
+          if (hubAmount == null) continue;
+          sharedDateCount += 1;
+
+          const totalAmount = posAmount + hubAmount;
+          if (totalAmount < bestTotal) {
+            bestTotal = totalAmount;
+            bestPosAmount = posAmount;
+            bestHubAmount = hubAmount;
+          }
         }
-      }
 
-      if (cancelled) return;
-      found.sort((a, b) => b.savings.amount - a.savings.amount);
+        if (!Number.isFinite(bestTotal)) return null;
+
+        const savingsAmount = directCheapest - bestTotal;
+        if (savingsAmount <= 80) return null;
+
+        console.log(
+          '[MONTHLY_POSITIONING] origin=' +
+            o +
+            ' hub=' +
+            hub +
+            ' dest=' +
+            d +
+            ' total=' +
+            bestTotal.toFixed(0) +
+            ' savings=' +
+            savingsAmount.toFixed(0) +
+            ' sharedDates=' +
+            sharedDateCount,
+        );
+
+        return {
+          hubAirport: hub,
+          totalPrice: { amount: bestTotal, currency },
+          savings: { amount: savingsAmount, currency },
+          positioningPrice: { amount: bestPosAmount, currency },
+          hubFlightPrice: { amount: bestHubAmount, currency },
+          mainTripPrice: { amount: directCheapest, currency },
+        } as CheaperCitiesOption;
+      }),
+    ).then((results) => {
+      if (token !== positioningLoadTokenRef.current) return;
+      const found = results
+        .filter((r): r is PromiseFulfilledResult<CheaperCitiesOption> =>
+          r.status === 'fulfilled' && r.value !== null,
+        )
+        .map((r) => r.value)
+        .sort((a, b) => b.savings.amount - a.savings.amount);
+      console.log('[MONTHLY_POSITIONING_RENDER] optionsCount=' + found.length);
       setPositioningOptions(found);
       setPositioningLoading(false);
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-      setPositioningLoading(false);
-    };
-  }, [positioningSessionKey, origin, destination, year, month, durationDays, currency, adults, children, nonStop, data, allDealsWithPrice.length]);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positioningCalcKey, data, allDealsWithPrice.length]);
 
   const openDetails = async (date: string) => {
     const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
@@ -484,16 +663,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           );
         })}
       </View>
-      {isMobile && data != null && (
-        <TouchableOpacity
-          style={[sb.filterBtn, { borderColor: theme.cardBorder }, isRTL && { marginLeft: 0, marginRight: 'auto' }]}
-          onPress={() => setShowFilters(true)}
-          activeOpacity={0.7}
-        >
-          <AppIcon name="options-outline" size={16} color={theme.text} fallbackText={t('filters')} />
-          <Text style={[sb.filterBtnText, { color: theme.text }]}>{t('filters')}</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 
@@ -628,6 +797,23 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
     </>
   );
 
+  // ─── Cheaper departure cities (reuses main search CheaperCitiesSection) ────
+  // Desktop: embedded inside filter sidebar ScrollView (appears right after filters).
+  // Mobile: rendered after resultsContent in the ScrollView.
+  const cheaperCitiesNode = (
+    <CheaperCitiesSection
+      loading={positioningLoading}
+      options={positioningOptions}
+      isMobile={isMobile}
+      folded={cheaperCitiesFolded}
+      onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+      onView={(hub) => {
+        console.log('[MONTHLY_POSITIONING_CLICK] selectedHub=' + hub);
+        handleViewOptimizedHub(hub);
+      }}
+    />
+  );
+
   // ─── Filters sidebar header + modal wrapper ────────────────────────────────
 
   const filtersHeader = (isModal: boolean) => (
@@ -644,7 +830,15 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   const filtersSidebar = (
     <View style={fl.sidebarInner}>
       {filtersHeader(false)}
-      <ScrollView contentContainerStyle={fl.scrollContent}>{filtersContent}</ScrollView>
+      <ScrollView contentContainerStyle={fl.scrollContent}>
+        {filtersContent}
+      </ScrollView>
+      {/* Cheaper departure cities appears right after filter content — matches FiltersPanel footer pattern */}
+      {(positioningLoading || positioningOptions.length > 0) ? (
+        <View style={[fl.cheaperCitiesFooter, { borderTopColor: theme.cardBorder }]}>
+          {cheaperCitiesNode}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -661,8 +855,8 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
 
   // ─── Hero card ──────────────────────────────────────────────────────────────
 
-  const heroCard = (
-    <View style={[p.hero, hasResultsLayout ? p.heroSide : p.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+  const heroInner = (
+    <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <AppIcon name="calendar-outline" size={20} color={theme.text} fallbackText={t('dates')} />
         <Text style={[p.heroTitle, { color: theme.text }]}>{t('monthly_deals')}</Text>
@@ -724,24 +918,20 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           </View>
         )}
       </TouchableOpacity>
+    </>
+  );
+
+  const heroCard = (
+    <View style={[p.hero, hasResultsLayout ? p.heroSide : p.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+      {heroInner}
     </View>
   );
 
   // ─── Deal cards list ────────────────────────────────────────────────────────
 
   const resultsContent = (
-    isLoading && !data ? (
-      <View style={p.loaderWrap}>
-        <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
-          <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
-        </View>
-        <Animated.Text style={[p.loaderText, { color: theme.textMuted, opacity: dealsFade }]}>
-          {dealsPhrases[dealsPhrase]}
-        </Animated.Text>
-      </View>
-    ) : data != null && bestDeals.length === 0 ? (
+    data != null && bestDeals.length === 0 ? (
       <>
-        {sortBar}
         <View style={[p.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <Text style={[p.emptyTitle, { color: theme.text }]}>{t('no_deals_month')}</Text>
           <Text style={[p.emptySub, { color: theme.textMuted }]}>{t('try_another_route')}</Text>
@@ -749,7 +939,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
       </>
     ) : data != null ? (
       <View style={p.list}>
-        {sortBar}
         <Text style={[p.listTitle, { color: theme.textMuted }]}>
           {bestDeals.length > 0 ? `${bestDeals.length} ${t('results_lower') || 'results'}` : ''}
         </Text>
@@ -810,64 +999,6 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
             </Text>
           </TouchableOpacity>
         )}
-        {positioningLoading ? (
-          <View style={[p.positioningSection, { borderTopColor: theme.cardBorder }]}>
-            <Text style={[p.positioningTitle, { color: theme.textMuted }]}>
-              {t('searching_cheaper_cities')}
-            </Text>
-          </View>
-        ) : positioningOptions.length > 0 ? (
-          <View style={[p.positioningSection, { borderTopColor: theme.cardBorder }]}>
-            <Text style={[p.positioningTitle, { color: theme.text }]}>
-              {t('cheaper_departure_cities')}
-            </Text>
-            {positioningOptions.map((opt) => (
-              <View
-                key={opt.hubAirport}
-                style={[p.positioningRow, { borderColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}
-              >
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[p.positioningHub, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-                    {opt.hubAirport}
-                  </Text>
-                  <Text style={[p.positioningMeta, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-                    {opt.totalPrice.currency} {opt.totalPrice.amount.toFixed(0)} ·{' '}
-                    {t('save_label') || 'save'} {opt.savings.currency}{' '}
-                    {opt.savings.amount.toFixed(0)}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[p.positioningBtn, { backgroundColor: theme.controlBg }]}
-                  onPress={() => {
-                    const o = origin.trim().toUpperCase();
-                    const d = destination.trim().toUpperCase();
-                    Alert.alert(
-                      `${o} → ${opt.hubAirport} → ${d}`,
-                      `${t('optimizer_deals_hint') || 'Search monthly deals separately for each leg:'}\n\n` +
-                        `${o} → ${opt.hubAirport} (${opt.positioningPrice.currency} ${opt.positioningPrice.amount.toFixed(
-                          0
-                        )})\n` +
-                        `${opt.hubAirport} → ${d} (${opt.hubFlightPrice.currency} ${opt.hubFlightPrice.amount.toFixed(
-                          0
-                        )})\n\n` +
-                        `${t('total_label') || 'Total'}: ${opt.totalPrice.currency} ${opt.totalPrice.amount.toFixed(
-                          0
-                        )}\n` +
-                        `${t('you_save_label') || 'You save'}: ${opt.savings.currency} ${opt.savings.amount.toFixed(
-                          0
-                        )}`,
-                    );
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[p.positioningBtnText, { color: theme.primary }]}>
-                    {t('view_combination') || 'View'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </View>
     ) : null
   );
@@ -960,16 +1091,86 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
   // ─── Layout ─────────────────────────────────────────────────────────────────
 
   const hasFilters = data != null;
+  const showForm = view === 'form';
+  const showResultsShell = view === 'results';
+  const showDesktopSidebar = !isMobile && view === 'results';
+
+  const summaryStr = useMemo(() => {
+    const o = origin.trim().toUpperCase();
+    const d = destination.trim().toUpperCase();
+    const monthLabel = `${MONTHS[Math.max(0, month - 1)]} ${year}`;
+    const adultLabel = adults === 1 ? t('adult') : t('adults');
+    const childLabel = children === 1 ? t('child') : t('children');
+    const pax = children > 0 ? `${adults} ${adultLabel} · ${children} ${childLabel}` : `${adults} ${adultLabel}`;
+    return [o && d ? `${o} · ${d}` : '', monthLabel, pax].filter(Boolean).join(' · ');
+  }, [origin, destination, year, month, adults, children, t]);
+
+  const summaryBar = showResultsShell ? (
+    <View
+      style={[
+        p.summaryBar,
+        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+        isRTL && { flexDirection: 'row-reverse' },
+      ]}
+    >
+      <Text style={[p.summaryText, { color: theme.text }]} numberOfLines={1}>
+        {summaryStr || t('monthly_deals')}
+      </Text>
+      <TouchableOpacity
+        style={[p.editSearchBtn, { borderColor: theme.cardBorder, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+        onPress={() => {
+          setShowEditSearchModal(true);
+        }}
+        activeOpacity={0.7}
+      >
+        <AppIcon name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
+        <Text style={[p.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
+  const toolbar = data != null ? (
+    <View style={[
+      p.toolbar,
+      (!hasResultsLayout ? p.toolbarMobile : p.toolbarDesktop),
+      { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+    ]}>
+      <View style={p.toolbarSortWrap}>{sortBar}</View>
+    </View>
+  ) : null;
+
+  const filtersRowMobile = isMobile && data != null ? (
+    <TouchableOpacity
+      style={[
+        p.filtersRowMobile,
+        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+        isRTL && { flexDirection: 'row-reverse' },
+      ]}
+      onPress={() => setShowFilters(true)}
+      activeOpacity={0.7}
+    >
+      <AppIcon name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
+      <Text style={[p.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
+    </TouchableOpacity>
+  ) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
+      {summaryBar}
+      {/* Must show even if previous results are still present (data stays non-null until fetch resolves). */}
+      <SearchLoadingOverlay visible={isLoading} origin={origin} destination={destination} />
       {hasResultsLayout ? (
         /* Same as main search: parent direction:rtl puts 1st col (search) on right, 3rd (filters) on left. No row-reverse. */
         <View style={p.twoCols}>
-          <View style={[p.heroCol, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightWidth: 1, borderRightColor: theme.cardBorder }]}>
-            <ScrollView contentContainerStyle={p.heroColContent} keyboardShouldPersistTaps="handled">{heroCard}</ScrollView>
-          </View>
-          <ScrollView style={p.resultsCol} contentContainerStyle={p.resultsColContent}>{resultsContent}</ScrollView>
+          {(showForm || showDesktopSidebar) && (
+            <View style={[p.heroCol, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightWidth: 1, borderRightColor: theme.cardBorder }]}>
+              <ScrollView contentContainerStyle={p.heroColContent} keyboardShouldPersistTaps="handled">{heroCard}</ScrollView>
+            </View>
+          )}
+          <ScrollView style={p.resultsCol} contentContainerStyle={p.resultsColContent}>
+            {toolbar}
+            {resultsContent}
+          </ScrollView>
           {hasFilters && (
             <View style={[p.filterCol, isRTL ? { borderRightWidth: 1, borderRightColor: theme.cardBorder, borderLeftWidth: 0 } : { borderLeftWidth: 1, borderLeftColor: theme.cardBorder }]}>
               {filtersSidebar}
@@ -977,22 +1178,93 @@ export function MonthDealsScreen({ navigation }: { navigation: any }) {
           )}
         </View>
       ) : (
-        <ScrollView style={p.scrollSingle} contentContainerStyle={p.contentSingle} keyboardShouldPersistTaps="handled">
-          {heroCard}
-          {isLoading && !data ? (
-            <View style={p.loaderWrap}>
-              <View style={[p.dealsProgressTrack, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
-                <Animated.View style={[p.dealsProgressFill, { width: dealsProgressWidth, backgroundColor: theme.primary }]} />
-              </View>
-              <Animated.Text style={[p.loaderText, { color: theme.textMuted, opacity: dealsFade }]}>
-                {dealsPhrases[dealsPhrase]}
-              </Animated.Text>
+        <ScrollView
+          style={p.scrollSingle}
+          contentContainerStyle={showForm ? p.contentSingle : p.contentSingleResults}
+          keyboardShouldPersistTaps="handled"
+        >
+          {showForm && heroCard}
+          <View style={[p.stickyHeaderWrap, { backgroundColor: theme.cardBg }]}>
+            {toolbar}
+            {filtersRowMobile}
+          </View>
+          {resultsContent}
+          {/* Mobile only: cheaper cities shown after results, as collapsible panel */}
+          {(positioningLoading || positioningOptions.length > 0) ? (
+            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder }}>
+              {cheaperCitiesNode}
             </View>
-          ) : resultsContent}
+          ) : null}
         </ScrollView>
       )}
       {detailsModal}
       {filtersModal}
+      {/* Edit search popup modal — identical structure to ResultsScreen */}
+      <Modal visible={showEditSearchModal} transparent animationType="fade" onRequestClose={() => setShowEditSearchModal(false)}>
+        <View style={esm.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
+          <View style={[esm.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={[esm.header, { borderBottomColor: theme.cardBorder }]}>
+              <Text style={[esm.title, { color: theme.text }]}>{t('change_search')}</Text>
+              <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={esm.closeBtn}>
+                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={esm.scroll} contentContainerStyle={esm.content} keyboardShouldPersistTaps="handled">
+              {/* Inner card — same as SearchFormContent compact mode */}
+              <View style={[esm.formCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+                <Text style={[esm.routeSummary, { color: theme.textMuted }]} numberOfLines={1}>
+                  {origin.trim().toUpperCase()} → {destination.trim().toUpperCase()}
+                </Text>
+                <AirportAutocomplete label={t('from')} value={origin} onChange={setOrigin} placeholder={t('city_or_airport')} />
+                <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} />
+                <PassengerCabinPicker
+                  adults={adults} children={children} cabinClass="ECONOMY"
+                  onAdultsChange={setAdults} onChildrenChange={setChildren} onCabinChange={() => {}}
+                  label={t('passengers_cabin')} passengersOnly
+                />
+                <Text style={[esm.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
+                <View style={esm.stepperRow}>
+                  <TouchableOpacity style={[esm.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}>
+                    <Text style={[esm.stepBtnText, { color: theme.text }]}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={[esm.stepValue, { color: theme.text }]}>{durationDays} {t('days')}</Text>
+                  <TouchableOpacity style={[esm.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}>
+                    <Text style={[esm.stepBtnText, { color: theme.text }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[esm.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
+                  <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={esm.navBtn}>
+                    <View style={esm.navBtnInner}>
+                      <AppIcon name={isRTL ? 'chevron-forward' : 'chevron-back'} size={16} color={theme.primary} fallbackText={t('prev')} />
+                      <Text style={[esm.navText, { color: theme.primary }]}>{t('prev')}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <Text style={[esm.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
+                  <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={esm.navBtn}>
+                    <View style={esm.navBtnInner}>
+                      <Text style={[esm.navText, { color: theme.primary }]}>{t('next')}</Text>
+                      <AppIcon name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={theme.primary} fallbackText={t('next')} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+                {error ? <Text style={[esm.error, { color: theme.error }]}>{error}</Text> : null}
+                <TouchableOpacity
+                  style={[esm.button, { backgroundColor: theme.buttonBg }, (!origin.trim() || !destination.trim() || isLoading) && { opacity: 0.5 }]}
+                  disabled={!origin.trim() || !destination.trim() || isLoading}
+                  onPress={handleSearchDeals}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
+                    <Text style={[esm.buttonText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1064,15 +1336,95 @@ function renderLeg(
 
 // ─── Page styles ────────────────────────────────────────────────────────────
 
+// ─── Edit-search modal styles — copied 1:1 from ResultsScreen + SearchFormContent ─
+const esm = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '90%',
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+  },
+  title: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 6 },
+  scroll: { maxHeight: 480 },
+  content: { padding: 18, paddingBottom: 28 },
+  formCard: { borderRadius: 12, padding: 14, borderWidth: 1 },
+  routeSummary: { fontSize: 14, marginBottom: 10 },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 3 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
+  stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  stepBtnText: { fontSize: 18, fontWeight: '600' },
+  stepValue: { fontSize: 15, minWidth: 50, textAlign: 'center' },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 14, marginBottom: 4, borderWidth: 1, borderRadius: 10 },
+  navBtn: {},
+  navBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  navText: { fontWeight: '600', fontSize: 13 },
+  monthTitle: { fontSize: 15, fontWeight: '700', marginHorizontal: 12 },
+  error: { color: 'red', marginTop: 8, fontSize: 13 },
+  button: { marginTop: 12, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  buttonText: { fontSize: 15, fontWeight: '600' },
+});
+
 const p = StyleSheet.create({
   twoCols: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
   heroCol: { width: 320, minWidth: 280, borderRightWidth: 1 },
   heroColContent: { padding: 18, paddingBottom: 40 },
   resultsCol: { flex: 1, minWidth: 0 },
-  resultsColContent: { padding: 20, paddingBottom: 40 },
+  // Match main search results: toolbar should sit flush under the summary bar (no extra paddingTop).
+  resultsColContent: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 40 },
   filterCol: { width: 240, minWidth: 200 },
   scrollSingle: { flex: 1 },
   contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%', flexGrow: 1 },
+  // Mobile results view: avoid extra top inset so the sticky header sits right under `summaryBar`.
+  contentSingleResults: { paddingLeft: 16, paddingRight: 16, paddingTop: 0, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%', flexGrow: 1 },
+
+  summaryBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryText: { flex: 1, fontSize: 14, fontWeight: '600' },
+  editSearchBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, gap: 5 },
+  editSearchBtnText: { fontSize: 13, fontWeight: '600' },
+
+  stickyHeaderWrap: { position: 'sticky' as any, top: 0, zIndex: 10, overflow: 'visible' },
+  toolbar: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8, alignSelf: 'stretch' },
+  toolbarMobile: { marginHorizontal: -16, paddingHorizontal: 16 },
+  toolbarDesktop: { marginHorizontal: -20, paddingHorizontal: 20 },
+  toolbarSortWrap: { paddingHorizontal: 0, flex: 1, minWidth: 0 },
+
+  filtersRowMobile: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: -16,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
 
   hero: { borderRadius: 16, padding: 18, borderWidth: 1 },
   heroCenter: { marginBottom: 20 },
@@ -1108,9 +1460,9 @@ const p = StyleSheet.create({
   emptySub: { fontSize: 14 },
 
   list: { marginTop: 4 },
-  listTitle: { fontSize: 13, marginBottom: 10 },
+  listTitle: { fontSize: 13, marginBottom: 6 },
 
-  dealCard: { borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1 },
+  dealCard: { borderRadius: 14, padding: 16, marginBottom: 6, borderWidth: 1 },
   dealTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
   dealDate: { fontSize: 14, fontWeight: '600' },
   dealRoute: { fontSize: 12, marginTop: 2 },
@@ -1173,54 +1525,23 @@ const m = StyleSheet.create({
   bookBtnText: { fontSize: 17, fontWeight: '600' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
 
-  positioningSection: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-  },
-  positioningTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-  positioningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    marginTop: 4,
-    gap: 6,
-  },
-  positioningHub: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  positioningMeta: {
-    fontSize: 11,
-  },
-  positioningBtn: {
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-  },
-  positioningBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+
 });
 
 // ─── Sort bar styles ────────────────────────────────────────────────────────
 
 const sb = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 2, flexWrap: 'wrap' },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    flex: 1,
+    minWidth: 0,
+  },
   label: { fontSize: 13, fontWeight: '500' },
-  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 },
   pillsRTL: { flexDirection: 'row-reverse' },
   pill: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1 },
   pillText: { fontSize: 13 },
@@ -1232,6 +1553,7 @@ const sb = StyleSheet.create({
 
 const fl = StyleSheet.create({
   sidebarInner: { flex: 1 },
+  cheaperCitiesFooter: { borderTopWidth: StyleSheet.hairlineWidth },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
