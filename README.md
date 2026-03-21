@@ -7,13 +7,17 @@ A Skyscanner-style flight metasearch app: **Go backend** (Amadeus, Duffel, Googl
 ## Overview
 
 - **Backend (`backend/`)** – Go HTTP API aggregating results from **Amadeus**, **Duffel**, and **Google Flights** (SerpAPI). REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
-- **Frontend (`frontend/`)** – Expo React Native app (web + native). Top navbar (Search | Monthly Deals), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
+- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`. Top navbar (**Home | Search | Monthly Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
 Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
 
 ---
 
 ## Features
+
+### Landing (home)
+- **Route:** `/` — marketing-style hero, value props, how-it-works, and CTAs to **Search flights** and **Explore monthly deals**.
+- Same design language as the app (dark/light theme, indigo accent); copy is translated (EN / HE / RU).
 
 ### Flight Search
 - Multi-provider search: Amadeus, Duffel, Google Flights results merged and deduplicated.
@@ -50,7 +54,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 ### Filters & Sorting
 - **Stops filter**: "Any / Direct / 1 stop / 2+" based on max stops per leg (not total across all legs), so round-trip results filter correctly.
 - **Airlines filter**: matches results where any leg includes the selected carrier (supports mixed-carrier round-trips).
-- **Sort**: Price (cheapest first), Duration (fastest), Best (weighted price + duration + stops score).
+- **Sort**: Price (cheapest first), Duration (fastest), Best (weighted price + duration + stops score). Active **Cheapest** / **Fastest** pills show ↑/↓ for sort direction; **Best** does not (avoids looking like a dropdown).
 
 ### Monthly Deals
 - Search cheapest round-trip dates for any month.
@@ -83,7 +87,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Consistent design language across search results and monthly deals.
 - Pill-shaped sort buttons, lightweight collapsible filter sidebar, compact search form.
 - **Responsive layout:** Three-column desktop (hero | deals | filters), single column + bottom-sheet modals on mobile.
-  - **Header:** On narrow viewports, nav collapses into a **hamburger menu** ("Navigation" with Search / Monthly deals).
+  - **Header:** On narrow viewports, nav collapses into a **hamburger menu** (Home / Search / Monthly deals).
   - **Results toolbar (mobile):** The **Filters** button sits on its own row **between** the sort options and the flight cards to avoid overflow.
   - **Flight details modal:** Bottom-sheet on mobile with constrained height/width so it stays within the viewport (e.g. Samsung S24 Ultra, iPhone).
 - Dark and light themes with **full RTL support** (English, Hebrew, Russian): flight cards and modals swap price/info columns; sort bar and month nav flow from the correct side; main search dates show return ← departure and arrow direction in RTL; header and labels have appropriate padding/margins. **Icons** use local static SVGs (no runtime icon fonts) for reliable rendering in normal and incognito/private browsing.
@@ -186,20 +190,35 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 - **`src/data/`** – Local airport dictionary, airline names, translations (en/he/ru).
 - **`src/features/flight-search/`** – Search form, results screen, result cards, sort bar, filters panel, flight details modal.
 - **`src/features/monthly-deals/`** – Deals search form, deals list, deal details modal with booking redirect.
-- **`src/navigation/`** – Root stack with top navbar. Search stack: SearchForm → Results.
+- **`src/features/landing/`** – Home / landing screen (hero, features, how-it-works, footer).
+- **`src/navigation/`** – Root stack (Home, Search, Monthly Deals) with shared top navbar. **Search** stack: SearchForm → Results. **Monthly Deals** stack: form → results.
 
 ---
 
 ## Flows
 
-1. **Flight search** – Enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site).
-2. **Monthly deals** – Set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner).
+1. **Home** – Optional entry at `/`: read value props → **Search flights** (`/search`) or **Explore monthly deals** (`/monthly-deals`).
+2. **Flight search** – From `/search`: enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results at `/search/results` with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site). Shareable URLs keep query params (e.g. `sessionId`) on the `/search` path.
+3. **Monthly deals** – From `/monthly-deals`: set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner).
+
+### Web routes (deep links & refresh)
+
+| Path | Screen |
+|------|--------|
+| `/` | Landing |
+| `/search` | Flight search form |
+| `/search/results` | Search results |
+| `/monthly-deals` | Monthly deals form |
+| `/monthly-deals/results` | Monthly deals results |
+
+Legacy bookmarks: **`frontend/public/.htaccess`** **301**-redirects `/results` → `/search/results` and `/deals` → `/monthly-deals/` (query string preserved). All other app routes still fall back to `index.html` for SPA refresh.
 
 ---
 
 ## Production deployment (web)
 
-- **SPA routing:** `frontend/public/.htaccess` is included in the web build so that refreshing on any route (e.g. `/results`) serves `index.html` instead of 404. Hostinger/Apache: if the request is not a file or directory, it rewrites to `/index.html`.
+- **SPA routing:** `frontend/public/.htaccess` is included in the web build so that refreshing on any app route (e.g. `/search/results`, `/monthly-deals`) serves `index.html` instead of 404. Hostinger/Apache: if the request is not a file or directory, it rewrites to `/index.html`.
+- **Legacy URLs:** **301** redirects for `/results` and `/deals` to the new paths; see **Web routes** above.
 
 ## Notes
 
@@ -217,6 +236,7 @@ Summary of recent changes:
 
 | Area | Change |
 |------|--------|
+| **Fly-Fix: Product structure** | **`/`** = landing page (hero, features, how-it-works, CTAs). **`/search`** and **`/search/results`** = main flight search UI (unchanged behavior). **`/monthly-deals`** (+ `/monthly-deals/results`) = monthly deals. Top nav: **Home \| Search \| Monthly Deals**. React Navigation linking + optional `.htaccess` 301s from legacy `/results` and `/deals`. |
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
 | **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Monthly Deals uses the shared `CheaperCitiesSection` UI and the positioning optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry). |

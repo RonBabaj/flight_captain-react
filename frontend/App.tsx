@@ -13,15 +13,16 @@ const linking = {
   prefixes: [],
   config: {
     screens: {
+      Home: '',
       Search: {
-        path: '',
+        path: 'search',
         screens: {
           SearchForm: '',
           Results: 'results',
         },
       },
       MonthDeals: {
-        path: 'deals',
+        path: 'monthly-deals',
         screens: {
           MonthDealsForm: '',
           MonthDealsResults: 'results',

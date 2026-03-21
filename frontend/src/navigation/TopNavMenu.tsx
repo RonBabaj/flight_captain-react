@@ -15,6 +15,7 @@ import type { LanguageCode, CurrencyCode } from '../data/translations';
 type RouteProps = RouteProp<RootStackParamList, keyof RootStackParamList>;
 
 const TITLE_KEYS: Record<string, string> = {
+  Home: 'nav_home',
   SearchForm: 'nav_flight_search',
   Results: 'nav_results',
   Search: 'nav_flight_search',
@@ -38,8 +39,16 @@ export function TopNavMenu() {
   const titleKey = nestedName ? TITLE_KEYS[nestedName] ?? TITLE_KEYS.Search : TITLE_KEYS[currentRoot];
   const title = t(titleKey);
 
+  const isHome = currentRoot === 'Home';
   const isSearch = currentRoot === 'Search';
   const isDeals = currentRoot === 'MonthDeals';
+
+  const handleGoToHome = () => {
+    if (!isHome) {
+      navigation.navigate('Home' as never);
+    }
+    setShowMobileMenu(false);
+  };
 
   const handleGoToSearch = () => {
     if (isSearch) return;
@@ -130,6 +139,21 @@ export function TopNavMenu() {
             <View style={styles.menuWrap}>
               <TouchableOpacity
                 style={styles.tab}
+                onPress={handleGoToHome}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: theme.tabInactive },
+                    isHome && { color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_home')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tab}
                 onPress={handleGoToSearch}
                 activeOpacity={0.8}
               >
@@ -168,6 +192,21 @@ export function TopNavMenu() {
               </Text>
             </View>
             <View style={styles.menuWrap}>
+              <TouchableOpacity
+                style={styles.tab}
+                onPress={handleGoToHome}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: theme.tabInactive },
+                    isHome && { color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_home')}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.tab}
                 onPress={handleGoToSearch}
@@ -276,7 +315,7 @@ export function TopNavMenu() {
               ]}
             >
               <Text style={[styles.localeModalTitle, { color: theme.text }]}>
-                Navigation
+                {t('nav_sections')}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowMobileMenu(false)}
@@ -286,6 +325,21 @@ export function TopNavMenu() {
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+              <TouchableOpacity
+                style={styles.mobileMenuItem}
+                onPress={handleGoToHome}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.mobileMenuItemText,
+                    { color: theme.text },
+                    isHome && { fontWeight: '700', color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_home')}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.mobileMenuItem}
                 onPress={handleGoToSearch}
@@ -350,7 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
+    gap: 18,
     pointerEvents: 'box-none',
   },
   tab: {

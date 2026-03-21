@@ -4,6 +4,10 @@
   RewriteEngine On
   RewriteBase /
 
+  # Legacy SPA paths → new structure (301, query string preserved)
+  RewriteRule ^results/?$ /search/results [R=301,L,QSA]
+  RewriteRule ^deals/?$ /monthly-deals/ [R=301,L,QSA]
+
   # If the request is for an existing file, serve it.
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]

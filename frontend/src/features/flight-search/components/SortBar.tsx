@@ -26,7 +26,9 @@ export function SortBar({ sortField, sortOrder, onSort }: SortBarProps) {
       <View style={[s.pills, isRTL && s.pillsRTL]}>
         {opts.map((opt) => {
           const active = sortField === opt;
-          const arrow = active ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
+          /** No ↑/↓ on "Best" — direction is less meaningful and reads like a dropdown chevron. */
+          const arrow =
+            active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
           return (
             <TouchableOpacity
               key={opt}

@@ -249,10 +249,12 @@ async function findCheapestOptionForParams(
 export function ResultsScreen({ route }: { route: { params: { sessionId: string } } }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language } = useLocale();
-  const { updateUrl } = useSearchParams();
+  const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
-  const { sessionId } = route.params;
+  /** Route params from navigation; fall back to ?sessionId= in URL for deep links / refresh on /search/results */
+  const sessionId =
+    (route.params?.sessionId as string | undefined) ?? paramsFromUrl.sessionId ?? '';
   const {
     params: storeParams,
     results,

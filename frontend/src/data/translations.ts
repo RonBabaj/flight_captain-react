@@ -23,7 +23,116 @@ export const CURRENCIES: { code: CurrencyCode; label: string; symbol?: string }[
 
 const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   nav_search: { en: 'Search', he: 'חיפוש', ru: 'Поиск' },
+  nav_home: { en: 'Home', he: 'בית', ru: 'Главная' },
+  nav_sections: { en: 'Navigation', he: 'ניווט', ru: 'Навигация' },
   nav_monthly_deals: { en: 'Monthly Deals', he: 'דילים חודשיים', ru: 'Предложения месяца' },
+  landing_hero_title: {
+    en: 'Find cheaper flights smarter',
+    he: 'מצא טיסות זולות יותר — בחכמה',
+    ru: 'Находите дешёвые рейсы умнее',
+  },
+  landing_hero_subtitle: {
+    en: 'Compare routes, nearby departures, and hidden savings. Fly-Fix helps you discover cheaper ways to travel.',
+    he: 'השוו מסלולים, יציאות קרובות וחיסכון נסתר. Fly-Fix עוזר לגלות דרכים זולות יותר לטוס.',
+    ru: 'Сравнивайте маршруты, вылеты из соседних городов и скрытую экономию. Fly-Fix помогает путешествовать дешевле.',
+  },
+  landing_cta_search: { en: 'Search flights', he: 'חפש טיסות', ru: 'Искать рейсы' },
+  landing_cta_deals: {
+    en: 'Explore monthly deals',
+    he: 'גלו דילים חודשיים',
+    ru: 'Смотреть предложения месяца',
+  },
+  landing_features_title: {
+    en: 'Why Fly-Fix',
+    he: 'למה Fly-Fix',
+    ru: 'Почему Fly-Fix',
+  },
+  landing_feature_1_title: {
+    en: 'Compare smarter routes',
+    he: 'השוו מסלולים חכמים יותר',
+    ru: 'Умнее сравнивайте маршруты',
+  },
+  landing_feature_1_desc: {
+    en: 'See alternatives side by side and spot better combinations before you book.',
+    he: 'ראו חלופות זו לצד זו וזיהו שילובים טובים יותר לפני ההזמנה.',
+    ru: 'Смотрите варианты рядом и находите лучшие комбинации до бронирования.',
+  },
+  landing_feature_2_title: {
+    en: 'Cheaper departure cities',
+    he: 'ערי יציאה זולות יותר',
+    ru: 'Дешевле вылететь из другого города',
+  },
+  landing_feature_2_desc: {
+    en: 'Discover if leaving from a nearby airport saves you money on the whole trip.',
+    he: 'גלו אם יציאה משדה קרוב חוסכת לכם כסף על כל הטיול.',
+    ru: 'Узнайте, сэкономит ли вылет из соседнего аэропорта на всей поездке.',
+  },
+  landing_feature_3_title: {
+    en: 'Flexible monthly deals',
+    he: 'דילים גמישים לפי חודש',
+    ru: 'Гибкие предложения по месяцам',
+  },
+  landing_feature_3_desc: {
+    en: 'Explore the cheapest round-trip windows across an entire month.',
+    he: 'גלו את חלונות הלוך-חזור הזולים ביותר לאורך חודש שלם.',
+    ru: 'Смотрите самые дешёвые окна туда-обратно за целый месяц.',
+  },
+  landing_feature_4_title: {
+    en: 'Providers & options',
+    he: 'ספקים ואפשרויות',
+    ru: 'Провайдеры и варианты',
+  },
+  landing_feature_4_desc: {
+    en: 'Compare more ways to fly and book through trusted partner links.',
+    he: 'השוו עוד דרכים לטוס והזמינו דרך קישורי שותפים מהימנים.',
+    ru: 'Больше вариантов перелёта и бронирование по ссылкам партнёров.',
+  },
+  landing_how_title: {
+    en: 'How it works',
+    he: 'איך זה עובד',
+    ru: 'Как это работает',
+  },
+  landing_step_1_title: { en: 'Search your trip', he: 'חפשו את הטיול', ru: 'Ищите поездку' },
+  landing_step_1_desc: {
+    en: 'Enter origin, destination, dates, and preferences.',
+    he: 'הזינו מוצא, יעד, תאריכים והעדפות.',
+    ru: 'Укажите пункты вылета и прилёта, даты и предпочтения.',
+  },
+  landing_step_2_title: {
+    en: 'Compare smart alternatives',
+    he: 'השוו חלופות חכמות',
+    ru: 'Сравните умные альтернативы',
+  },
+  landing_step_2_desc: {
+    en: 'Review routes, stops, and cheaper departure options in one view.',
+    he: 'ראו מסלולים, עצירות ואפשרויות יציאה זולות יותר במבט אחד.',
+    ru: 'Маршруты, пересадки и более дешёвые вылеты — в одном экране.',
+  },
+  landing_step_3_title: {
+    en: 'Book on partner sites',
+    he: 'הזמינו באתרי שותפים',
+    ru: 'Бронируйте на сайтах партнёров',
+  },
+  landing_step_3_desc: {
+    en: 'When you’re ready, continue to our partners to complete your booking.',
+    he: 'כשמוכנים — המשיכו לשותפים שלנו להשלמת ההזמנה.',
+    ru: 'Когда будете готовы — переходите к партнёрам для оформления.',
+  },
+  landing_bottom_title: {
+    en: 'Ready to find a better fare?',
+    he: 'מוכנים למצוא מחיר טוב יותר?',
+    ru: 'Готовы найти лучший тариф?',
+  },
+  landing_bottom_subtitle: {
+    en: 'Start a search or browse monthly deals — your next trip might cost less than you think.',
+    he: 'התחילו חיפוש או עברו לדילים חודשיים — הטיול הבא אולי יעלה פחות ממה שחשבתם.',
+    ru: 'Запустите поиск или откройте предложения месяца — следующая поездка может стоить дешевле.',
+  },
+  landing_footer_tagline: {
+    en: 'Smarter flight search for travelers who compare.',
+    he: 'חיפוש טיסות חכם יותר למי שמשווה.',
+    ru: 'Умный поиск рейсов для тех, кто сравнивает.',
+  },
   nav_flight_search: { en: 'Flight Search', he: 'חיפוש טיסות', ru: 'Поиск рейсов' },
   nav_results: { en: 'Results', he: 'תוצאות', ru: 'Результаты' },
   theme_light: { en: 'Light', he: 'בהיר', ru: 'Светлая' },
