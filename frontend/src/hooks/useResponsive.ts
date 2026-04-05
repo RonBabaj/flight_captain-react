@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dimensions } from 'react-native';
 
-const BREAKPOINT = 768;
+const BREAKPOINT = 900;
 
 export function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(() => {

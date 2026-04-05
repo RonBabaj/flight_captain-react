@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { MonthDealsStackParamList } from './types';
 import { MonthDealsScreen } from '../features/monthly-deals/screens';
+import { ExploreScreen } from '../features/flight-search/screens/ExploreScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const Stack = createNativeStackNavigator<MonthDealsStackParamList>();
@@ -23,6 +24,7 @@ export function MonthDealsStack() {
           </ErrorBoundary>
         )}
       </Stack.Screen>
+      <Stack.Screen name="Explore" component={ExploreScreen} />
     </Stack.Navigator>
   );
 }

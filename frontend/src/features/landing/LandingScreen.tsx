@@ -106,7 +106,7 @@ export function LandingScreen() {
 
       {/* Features */}
       <View style={[styles.section, { paddingHorizontal: 20 }]}>
-        <Text style={[styles.sectionTitle, { color: theme.text, textAlign }]}>{t('landing_features_title')}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text, textAlign: 'center' }]}>{t('landing_features_title')}</Text>
         <View style={[styles.featureGrid, { direction: dir as 'ltr' | 'rtl' }]}>
           {[
             { icon: 'filter-outline' as const, titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc' },

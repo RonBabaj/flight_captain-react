@@ -211,7 +211,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           {/* Times */}
           <View style={[c.timesRow, ...row()]}>
             <Text style={[c.time, { color: theme.text }]}>{dep}</Text>
-            <Text style={[c.timeSep, { color: theme.textMuted }]}>{isRTL ? ' ← ' : ' → '}</Text>
+            <Text style={[c.timeSep, { color: theme.textMuted, marginInline: 2 }]}>{isRTL ? ' ← ' : ' → '}</Text>
             <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
           </View>
           {/* Outbound route: origin → layover(s) → destination */}
@@ -228,21 +228,33 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           ) : null}
           {/* Duration + Stops */}
           <View style={[c.metaRow, ...row()]}>
-            <Text style={[c.metaText, { color: theme.textMuted }]}>{dur}</Text>
+            <Text style={[c.metaText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>{dur}</Text>
             <View style={[c.stopsChip, stops === 0 ? { backgroundColor: theme.isDark ? '#064e3b' : '#d1fae5' } : { backgroundColor: theme.controlBg }]}>
-              <Text style={[c.stopsChipText, stops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text }]}>{stopsText}</Text>
+              <Text
+                style={[
+                  c.stopsChipText,
+                  stops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text },
+                  isRTL && { textAlign: 'center' },
+                ]}
+              >
+                {stopsText}
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Price + actions column */}
         <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
-          <Text style={[c.price, { color: theme.primary }]}>{priceStr}</Text>
+          <Text style={[c.price, { color: theme.primary }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+            {priceStr}
+          </Text>
           {perPassengerStr ? (
-            <Text style={[c.perPerson, { color: theme.textMuted }]}>{perPassengerStr}</Text>
+            <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+              {perPassengerStr}
+            </Text>
           ) : null}
           <TouchableOpacity
-            style={[c.bookBtn, { backgroundColor: theme.primary }]}
+            style={[c.bookBtn, { backgroundColor: theme.primary }, isRTL && { alignSelf: 'stretch' }]}
             onPress={(e) => { e.stopPropagation(); onBook(); }}
             disabled={bookLoading}
             activeOpacity={0.8}
@@ -251,10 +263,10 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation(); onDetails(); }}
-            style={c.detailsBtn}
+            style={[c.detailsBtn, isRTL && { alignSelf: 'stretch' }]}
             hitSlop={6}
           >
-            <Text style={[c.detailsBtnText, { color: theme.primary }]}>
+            <Text style={[c.detailsBtnText, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
               {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
             </Text>
           </TouchableOpacity>
@@ -263,12 +275,15 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
 
       {/* ── Row 2: Airline · cabin (and codeshare: Operated by / Also sold by) ── */}
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
-        <View style={c.airlineCol}>
-          <Text style={[c.airlineText, { color: theme.text }]} numberOfLines={1}>
+        <View style={[c.airlineCol, isRTL && { alignItems: 'flex-end' }]}>
+          <Text
+            style={[c.airlineText, { color: theme.text }, isRTL && { textAlign: 'right' }]}
+            numberOfLines={1}
+          >
             {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
           </Text>
           {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
-            <Text style={[c.codeshareText, { color: theme.textMuted }]} numberOfLines={1}>
+            <Text style={[c.codeshareText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
               {option.primaryOperatingCarrier
                 ? `${t('operated_by')} ${getAirlineName(option.primaryOperatingCarrier) || option.primaryOperatingCarrier}`
                 : ''}
@@ -281,8 +296,8 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           )}
         </View>
         {hasBagBadge && (
-          <View style={[c.bagBadge, { backgroundColor: theme.controlBg }]}>
-            <Text style={[c.bagBadgeText, { color: theme.textMuted }]}>🧳 {bagStr}</Text>
+          <View style={[c.bagBadge, { backgroundColor: theme.controlBg }, isRTL && { alignSelf: 'center' }]}>
+            <Text style={[c.bagBadgeText, { color: theme.textMuted }, isRTL && { textAlign: 'center' }]}>🧳 {bagStr}</Text>
           </View>
         )}
       </View>
@@ -308,7 +323,7 @@ const c = StyleSheet.create({
   scheduleCol: { flex: 1, minWidth: 0 },
   timesRow: { flexDirection: 'row', alignItems: 'baseline' },
   time: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
-  timeSep: { fontSize: 13, marginHorizontal: 2 },
+  timeSep: { fontSize: 13 },
   route: { fontSize: 12, marginTop: 1, letterSpacing: 0.3 },
   dateStr: { fontSize: 12, marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },

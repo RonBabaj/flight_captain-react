@@ -40,7 +40,12 @@ export function DateRangePicker({
   mode = 'single',
 }: DateRangePickerProps) {
   const { theme } = useTheme();
-  const todayUtc = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Use tomorrow as the earliest selectable date — today's flights can't be booked via the API.
+  const todayUtc = useMemo(() => {
+    const t = new Date();
+    t.setUTCDate(t.getUTCDate() + 1);
+    return t.toISOString().slice(0, 10);
+  }, []);
   const todayMonthStart = useMemo(() => getMonthStart(new Date()), []);
   const initial = useMemo(() => {
     if (!initialDate) return todayMonthStart;

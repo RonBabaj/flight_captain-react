@@ -179,6 +179,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   cheaper_departure_cities: { en: 'Cheaper departure cities', he: 'ערי יציאה זולות יותר', ru: 'Дешевле вылететь из' },
   save_label: { en: 'save', he: 'חיסכון', ru: 'экономия' },
   view_combination: { en: 'View', he: 'הצג', ru: 'Смотреть' },
+  see_more_options: { en: 'See {n} more options', he: 'עוד {n} אפשרויות', ru: 'Ещё {n} вариантов' },
+  search_via: { en: 'Search via', he: 'חפש דרך', ru: 'Искать через' },
+  total_via_hub: { en: 'Total via hub', he: 'סה"כ דרך הצומת', ru: 'Итого через хаб' },
+  direct_flight: { en: 'Direct flight', he: 'טיסה ישירה', ru: 'Прямой рейс' },
+  you_save: { en: 'You save', he: 'חיסכון', ru: 'Экономия' },
   no_flights_match: { en: 'No flights match your filters', he: 'אין טיסות תואמות', ru: 'Нет подходящих рейсов' },
   no_flights_found: { en: 'No flights found for these dates', he: 'לא נמצאו טיסות לתאריכים אלו', ru: 'Рейсы на эти даты не найдены' },
   no_flights_tip: { en: 'Try different dates or airports', he: 'נסה תאריכים או שדות תעופה אחרים', ru: 'Попробуйте другие даты или аэропорты' },
@@ -268,6 +273,30 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   any_price: { en: 'Any price', he: 'כל מחיר', ru: 'Любая цена' },
   departure_days_section: { en: 'Departure days', he: 'ימי יציאה', ru: 'Дни вылета' },
   price_section: { en: 'Price', he: 'מחיר', ru: 'Цена' },
+  anywhere: { en: 'Anywhere', he: 'כל יעד', ru: 'Куда угодно' },
+  anywhere_subtitle: { en: 'See cheapest destinations', he: 'ראה יעדים זולים', ru: 'Смотреть дешёвые направления' },
+  all_airports: { en: 'All airports', he: 'כל שדות התעופה', ru: 'Все аэропорты' },
+  explore_destinations: { en: 'Explore destinations', he: 'גלה יעדים', ru: 'Исследовать направления' },
+  explore_prices_indicative: { en: 'Prices are indicative – based on cheapest fares found. Tap a destination to search.', he: 'המחירים אינדיקטיביים. הקש על יעד לחיפוש.', ru: 'Цены ориентировочные. Нажмите на направление для поиска.' },
+  explore_month_deals_disclaimer: {
+    en: 'Each card shows the cheapest round-trip for your trip length on any day in this month. Tap a destination for the full monthly calendar and all flight options.',
+    he: 'בכל כרטיס מוצגת הטיסה הזולה ביותר (הלוך ושוב) לאורך הטיול שבחרת, בכל יום בחודש. הקשו על יעד ללוח החודשי המלא ולכל אפשרויות הטיסה.',
+    ru: 'На карточке — самая дешёвая поездка туда-обратно выбранной длительности в любой день месяца. Нажмите на направление, чтобы открыть полный календарь месяца и все варианты рейсов.',
+  },
+  explore_loading: { en: 'Finding cheapest destinations…', he: 'מחפש יעדים זולים…', ru: 'Ищем дешёвые направления…' },
+  explore_loading_sub_deals: {
+    en: 'Checking round-trip prices across destinations…',
+    he: 'בודקים מחירי הלוך ושוב ליעדים…',
+    ru: 'Проверяем цены туда-обратно по направлениям…',
+  },
+  explore_loading_sub_worldwide: {
+    en: 'Checking destinations worldwide…',
+    he: 'בודקים יעדים ברחבי העולם…',
+    ru: 'Проверяем направления по всему миру…',
+  },
+  explore_from: { en: 'From', he: 'מ', ru: 'От' },
+  explore_error: { en: 'Could not load destinations. Please try again.', he: 'לא ניתן לטעון יעדים. נסה שוב.', ru: 'Не удалось загрузить направления. Попробуйте снова.' },
+  explore_pick_destination: { en: 'Pick a destination', he: 'בחר יעד', ru: 'Выберите направление' },
 };
 
 export function getTranslation(key: string, language: LanguageCode): string {

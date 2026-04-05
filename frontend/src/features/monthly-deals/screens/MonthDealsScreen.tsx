@@ -14,9 +14,9 @@ import {
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { useDealsStore, dealsActions } from '../../../store';
+import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
-import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl } from '../../../api';
+import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl, createSearchSession, getSearchSessionResults } from '../../../api';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
@@ -25,14 +25,87 @@ import type { LanguageCode } from '../../../data/translations';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import type { DayDeal, FlightDetailsResponse, FlightSegment, MonetaryAmount, MonthDealsResponse } from '../../../types';
+import type { DayDeal, FlightDetailsResponse, FlightSegment, FlightOption, MonetaryAmount, MonthDealsResponse } from '../../../types';
+import { ANYWHERE_CODE } from '../../../types';
+import { addDaysYmdUtc, firstBookableDepartureInMonth } from '../../../utils/bookableDates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../../flight-search/components/CheaperCitiesSection';
 import type { CheaperCitiesOption } from '../../flight-search/components/CheaperCitiesSection';
 
-// Module-scope cache so the optimizer remains stable across dev-mode remounts
-// (React StrictMode can mount/unmount components during development).
-const POSITIONING_DEALS_PROMISE_CACHE = new Map<string, Promise<MonthDealsResponse>>();
+// Module-scope cache: key → Promise<{ price, sessionId, results } | null>
+// Persists across dev-mode StrictMode remounts so we never create duplicate sessions.
+interface PositioningLegResult {
+  price: number;
+  sessionId: string;
+  results: FlightOption[];
+}
+const POSITIONING_LIVE_CACHE = new Map<string, Promise<PositioningLegResult | null>>();
+
+const POSITIONING_POLL_INTERVAL_MS = 1500;
+const POSITIONING_POLL_MAX_ATTEMPTS = 6;
+
+/**
+ * Creates a real one-way search session, polls for results, and returns the cheapest
+ * price along with the session ID and all available flight options.
+ * Mirrors `findCheapestOptionForParams` from ResultsScreen — prices are consistent
+ * with what the main search engine shows (unlike `/api/deals/month` aggregate data).
+ */
+async function findCheapestFlightForDate(params: {
+  origin: string;
+  destination: string;
+  departureDate: string;
+  adults: number;
+  children: number;
+  currency: string;
+  locale: string;
+}): Promise<PositioningLegResult | null> {
+  const cacheKey = `${params.origin}|${params.destination}|${params.departureDate}|${params.adults}|${params.children}|${params.currency}`;
+  const cached = POSITIONING_LIVE_CACHE.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const promise = (async (): Promise<PositioningLegResult | null> => {
+    try {
+      const session = await createSearchSession({
+        origin: params.origin,
+        destination: params.destination,
+        departureDate: params.departureDate,
+        returnDate: '',
+        adults: params.adults,
+        children: params.children,
+        infants: 0,
+        cabinClass: 'ECONOMY',
+        cabinPreference: 'ECONOMY',
+        includeCheckedBag: false,
+        currency: params.currency,
+        locale: params.locale,
+      });
+
+      let attempts = 0;
+      let lastResults: FlightOption[] = [];
+
+      while (attempts < POSITIONING_POLL_MAX_ATTEMPTS) {
+        const res = await getSearchSessionResults(session.id);
+        lastResults = res.results ?? [];
+        const status = res.session?.status;
+        if (status === 'COMPLETE' || status === 'FAILED') break;
+        attempts += 1;
+        await new Promise<void>((r) => setTimeout(r, POSITIONING_POLL_INTERVAL_MS));
+      }
+
+      if (!lastResults.length) return null;
+      const cheapestPrice = lastResults.reduce(
+        (min, opt) => (opt.price.amount < min ? opt.price.amount : min),
+        lastResults[0].price.amount,
+      );
+      return { price: cheapestPrice, sessionId: session.id, results: lastResults };
+    } catch {
+      return null;
+    }
+  })();
+
+  POSITIONING_LIVE_CACHE.set(cacheKey, promise);
+  return promise;
+}
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -148,23 +221,18 @@ function toYmdUTC(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function getMonthDealsPositioningCached(params: {
-  origin: string;
-  destination: string;
-  year: number;
-  month: number;
-  durationDays: number;
-  currency: string;
-  adults: number;
-  children: number;
-  nonStop: boolean;
-}): Promise<MonthDealsResponse> {
-  const key = `${params.origin}|${params.destination}|${params.year}|${params.month}|${params.durationDays}|${params.currency}|${params.adults}|${params.children}|${params.nonStop ? 1 : 0}`;
-  const cached = POSITIONING_DEALS_PROMISE_CACHE.get(key);
-  if (cached) return cached;
-  const p = getMonthDeals(params);
-  POSITIONING_DEALS_PROMISE_CACHE.set(key, p);
-  return p;
+
+/** Changes when priced deal rows or amounts change (e.g. hub merge) while search inputs stay the same. */
+function buildDealsPositioningSignature(
+  pricedDays: { date: string; lowestPrice?: { amount: number } | null }[],
+): string {
+  if (pricedDays.length === 0) return '0';
+  const sorted = [...pricedDays].sort((a, b) => a.date.localeCompare(b.date));
+  let sum = 0;
+  for (const d of sorted) {
+    sum += d.lowestPrice?.amount ?? 0;
+  }
+  return `${sorted.length}|${sorted[0].date}|${sorted[sorted.length - 1].date}|${sum.toFixed(0)}`;
 }
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
@@ -200,8 +268,33 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const [positioningOptions, setPositioningOptions] = useState<CheaperCitiesOption[]>([]);
   const [positioningLoading, setPositioningLoading] = useState(false);
   const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
+
+  // Hub summary modal — shows route summary before running the combined search
+  const [hubSummaryModal, setHubSummaryModal] = useState<CheaperCitiesOption | null>(null);
+  const [showAllCheaperCities, setShowAllCheaperCities] = useState(false);
+
+  // When opening results (e.g. from Explore after setRoute), align local fields with the store.
+  useEffect(() => {
+    if (view !== 'results') return;
+    if (!route?.origin?.trim() || !route?.destination?.trim()) return;
+    setOrigin(route.origin);
+    setDestination(route.destination);
+  }, [view, route?.origin, route?.destination]);
+
   const positioningSessionKeyRef = useRef<string>('');
   const positioningLoadTokenRef = useRef(0);
+
+  const clampedYm = useMemo(() => clampDealsMonth(year, month), [year, month]);
+
+  useEffect(() => {
+    if (clampedYm.year !== year || clampedYm.month !== month) {
+      dealsActions.setMonth(clampedYm.year, clampedYm.month);
+    }
+  }, [year, month, clampedYm.year, clampedYm.month]);
+
+  const minDealsYm = getMinimumAllowedDealsYearMonth();
+  const atEarliestDealsMonth =
+    year === minDealsYm.year && month === minDealsYm.month;
 
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
@@ -213,14 +306,27 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   useEffect(() => {
     const toRestore = typeof window !== 'undefined' ? getPendingDealsParams() : null;
     if (!toRestore || !toRestore.origin?.trim() || !toRestore.destination?.trim()) return;
-    if (toRestore.year) dealsActions.setMonth(toRestore.year, toRestore.month);
+    const ry = toRestore.year ?? year;
+    const rm = toRestore.month ?? month;
+    const { year: cy, month: cm } = clampDealsMonth(ry, rm);
+
+    // If data is already loaded for the same route/period, skip the re-fetch (tab return / remount).
+    // We intentionally do NOT clear pending params here so a page refresh still restores the search.
+    const sameRoute =
+      route?.origin === toRestore.origin.trim().toUpperCase() &&
+      route?.destination === toRestore.destination.trim().toUpperCase();
+    const samePeriod = cy === year && cm === month;
+    const sameDuration = !toRestore.durationDays || toRestore.durationDays === durationDays;
+    if (data != null && sameRoute && samePeriod && sameDuration) return;
+
+    if (toRestore.year) dealsActions.setMonth(cy, cm);
     if (toRestore.durationDays) dealsActions.setDurationDays(toRestore.durationDays);
     clearPendingDealsParams();
     dealsActions.setLoading(true);
     dealsActions.setError(null);
     getMonthDeals({
       origin: toRestore.origin.trim(), destination: toRestore.destination.trim(),
-      year: toRestore.year, month: toRestore.month, durationDays: toRestore.durationDays,
+      year: cy, month: cm, durationDays: toRestore.durationDays,
       currency, adults: toRestore.adults, children: toRestore.children, nonStop: toRestore.nonStop,
     })
       .then(res => dealsActions.setData(res))
@@ -228,16 +334,44 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       .finally(() => dealsActions.setLoading(false));
   }, []);
 
+  // Tracks the pax/nonStop values from the last time this effect actually fired a search.
+  // Initialised to the current values so the first mount (or a remount with unchanged values)
+  // is always treated as "unchanged" — preventing wasteful re-fetches on tab return.
+  const lastSearchedPaxRef = useRef({ adults, children, nonStop });
+
   useEffect(() => {
-    if (!data || !origin.trim() || !destination.trim()) return;
+    const prev = lastSearchedPaxRef.current;
+    const unchanged =
+      prev.adults === adults && prev.children === children && prev.nonStop === nonStop;
+    lastSearchedPaxRef.current = { adults, children, nonStop };
+    if (unchanged || !data || !origin.trim() || !destination.trim()) return;
     const o = origin.trim(), d = destination.trim();
     dealsActions.setLoading(true);
     dealsActions.setError(null);
-    getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
+    getMonthDeals({
+      origin: o,
+      destination: d,
+      year: clampedYm.year,
+      month: clampedYm.month,
+      durationDays,
+      currency,
+      adults,
+      children,
+      nonStop,
+    })
       .then(res => {
         dealsActions.setData(res);
         if (typeof window !== 'undefined') {
-          setPendingDealsParams({ origin: o, destination: d, year, month, durationDays, adults, children, nonStop });
+          setPendingDealsParams({
+            origin: o,
+            destination: d,
+            year: clampedYm.year,
+            month: clampedYm.month,
+            durationDays,
+            adults,
+            children,
+            nonStop,
+          });
         }
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
@@ -245,7 +379,15 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adults, children, nonStop]);
 
-  const allDealsWithPrice = (data?.days ?? []).filter(d => d.lowestPrice != null && d.lowestPrice.amount > 0);
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const allDealsWithPrice = (data?.days ?? []).filter(
+    d => d.lowestPrice != null && d.lowestPrice.amount > 0 && d.date > todayDateStr,
+  );
+
+  const positioningDataSignature = useMemo(
+    () => buildDealsPositioningSignature(allDealsWithPrice),
+    [data],
+  );
   const allPrices = allDealsWithPrice.map(d => d.lowestPrice!.amount);
   const highestPrice = allPrices.length > 0 ? Math.max(...allPrices) : 0;
 
@@ -283,16 +425,53 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const visibleDeals = bestDeals.slice(0, visibleCount);
   const hasMore = bestDeals.length > visibleCount;
   const hasResultsLayout = data != null && !isMobile;
+  // On mobile, once data is loaded collapse the full search form into a compact summary bar
+  // with an "Edit search" popup (same pattern as the main search engine's ResultsScreen).
+  const mobileCompact = isMobile && data != null;
 
   const handleSearchDeals = () => {
     const o = origin.trim(), d = destination.trim();
     if (!o || !d) { dealsActions.setError('Please fill origin and destination.'); return; }
+
+    // "Anywhere" — navigate to the Explore screen (deals mode) for destination picking
+    if (d.toUpperCase() === ANYWHERE_CODE) {
+      setShowEditSearchModal(false);
+      const departureYmd = firstBookableDepartureInMonth(clampedYm.year, clampedYm.month);
+      const returnDateStr = addDaysYmdUtc(departureYmd, durationDays);
+      try {
+        navigation?.navigate?.('Explore', {
+          mode: 'deals',
+          origin: o,
+          departureDate: departureYmd,
+          returnDate: returnDateStr,
+          currency,
+          adults,
+          year: clampedYm.year,
+          month: clampedYm.month,
+          durationDays,
+          children,
+          nonStop,
+        });
+      } catch {}
+      return;
+    }
+
+    setShowEditSearchModal(false);
     dealsActions.setLoading(true);
     dealsActions.setError(null);
-    getMonthDeals({ origin: o, destination: d, year, month, durationDays, currency, adults, children, nonStop })
+    getMonthDeals({
+      origin: o,
+      destination: d,
+      year: clampedYm.year,
+      month: clampedYm.month,
+      durationDays,
+      currency,
+      adults,
+      children,
+      nonStop,
+    })
       .then(res => {
         dealsActions.setData(res);
-        setShowEditSearchModal(false);
         try {
           navigation?.navigate?.('MonthDealsResults');
         } catch {}
@@ -384,8 +563,28 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
 
     try {
       const [leg1Res, leg2Res] = await Promise.all([
-        getMonthDeals({ origin: o, destination: hubAirport, year, month, durationDays, currency, adults, children, nonStop }),
-        getMonthDeals({ origin: hubAirport, destination: d, year, month, durationDays, currency, adults, children, nonStop }),
+        getMonthDeals({
+          origin: o,
+          destination: hubAirport,
+          year: clampedYm.year,
+          month: clampedYm.month,
+          durationDays,
+          currency,
+          adults,
+          children,
+          nonStop,
+        }),
+        getMonthDeals({
+          origin: hubAirport,
+          destination: d,
+          year: clampedYm.year,
+          month: clampedYm.month,
+          durationDays,
+          currency,
+          adults,
+          children,
+          nonStop,
+        }),
       ]);
 
       const combined = combineLegsForHub(leg1Res, leg2Res, hubAirport, o, d);
@@ -400,172 +599,138 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // ─── Positioning Flight Optimizer (Deals) ──────────────────────────────────
   // Clean parallel implementation: fires all hub requests at once, shows results
   // after all finish. ~6s total instead of minutes.
-  const positioningCalcKey = `${origin.trim().toUpperCase()}|${destination.trim().toUpperCase()}|${year}|${month}|${durationDays}|${currency}|${adults}|${children}|${nonStop ? 1 : 0}`;
+  const positioningCalcKey = `${origin.trim().toUpperCase()}|${destination.trim().toUpperCase()}|${clampedYm.year}|${clampedYm.month}|${durationDays}|${currency}|${adults}|${children}|${nonStop ? 1 : 0}`;
 
   useEffect(() => {
     const o = origin.trim().toUpperCase();
     const d = destination.trim().toUpperCase();
 
+    // If route is empty or we have no priced deals yet, stop any in-progress loading
+    // and reset the session key so the next valid render triggers a fresh optimizer run.
+    // Crucially: do NOT clear positioningOptions here — only clear them when a NEW
+    // positioningCalcKey is detected (i.e. the user changed route/month/pax).
+    // This prevents wiping valid options during transient empty-data states that can
+    // occur mid-refetch (isLoading=true, data still set to previous value, etc.).
     if (!o || !d || !data || allDealsWithPrice.length === 0) {
+      const routeChanged = !positioningSessionKeyRef.current.startsWith(positioningCalcKey + '|') &&
+        positioningSessionKeyRef.current !== '';
+      // eslint-disable-next-line no-console
+      console.log('[MONTHLY_POSITIONING_GUARD]', {
+        reason: !o || !d ? 'empty_route' : !data ? 'no_data' : 'no_priced_days',
+        routeChanged,
+        positioningCalcKey,
+        sessionKey: positioningSessionKeyRef.current,
+      });
+      if (routeChanged) {
+        // Route/params changed while data is loading — clear stale options immediately.
+        setPositioningOptions([]);
+      }
       setPositioningLoading(false);
+      positioningSessionKeyRef.current = '';
       return;
     }
 
-    if (positioningCalcKey === positioningSessionKeyRef.current) return;
-    positioningSessionKeyRef.current = positioningCalcKey;
+    // Include today's date in the run-key so that when the calendar day rolls over the
+    // optimizer re-runs with a new valid future date instead of reusing stale cached sessions.
+    const runToday = new Date().toISOString().slice(0, 10);
+    const positioningRunKey = `${positioningCalcKey}|${positioningDataSignature}|${runToday}`;
+    if (positioningRunKey === positioningSessionKeyRef.current) return;
+    positioningSessionKeyRef.current = positioningRunKey;
 
     const token = ++positioningLoadTokenRef.current;
     setPositioningOptions([]);
     setCheaperCitiesFolded(true);
+    setShowAllCheaperCities(false);
     setPositioningLoading(true);
 
-    // Monthly Deals: when combining legs we match by `day.date`,
-    // so savings must be computed against the direct (origin->destination)
-    // lowest price for the same date.
-    const directByDate = new Map<string, number>();
+    // Find the cheapest date in the month to use as reference for hub-leg live searches.
+    // allDealsWithPrice already excludes today and past dates (filtered at declaration).
+    let bestDate = '';
+    let monthlyDirectCheapest = Infinity;
     for (const day of allDealsWithPrice) {
-      const lp = day.lowestPrice;
-      if (!lp || typeof lp.amount !== 'number') continue;
-      directByDate.set(day.date, lp.amount);
+      const amt = day.lowestPrice?.amount ?? Infinity;
+      if (amt < monthlyDirectCheapest) {
+        monthlyDirectCheapest = amt;
+        bestDate = day.date;
+      }
     }
-    const directCheapest = (() => {
-      const vals = Array.from(directByDate.values());
-      return vals.length ? Math.min(...vals) : Infinity;
-    })();
+
+    if (!bestDate) {
+      // All priced days are in the past — nothing to search. Show nothing and stop loading.
+      setPositioningLoading(false);
+      return;
+    }
+
     const hubsToTry = (HUB_AIRPORTS as readonly string[]).filter((h) => h !== o && h !== d);
+    const searchLeg = { adults, children, currency, locale };
 
-    console.log(
-      '[MONTHLY_POSITIONING] origin=' +
-        o +
-        ' dest=' +
-        d +
-        ' hubs=' +
-        hubsToTry.join(',') +
-        ' year=' +
-        year +
-        ' month=' +
-        month +
-        ' durationDays=' +
-        durationDays +
-        ' currency=' +
-        currency +
-        ' adults=' +
-        adults +
-        ' children=' +
-        children +
-        ' nonStop=' +
-        (nonStop ? 1 : 0),
-    );
+    // eslint-disable-next-line no-console
+    console.log('[MONTHLY_POSITIONING]', {
+      origin: o,
+      dest: d,
+      bestDate,
+      monthlyDirectCheapest,
+      hubs: hubsToTry,
+      pricedDays: allDealsWithPrice.length,
+      note: 'Direct baseline from deals API; hub legs use live sessions',
+    });
 
-    // Hard cap so we don't wait forever, but we must not cut valid responses.
-    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
-      Promise.race([
-        p,
-        new Promise<null>((resolve) =>
-          setTimeout(() => {
-            resolve(null);
-          }, ms),
-        ),
-      ]);
+    // Use the deals-API price for the direct route as the comparison baseline.
+    // Creating a new live session for the direct route is unreliable: long-haul routes
+    // (e.g. TLV→HND) frequently time out or return 0 results in the 9-second polling
+    // window, which silently kills every hub comparison (directPrice == null → skip all).
+    // monthlyDirectCheapest is the verified cheapest price from getMonthDeals for bestDate,
+    // which is exactly what the user sees on the monthly deals calendar — a consistent baseline.
+    const directBaseline = monthlyDirectCheapest;
 
     Promise.allSettled(
       hubsToTry.map(async (hub) => {
-        const fetchLeg = async (from: string, to: string) => {
-          // Retry once: intermittent `net::ERR_EMPTY_RESPONSE` / timeouts.
-          const p1 = withTimeout(
-            getMonthDealsPositioningCached({
-              origin: from,
-              destination: to,
-              year,
-              month,
-              durationDays,
-              currency,
-              adults,
-              children,
-              nonStop,
-            }),
-            25000,
-          );
-          const r1 = await p1;
-          if (r1) return r1;
+        const [posResult, hubResult] = await Promise.all([
+          findCheapestFlightForDate({ origin: o, destination: hub, departureDate: bestDate, ...searchLeg }),
+          findCheapestFlightForDate({ origin: hub, destination: d, departureDate: bestDate, ...searchLeg }),
+        ]);
 
-          return await withTimeout(
-            getMonthDealsPositioningCached({
-              origin: from,
-              destination: to,
-              year,
-              month,
-              durationDays,
-              currency,
-              adults,
-              children,
-              nonStop,
-            }),
-            45000,
-          );
-        };
+        const posPrice = posResult?.price ?? null;
+        const hubPrice = hubResult?.price ?? null;
 
-        const [posRes, hubRes] = await Promise.all([fetchLeg(o, hub), fetchLeg(hub, d)]);
+        // eslint-disable-next-line no-console
+        console.log(`[MONTHLY_POSITIONING_RAW_RESPONSE] hub=${hub}`, {
+          posLeg: posPrice != null ? posPrice.toFixed(0) : 'null',
+          hubLeg: hubPrice != null ? hubPrice.toFixed(0) : 'null',
+          directBaseline: directBaseline.toFixed(0),
+        });
 
-        if (!posRes || !hubRes) return null;
-
-        const posDays = (posRes.days ?? []).filter((dd) => dd.lowestPrice && dd.lowestPrice.amount > 0);
-        const hubDays = (hubRes.days ?? []).filter((dd) => dd.lowestPrice && dd.lowestPrice.amount > 0);
-        if (!posDays.length || !hubDays.length) return null;
-
-        // IMPORTANT: Monthly Deals combines legs by matching `day.date`.
-        // So we must compute the best (min) combined total for shared dates,
-        // not by independently taking the cheapest date from each leg.
-        const posByDate = new Map<string, number>();
-        for (const dd of posDays) posByDate.set(dd.date, dd.lowestPrice!.amount);
-        const hubByDate = new Map<string, number>();
-        for (const dd of hubDays) hubByDate.set(dd.date, dd.lowestPrice!.amount);
-
-        let bestTotal = Infinity;
-        let bestPosAmount = 0;
-        let bestHubAmount = 0;
-        let sharedDateCount = 0;
-
-        for (const [date, posAmount] of posByDate.entries()) {
-          const hubAmount = hubByDate.get(date);
-          if (hubAmount == null) continue;
-          sharedDateCount += 1;
-
-          const totalAmount = posAmount + hubAmount;
-          if (totalAmount < bestTotal) {
-            bestTotal = totalAmount;
-            bestPosAmount = posAmount;
-            bestHubAmount = hubAmount;
-          }
+        if (posPrice == null || hubPrice == null) {
+          // eslint-disable-next-line no-console
+          console.log(`[MONTHLY_POSITIONING_PARSED] hub=${hub} skip=missing_price posLeg=${posPrice} hubLeg=${hubPrice}`);
+          return null;
         }
 
-        if (!Number.isFinite(bestTotal)) return null;
+        const hubTotal = posPrice + hubPrice;
+        const savingsAmount = directBaseline - hubTotal;
 
-        const savingsAmount = directCheapest - bestTotal;
-        if (savingsAmount <= 80) return null;
+        // eslint-disable-next-line no-console
+        console.log(`[MONTHLY_POSITIONING_PARSED] hub=${hub}`, {
+          directBaseline: directBaseline.toFixed(0),
+          posPrice: posPrice.toFixed(0),
+          hubPrice: hubPrice.toFixed(0),
+          hubTotal: hubTotal.toFixed(0),
+          savings: savingsAmount.toFixed(0),
+          willKeep: savingsAmount > 80,
+        });
 
-        console.log(
-          '[MONTHLY_POSITIONING] origin=' +
-            o +
-            ' hub=' +
-            hub +
-            ' dest=' +
-            d +
-            ' total=' +
-            bestTotal.toFixed(0) +
-            ' savings=' +
-            savingsAmount.toFixed(0) +
-            ' sharedDates=' +
-            sharedDateCount,
-        );
+        if (savingsAmount <= 80) {
+          return null;
+        }
 
         return {
           hubAirport: hub,
-          totalPrice: { amount: bestTotal, currency },
+          departureDate: bestDate,
+          totalPrice: { amount: hubTotal, currency },
           savings: { amount: savingsAmount, currency },
-          positioningPrice: { amount: bestPosAmount, currency },
-          hubFlightPrice: { amount: bestHubAmount, currency },
-          mainTripPrice: { amount: directCheapest, currency },
+          positioningPrice: { amount: posPrice, currency },
+          hubFlightPrice: { amount: hubPrice, currency },
+          mainTripPrice: { amount: directBaseline, currency },
         } as CheaperCitiesOption;
       }),
     ).then((results) => {
@@ -576,12 +741,25 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
         )
         .map((r) => r.value)
         .sort((a, b) => b.savings.amount - a.savings.amount);
-      console.log('[MONTHLY_POSITIONING_RENDER] optionsCount=' + found.length);
+      // eslint-disable-next-line no-console
+      console.log('[MONTHLY_POSITIONING_SET_STATE]', found);
       setPositioningOptions(found);
       setPositioningLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positioningCalcKey, data, allDealsWithPrice.length]);
+  // NOTE: `data` is intentionally NOT in deps — already captured by `positioningDataSignature`.
+  }, [positioningCalcKey, positioningDataSignature]);
+
+  useEffect(() => {
+    const isVisible = positioningLoading || (positioningOptions?.length ?? 0) > 0;
+    // eslint-disable-next-line no-console
+    console.log('[MONTHLY_POSITIONING_STATE]', {
+      loading: positioningLoading,
+      positioningOptionsLength: positioningOptions?.length ?? 0,
+      hasData: !!(positioningOptions && positioningOptions.length),
+      isVisible,
+    });
+  }, [positioningLoading, positioningOptions]);
 
   const openDetails = async (date: string) => {
     const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
@@ -808,9 +986,11 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
       onView={(hub) => {
-        console.log('[MONTHLY_POSITIONING_CLICK] selectedHub=' + hub);
-        handleViewOptimizedHub(hub);
+        const opt = positioningOptions.find((x) => x.hubAirport === hub);
+        if (opt) setHubSummaryModal(opt);
       }}
+      showAll={showAllCheaperCities}
+      onShowMore={() => setShowAllCheaperCities(true)}
     />
   );
 
@@ -830,7 +1010,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const filtersSidebar = (
     <View style={fl.sidebarInner}>
       {filtersHeader(false)}
-      <ScrollView contentContainerStyle={fl.scrollContent}>
+      <ScrollView style={fl.filtersScroll} contentContainerStyle={fl.scrollContent}>
         {filtersContent}
       </ScrollView>
       {/* Cheaper departure cities appears right after filter content — matches FiltersPanel footer pattern */}
@@ -864,7 +1044,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       <Text style={[p.heroSub, { color: theme.textMuted }]}>{t('monthly_deals_hero')}</Text>
 
       <AirportAutocomplete label={t('from')} value={origin} onChange={setOrigin} placeholder={t('city_or_airport')} />
-      <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} />
+      <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} showAnywhere />
 
       <PassengerCabinPicker
         adults={adults} children={children} cabinClass="ECONOMY"
@@ -886,10 +1066,20 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
 
       {/* Month navigator: in RTL, natural flow puts first child (Prev) on right, last (Next) on left — no row-reverse */}
       <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
-        <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={p.navBtn}>
+        <TouchableOpacity
+          onPress={() => dealsActions.prevMonth()}
+          style={[p.navBtn, atEarliestDealsMonth && { opacity: 0.45 }]}
+          disabled={atEarliestDealsMonth}
+          activeOpacity={atEarliestDealsMonth ? 1 : 0.7}
+        >
           <View style={p.navBtnInner}>
-            <AppIcon name={isRTL ? 'chevron-forward' : 'chevron-back'} size={18} color={theme.primary} fallbackText={t('prev')} />
-            <Text style={[p.navText, { color: theme.primary }]}>{t('prev')}</Text>
+            <AppIcon
+              name={isRTL ? 'chevron-forward' : 'chevron-back'}
+              size={18}
+              color={atEarliestDealsMonth ? theme.textMuted : theme.primary}
+              fallbackText={t('prev')}
+            />
+            <Text style={[p.navText, { color: atEarliestDealsMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
           </View>
         </TouchableOpacity>
         <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
@@ -980,9 +1170,14 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                     </Text>
                   )}
                 </View>
-                  <Text style={[p.dealPrice, { color: theme.primary }]}>{sym} {amount.toFixed(0)}</Text>
+                {/* Price is on the visual-start side in RTL (left) because of row-reverse.
+                    Align text to left within its own cell so it reads naturally there. */}
+                <Text style={[p.dealPrice, { color: theme.primary }, isRTL && { textAlign: 'left' }]}>
+                  {sym} {amount.toFixed(0)}
+                </Text>
               </View>
-              <Text style={[p.dealCta, { color: theme.primary }]}>
+              {/* CTA arrow + label — right-aligned in RTL so it anchors to the reading-start side */}
+              <Text style={[p.dealCta, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
                 {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
               </Text>
             </TouchableOpacity>
@@ -1052,15 +1247,15 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                   })()}
                 </Text>
                 <View style={[m.summaryMeta, isRTL && { alignItems: 'flex-start' }]}>
-                  <Text style={[m.summaryMuted, { color: theme.textMuted }]}>
+                  <Text style={[m.summaryMuted, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
                     {details.stops.outbound + details.stops.return === 0 ? t('direct') : `${details.stops.outbound + details.stops.return} ${t('stops')}`}
                   </Text>
                 </View>
               </View>
 
-              {/* Legs */}
-              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language)}
-              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language)}
+              {/* Legs — pass isRTL so segments mirror correctly */}
+              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language, isRTL)}
+              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language, isRTL)}
             </ScrollView>
           )}
 
@@ -1105,7 +1300,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     return [o && d ? `${o} · ${d}` : '', monthLabel, pax].filter(Boolean).join(' · ');
   }, [origin, destination, year, month, adults, children, t]);
 
-  const summaryBar = showResultsShell ? (
+  const summaryBar = (showResultsShell || mobileCompact || hasResultsLayout) ? (
     <View
       style={[
         p.summaryBar,
@@ -1160,8 +1355,10 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       {/* Must show even if previous results are still present (data stays non-null until fetch resolves). */}
       <SearchLoadingOverlay visible={isLoading} origin={origin} destination={destination} />
       {hasResultsLayout ? (
-        /* Same as main search: parent direction:rtl puts 1st col (search) on right, 3rd (filters) on left. No row-reverse. */
-        <View style={p.twoCols}>
+        /* Same as main search: parent direction:rtl causes the browser to flow columns
+           right-to-left, so heroCol (1st) sits on the right, filterCol (3rd) on the left.
+           This matches ResultsScreen's `styles.main` with `direction: 'rtl'`. */
+        <View style={[p.twoCols, isRTL && { direction: 'rtl' as any }]}>
           {(showForm || showDesktopSidebar) && (
             <View style={[p.heroCol, isRTL ? { borderRightWidth: 0, borderLeftWidth: 1, borderLeftColor: theme.cardBorder } : { borderRightWidth: 1, borderRightColor: theme.cardBorder }]}>
               <ScrollView contentContainerStyle={p.heroColContent} keyboardShouldPersistTaps="handled">{heroCard}</ScrollView>
@@ -1177,25 +1374,35 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
             </View>
           )}
         </View>
-      ) : (
+      ) : !mobileCompact ? (
+        /* Form view: full search form scrolls with page */
         <ScrollView
           style={p.scrollSingle}
-          contentContainerStyle={showForm ? p.contentSingle : p.contentSingleResults}
+          contentContainerStyle={p.contentSingle}
           keyboardShouldPersistTaps="handled"
         >
-          {showForm && heroCard}
+          {heroCard}
+        </ScrollView>
+      ) : (
+        /* Results compact view: sticky header + scrollable results + sticky cheaper cities footer */
+        <View style={{ flex: 1 }}>
           <View style={[p.stickyHeaderWrap, { backgroundColor: theme.cardBg }]}>
             {toolbar}
             {filtersRowMobile}
           </View>
-          {resultsContent}
-          {/* Mobile only: cheaper cities shown after results, as collapsible panel */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={p.contentSingleResults}
+            keyboardShouldPersistTaps="handled"
+          >
+            {resultsContent}
+          </ScrollView>
           {(positioningLoading || positioningOptions.length > 0) ? (
-            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder }}>
+            <View style={{ backgroundColor: theme.cardBg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder }}>
               {cheaperCitiesNode}
             </View>
           ) : null}
-        </ScrollView>
+        </View>
       )}
       {detailsModal}
       {filtersModal}
@@ -1217,7 +1424,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                   {origin.trim().toUpperCase()} → {destination.trim().toUpperCase()}
                 </Text>
                 <AirportAutocomplete label={t('from')} value={origin} onChange={setOrigin} placeholder={t('city_or_airport')} />
-                <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} />
+                <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} showAnywhere />
                 <PassengerCabinPicker
                   adults={adults} children={children} cabinClass="ECONOMY"
                   onAdultsChange={setAdults} onChildrenChange={setChildren} onCabinChange={() => {}}
@@ -1234,10 +1441,20 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                   </TouchableOpacity>
                 </View>
                 <View style={[esm.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
-                  <TouchableOpacity onPress={() => dealsActions.prevMonth()} style={esm.navBtn}>
+                  <TouchableOpacity
+                    onPress={() => dealsActions.prevMonth()}
+                    style={[esm.navBtn, atEarliestDealsMonth && { opacity: 0.45 }]}
+                    disabled={atEarliestDealsMonth}
+                    activeOpacity={atEarliestDealsMonth ? 1 : 0.7}
+                  >
                     <View style={esm.navBtnInner}>
-                      <AppIcon name={isRTL ? 'chevron-forward' : 'chevron-back'} size={16} color={theme.primary} fallbackText={t('prev')} />
-                      <Text style={[esm.navText, { color: theme.primary }]}>{t('prev')}</Text>
+                      <AppIcon
+                        name={isRTL ? 'chevron-forward' : 'chevron-back'}
+                        size={16}
+                        color={atEarliestDealsMonth ? theme.textMuted : theme.primary}
+                        fallbackText={t('prev')}
+                      />
+                      <Text style={[esm.navText, { color: atEarliestDealsMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
                     </View>
                   </TouchableOpacity>
                   <Text style={[esm.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
@@ -1265,6 +1482,99 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           </View>
         </View>
       </Modal>
+
+      {/* ─── Hub route summary popup ───────────────────────────────────────── */}
+      {hubSummaryModal && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setHubSummaryModal(null)}
+        >
+          <Pressable style={hfm.overlay} onPress={() => setHubSummaryModal(null)}>
+            <View
+              style={[hfm.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Header: origin → hub → destination */}
+              <View style={[hfm.header, { borderBottomColor: theme.cardBorder }]}>
+                <Text style={[hfm.title, { color: theme.text }]} numberOfLines={1}>
+                  {origin.trim().toUpperCase()} → {hubSummaryModal.hubAirport} → {destination.trim().toUpperCase()}
+                </Text>
+                <TouchableOpacity onPress={() => setHubSummaryModal(null)} style={hfm.closeBtn} hitSlop={8}>
+                  <AppIcon name="close" size={22} color={theme.textMuted} fallbackText={t('close')} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Leg breakdown */}
+              <View style={hfm.body}>
+                <View style={hfm.legRow}>
+                  <Text style={[hfm.legLabel, { color: theme.textMuted }]}>
+                    {origin.trim().toUpperCase()} → {hubSummaryModal.hubAirport}
+                  </Text>
+                  <Text style={[hfm.legPrice, { color: theme.text }]}>
+                    {getCurrencySymbol(hubSummaryModal.positioningPrice?.currency ?? currency)}{' '}
+                    {(hubSummaryModal.positioningPrice?.amount ?? 0).toFixed(0)}
+                  </Text>
+                </View>
+                <View style={hfm.legRow}>
+                  <Text style={[hfm.legLabel, { color: theme.textMuted }]}>
+                    {hubSummaryModal.hubAirport} → {destination.trim().toUpperCase()}
+                  </Text>
+                  <Text style={[hfm.legPrice, { color: theme.text }]}>
+                    {getCurrencySymbol(hubSummaryModal.hubFlightPrice?.currency ?? currency)}{' '}
+                    {(hubSummaryModal.hubFlightPrice?.amount ?? 0).toFixed(0)}
+                  </Text>
+                </View>
+
+                <View style={[hfm.divider, { backgroundColor: theme.cardBorder }]} />
+
+                {/* Summary row: total / direct / savings */}
+                <View style={hfm.summaryRow}>
+                  <View style={hfm.summaryCol}>
+                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('total_via_hub')}</Text>
+                    <Text style={[hfm.summaryValue, { color: theme.text }]}>
+                      {getCurrencySymbol(hubSummaryModal.totalPrice.currency)}{' '}
+                      {hubSummaryModal.totalPrice.amount.toFixed(0)}
+                    </Text>
+                  </View>
+                  <View style={hfm.summaryCol}>
+                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('direct_flight')}</Text>
+                    <Text style={[hfm.summaryValue, { color: theme.text }]}>
+                      {getCurrencySymbol(hubSummaryModal.mainTripPrice?.currency ?? currency)}{' '}
+                      {(hubSummaryModal.mainTripPrice?.amount ?? 0).toFixed(0)}
+                    </Text>
+                  </View>
+                  <View style={hfm.summaryCol}>
+                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('you_save')}</Text>
+                    <Text style={[hfm.summaryValue, { color: theme.primary }]}>
+                      {getCurrencySymbol(hubSummaryModal.savings.currency)}{' '}
+                      {hubSummaryModal.savings.amount.toFixed(0)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* CTA */}
+              <View style={[hfm.footer, { borderTopColor: theme.cardBorder }]}>
+                <TouchableOpacity
+                  style={[hfm.ctaBtn, { backgroundColor: theme.primary }]}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    const hub = hubSummaryModal.hubAirport;
+                    setHubSummaryModal(null);
+                    handleViewOptimizedHub(hub);
+                  }}
+                >
+                  <Text style={hfm.ctaText}>
+                    {t('search_via')} {hubSummaryModal.hubAirport}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1278,6 +1588,7 @@ function renderLeg(
   theme: import('../../../theme/ThemeContext').Theme,
   t: (k: string) => string,
   language: LanguageCode,
+  isRTL = false,
 ) {
   if (!segs?.length) return null;
   const stops = Math.max(0, segs.length - 1);
@@ -1287,9 +1598,9 @@ function renderLeg(
 
   return (
     <View style={[m.legBlock, { borderTopColor: theme.cardBorder }]}>
-      <View style={m.legHeader}>
-        <Text style={[m.legTitle, { color: theme.text }]}>{label}</Text>
-        <Text style={[m.legMeta, { color: theme.textMuted }]}>
+      <View style={[m.legHeader, isRTL && { alignItems: 'flex-end' }]}>
+        <Text style={[m.legTitle, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{label}</Text>
+        <Text style={[m.legMeta, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
           {legDate ? `${legDate} · ` : ''}{fmtDur(dur)} · {stopsLabel}
         </Text>
       </View>
@@ -1307,8 +1618,9 @@ function renderLeg(
                 </Text>
               </View>
             )}
-            <View style={m.segRow}>
-              <View style={m.segEnd}>
+            {/* In RTL, mirror dep/arr: arrival on right (visual start), departure on left */}
+            <View style={[m.segRow, isRTL && { flexDirection: 'row-reverse' }]}>
+              <View style={[m.segEnd, isRTL && { alignItems: 'center' }]}>
                 <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.departureTime)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.from?.code, language)}</Text>
               </View>
@@ -1317,7 +1629,7 @@ function renderLeg(
                 <Text style={[m.segDur, { color: theme.textMuted }]}>{fmtDur(seg.durationMinutes || 0)}</Text>
                 <View style={[m.segLine, { backgroundColor: theme.cardBorder }]} />
               </View>
-              <View style={[m.segEnd, m.segEndRight]}>
+              <View style={[m.segEnd, m.segEndRight, isRTL && { alignItems: 'center' }]}>
                 <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.arrivalTime)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.to?.code, language)}</Text>
               </View>
@@ -1384,12 +1696,12 @@ const esm = StyleSheet.create({
 
 const p = StyleSheet.create({
   twoCols: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
-  heroCol: { width: 320, minWidth: 280, borderRightWidth: 1 },
+  heroCol: { width: 280, minWidth: 240, borderRightWidth: 1 },
   heroColContent: { padding: 18, paddingBottom: 40 },
   resultsCol: { flex: 1, minWidth: 0 },
   // Match main search results: toolbar should sit flush under the summary bar (no extra paddingTop).
   resultsColContent: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 40 },
-  filterCol: { width: 240, minWidth: 200 },
+  filterCol: { width: 300, minWidth: 260, minHeight: 0 },
   scrollSingle: { flex: 1 },
   contentSingle: { padding: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%', flexGrow: 1 },
   // Mobile results view: avoid extra top inset so the sticky header sits right under `summaryBar`.
@@ -1552,7 +1864,8 @@ const sb = StyleSheet.create({
 // ─── Filters panel styles (matches search engine FiltersPanel) ───────────────
 
 const fl = StyleSheet.create({
-  sidebarInner: { flex: 1 },
+  sidebarInner: { flex: 1, flexDirection: 'column', minHeight: 0 },
+  filtersScroll: { flex: 1, minHeight: 0 },
   cheaperCitiesFooter: { borderTopWidth: StyleSheet.hairlineWidth },
   headerRow: {
     flexDirection: 'row',
@@ -1590,3 +1903,47 @@ const fl = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
 });
+
+// ─── Hub summary popup styles ─────────────────────────────────────────────────
+
+const hfm = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  title: { fontSize: 15, fontWeight: '700', flex: 1 },
+  closeBtn: { padding: 4, marginLeft: 10 },
+  body: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10, gap: 10 },
+  legRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  legLabel: { fontSize: 13 },
+  legPrice: { fontSize: 14, fontWeight: '600' },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryCol: { alignItems: 'center', gap: 2 },
+  summaryLabel: { fontSize: 11 },
+  summaryValue: { fontSize: 15, fontWeight: '700' },
+  footer: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth },
+  ctaBtn: { borderRadius: 999, paddingVertical: 13, alignItems: 'center' },
+  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+});
+
+// ─── Explore "Anywhere" destination picker sheet styles ───────────────────────
+

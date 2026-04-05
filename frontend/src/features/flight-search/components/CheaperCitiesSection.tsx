@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getCurrencySymbol } from '../../../utils/exchangeRates';
@@ -14,6 +13,8 @@ export interface CheaperCitiesOption {
   positioningPrice?: MonetaryAmount;
   hubFlightPrice?: MonetaryAmount;
   mainTripPrice?: MonetaryAmount;
+  /** Reference date used for the live search sessions (set by monthly deals optimizer). */
+  departureDate?: string;
 }
 
 interface Props {
@@ -23,9 +24,15 @@ interface Props {
   folded: boolean;
   onToggleFold: () => void;
   onView: (hub: string) => void;
+  /** If true, all options are shown; otherwise only the top 5 are shown. */
+  showAll?: boolean;
+  /** Called when the user taps "See X more options". */
+  onShowMore?: () => void;
 }
 
-export function CheaperCitiesSection({ loading, options, isMobile, folded, onToggleFold, onView }: Props) {
+const MAX_VISIBLE = 5;
+
+export function CheaperCitiesSection({ loading, options, isMobile, folded, onToggleFold, onView, showAll = false, onShowMore }: Props) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
 
@@ -40,6 +47,9 @@ export function CheaperCitiesSection({ loading, options, isMobile, folded, onTog
   }
 
   if (!options || options.length === 0) return null;
+
+  const visibleOptions = showAll ? options : options.slice(0, MAX_VISIBLE);
+  const hiddenCount = options.length - MAX_VISIBLE;
 
   return (
     <View style={s.section}>
@@ -57,20 +67,13 @@ export function CheaperCitiesSection({ loading, options, isMobile, folded, onTog
             <Text style={[s.foldTriggerText, { color: theme.primary }]}>
               {folded ? `Show ${options.length} cities` : 'Collapse'}
             </Text>
-            <AppIcon
-              name={folded ? 'chevron-down' : 'chevron-up'}
-              size={18}
-              color={theme.primary}
-            />
           </View>
         )}
       </TouchableOpacity>
 
-      {(!isMobile || !folded) &&
-        options.map((opt) => (
-          (() => {
-            // Defensive guards: if the backend returns partially-shaped data,
-            // we still want the Monthly Deals page to render instead of crashing.
+      {(!isMobile || !folded) && (
+        <>
+          {visibleOptions.map((opt) => {
             const totalCurrency = (opt.totalPrice?.currency ?? 'USD') as string;
             const savingsCurrency = (opt.savings?.currency ?? 'USD') as string;
             const totalAmount =
@@ -82,31 +85,40 @@ export function CheaperCitiesSection({ loading, options, isMobile, folded, onTog
             const totalLabel = `${getCurrencySymbol(totalCurrency)} ${Number.isFinite(totalAmount) ? totalAmount.toFixed(0) : '0'}`;
 
             return (
-          <View
-            key={opt.hubAirport}
-            style={[s.row, { borderColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}
-          >
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[s.hub, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-                {opt.hubAirport}
-              </Text>
-              <Text style={[s.meta, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-                {totalLabel} · {t('save_label')} {savingsLabel}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[s.btn, { backgroundColor: theme.controlBg }]}
-              onPress={() => onView(opt.hubAirport)}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.btnText, { color: theme.primary }]}>
-                {t('view_combination')}
+              <View
+                key={opt.hubAirport}
+                style={[s.row, { borderColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[s.hub, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
+                    {opt.hubAirport}
+                  </Text>
+                  <Text style={[s.meta, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
+                    {totalLabel} · {t('save_label')} {savingsLabel}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.btn, { backgroundColor: theme.controlBg }]}
+                  onPress={() => onView(opt.hubAirport)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.btnText, { color: theme.primary }]}>
+                    {t('view_combination')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {!showAll && hiddenCount > 0 && onShowMore && (
+            <TouchableOpacity style={s.showMoreBtn} onPress={onShowMore} activeOpacity={0.7}>
+              <Text style={[s.showMoreText, { color: theme.primary }]}>
+                {t('see_more_options').replace('{n}', String(hiddenCount))}
               </Text>
             </TouchableOpacity>
-          </View>
-            );
-          })()
-        ))}
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -159,11 +171,23 @@ const s = StyleSheet.create({
   },
   btn: {
     paddingVertical: 5,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   btnText: {
     fontSize: 11,
+    fontWeight: '600',
+  },
+  showMoreBtn: {
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  showMoreText: {
+    fontSize: 12,
     fontWeight: '600',
   },
 });

@@ -329,6 +329,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       return;
     }
     setSidebarSearchError(null);
+    setShowEditSearchModal(false);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[EDIT_SEARCH_LOADING] modalClosed before session');
+    }
     setSidebarSearchLoading(true);
     try {
       const cabin: CreateSearchSessionRequest['cabinClass'] =
@@ -352,7 +357,6 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       const session = await createSearchSession(payload);
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);
-      setShowEditSearchModal(false);
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {

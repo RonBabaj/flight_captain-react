@@ -212,3 +212,14 @@ export interface AirportCityResult {
 export interface AirportCitySearchResponse {
   items: AirportCityResult[];
 }
+
+// Special code used when the user selects "Anywhere" as the destination.
+export const ANYWHERE_CODE = 'ANYWHERE';
+
+// A single destination returned by the /api/explore endpoint (Amadeus Flight Inspiration).
+export interface ExploreDestination {
+  destination: string;
+  price: string;
+  currency: string;
+  departureDate?: string;
+}

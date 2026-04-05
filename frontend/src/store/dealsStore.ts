@@ -22,6 +22,20 @@ interface DealsState {
 
 const now = new Date();
 
+/** Earliest selectable month for Monthly Deals (local calendar, first of current month). */
+export function getMinimumAllowedDealsYearMonth(): { year: number; month: number } {
+  const n = new Date();
+  return { year: n.getFullYear(), month: n.getMonth() + 1 };
+}
+
+export function clampDealsMonth(year: number, month: number): { year: number; month: number } {
+  const min = getMinimumAllowedDealsYearMonth();
+  if (year > min.year || (year === min.year && month >= min.month)) {
+    return { year, month };
+  }
+  return { ...min };
+}
+
 export const useDealsStore = create<DealsState>(() => ({
   route: null,
   year: now.getFullYear(),
@@ -43,17 +57,21 @@ export const dealsActions = {
     useDealsStore.setState({ route: { origin, destination } }),
 
   setMonth: (year: number, month: number) =>
-    useDealsStore.setState({ year, month }),
+    useDealsStore.setState(() => clampDealsMonth(year, month)),
 
   prevMonth: () =>
-    useDealsStore.setState(state => {
+    useDealsStore.setState((state) => {
+      const min = getMinimumAllowedDealsYearMonth();
+      if (state.year < min.year || (state.year === min.year && state.month <= min.month)) {
+        return {};
+      }
       let { year, month } = state;
       month -= 1;
       if (month < 1) {
         month = 12;
         year -= 1;
       }
-      return { year, month };
+      return clampDealsMonth(year, month);
     }),
 
   nextMonth: () =>

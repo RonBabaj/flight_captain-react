@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
+import { ANYWHERE_CODE } from '../../../types';
 import { searchActions } from '../../../store';
 import { createSearchSession } from '../../../api';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -8,7 +9,8 @@ import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
-import { useSearchParams } from '../../../hooks/useSearchParams';
+import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
+import { clampExploreSearchDates } from '../../../utils/bookableDates';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -56,22 +58,72 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     }
   }, [paramsFromUrl.sessionId, navigation]);
 
+  // Do not merge URL on every render — that overwrote destination when switching Anywhere → real airport
+  // while the URL still had destination=ANYWHERE. Re-apply from URL only on browser history navigation.
   useEffect(() => {
-    if (paramsFromUrl.origin || paramsFromUrl.destination || paramsFromUrl.departureDate) {
-      setParams((prev) => ({ ...prev, ...paramsFromUrl }));
-      setTripType(paramsFromUrl.returnDate ? 'round-trip' : 'one-way');
-    }
-  }, [paramsFromUrl.origin, paramsFromUrl.destination, paramsFromUrl.departureDate, paramsFromUrl.returnDate]);
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      const url = parseSearchParamsFromUrl();
+      if (url.origin || url.destination || url.departureDate) {
+        setParams((prev) => ({ ...prev, ...url }));
+        setTripType(url.returnDate ? 'round-trip' : 'one-way');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const update = <K extends keyof CreateSearchSessionRequest>(
     key: K,
     value: CreateSearchSessionRequest[K]
-  ) => setParams((prev) => ({ ...prev, [key]: value }));
+  ) => {
+    setParams((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === 'destination' && typeof value === 'string') {
+        const v = value.trim().toUpperCase();
+        if (v && v !== ANYWHERE_CODE) {
+          updateSearchUrl({
+            origin: next.origin,
+            destination: v,
+            departureDate: next.departureDate,
+            returnDate: next.returnDate,
+            adults: next.adults,
+            children: next.children,
+            currency: next.currency,
+            cabinClass: next.cabinClass,
+          });
+        }
+      }
+      return next;
+    });
+  };
 
   const handleSearch = async () => {
-    if (!params.origin.trim() || !params.destination.trim() || !params.departureDate) {
+    if (!params.origin.trim() || !params.destination.trim()) {
+      setError(t('please_fill_origin_destination'));
+      return;
+    }
+
+    // "Anywhere" — navigate to the explore screen instead of running a regular search
+    if (params.destination.trim().toUpperCase() === ANYWHERE_CODE) {
+      const dr = clampExploreSearchDates(
+        params.departureDate || undefined,
+        params.returnDate || undefined,
+        tripType === 'round-trip',
+      );
+      navigation.navigate('Explore', {
+        origin: params.origin.trim().toUpperCase(),
+        departureDate: dr.departureDate,
+        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
+        adults: params.adults ?? 1,
+        currency: currency || 'USD',
+      });
+      return;
+    }
+
+    if (!params.departureDate) {
       setError(t('please_fill_origin_destination'));
       return;
     }

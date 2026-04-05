@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -447,14 +448,26 @@ func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.
 	log.Printf("[MONTH] Starting search for %s to %s in %s for duration %d days.",
 		origin, destination, month.Format("January 2006"), durationDays)
 
-	// Determine the first day of the month to start the iteration
-	currentOutboundDate := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, month.Location())
+	// First bookable day: the later of the 1st of the requested month and tomorrow.
+	// Amadeus rejects departure dates that are today or in the past.
+	firstOfMonth := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
+	tomorrow := time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, 1)
+	currentOutboundDate := firstOfMonth
+	if tomorrow.After(firstOfMonth) {
+		currentOutboundDate = tomorrow
+	}
+
+	// If the whole month is already in the past, bail out immediately.
+	if currentOutboundDate.Month() != month.Month() {
+		log.Printf("[MONTH] All days in %s are in the past — returning empty result set.", month.Format("January 2006"))
+		return nil, nil
+	}
 
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, maxConcurrentTrips)
 	tripsChan := make(chan FullRoundTrip, 31)
 
-	// Iterate up to 31 times to cover all possible starting days of a month
+	// Iterate remaining days of the month (starting from the first bookable day).
 	for i := 0; i < 31; i++ {
 
 		outboundDate := currentOutboundDate.AddDate(0, 0, i)
@@ -537,7 +550,441 @@ func (c *AmadeusClient) SearchMonthDeals(origin, destination string, month time.
 // SearchDealsRange finds the cheapest round-trip for each day in [startDate, endDate] (inclusive).
 // Lighter than SearchMonthDeals when only a short range is needed (e.g. 14 days for flight-search calendar).
 // currencyCode is sent to Amadeus (e.g. USD, GBP); if empty, USD is used.
+// anywhereDestinations is the curated list of major global airports searched concurrently
+// when a user selects "Anywhere" as the destination. The origin is excluded at search time.
+// All results are returned sorted cheapest-first; the frontend paginates them.
+var anywhereDestinations = []string{
+	// Europe — western
+	"LHR", "LGW", "STN", "MAN", "EDI", "BHX", // UK
+	"CDG", "ORY", "NCE", "LYS", "MRS",         // France
+	"FCO", "MXP", "VCE", "NAP", "BLQ",         // Italy
+	"AMS", "BRU", "LUX",                        // Benelux
+	"MAD", "BCN", "VLC", "AGP", "PMI", "SVQ",  // Spain
+	"LIS", "OPO",                               // Portugal
+	"FRA", "MUC", "BER", "HAM", "DUS", "STR",  // Germany
+	"ZRH", "GVA",                               // Switzerland
+	"VIE",                                      // Austria
+	// Europe — north
+	"CPH", "OSL", "ARN", "HEL", "KEF", "RKV",  // Scandinavia + Iceland
+	// Europe — east / south-east
+	"WAW", "KRK", "GDN",                        // Poland
+	"PRG", "BUD", "BTS",                        // Czech/Slovakia/Hungary
+	"BEG", "SKP", "TGD",                        // Balkans
+	"ATH", "SKG", "HER", "RHO",                 // Greece
+	"SOF", "OTP", "CLJ",                        // Bulgaria / Romania
+	"DUB", "SNN",                               // Ireland
+	// Middle East
+	"DXB", "AUH", "DOH", "KWI", "BAH", "MCT",  // Gulf
+	"IST", "SAW",                               // Turkey
+	"AMM", "BEY", "RUH", "JED",                // Levant / Saudi
+	"CAI", "HRG", "SSH",                        // Egypt
+	// Africa
+	"NBO", "JNB", "CPT", "DUR",                 // East / South Africa
+	"CMN", "TUN", "ALG",                        // North Africa
+	"ADD", "ACC", "LOS", "ABV", "DKR",          // Sub-Saharan
+	"DAR", "EBB",                               // East Africa
+	// Asia — south
+	"DEL", "BOM", "MAA", "BLR", "HYD", "CCU",  // India
+	"CMB", "KTM", "DAC",                        // Sri Lanka / Nepal / Bangladesh
+	// Asia — south-east
+	"BKK", "DMK", "KBV",                        // Thailand
+	"SIN",                                      // Singapore
+	"KUL", "PEN",                               // Malaysia
+	"CGK", "DPS",                               // Indonesia
+	"MNL",                                      // Philippines
+	"SGN", "HAN",                               // Vietnam
+	"REP",                                      // Cambodia
+	"RGN",                                      // Myanmar
+	// Asia — east
+	"HKG",                                      // Hong Kong
+	"TPE",                                      // Taiwan
+	"ICN", "PUS",                               // South Korea
+	"HND", "NRT", "KIX", "NGO", "FUK", "CTS",  // Japan
+	"PVG", "PEK", "CAN", "CTU", "WUH", "SZX",  // China
+	// Asia-Pacific
+	"SYD", "MEL", "BNE", "PER", "ADL",          // Australia
+	"AKL", "CHC",                               // New Zealand
+	"MLE",                                      // Maldives
+	// Americas — North
+	"JFK", "EWR", "LGA", "BOS", "PHL", "DCA",  // US North-east
+	"ATL", "MCO", "MIA", "FLL", "TPA",          // US South-east
+	"ORD", "MDW", "DTW", "MSP", "CLE",          // US Mid-west
+	"DFW", "IAH", "AUS", "SAT",                 // US South
+	"DEN", "PHX", "LAS", "SLC",                 // US Mountain/West
+	"LAX", "SFO", "SEA", "PDX", "SAN",          // US West Coast
+	"YYZ", "YUL", "YVR", "YYC",                 // Canada
+	"MEX", "GDL", "MTY", "CUN",                 // Mexico
+	// Americas — Central & South
+	"PTY",                                      // Panama
+	"BOG", "MDE",                               // Colombia
+	"LIM",                                      // Peru
+	"GRU", "GIG", "BSB", "SSA",                 // Brazil
+	"EZE", "COR",                               // Argentina
+	"SCL",                                      // Chile
+	"UIO", "GYE",                               // Ecuador
+	"CCS",                                      // Venezuela
+	"HAV",                                      // Cuba
+}
+
+const exploreMaxConcurrent = 12 // single-date explore: concurrent destination searches
+
+// Month-mode explore: one Flight Cheapest Date Search per destination (see flightDatesCheapestRoundTripMonth).
+const exploreMonthConcurrentFlightDates = 12 // parallel /v1/shopping/flight-dates calls
+
+// FlightDestinations finds cheapest one-way prices from origin to a curated list of global
+// destinations using the standard Flight Offers Search endpoint (no subscription required).
+// departureDate must be a YYYY-MM-DD string.
+// FlightDestinationsCtx is the context-aware version of FlightDestinations.
+func (c *AmadeusClient) FlightDestinationsCtx(ctx context.Context, origin, departureDate, returnDate, currencyCode string, adults int) ([]map[string]interface{}, error) {
+	if adults < 1 {
+		adults = 1
+	}
+	if currencyCode == "" {
+		currencyCode = "USD"
+	}
+	if departureDate == "" {
+		departureDate = time.Now().AddDate(0, 0, 14).Format("2006-01-02")
+	}
+
+	isRoundTrip := returnDate != ""
+	log.Printf("[EXPLORE_SEARCH] origin=%s departure=%s return=%s roundTrip=%v currency=%s adults=%d destinations=%d",
+		origin, departureDate, returnDate, isRoundTrip, currencyCode, adults, len(anywhereDestinations))
+
+	type destResult struct {
+		destination string
+		price       float64
+		depDate     string
+	}
+
+	resultCh := make(chan destResult, len(anywhereDestinations))
+	sem := make(chan struct{}, exploreMaxConcurrent)
+	var wg sync.WaitGroup
+
+	for _, dest := range anywhereDestinations {
+		if dest == origin {
+			continue
+		}
+		// Stop if context was cancelled
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
+		wg.Add(1)
+		go func(d string) {
+			defer wg.Done()
+			// Acquire semaphore slot
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+
+			// Use 3 offers so Amadeus has enough data to construct round-trip combinations
+			resp, err := c.FlightOffersSearch(origin, d, departureDate, returnDate, 3, "", currencyCode, adults, 0, false)
+			if err != nil {
+				log.Printf("[EXPLORE_DEST] %s->%s error: %v", origin, d, err)
+				return
+			}
+			cheapest := pickCheapestOffer(resp.Data)
+			if cheapest == nil {
+				log.Printf("[EXPLORE_DEST] %s->%s no offers", origin, d)
+				return
+			}
+			price := extractRawPrice(cheapest)
+			if price <= 0 {
+				log.Printf("[EXPLORE_DEST] %s->%s price=0 (extraction failed)", origin, d)
+				return
+			}
+			log.Printf("[EXPLORE_DEST] %s->%s price=%.2f", origin, d, price)
+			resultCh <- destResult{destination: d, price: price, depDate: departureDate}
+		}(dest)
+	}
+
+	wg.Wait()
+	close(resultCh)
+
+	var all []destResult
+	for r := range resultCh {
+		all = append(all, r)
+	}
+
+	log.Printf("[EXPLORE_SEARCH] origin=%s completed: %d/%d destinations returned prices",
+		origin, len(all), len(anywhereDestinations))
+
+	sort.Slice(all, func(i, j int) bool { return all[i].price < all[j].price })
+
+	results := make([]map[string]interface{}, 0, len(all))
+	for _, r := range all {
+		results = append(results, map[string]interface{}{
+			"destination":   r.destination,
+			"price":         strconv.FormatFloat(r.price, 'f', 2, 64),
+			"currency":      currencyCode,
+			"departureDate": r.depDate,
+		})
+	}
+	return results, nil
+}
+
+// outboundDatesForMonthBookable returns each calendar day in [year, month] with departure >= tomorrow (UTC).
+func outboundDatesForMonthBookable(year, month int) []string {
+	tomorrow := time.Now().UTC()
+	tomorrow = time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
+	lastDay := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	var out []string
+	for d := 1; d <= lastDay; d++ {
+		day := time.Date(year, time.Month(month), d, 0, 0, 0, 0, time.UTC)
+		if day.Before(tomorrow) {
+			continue
+		}
+		out = append(out, day.Format("2006-01-02"))
+	}
+	return out
+}
+
+func parseFlightDatesPriceEntry(m map[string]interface{}) float64 {
+	priceRaw, ok := m["price"]
+	if !ok {
+		return 0
+	}
+	pm, ok := priceRaw.(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	totalStr, ok := pm["total"].(string)
+	if !ok {
+		return 0
+	}
+	p, err := strconv.ParseFloat(totalStr, 64)
+	if err != nil || p <= 0 {
+		return 0
+	}
+	return p
+}
+
+// flightDatesCheapestRoundTripMonth uses Amadeus Flight Cheapest Date Search (one HTTP call) to find
+// the cheapest round-trip in the month for a fixed stay length. Replaces hundreds of Flight Offers calls.
+func (c *AmadeusClient) flightDatesCheapestRoundTripMonth(origin, dest string, year, month, durationDays int, currency string, adults int, nonStop bool) (price float64, depDate string, ok bool) {
+	outboundDates := outboundDatesForMonthBookable(year, month)
+	if len(outboundDates) == 0 {
+		return 0, "", false
+	}
+	first := outboundDates[0]
+	last := outboundDates[len(outboundDates)-1]
+
+	q := url.Values{}
+	q.Set("origin", origin)
+	q.Set("destination", dest)
+	q.Set("departureDate", first+","+last)
+	q.Set("oneWay", "false")
+	q.Set("duration", strconv.Itoa(durationDays))
+	if currency != "" {
+		q.Set("currency", currency)
+	}
+	if adults >= 1 {
+		q.Set("adults", strconv.Itoa(adults))
+	}
+	if nonStop {
+		q.Set("nonStop", "true")
+	}
+
+	raw, err := c.makeAPIRequest("GET", "/v1/shopping/flight-dates", q)
+	if err != nil {
+		log.Printf("[EXPLORE_FLIGHT_DATES] %s->%s: %v", origin, dest, err)
+		return 0, "", false
+	}
+	data, ok := raw["data"].([]interface{})
+	if !ok || len(data) == 0 {
+		return 0, "", false
+	}
+
+	var best float64
+	var bestDep string
+	for _, item := range data {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		depStr, _ := m["departureDate"].(string)
+		retStr, _ := m["returnDate"].(string)
+		if depStr == "" || retStr == "" {
+			continue
+		}
+		depT, err1 := time.Parse("2006-01-02", depStr)
+		retT, err2 := time.Parse("2006-01-02", retStr)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		y, mth, _ := depT.Date()
+		if y != year || int(mth) != month {
+			continue
+		}
+		days := int(retT.Sub(depT).Hours() / 24)
+		if days != durationDays {
+			continue
+		}
+		pr := parseFlightDatesPriceEntry(m)
+		if pr <= 0 {
+			continue
+		}
+		if best == 0 || pr < best {
+			best = pr
+			bestDep = depStr
+		}
+	}
+	return best, bestDep, best > 0
+}
+
+// flightOffersSingleMonthSample is a cheap fallback: one Flight Offers round-trip on a mid-month day.
+func (c *AmadeusClient) flightOffersSingleMonthSample(ctx context.Context, origin, dest string, year, month, durationDays int, currency string, adults, children int, nonStop bool) (float64, string, bool) {
+	if ctx.Err() != nil {
+		return 0, "", false
+	}
+	dates := outboundDatesForMonthBookable(year, month)
+	if len(dates) == 0 {
+		return 0, "", false
+	}
+	dep := dates[len(dates)/2]
+	depT, err := time.Parse("2006-01-02", dep)
+	if err != nil {
+		return 0, "", false
+	}
+	ret := depT.AddDate(0, 0, durationDays).Format("2006-01-02")
+	resp, err := c.FlightOffersSearch(origin, dest, dep, ret, 2, "", currency, adults, children, nonStop)
+	if err != nil {
+		return 0, "", false
+	}
+	cheapest := pickCheapestOffer(resp.Data)
+	if cheapest == nil {
+		return 0, "", false
+	}
+	p := extractRawPrice(cheapest)
+	if p <= 0 {
+		return 0, "", false
+	}
+	return p, dep, true
+}
+
+// FlightDestinationsMonthCtx is the monthly-deals-style explore: cheapest round-trip of fixed duration
+// in the month. Uses Flight Cheapest Date Search (one call per destination) instead of sampling many
+// days × Flight Offers, so the page loads much faster and stays within API limits.
+func (c *AmadeusClient) FlightDestinationsMonthCtx(ctx context.Context, origin string, year, month, durationDays int, currencyCode string, adults, children int, nonStop bool) ([]map[string]interface{}, error) {
+	if adults < 1 {
+		adults = 1
+	}
+	if children < 0 {
+		children = 0
+	}
+	if durationDays < 1 {
+		durationDays = 7
+	}
+	if currencyCode == "" {
+		currencyCode = "USD"
+	}
+
+	outboundDates := outboundDatesForMonthBookable(year, month)
+	if len(outboundDates) == 0 {
+		log.Printf("[EXPLORE_MONTH] origin=%s %04d-%02d: no bookable days in month", origin, year, month)
+		return nil, nil
+	}
+
+	type destResult struct {
+		destination string
+		price       float64
+		depDate     string
+	}
+
+	destinations := make([]string, 0, len(anywhereDestinations))
+	for _, dest := range anywhereDestinations {
+		if dest != origin {
+			destinations = append(destinations, dest)
+		}
+	}
+
+	log.Printf("[EXPLORE_MONTH] origin=%s %04d-%02d duration=%d bookableDays=%d destinations=%d concurrent=%d (flight-dates per dest)",
+		origin, year, month, durationDays, len(outboundDates), len(destinations), exploreMonthConcurrentFlightDates)
+
+	sem := make(chan struct{}, exploreMonthConcurrentFlightDates)
+	resultCh := make(chan destResult, len(destinations))
+	var wg sync.WaitGroup
+
+	for _, dest := range destinations {
+		wg.Add(1)
+		go func(d string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+
+			var price float64
+			var dep string
+			var ok bool
+
+			// Flight-dates is adult-oriented in practice; with children use offers search only.
+			if children == 0 {
+				price, dep, ok = c.flightDatesCheapestRoundTripMonth(origin, d, year, month, durationDays, currencyCode, adults, nonStop)
+			}
+			if !ok {
+				price, dep, ok = c.flightOffersSingleMonthSample(ctx, origin, d, year, month, durationDays, currencyCode, adults, children, nonStop)
+			}
+			if !ok || price <= 0 {
+				return
+			}
+			select {
+			case resultCh <- destResult{destination: d, price: price, depDate: dep}:
+			case <-ctx.Done():
+			}
+		}(dest)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var all []destResult
+	for r := range resultCh {
+		all = append(all, r)
+		log.Printf("[EXPLORE_MONTH_DEST] %s->%s best=%.2f on %s", origin, r.destination, r.price, r.depDate)
+	}
+
+	log.Printf("[EXPLORE_MONTH] origin=%s completed: %d destinations with prices", origin, len(all))
+
+	sort.Slice(all, func(i, j int) bool { return all[i].price < all[j].price })
+
+	results := make([]map[string]interface{}, 0, len(all))
+	for _, r := range all {
+		results = append(results, map[string]interface{}{
+			"destination":   r.destination,
+			"price":         strconv.FormatFloat(r.price, 'f', 2, 64),
+			"currency":      currencyCode,
+			"departureDate": r.depDate,
+		})
+	}
+	return results, nil
+}
+
+// FlightDestinations is the legacy wrapper (no context). Kept for backward compatibility.
+func (c *AmadeusClient) FlightDestinations(origin, departureDate, returnDate, currencyCode string, adults int) ([]map[string]interface{}, error) {
+	return c.FlightDestinationsCtx(context.Background(), origin, departureDate, returnDate, currencyCode, adults)
+}
+
 func (c *AmadeusClient) SearchDealsRange(origin, destination string, startDate, endDate time.Time, durationDays int, currencyCode string, adults, children int, nonStop bool) ([]FullRoundTrip, error) {
+	// Clamp startDate to tomorrow — Amadeus rejects past/today departure dates.
+	tomorrow := time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, 1)
+	if tomorrow.After(startDate) {
+		startDate = tomorrow
+	}
+
+	if startDate.After(endDate) {
+		log.Printf("[RANGE] All days in range are in the past — returning empty result set.")
+		return nil, nil
+	}
+
 	log.Printf("[RANGE] Starting search for %s to %s from %s to %s, duration %d days.",
 		origin, destination, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), durationDays)
 

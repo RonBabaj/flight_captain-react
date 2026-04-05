@@ -8,9 +8,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
-import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
+import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName, getAirportEntry } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { ANYWHERE_CODE } from '../../../types';
 import type { AirportCityResult } from '../../../types';
 
 const DEBOUNCE_MS = 300;
@@ -21,6 +22,8 @@ interface AirportAutocompleteProps {
   value: string;
   onChange: (code: string) => void;
   placeholder?: string;
+  /** When true, shows an "Anywhere" option pinned at the top of the dropdown. Use on destination fields only. */
+  showAnywhere?: boolean;
 }
 
 export function AirportAutocomplete({
@@ -28,6 +31,7 @@ export function AirportAutocomplete({
   value,
   onChange,
   placeholder,
+  showAnywhere = false,
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
   const { language, t } = useLocale();
@@ -35,8 +39,26 @@ export function AirportAutocomplete({
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Re-sync only when the stored IATA/city code changes — not when `t`/language changes, or we
+  // overwrite the user's in-progress typing while value is still ANYWHERE.
   useEffect(() => {
-    if (value === '') setQuery('');
+    if (value === '') {
+      setQuery('');
+      return;
+    }
+    if (value === ANYWHERE_CODE) {
+      setQuery(t('anywhere'));
+      return;
+    }
+    const entry = getAirportEntry(value);
+    if (entry) {
+      const code = (entry.airportCode || entry.cityCode || entry.id).toUpperCase();
+      const cityDisplay = getCityDisplayName(entry, language);
+      setQuery(`${cityDisplay} (${code})`);
+    } else {
+      setQuery(value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only when `value` changes
   }, [value]);
 
   const results = useMemo(() => {
@@ -63,7 +85,22 @@ export function AirportAutocomplete({
     setShowList(false);
   };
 
-  const listVisible = query.trim().length >= MIN_CHARS && results.length > 0 && showList;
+  const handleSelectAnywhere = () => {
+    onChange(ANYWHERE_CODE);
+    setQuery(t('anywhere'));
+    setShowList(false);
+  };
+
+  const queryMatchesAnywhere = showAnywhere &&
+    (query.trim().length === 0 ||
+      t('anywhere').toLowerCase().startsWith(query.trim().toLowerCase()) ||
+      'anywhere'.startsWith(query.trim().toLowerCase()) ||
+      'everywhere'.startsWith(query.trim().toLowerCase()));
+
+  const listVisible = showList && (
+    (showAnywhere && queryMatchesAnywhere) ||
+    (query.trim().length >= MIN_CHARS && results.length > 0)
+  );
 
   return (
     <View style={styles.container}>
@@ -86,11 +123,11 @@ export function AirportAutocomplete({
             setShowList(true);
           }}
           onFocus={() => {
-            if (query.trim().length >= MIN_CHARS && results.length > 0) setShowList(true);
+            setShowList(true);
           }}
         />
       </View>
-      {query.trim().length > 0 && query.trim().length < MIN_CHARS && (
+      {query.trim().length > 0 && query.trim().length < MIN_CHARS && !queryMatchesAnywhere && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
           {t('type_min_chars').replace('{n}', String(MIN_CHARS))}
         </Text>
@@ -108,10 +145,33 @@ export function AirportAutocomplete({
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
             >
-              {results.map((item) => {
+              {/* Anywhere option pinned at top */}
+              {showAnywhere && queryMatchesAnywhere && (
+                <TouchableOpacity
+                  style={[styles.optionRow, styles.anywhereRow, { borderBottomColor: theme.cardBorder, borderBottomWidth: 1 }]}
+                  onPress={handleSelectAnywhere}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.optionIcon}>
+                    <AppIcon name="globe-outline" size={20} color={theme.primary} fallbackText="Anywhere" />
+                  </View>
+                  <View style={styles.optionTextWrap}>
+                    <Text style={[styles.optionTitle, { color: theme.primary }]}>
+                      {t('anywhere')}
+                    </Text>
+                    <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
+                      {t('anywhere_subtitle')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Regular airport/city results */}
+              {query.trim().length >= MIN_CHARS && results.map((item) => {
+                const isCity = item.type === 'CITY';
                 const code = item.airportCode || item.cityCode || item.id;
                 const cityDisplay = getCityDisplayName(item, language);
-                const nameDisplay = getAirportDisplayName(item, language);
+                const nameDisplay = isCity ? t('all_airports') : getAirportDisplayName(item, language);
                 return (
                   <TouchableOpacity
                     key={`${item.id}-${code}`}
@@ -120,13 +180,18 @@ export function AirportAutocomplete({
                     activeOpacity={0.7}
                   >
                     <View style={styles.optionIcon}>
-                      <AppIcon name="airplane-outline" size={20} color={theme.textMuted} />
+                      <AppIcon
+                        name={isCity ? 'location-outline' : 'airplane-outline'}
+                        size={20}
+                        color={isCity ? theme.primary : theme.textMuted}
+                        fallbackText={isCity ? 'City' : 'Airport'}
+                      />
                     </View>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
-                        {cityDisplay} ({code})
+                        {cityDisplay} ({code}){isCity ? '' : ''}
                       </Text>
-                      <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
+                      <Text style={[styles.optionSubtitle, { color: isCity ? theme.primary : theme.textMuted }]}>
                         {nameDisplay} · {item.countryCode}
                       </Text>
                     </View>
@@ -176,6 +241,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  anywhereRow: {
     borderBottomWidth: 1,
   },
   optionIcon: { marginRight: 12 },

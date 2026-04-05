@@ -495,6 +495,24 @@ export const AIRPORT_DICTIONARY: AirportCityResult[] = [
   { id: 'LPB', type: 'AIRPORT', airportCode: 'LPB', cityCode: 'LPB', name: 'La Paz El Alto Intl', cityName: 'La Paz', countryCode: 'BO', cityNameRu: 'Ла-Пас' },
   { id: 'VVI', type: 'AIRPORT', airportCode: 'VVI', cityCode: 'SRZ', name: 'Santa Cruz Viru Viru Intl', cityName: 'Santa Cruz', countryCode: 'BO', cityNameRu: 'Санта-Крус' },
   { id: 'GEO', type: 'AIRPORT', airportCode: 'GEO', cityCode: 'GEO', name: 'Georgetown Cheddi Jagan Intl', cityName: 'Georgetown', countryCode: 'GY', cityNameRu: 'Джорджтаун' },
+
+  // ── City (all airports) entries ──────────────────────────────────────────────
+  // These represent the metropolitan area code; selecting them searches all airports in the city.
+  { id: 'LON', type: 'CITY', cityCode: 'LON', name: 'All airports', cityName: 'London', countryCode: 'GB', cityNameHe: 'לונדון', cityNameRu: 'Лондон' },
+  { id: 'NYC', type: 'CITY', cityCode: 'NYC', name: 'All airports', cityName: 'New York', countryCode: 'US', cityNameHe: 'ניו יורק', cityNameRu: 'Нью-Йорк' },
+  { id: 'PAR', type: 'CITY', cityCode: 'PAR', name: 'All airports', cityName: 'Paris', countryCode: 'FR', cityNameHe: 'פריז', cityNameRu: 'Париж' },
+  { id: 'TYO', type: 'CITY', cityCode: 'TYO', name: 'All airports', cityName: 'Tokyo', countryCode: 'JP', cityNameHe: 'טוקיו', cityNameRu: 'Токио' },
+  { id: 'MIL', type: 'CITY', cityCode: 'MIL', name: 'All airports', cityName: 'Milan', countryCode: 'IT', cityNameHe: 'מילאנו', cityNameRu: 'Милан' },
+  { id: 'MOW', type: 'CITY', cityCode: 'MOW', name: 'All airports', cityName: 'Moscow', countryCode: 'RU', cityNameHe: 'מוסקבה', cityNameRu: 'Москва' },
+  { id: 'ROM', type: 'CITY', cityCode: 'ROM', name: 'All airports', cityName: 'Rome', countryCode: 'IT', cityNameHe: 'רומא', cityNameRu: 'Рим' },
+  { id: 'IST', type: 'CITY', cityCode: 'IST', name: 'All airports', cityName: 'Istanbul', countryCode: 'TR', cityNameHe: 'איסטנבול', cityNameRu: 'Стамбул' },
+  { id: 'BUE', type: 'CITY', cityCode: 'BUE', name: 'All airports', cityName: 'Buenos Aires', countryCode: 'AR', cityNameRu: 'Буэнос-Айрес' },
+  { id: 'STO', type: 'CITY', cityCode: 'STO', name: 'All airports', cityName: 'Stockholm', countryCode: 'SE', cityNameHe: 'שטוקהולם', cityNameRu: 'Стокгольм' },
+  { id: 'CHI', type: 'CITY', cityCode: 'CHI', name: 'All airports', cityName: 'Chicago', countryCode: 'US', cityNameHe: 'שיקגו', cityNameRu: 'Чикаго' },
+  { id: 'WAS', type: 'CITY', cityCode: 'WAS', name: 'All airports', cityName: 'Washington D.C.', countryCode: 'US', cityNameHe: 'וושינגטון', cityNameRu: 'Вашингтон' },
+  { id: 'SEL', type: 'CITY', cityCode: 'SEL', name: 'All airports', cityName: 'Seoul', countryCode: 'KR', cityNameHe: 'סיאול', cityNameRu: 'Сеул' },
+  { id: 'HOU', type: 'CITY', cityCode: 'HOU', name: 'All airports', cityName: 'Houston', countryCode: 'US', cityNameHe: 'יוסטון', cityNameRu: 'Хьюстон' },
+  { id: 'ETH', type: 'CITY', cityCode: 'ETH', name: 'All airports', cityName: 'Eilat', countryCode: 'IL', cityNameHe: 'אילת', cityNameRu: 'Эйлат' },
 ];
 
 const lower = (s: string) => s.toLowerCase();
@@ -513,15 +531,19 @@ function matchesQuery(a: AirportCityResult, q: string): boolean {
   return false;
 }
 
-/** Rank results: IATA prefix matches first, then city name, then other matches. */
+/** Rank results: IATA prefix matches first, then city name, then other matches.
+ *  CITY entries are promoted by 0.5 so they always appear before individual airports at the same level. */
 function rankResult(a: AirportCityResult, q: string): number {
   const code = lower(a.airportCode || a.cityCode || a.id);
-  if (code === q) return 0;
-  if (code.startsWith(q)) return 1;
-  if (a.cityName && lower(a.cityName).startsWith(q)) return 2;
-  if (a.cityName && lower(a.cityName).includes(q)) return 3;
-  if (lower(a.name).startsWith(q)) return 4;
-  return 5;
+  let base: number;
+  if (code === q) base = 0;
+  else if (code.startsWith(q)) base = 2;
+  else if (a.cityName && lower(a.cityName).startsWith(q)) base = 4;
+  else if (a.cityName && lower(a.cityName).includes(q)) base = 6;
+  else if (lower(a.name).startsWith(q)) base = 8;
+  else base = 10;
+  // City entries float above individual airports at the same relevance level
+  return a.type === 'CITY' ? base - 1 : base;
 }
 
 /** Search the dictionary by code or city/airport name (incl. localized names); returns matches for Amadeus-ready codes. */
@@ -552,11 +574,27 @@ export function getAirportDisplayName(a: AirportCityResult, language: LanguageCo
   return a.name || '';
 }
 
-/** Get full display name for an airport by IATA code (e.g. "TLV" → "Tel Aviv (Ben Gurion Intl)"). Falls back to code if not in dictionary. */
+/** Returns the raw dictionary entry for an airport or city code, preferring CITY entries. */
+export function getAirportEntry(code: string | undefined | null): AirportCityResult | null {
+  if (!code || typeof code !== 'string') return null;
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return null;
+  return (
+    AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && x.id === trimmed) ??
+    AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed) ??
+    null
+  );
+}
+
+/** Get full display name for an airport or city code.
+ *  For CITY entries returns just the city name; for AIRPORT entries returns "City (Airport)". */
 export function getAirportNameByCode(code: string | undefined | null, language: LanguageCode): string {
   if (!code || typeof code !== 'string') return code || '?';
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return code;
+  // Prefer CITY entry when the code is a city code
+  const cityEntry = AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && x.id === trimmed);
+  if (cityEntry) return getCityDisplayName(cityEntry, language);
   const a = AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed);
   if (!a) return code;
   const city = getCityDisplayName(a, language);

@@ -65,6 +65,13 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Tap a deal for the full flight details modal (same design as search results).
 - "Book now" from deal details redirects directly to Skyscanner.
 
+### Explore (Anywhere)
+- From **Search** or **Monthly Deals**, choosing **Anywhere** opens the **Explore** screen: a grid of curated destinations with **from** prices.
+- **Search mode** (`mode: 'search'`): uses fixed departure/return dates; tapping a destination starts a normal flight search session for that airport.
+- **Deals mode** (`mode: 'deals'`): uses year, month, and trip duration (same semantics as Monthly Deals). Tapping a destination loads **full monthly deals** for that origin/destination via `GET /api/deals/month`, then navigates to **Monthly deals results**. The deals store is updated (route, month, duration) and loading state is cleared so the results screen does not spin forever.
+- **Backend** (`GET /api/explore`): month-style requests use **Amadeus Flight Cheapest Date Search** (`/v1/shopping/flight-dates`) — **one API call per destination** for the bookable date range in the month (plus a single Flight Offers fallback when needed). This replaces hundreds of per-day Flight Offers calls so Explore loads quickly. Main flight search still merges Amadeus, Duffel, and Google Flights; Explore month pricing is Amadeus-only for that endpoint.
+- **UI**: Region filters reset when a new search runs so stale filters cannot hide a non-empty result set; results column uses flex layout so the list scrolls correctly on desktop web.
+
 ### Cheaper departure cities (positioning optimizer)
 - After results load, the app checks whether flying from a nearby hub would reduce total cost.
 - **Hub airports:** ATH, VIE, BUD, FCO, MXP, SOF, OTP. Works for **any origin/destination** (no TLV-only restriction).
@@ -123,7 +130,7 @@ Create `backend/.env`:
 ```env
 AMADEUS_CLIENT_ID=your_amadeus_client_id
 AMADEUS_CLIENT_SECRET=your_amadeus_client_secret
-DUFFEL_ACCESS_TOKEN=your_duffel_token
+DUFFEL_API_KEY=your_duffel_api_key
 GOOGLEFLIGHTS2_ENABLED=true
 GOOGLEFLIGHTS2_RAPIDAPI_KEY=your_rapidapi_key
 ```
@@ -142,6 +149,7 @@ Server listens on **http://localhost:8080**. CORS is enabled for browser clients
 - **`POST /api/search/sessions`** – Create flight search session. Returns session `id`, `status`, `params`.
 - **`GET /api/search/sessions/{id}`** – Poll session status and normalized results.
 - **`GET /api/deals/month`** – Monthly deals: returns `days[]` with `date` and `lowestPrice`.
+- **`GET /api/explore`** – Cheapest destinations from an origin. Query: `origin`, `currency`, `adults`. Either **fixed dates** (`departureDate`, `returnDate`) or **monthly-deals-style** (`year`, `month`, `durationDays`, optional `children`, `nonStop`). Returns `{ destinations: [{ destination, price, currency, departureDate? }] }`. Month mode uses Amadeus Flight Cheapest Date Search per destination to minimize API calls.
 - **`GET /api/flights/details`** – Flight details for a route/date/duration.
 - **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete.
 - **`GET /api/out/booking?sessionId=...&optionId=...`** – Uniform booking redirect. Uses provider deep link or Skyscanner fallback. Also accepts `origin`, `destination`, `departureDate`, `returnDate` params for deals without a session.
@@ -183,15 +191,15 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 
 ### Structure
 
-- **`src/api/`** – API client (search, deals, flights, airports, affiliate/booking).
+- **`src/api/`** – API client (search, deals, explore, flights, airports, affiliate/booking).
 - **`src/types/`** – Shared TypeScript types.
 - **`src/store/`** – Zustand stores (search, deals).
 - **`src/theme/`** – Theme context (dark/light, indigo accent). Dark is default.
 - **`src/data/`** – Local airport dictionary, airline names, translations (en/he/ru).
-- **`src/features/flight-search/`** – Search form, results screen, result cards, sort bar, filters panel, flight details modal.
+- **`src/features/flight-search/`** – Search form, results screen, **Explore** (Anywhere destination picker), result cards, sort bar, filters panel, flight details modal.
 - **`src/features/monthly-deals/`** – Deals search form, deals list, deal details modal with booking redirect.
 - **`src/features/landing/`** – Home / landing screen (hero, features, how-it-works, footer).
-- **`src/navigation/`** – Root stack (Home, Search, Monthly Deals) with shared top navbar. **Search** stack: SearchForm → Results. **Monthly Deals** stack: form → results.
+- **`src/navigation/`** – Root stack (Home, Search, Monthly Deals) with shared top navbar. **Search** stack: SearchForm → Results → Explore. **Monthly Deals** stack: form → results → Explore (deals mode).
 
 ---
 
@@ -199,7 +207,8 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 
 1. **Home** – Optional entry at `/`: read value props → **Search flights** (`/search`) or **Explore monthly deals** (`/monthly-deals`).
 2. **Flight search** – From `/search`: enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results at `/search/results` with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site). Shareable URLs keep query params (e.g. `sessionId`) on the `/search` path.
-3. **Monthly deals** – From `/monthly-deals`: set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner).
+3. **Monthly deals** – From `/monthly-deals`: set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner). Optional: set destination to **Anywhere** → **Explore** (deals mode) → pick a city → loads full calendar for that destination on **Monthly deals results**.
+4. **Explore** – From Search or Monthly Deals with **Anywhere**: browse destination cards → tap to open either search results (date mode) or monthly deals results (month/duration mode).
 
 ### Web routes (deep links & refresh)
 
@@ -237,6 +246,8 @@ Summary of recent changes:
 | Area | Change |
 |------|--------|
 | **Fly-Fix: Product structure** | **`/`** = landing page (hero, features, how-it-works, CTAs). **`/search`** and **`/search/results`** = main flight search UI (unchanged behavior). **`/monthly-deals`** (+ `/monthly-deals/results`) = monthly deals. Top nav: **Home \| Search \| Monthly Deals**. React Navigation linking + optional `.htaccess` 301s from legacy `/results` and `/deals`. |
+| **Explore (Anywhere)** | **Search** and **Monthly Deals** support **Anywhere** → **Explore** screen: curated destination grid with indicative prices. **Deals Explore** uses `GET /api/explore` with `year`/`month`/`durationDays`; backend uses Amadeus **Flight Cheapest Date Search** (one call per destination) for speed. Tapping a destination runs **`GET /api/deals/month`** and opens **Monthly deals results** with store sync (`setRoute`, `setMonth`, `setDurationDays`) and **`setLoading(false)` in `finally`** so the overlay does not hang. |
+| **Explore UI** | Region filter resets on each fetch; ScrollView/flex fixes for desktop results column; loading copy without hardcoded destination counts (i18n). |
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
 | **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Monthly Deals uses the shared `CheaperCitiesSection` UI and the positioning optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry). |

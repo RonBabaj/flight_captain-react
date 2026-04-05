@@ -2134,6 +2134,106 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func handleExplore(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeJSON(w, http.StatusNoContent, nil)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	origin := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("origin")))
+	if origin == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin is required"})
+		return
+	}
+	// Reject obviously invalid origin codes (IATA codes are 2–3 uppercase letters/numbers)
+	if len(origin) < 2 || len(origin) > 3 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin must be a valid 2–3 character IATA code"})
+		return
+	}
+
+	currency := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("currency")))
+	switch currency {
+	case "USD", "GBP", "EUR", "ILS", "JPY":
+	default:
+		currency = "USD"
+	}
+
+	adults := 1
+	if a := r.URL.Query().Get("adults"); a != "" {
+		if v, err := strconv.Atoi(a); err == nil && v >= 1 {
+			adults = v
+		}
+	}
+
+	if amadeusClient == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+		return
+	}
+
+	departureDate := strings.TrimSpace(r.URL.Query().Get("departureDate"))
+	returnDate := strings.TrimSpace(r.URL.Query().Get("returnDate"))
+
+	yearStr := strings.TrimSpace(r.URL.Query().Get("year"))
+	monthStr := strings.TrimSpace(r.URL.Query().Get("month"))
+	durationStr := strings.TrimSpace(r.URL.Query().Get("durationDays"))
+	children := 0
+	if ch := r.URL.Query().Get("children"); ch != "" {
+		if v, err := strconv.Atoi(ch); err == nil && v >= 0 {
+			children = v
+		}
+	}
+	nonStop := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("nonStop")), "true")
+
+	useMonthDealsExplore := false
+	var exploreYear, exploreMonth, exploreDuration int
+	if yearStr != "" && monthStr != "" && durationStr != "" {
+		if y, err := strconv.Atoi(yearStr); err == nil && y >= 2000 && y <= 2100 {
+			if m, err := strconv.Atoi(monthStr); err == nil && m >= 1 && m <= 12 {
+				if dur, err := strconv.Atoi(durationStr); err == nil && dur >= 1 && dur <= 60 {
+					useMonthDealsExplore = true
+					exploreYear, exploreMonth, exploreDuration = y, m, dur
+				}
+			}
+		}
+	}
+
+	// Month-mode explore uses one Flight Cheapest Date Search per destination (Amadeus), with a
+	// single Flight Offers fallback when needed — far fewer calls than day-sampling.
+	timeout := 90 * time.Second
+	if useMonthDealsExplore {
+		timeout = 120 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+
+	var destinations []map[string]interface{}
+	var err error
+	if useMonthDealsExplore {
+		log.Printf("[EXPLORE] MONTH origin=%s year=%d month=%d durationDays=%d currency=%s adults=%d children=%d nonStop=%v",
+			origin, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+		destinations, err = amadeusClient.FlightDestinationsMonthCtx(ctx, origin, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+	} else {
+		log.Printf("[EXPLORE] origin=%s departureDate=%s returnDate=%s currency=%s adults=%d",
+			origin, departureDate, returnDate, currency, adults)
+		destinations, err = amadeusClient.FlightDestinationsCtx(ctx, origin, departureDate, returnDate, currency, adults)
+	}
+	if err != nil {
+		log.Printf("[EXPLORE] FlightDestinations error for %s: %v", origin, err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to fetch destinations"})
+		return
+	}
+
+	log.Printf("[EXPLORE] origin=%s found %d destinations", origin, len(destinations))
+	if destinations == nil {
+		destinations = []map[string]interface{}{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"destinations": destinations})
+}
+
 func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		writeJSON(w, http.StatusNoContent, nil)
@@ -2581,6 +2681,7 @@ func main() {
 	mux.HandleFunc("/api/deals/month", handleMonthDeals)
 	mux.HandleFunc("/api/flights/details", handleFlightDetails)
 	mux.HandleFunc("/api/airports/search", handleAirportSearch)
+	mux.HandleFunc("/api/explore", handleExplore)
 	mux.HandleFunc("/api/affiliate/redirect", handleAffiliateRedirect)
 	mux.HandleFunc("/api/affiliate/outbound-link", handleAffiliateOutboundLink)
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
@@ -2596,7 +2697,7 @@ func main() {
 		Addr:         addr,
 		Handler:      corsMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 120 * time.Second, // explore searches fire ~40 Amadeus calls concurrently
 	}
 
 	log.Printf("Go HTTP API listening on %s", addr)
