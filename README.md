@@ -1,12 +1,12 @@
 # Fly-Fix
 
-A Skyscanner-style flight metasearch app: **Go backend** (Amadeus, Duffel, Google Flights) + **React Native (Expo) frontend** for web, iOS, and Android.
+A Skyscanner-style flight metasearch app: **Go backend** (Google Flights via RapidAPI) + **React Native (Expo) frontend** for web, iOS, and Android.
 
 ---
 
 ## Overview
 
-- **Backend (`backend/`)** – Go HTTP API aggregating results from **Amadeus**, **Duffel**, and **Google Flights** (SerpAPI). REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
+- **Backend (`backend/`)** – Go HTTP API backed by **Google Flights2** (RapidAPI). REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
 - **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`. Top navbar (**Home | Search | Monthly Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
 Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
@@ -20,8 +20,8 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Same design language as the app (dark/light theme, indigo accent); copy is translated (EN / HE / RU).
 
 ### Flight Search
-- Multi-provider search: Amadeus, Duffel, Google Flights results merged and deduplicated.
-- **Round-trip support**: for GF2, two separate one-way searches are made (outbound + return) and combined — matching the Amadeus mixed round-trip approach — so every result has full route data for both legs.
+- Flight search uses Google Flights2 (RapidAPI), with caching and a strict per-minute rate limit to control cost.
+- **Round-trip support**: two separate one-way searches are made (outbound + return) and combined so every result has full route data for both legs.
 - Sort by price, duration, or "best" (weighted score).
 - Filter by stops count and airlines.
 - Responsive three-column layout on desktop (search form | results | filters), single-column on mobile.
@@ -46,7 +46,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 
 ### Booking Redirect
 - Unified `GET /api/out/booking` endpoint.
-- Uses provider deep links (Duffel, OTA) when available.
+- Uses provider deep links (OTA, etc.) when available.
 - Falls back to Skyscanner search URL with flight params.
 - Works for both search results (with session/option) and monthly deals (params-only fallback).
 - Affiliate tracking via configurable IDs and subid.
@@ -69,7 +69,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - From **Search** or **Monthly Deals**, choosing **Anywhere** opens the **Explore** screen: a grid of curated destinations with **from** prices.
 - **Search mode** (`mode: 'search'`): uses fixed departure/return dates; tapping a destination starts a normal flight search session for that airport.
 - **Deals mode** (`mode: 'deals'`): uses year, month, and trip duration (same semantics as Monthly Deals). Tapping a destination loads **full monthly deals** for that origin/destination via `GET /api/deals/month`, then navigates to **Monthly deals results**. The deals store is updated (route, month, duration) and loading state is cleared so the results screen does not spin forever.
-- **Backend** (`GET /api/explore`): month-style requests use **Amadeus Flight Cheapest Date Search** (`/v1/shopping/flight-dates`) — **one API call per destination** for the bookable date range in the month (plus a single Flight Offers fallback when needed). This replaces hundreds of per-day Flight Offers calls so Explore loads quickly. Main flight search still merges Amadeus, Duffel, and Google Flights; Explore month pricing is Amadeus-only for that endpoint.
+- **Backend** (`GET /api/explore`): samples a capped list of destinations and runs **Google Flights2** searches (rate-limited). Month-style requests use a representative mid-month departure/return pair per destination to limit API usage.
 - **UI**: Region filters reset when a new search runs so stale filters cannot hide a non-empty result set; results column uses flex layout so the list scrolls correctly on desktop web.
 
 ### Cheaper departure cities (positioning optimizer)
@@ -116,7 +116,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 
 ## Tech Stack
 
-- **Backend:** Go, `net/http`, Amadeus REST API, Duffel API, Google Flights via SerpAPI, `godotenv`
+- **Backend:** Go, `net/http`, Google Flights2 via RapidAPI, `godotenv`
 - **Frontend:** React Native, Expo SDK 52, React Native Web, TypeScript, React Navigation, Zustand
 
 ---
@@ -128,11 +128,9 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 Create `backend/.env`:
 
 ```env
-AMADEUS_CLIENT_ID=your_amadeus_client_id
-AMADEUS_CLIENT_SECRET=your_amadeus_client_secret
-DUFFEL_API_KEY=your_duffel_api_key
 GOOGLEFLIGHTS2_ENABLED=true
 GOOGLEFLIGHTS2_RAPIDAPI_KEY=your_rapidapi_key
+GOOGLEFLIGHTS2_RAPIDAPI_HOST=google-flights2.p.rapidapi.com
 ```
 
 ### Run the HTTP API
@@ -149,7 +147,7 @@ Server listens on **http://localhost:8080**. CORS is enabled for browser clients
 - **`POST /api/search/sessions`** – Create flight search session. Returns session `id`, `status`, `params`.
 - **`GET /api/search/sessions/{id}`** – Poll session status and normalized results.
 - **`GET /api/deals/month`** – Monthly deals: returns `days[]` with `date` and `lowestPrice`.
-- **`GET /api/explore`** – Cheapest destinations from an origin. Query: `origin`, `currency`, `adults`. Either **fixed dates** (`departureDate`, `returnDate`) or **monthly-deals-style** (`year`, `month`, `durationDays`, optional `children`, `nonStop`). Returns `{ destinations: [{ destination, price, currency, departureDate? }] }`. Month mode uses Amadeus Flight Cheapest Date Search per destination to minimize API calls.
+- **`GET /api/explore`** – Cheapest destinations from an origin. Query: `origin`, `currency`, `adults`. Either **fixed dates** (`departureDate`, `returnDate`) or **monthly-deals-style** (`year`, `month`, `durationDays`, optional `children`, `nonStop`). Returns `{ destinations: [{ destination, price, currency, departureDate? }] }`. Uses Google Flights2 with a capped destination list and rate limiting.
 - **`GET /api/flights/details`** – Flight details for a route/date/duration.
 - **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete.
 - **`GET /api/out/booking?sessionId=...&optionId=...`** – Uniform booking redirect. Uses provider deep link or Skyscanner fallback. Also accepts `origin`, `destination`, `departureDate`, `returnDate` params for deals without a session.
@@ -246,7 +244,7 @@ Summary of recent changes:
 | Area | Change |
 |------|--------|
 | **Fly-Fix: Product structure** | **`/`** = landing page (hero, features, how-it-works, CTAs). **`/search`** and **`/search/results`** = main flight search UI (unchanged behavior). **`/monthly-deals`** (+ `/monthly-deals/results`) = monthly deals. Top nav: **Home \| Search \| Monthly Deals**. React Navigation linking + optional `.htaccess` 301s from legacy `/results` and `/deals`. |
-| **Explore (Anywhere)** | **Search** and **Monthly Deals** support **Anywhere** → **Explore** screen: curated destination grid with indicative prices. **Deals Explore** uses `GET /api/explore` with `year`/`month`/`durationDays`; backend uses Amadeus **Flight Cheapest Date Search** (one call per destination) for speed. Tapping a destination runs **`GET /api/deals/month`** and opens **Monthly deals results** with store sync (`setRoute`, `setMonth`, `setDurationDays`) and **`setLoading(false)` in `finally`** so the overlay does not hang. |
+| **Explore (Anywhere)** | **Search** and **Monthly Deals** support **Anywhere** → **Explore** screen: curated destination grid with indicative prices. **Deals Explore** uses `GET /api/explore` with `year`/`month`/`durationDays`; backend uses Google Flights2 with a capped destination list. Tapping a destination runs **`GET /api/deals/month`** and opens **Monthly deals results** with store sync (`setRoute`, `setMonth`, `setDurationDays`) and **`setLoading(false)` in `finally`** so the overlay does not hang. |
 | **Explore UI** | Region filter resets on each fetch; ScrollView/flex fixes for desktop results column; loading copy without hardcoded destination counts (i18n). |
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
@@ -258,8 +256,8 @@ Summary of recent changes:
 | **Responsive** | Hamburger nav on small screens; Filters button moved to its own row between sort and cards on mobile; flight details modal sized for narrow viewports (max height/width). |
 | **Favicon** | Primary favicon: PNG (paper plane in dark purple circle with light border) at `frontend/public/favicon.png`. |
 | **SEO** | Custom `frontend/public/index.html` with favicon, meta keywords/robots, Open Graph, Twitter Card; `app.json` web description and theme color for injection. |
-| **Passenger & cabin** | Tapping "Done" in the Passenger & cabin picker triggers a re-search with the new params (and closes the edit-search modal when opened from there). Cabin class (Economy, Premium Economy, Business, First) is respected: backend sends cabin to all providers; GF2 segments use requested cabin; Amadeus cabin filter accepts offers with at least one matching segment; no fallback to economy when a premium cabin was requested. Empty state: "No flights in this cabin" + tip when there are zero results for a non-economy cabin. |
-| **Price & passengers** | API price is **per passenger**. Total price = API price × passenger count (adults + children + infants). UI shows **total** as the main price and, when there is more than one passenger, a "X per passenger" line. No division of price by passenger count. When the backend provides a fare breakdown (Amadeus `travelerPricings`), the details modal shows separate totals for adults, children, and infants (e.g. "2 adults: $800   1 child: $300"). |
+| **Passenger & cabin** | Tapping "Done" in the Passenger & cabin picker triggers a re-search with the new params (and closes the edit-search modal when opened from there). Cabin class (Economy, Premium Economy, Business, First) is respected: backend sends cabin to GF2; results keep only options with at least one segment in the requested cabin when premium is selected (no silent economy substitution). Empty state: "No flights in this cabin" + tip when there are zero results for a non-economy cabin. |
+| **Price & passengers** | API price is **per passenger**. Total price = API price × passenger count (adults + children + infants). UI shows **total** as the main price and, when there is more than one passenger, a "X per passenger" line. No division of price by passenger count. When the backend provides a fare breakdown, the details modal can show separate totals for adults, children, and infants. |
 | **Checked bag** | "Checked baggage" toggle removed from the search form. Searches always use base fare (no "include checked bag" filter) for simpler, comparable prices. |
 | **Cabin on cards** | Result cards show the **best** cabin across all segments (e.g. First if any segment is First) instead of only the first segment, so mixed itineraries (e.g. short economy hop + long-haul business) display the premium cabin. |
 | **Filters** | Stops filter: Direct = 0 stops, 1 stop = exactly 1, 2+ = at least 2 stops. Airlines filter uses a single primary carrier per result (no multi-airline match), so e.g. "SWISS only" shows only results whose primary airline is LX. |

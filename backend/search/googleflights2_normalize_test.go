@@ -50,7 +50,7 @@ func TestExtractGF2Leg_SingleSegment_DepartArriveDiffer(t *testing.T) {
 		"origin":         "TLV",
 		"destination":    "NAP",
 	}
-	segs, dur := extractGF2Leg(leg, "TLV", "NAP", "2026-04-10")
+	segs, dur := extractGF2Leg(leg, "TLV", "NAP", "2026-04-10", "ECONOMY")
 	if len(segs) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segs))
 	}
@@ -82,7 +82,7 @@ func TestExtractGF2Leg_TimeOnly_WithDateHint(t *testing.T) {
 		"origin":         "TLV",
 		"destination":    "NAP",
 	}
-	segs, dur := extractGF2Leg(leg, "TLV", "NAP", "2026-04-10")
+	segs, dur := extractGF2Leg(leg, "TLV", "NAP", "2026-04-10", "ECONOMY")
 	if len(segs) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segs))
 	}
@@ -109,7 +109,7 @@ func TestExtractGF2Leg_TimeOnly_NoDateHint(t *testing.T) {
 		"origin":         "TLV",
 		"destination":    "NAP",
 	}
-	segs, _ := extractGF2Leg(leg, "TLV", "NAP", "")
+	segs, _ := extractGF2Leg(leg, "TLV", "NAP", "", "ECONOMY")
 	if len(segs) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(segs))
 	}

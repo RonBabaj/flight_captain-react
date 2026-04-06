@@ -216,26 +216,13 @@ type SearchSessionResultsResponse struct {
 var (
 	sessions               = make(map[string]SearchSessionResultsResponse)
 	sessionsMu             sync.RWMutex
-	rawOffersBySession     = make(map[string][]map[string]interface{})
-	rawOffersMu            sync.RWMutex
-	amadeusClient          *AmadeusClient
-	duffelClient           *DuffelClient
 	googleFlights2Provider *search.GoogleFlights2Provider
 )
 
 const (
-	mainSearchMaxOffers       = 250 // single request; no offset in our Amadeus env
 	maxOffersReturnedToClient = 50
 	minOkForStrictBags        = 10 // soft-strict: if BAG_OK count >= this, use only BAG_OK; else BAG_OK+ BAG_UNKNOWN
-	mixLimit                  = 30 // for mixed one-way round-trip: top N outbound and top N return candidates to mix
 )
-
-// MixedRoundTrip holds one outbound and one return one-way offer and their combined price (for mixed round-trip).
-type MixedRoundTrip struct {
-	Outbound   map[string]interface{}
-	Return     map[string]interface{}
-	TotalPrice float64
-}
 
 // Baggage classification for soft-strict filtering (additive to response).
 const (
@@ -408,6 +395,101 @@ func baggageOrder(class interface{}) int {
 	}
 }
 
+func baggageOrderString(class string) int {
+	switch class {
+	case BaggageOK:
+		return 0
+	case BaggageUnknown:
+		return 1
+	case BaggageIncluded:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func classifyFlightOptionBaggage(opt *FlightOption) string {
+	if opt == nil {
+		return BaggageUnknown
+	}
+	if opt.BaggageClass != "" {
+		return opt.BaggageClass
+	}
+	return BaggageUnknown
+}
+
+// applySoftStrictBaggageOptions mirrors applySoftStrictBaggage for normalized FlightOptions (e.g. GF2).
+func applySoftStrictBaggageOptions(offers []FlightOption, includeCheckedBag bool) (
+	selected []FlightOption,
+	okCount, unknownCount, includedCount int,
+	minOkThresholdUsed, fallback bool,
+) {
+	for i := range offers {
+		offers[i].BaggageClass = classifyFlightOptionBaggage(&offers[i])
+	}
+	okOffers := make([]FlightOption, 0)
+	unknownOffers := make([]FlightOption, 0)
+	includedOffers := make([]FlightOption, 0)
+	for _, o := range offers {
+		switch o.BaggageClass {
+		case BaggageOK:
+			okOffers = append(okOffers, o)
+			okCount++
+		case BaggageUnknown:
+			unknownOffers = append(unknownOffers, o)
+			unknownCount++
+		case BaggageIncluded:
+			includedOffers = append(includedOffers, o)
+			includedCount++
+		default:
+			unknownOffers = append(unknownOffers, o)
+			unknownCount++
+		}
+	}
+	if includeCheckedBag {
+		selected = offers
+		return selected, okCount, unknownCount, includedCount, false, false
+	}
+	if okCount >= minOkForStrictBags {
+		selected = okOffers
+		minOkThresholdUsed = true
+		return selected, okCount, unknownCount, includedCount, true, false
+	}
+	selected = append(append([]FlightOption{}, okOffers...), unknownOffers...)
+	if len(selected) == 0 {
+		selected = offers
+		fallback = true
+	}
+	return selected, okCount, unknownCount, includedCount, false, fallback
+}
+
+func optionMatchesCabinFlightOption(opt *FlightOption, cabin string) bool {
+	if cabin == "" {
+		return true
+	}
+	for _, leg := range opt.Legs {
+		for _, seg := range leg.Segments {
+			if seg.CabinClass != "" && strings.EqualFold(seg.CabinClass, cabin) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func filterFlightOptionsByCabinPref(opts []FlightOption, cabin string) []FlightOption {
+	if cabin == "" {
+		return opts
+	}
+	var out []FlightOption
+	for i := range opts {
+		if optionMatchesCabinFlightOption(&opts[i], cabin) {
+			out = append(out, opts[i])
+		}
+	}
+	return out
+}
+
 // CarrierCodes holds marketing, operating, and validating carrier codes extracted from a raw offer.
 type CarrierCodes struct {
 	Marketing  []string
@@ -468,62 +550,6 @@ func PrimaryDisplayCarrier(offer map[string]interface{}) string {
 		return cc.Validating[0]
 	}
 	return ""
-}
-
-// buildCombinedOffer merges one outbound and one return one-way offer into a single round-trip raw offer
-// (itineraries, price, travelerPricings) so normalizeFlightOptions and cabin/baggage filters work.
-func buildCombinedOffer(outbound, returnOffer map[string]interface{}, totalPrice float64) map[string]interface{} {
-	combined := make(map[string]interface{})
-
-	// itineraries: [outbound first itinerary, return first itinerary]
-	var itins []interface{}
-	if oItins, ok := outbound["itineraries"].([]interface{}); ok && len(oItins) > 0 {
-		itins = append(itins, oItins[0])
-	}
-	if rItins, ok := returnOffer["itineraries"].([]interface{}); ok && len(rItins) > 0 {
-		itins = append(itins, rItins[0])
-	}
-	if len(itins) == 0 {
-		return nil
-	}
-	combined["itineraries"] = itins
-
-	// price: total and grandTotal as strings
-	priceStr := fmt.Sprintf("%.2f", totalPrice)
-	combined["price"] = map[string]interface{}{
-		"total":      priceStr,
-		"grandTotal": priceStr,
-	}
-
-	// travelerPricings: merge first traveler from each so fareDetailsBySegment covers both legs
-	var mergedTP []interface{}
-	if oTP, ok := outbound["travelerPricings"].([]interface{}); ok && len(oTP) > 0 {
-		if rTP, ok := returnOffer["travelerPricings"].([]interface{}); ok && len(rTP) > 0 {
-			oT, _ := oTP[0].(map[string]interface{})
-			rT, _ := rTP[0].(map[string]interface{})
-			if oT != nil && rT != nil {
-				oFds, _ := oT["fareDetailsBySegment"].([]interface{})
-				rFds, _ := rT["fareDetailsBySegment"].([]interface{})
-				mergedFds := append(append([]interface{}{}, oFds...), rFds...)
-				mergedTP = []interface{}{
-					map[string]interface{}{"fareDetailsBySegment": mergedFds},
-				}
-			}
-		}
-	}
-	if mergedTP == nil {
-		mergedTP = []interface{}{map[string]interface{}{"fareDetailsBySegment": []interface{}{}}}
-	}
-	combined["travelerPricings"] = mergedTP
-
-	// validatingAirlineCodes: prefer outbound, fallback to return
-	if codes, ok := outbound["validatingAirlineCodes"].([]interface{}); ok && len(codes) > 0 {
-		combined["validatingAirlineCodes"] = codes
-	} else if codes, ok := returnOffer["validatingAirlineCodes"].([]interface{}); ok {
-		combined["validatingAirlineCodes"] = codes
-	}
-
-	return combined
 }
 
 // #region agent log (de4859)
@@ -630,271 +656,82 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		req.Adults = 1
 	}
 
-	if amadeusClient == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+	if googleFlights2Provider == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
 		return
 	}
 
 	cabinPref := req.CabinPrefOrDefault()
 	includeBag := req.IncludeCheckedBagOrDefault()
 
-	// Start Duffel search in parallel (if configured).
-	var duffelCh chan DuffelSearchResult
-	if duffelClient != nil {
-		duffelCh = make(chan DuffelSearchResult, 1)
-		go func() {
-			duffelCh <- duffelClient.SearchOffers(
-				strings.ToUpper(req.Origin),
-				strings.ToUpper(req.Destination),
-				req.DepartureDate,
-				req.ReturnDate,
-				cabinPref,
-			)
-		}()
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	sreq := search.SearchRequest{
+		Origin:            strings.ToUpper(req.Origin),
+		Destination:       strings.ToUpper(req.Destination),
+		DepartureDate:     req.DepartureDate,
+		ReturnDate:        req.ReturnDate,
+		CabinClass:        req.CabinClass,
+		CabinPreference:   cabinPref,
+		IncludeCheckedBag: includeBag,
+		Adults:            req.Adults,
+		Children:          req.ChildrenOrDefault(),
+		Infants:           req.Infants,
+		Currency:          req.CurrencyOrDefault(),
 	}
 
-	// Start Google Flights2 search in parallel when provider is configured (same as Duffel).
-	var gf2Ch chan []search.ProviderResult
-	if googleFlights2Provider != nil {
-		gf2Ch = make(chan []search.ProviderResult, 1)
-		go func() {
-			sreq := search.SearchRequest{
-				Origin:            strings.ToUpper(req.Origin),
-				Destination:       strings.ToUpper(req.Destination),
-				DepartureDate:     req.DepartureDate,
-				ReturnDate:        req.ReturnDate,
-				CabinClass:        req.CabinClass,
-				CabinPreference:   cabinPref,
-				IncludeCheckedBag: includeBag,
-				Adults:            req.Adults,
-				Children:          req.ChildrenOrDefault(),
-				Infants:           req.Infants,
-				Currency:          req.CurrencyOrDefault(),
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			res, err := googleFlights2Provider.Search(ctx, sreq)
-			if err != nil {
-				gf2Ch <- nil
-				return
-			}
-			gf2Ch <- res
-		}()
+	prs, err := googleFlights2Provider.Search(ctx, sreq)
+	if err != nil {
+		log.Printf("[SEARCH] Google Flights2 error: %v", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "flight search failed"})
+		return
 	}
 
-	var offers []map[string]interface{}
-	var outboundOffersReturned, returnOffersReturned int
-	var combosGenerated int
-	var cheapestOutbound, cheapestReturn, cheapestMixed float64
+	options := providerResultsToFlightOptions(prs)
+	offersInitial := options
 
-	if req.ReturnDate != "" {
-		// Mixed one-way round-trip: search outbound and return separately, then combine with price-bounded mixing.
-		// On Amadeus error we continue with empty offers so Duffel/GF2 results can still be returned.
-		origin := strings.ToUpper(req.Origin)
-		dest := strings.ToUpper(req.Destination)
-
-		currency := req.CurrencyOrDefault()
-		outResp, errOut := amadeusClient.FlightOffersSearch(origin, dest, req.DepartureDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
-		if errOut != nil {
-			log.Printf("FlightOffersSearch (outbound) error: %v; continuing with other providers", errOut)
-			appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": errOut.Error()}})
-			offers = nil
-		}
-		var retResp APIResponse
-		var errRet error
-		if errOut == nil {
-			retResp, errRet = amadeusClient.FlightOffersSearch(dest, origin, req.ReturnDate, "", mainSearchMaxOffers, cabinPref, currency, req.Adults, req.ChildrenOrDefault(), false)
-			if errRet != nil {
-				log.Printf("FlightOffersSearch (return) error: %v; continuing with other providers", errRet)
-				appendDebugLog(map[string]any{"location": "backend/server.go:handleCreateSession", "message": "Amadeus search error", "hypothesisId": "backend-A", "data": map[string]any{"error": errRet.Error()}})
-				offers = nil
-			}
-		}
-
-		if errOut == nil && errRet == nil {
-			// Filter out non-positive prices.
-			var outboundFiltered []map[string]interface{}
-			for _, o := range outResp.Data {
-				if p := extractRawPrice(o); p > 0 {
-					outboundFiltered = append(outboundFiltered, o)
-				}
-			}
-			var returnFiltered []map[string]interface{}
-			for _, r := range retResp.Data {
-				if p := extractRawPrice(r); p > 0 {
-					returnFiltered = append(returnFiltered, r)
-				}
-			}
-
-			// Sort by price ascending.
-			sort.Slice(outboundFiltered, func(i, j int) bool {
-				return extractRawPrice(outboundFiltered[i]) < extractRawPrice(outboundFiltered[j])
-			})
-			sort.Slice(returnFiltered, func(i, j int) bool { return extractRawPrice(returnFiltered[i]) < extractRawPrice(returnFiltered[j]) })
-
-			// Limit candidates.
-			outboundCandidates := outboundFiltered
-			if len(outboundCandidates) > mixLimit {
-				outboundCandidates = outboundCandidates[:mixLimit]
-			}
-			returnCandidates := returnFiltered
-			if len(returnCandidates) > mixLimit {
-				returnCandidates = returnCandidates[:mixLimit]
-			}
-
-			// Generate all combinations (no early exit) then sort and take top 50 for correctness.
-			var combos []MixedRoundTrip
-			for _, o := range outboundCandidates {
-				outPrice := extractRawPrice(o)
-				if outPrice <= 0 {
-					continue
-				}
-				for _, r := range returnCandidates {
-					retPrice := extractRawPrice(r)
-					if retPrice <= 0 {
-						continue
-					}
-					combos = append(combos, MixedRoundTrip{
-						Outbound:   o,
-						Return:     r,
-						TotalPrice: outPrice + retPrice,
-					})
-				}
-			}
-			combosGenerated = len(combos)
-
-			// Sort by total price ascending and keep top 50.
-			sort.Slice(combos, func(i, j int) bool { return combos[i].TotalPrice < combos[j].TotalPrice })
-			topK := maxOffersReturnedToClient
-			if len(combos) < topK {
-				topK = len(combos)
-			}
-			combos = combos[:topK]
-
-			for _, c := range combos {
-				merged := buildCombinedOffer(c.Outbound, c.Return, c.TotalPrice)
-				if merged != nil {
-					offers = append(offers, merged)
-				}
-			}
-
-			// Preserve dictionaries merging behavior.
-			_ = mergeDictionaries(outResp.Dictionaries, retResp.Dictionaries)
-
-			outboundOffersReturned = len(outResp.Data)
-			returnOffersReturned = len(retResp.Data)
-			if len(combos) > 0 {
-				cheapestMixed = combos[0].TotalPrice
-			}
-			if len(outboundCandidates) > 0 {
-				cheapestOutbound = extractRawPrice(outboundCandidates[0])
-			}
-			if len(returnCandidates) > 0 {
-				cheapestReturn = extractRawPrice(returnCandidates[0])
-			}
-
-			log.Printf("[ROUNDTRIP_MIX] outboundCandidates=%d returnCandidates=%d combinationsGenerated=%d cheapestMixed=%.2f cheapestOutbound=%.2f cheapestReturn=%.2f",
-				len(outboundCandidates), len(returnCandidates), combosGenerated, cheapestMixed, cheapestOutbound, cheapestReturn)
-		}
-	} else {
-		// One-way: single Amadeus request (no offset). travelClass from cabin preference.
-		apiResp, err := amadeusClient.FlightOffersSearch(
-			strings.ToUpper(req.Origin),
-			strings.ToUpper(req.Destination),
-			req.DepartureDate,
-			"",
-			mainSearchMaxOffers,
-			cabinPref,
-			req.CurrencyOrDefault(),
-			req.Adults,
-			req.ChildrenOrDefault(),
-			false,
-		)
-		if err != nil {
-			log.Printf("FlightOffersSearch error: %v; continuing with other providers", err)
-			appendDebugLog(map[string]any{
-				"location":     "backend/server.go:handleCreateSession",
-				"message":      "Amadeus search error",
-				"hypothesisId": "backend-A",
-				"data":         map[string]any{"error": err.Error()},
-			})
-			offers = nil
-		} else {
-			offers = apiResp.Data
-			outboundOffersReturned = len(apiResp.Data)
-			for _, o := range offers {
-				if p := extractRawPrice(o); p > 0 && (cheapestOutbound == 0 || p < cheapestOutbound) {
-					cheapestOutbound = p
-				}
-			}
-			cheapestMixed = cheapestOutbound
-		}
-	}
-
-	offersInitial := offers
-
-	// Post-fetch: cabin filter (already applied via travelClass; filter for consistency).
-	offersAfterCabin := offers
+	offersAfterCabin := options
 	if cabinPref != "" {
-		offersAfterCabin = filterOffersByCabin(offers, cabinPref)
-		offers = offersAfterCabin
+		offersAfterCabin = filterFlightOptionsByCabinPref(options, cabinPref)
+		options = offersAfterCabin
 	}
 
-	// Post-fetch: soft-strict baggage (partition BAG_OK / BAG_UNKNOWN / BAG_INCLUDED, then select + sort).
-	selected, okCount, unknownCount, includedCount, minOkThresholdUsed, bagFallback := applySoftStrictBaggage(offers, includeBag)
-	offers = selected
+	selected, okCount, unknownCount, includedCount, _, bagFallback := applySoftStrictBaggageOptions(options, includeBag)
+	options = selected
 
-	// Fallback if filtering yielded no offers.
-	// Only fall back within the same cabin tier (baggage filter → cabin-filtered set).
-	// Never fall back to offersInitial when a non-ECONOMY cabin was explicitly requested:
-	// that would silently substitute Economy results for a First/Business/PremiumEconomy search.
-	if len(offers) == 0 && len(offersAfterCabin) > 0 {
-		offers = offersAfterCabin
+	if len(options) == 0 && len(offersAfterCabin) > 0 {
+		options = offersAfterCabin
 	}
 	explicitPremiumCabin := cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY")
-	if len(offers) == 0 && len(offersInitial) > 0 && !explicitPremiumCabin {
-		offers = offersInitial
-		offersAfterCabin = offers
+	if len(options) == 0 && len(offersInitial) > 0 && !explicitPremiumCabin {
+		options = offersInitial
+		offersAfterCabin = options
 	}
 
-	// Sort: when includeCheckedBag=false, BAG_OK first, then BAG_UNKNOWN, then by price; else by price only.
-	if len(offers) > 0 {
+	if len(options) > 0 {
 		if !includeBag {
-			sort.Slice(offers, func(i, j int) bool {
-				oi, oj := baggageOrder(offers[i]["_baggageClass"]), baggageOrder(offers[j]["_baggageClass"])
+			sort.Slice(options, func(i, j int) bool {
+				oi, oj := baggageOrderString(options[i].BaggageClass), baggageOrderString(options[j].BaggageClass)
 				if oi != oj {
 					return oi < oj
 				}
-				return extractRawPrice(offers[i]) < extractRawPrice(offers[j])
+				return options[i].Price.Amount < options[j].Price.Amount
 			})
 		} else {
-			sort.Slice(offers, func(i, j int) bool {
-				return extractRawPrice(offers[i]) < extractRawPrice(offers[j])
+			sort.Slice(options, func(i, j int) bool {
+				return options[i].Price.Amount < options[j].Price.Amount
 			})
-		}
-
-		cheapestPrice := extractRawPrice(offers[0])
-		cheapestBaggage, _ := offers[0]["_baggageClass"].(string)
-		var validating []string
-		if codes, ok := offers[0]["validatingAirlineCodes"].([]interface{}); ok {
-			for _, c := range codes {
-				if s, ok := c.(string); ok && s != "" {
-					validating = append(validating, s)
-				}
-			}
 		}
 		fallbackFlag := ""
 		if bagFallback {
 			fallbackFlag = "relaxedBagsAll"
 		}
-		log.Printf("[SEARCH] includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d minOkThresholdUsed=%t fallback=%s cheapest=%.2f baggageClass=%s validating=%v",
-			includeBag, okCount, unknownCount, includedCount, minOkThresholdUsed, fallbackFlag, cheapestPrice, cheapestBaggage, validating)
+		log.Printf("[SEARCH] includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallback=%s cheapest=%.2f baggageClass=%s",
+			includeBag, okCount, unknownCount, includedCount, fallbackFlag, options[0].Price.Amount, options[0].BaggageClass)
 
-		// Structured debug log of raw first offer price (post-sort, cheapest).
-		rawPrice, _ := offers[0]["price"].(map[string]interface{})
 		appendDebugLogDe4859(map[string]any{
 			"location":     "backend/server.go:handleCreateSession",
-			"message":      "Cheapest raw offer price from Amadeus (post-sort)",
+			"message":      "Cheapest GF2 option (post-sort)",
 			"hypothesisId": "pricing-2",
 			"runId":        "pre-fix",
 			"data": map[string]any{
@@ -902,118 +739,38 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				"destination": req.Destination,
 				"departure":   req.DepartureDate,
 				"returnDate":  req.ReturnDate,
-				"priceObject": rawPrice,
+				"currency":    options[0].Price.Currency,
+				"amount":      options[0].Price.Amount,
 			},
 		})
-
-		// Log that NDC content is not available on the self-service Flight Offers Search API.
-		log.Printf("[SEARCH_NDC] NDC content is not available for the self-service Flight Offers Search API; proceeding with standard content only.")
 	}
 
-	// [SEARCH_SUMMARY] — one line per search, computed before trimming to top N.
-	{
+	if len(options) > 0 {
 		seenM := make(map[string]struct{})
-		seenO := make(map[string]struct{})
-		seenV := make(map[string]struct{})
-		for _, o := range offers {
-			cc := ExtractCarrierCodes(o)
-			for _, c := range cc.Marketing {
-				seenM[c] = struct{}{}
-			}
-			for _, c := range cc.Operating {
-				seenO[c] = struct{}{}
-			}
-			for _, c := range cc.Validating {
-				seenV[c] = struct{}{}
-			}
-		}
-		var marketingList, operatingList, validatingList []string
-		for c := range seenM {
-			marketingList = append(marketingList, c)
-		}
-		for c := range seenO {
-			operatingList = append(operatingList, c)
-		}
-		for c := range seenV {
-			validatingList = append(validatingList, c)
-		}
-		sample := func(list []string, max int) []string {
-			if len(list) <= max {
-				return list
-			}
-			return list[:max]
-		}
-		allCodes := make(map[string]struct{})
-		for c := range seenM {
-			allCodes[c] = struct{}{}
-		}
-		for c := range seenO {
-			allCodes[c] = struct{}{}
-		}
-		for c := range seenV {
-			allCodes[c] = struct{}{}
-		}
-		_, containsW6 := allCodes["W6"]
-		_, containsW4 := allCodes["W4"]
-		log.Printf("[SEARCH_SUMMARY] outboundOffersReturned=%d returnOffersReturned=%d mixLimit=%d combosGenerated=%d cheapestOutbound=%.2f cheapestReturn=%.2f cheapestMixed=%.2f cabinPreference=%s includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallbackApplied=%t uniqueMarketingCarriers=%d marketingSample=%v uniqueOperatingCarriers=%d operatingSample=%v uniqueValidatingCarriers=%d validatingSample=%v containsW6=%t containsW4=%t",
-			outboundOffersReturned, returnOffersReturned, mixLimit, combosGenerated, cheapestOutbound, cheapestReturn, cheapestMixed, cabinPref, includeBag, okCount, unknownCount, includedCount, bagFallback,
-			len(seenM), sample(marketingList, 10), len(seenO), sample(operatingList, 10), len(seenV), sample(validatingList, 10), containsW6, containsW4)
-	}
-
-	// Return only top N offers to the client to keep payloads reasonable.
-	if len(offers) > maxOffersReturnedToClient {
-		offers = offers[:maxOffersReturnedToClient]
-	}
-
-	options := normalizeFlightOptions(offers, &req)
-
-	// Merge Duffel results if available (ran in parallel).
-	requestedCurr := req.CurrencyOrDefault()
-	if duffelCh != nil {
-		duffelResult := <-duffelCh
-		if duffelResult.Err != nil {
-			log.Printf("[DUFFEL] search error: %v", duffelResult.Err)
-		} else {
-			options = append(options, duffelResult.Options...)
-			// [DUFFEL_SUMMARY]
-			duffelOffers := duffelResult.Options
-			offersReturned := len(duffelOffers)
-			cheapest := 0.0
-			carriersSample := make([]string, 0, 10)
-			seen := make(map[string]struct{})
-			for _, o := range duffelOffers {
-				if o.Price.Amount > 0 && (cheapest == 0 || o.Price.Amount < cheapest) {
-					cheapest = o.Price.Amount
-				}
-				c := o.PrimaryDisplayCarrier
-				if c != "" {
-					if _, ok := seen[c]; !ok {
-						seen[c] = struct{}{}
-						carriersSample = append(carriersSample, c)
-						if len(carriersSample) >= 10 {
-							break
-						}
+		for _, o := range options {
+			for _, leg := range o.Legs {
+				for _, seg := range leg.Segments {
+					if c := seg.MarketingCarrier.Code; c != "" {
+						seenM[c] = struct{}{}
 					}
 				}
 			}
-			log.Printf("[DUFFEL_SUMMARY] offersReturned=%d cheapest=%.2f carriersSample=%v latency=%dms",
-				offersReturned, cheapest, carriersSample, duffelResult.LatencyMs)
+			for _, c := range o.ValidatingAirlines {
+				if c != "" {
+					seenM[c] = struct{}{}
+				}
+			}
 		}
+		log.Printf("[SEARCH_SUMMARY] results=%d cabinPreference=%s includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallbackApplied=%t uniqueCarriers=%d",
+			len(options), cabinPref, includeBag, okCount, unknownCount, includedCount, bagFallback, len(seenM))
 	}
 
-	// Merge Google Flights2 results if available (never fail whole request on GF2 failure).
-	if gf2Ch != nil {
-		gf2Results := <-gf2Ch
-		if len(gf2Results) > 0 {
-			gf2Opts := providerResultsToFlightOptions(gf2Results)
-			options = append(options, gf2Opts...)
-		}
+	if len(options) > maxOffersReturnedToClient {
+		options = options[:maxOffersReturnedToClient]
 	}
 
-	// Final cabin enforcement across all providers:
-	// when a non-Economy cabin was explicitly requested, keep only options that
-	// contain at least one segment in that cabin. This prevents Duffel/GF2
-	// economy fallbacks from appearing as results for First/Business/Premium searches.
+	requestedCurr := req.CurrencyOrDefault()
+
 	if cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY") {
 		filtered := options[:0]
 		for _, opt := range options {
@@ -1036,10 +793,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		options = filtered
 	}
 
-	// Codeshare-aware grouping: same operated flight (by CodeshareFingerprint) merged into one result; cheapest = main, others = sellerOptions.
 	options = groupCodeshareAndMerge(options)
 
-	// Ensure every option has sanitized segment times, carrier, and canonical outbound summary.
 	for i := range options {
 		sanitizeSegmentTimes(options[i].Legs)
 		ensurePrimaryCarrier(&options[i])
@@ -1063,7 +818,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Convert all option prices to the requested currency (so Amadeus + Duffel + GF2 results are comparable and displayed in user's choice).
 	convertOptionsToCurrency(options, requestedCurr)
 	sort.Slice(options, func(i, j int) bool {
 		return options[i].Price.Amount < options[j].Price.Amount
@@ -1110,9 +864,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	sessionsMu.Lock()
 	sessions[id] = resp
 	sessionsMu.Unlock()
-	rawOffersMu.Lock()
-	rawOffersBySession[id] = offers
-	rawOffersMu.Unlock()
 
 	appendDebugLog(map[string]any{
 		"location":     "backend/server.go:handleCreateSession",
@@ -1243,196 +994,6 @@ func convertOptionsToCurrency(options []FlightOption, requestedCurr string) {
 			}
 		}
 	}
-}
-
-// normalizeFlightOptions converts raw Amadeus offers into the simplified FlightOption shape.
-func normalizeFlightOptions(data []map[string]interface{}, req *CreateSearchSessionRequest) []FlightOption {
-	var options []FlightOption
-
-	for idx, offer := range data {
-		price := extractRawPrice(offer)
-		if price <= 0 {
-			continue
-		}
-
-		itinsRaw, ok := offer["itineraries"].([]interface{})
-		if !ok || len(itinsRaw) == 0 {
-			continue
-		}
-
-		var legs []FlightLeg
-		totalDuration := 0
-
-		for _, itinAny := range itinsRaw {
-			itin, ok := itinAny.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			segsRaw, ok := itin["segments"].([]interface{})
-			if !ok || len(segsRaw) == 0 {
-				continue
-			}
-
-			var segments []FlightSegment
-			for _, segAny := range segsRaw {
-				seg, ok := segAny.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				dep, _ := seg["departure"].(map[string]interface{})
-				arr, _ := seg["arrival"].(map[string]interface{})
-				if dep == nil || arr == nil {
-					continue
-				}
-
-				depCode, _ := dep["iataCode"].(string)
-				arrCode, _ := arr["iataCode"].(string)
-				depAt, _ := dep["at"].(string)
-				arrAt, _ := arr["at"].(string)
-
-				depTime, _ := parseAmadeusTime(depAt)
-				arrTime, _ := parseAmadeusTime(arrAt)
-
-				duration := 0
-				if !depTime.IsZero() && !arrTime.IsZero() {
-					duration = int(arrTime.Sub(depTime).Minutes())
-				}
-				if duration < 0 {
-					duration = 0
-				}
-
-				carrierCode, _ := seg["carrierCode"].(string)
-				number, _ := seg["number"].(string)
-				var operatingCarrier *Carrier
-				var operatingFlightNum string
-				if op, ok := seg["operating"].(map[string]interface{}); ok {
-					if oc, ok := op["carrierCode"].(string); ok && oc != "" {
-						operatingCarrier = &Carrier{Code: strings.ToUpper(oc)}
-					}
-					if on, ok := op["number"].(string); ok && on != "" {
-						operatingFlightNum = on
-					}
-				}
-
-				cabinClass := req.CabinClass
-				if travelerPricings, ok := offer["travelerPricings"].([]interface{}); ok && len(travelerPricings) > 0 {
-					if tp, ok := travelerPricings[0].(map[string]interface{}); ok {
-						if fareDetailsBySegment, ok := tp["fareDetailsBySegment"].([]interface{}); ok && len(fareDetailsBySegment) > 0 {
-							if fd, ok := fareDetailsBySegment[0].(map[string]interface{}); ok {
-								if cabin, ok := fd["cabin"].(string); ok && cabin != "" {
-									cabinClass = cabin
-								}
-							}
-						}
-					}
-				}
-
-				segments = append(segments, FlightSegment{
-					From:               AirportLike{Code: strings.ToUpper(depCode)},
-					To:                 AirportLike{Code: strings.ToUpper(arrCode)},
-					DepartureTime:      depTime,
-					ArrivalTime:        arrTime,
-					MarketingCarrier:   Carrier{Code: strings.ToUpper(carrierCode)},
-					OperatingCarrier:   operatingCarrier,
-					FlightNumber:       number,
-					OperatingFlightNum: operatingFlightNum,
-					DurationMinutes:    duration,
-					CabinClass:         cabinClass,
-				})
-				totalDuration += duration
-			}
-			if len(segments) > 0 {
-				legs = append(legs, FlightLeg{Segments: segments})
-			}
-		}
-
-		if len(legs) == 0 {
-			continue
-		}
-
-		var validating []string
-		if codes, ok := offer["validatingAirlineCodes"].([]interface{}); ok {
-			for _, c := range codes {
-				if s, ok := c.(string); ok && s != "" {
-					validating = append(validating, s)
-				}
-			}
-		}
-		baggageClass, _ := offer["_baggageClass"].(string)
-		primaryCarrier := PrimaryDisplayCarrier(offer)
-		if computed := computeTotalDurationFromLegs(legs); computed > 0 {
-			totalDuration = computed
-		}
-
-		// Build optional fare breakdown from travelerPricings when available.
-		var fare *FareBreakdown
-		if tps, ok := offer["travelerPricings"].([]interface{}); ok && len(tps) > 0 {
-			fb := &FareBreakdown{Currency: req.CurrencyOrDefault()}
-			for _, tpAny := range tps {
-				tp, ok := tpAny.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				priceMap, ok := tp["price"].(map[string]interface{})
-				if !ok {
-					continue
-				}
-				var amt float64
-				switch v := priceMap["total"].(type) {
-				case float64:
-					amt = v
-				case string:
-					if parsed, err := strconv.ParseFloat(v, 64); err == nil {
-						amt = parsed
-					}
-				}
-				if amt <= 0 {
-					continue
-				}
-				if curr, ok := priceMap["currency"].(string); ok && curr != "" {
-					fb.Currency = curr
-				}
-				tType, _ := tp["travelerType"].(string)
-				switch strings.ToUpper(tType) {
-				case "ADULT", "SENIOR":
-					fb.AdultsTotal += amt
-					fb.AdultsCount++
-				case "CHILD":
-					fb.ChildrenTotal += amt
-					fb.ChildrenCount++
-				case "HELD_INFANT", "SEATED_INFANT", "INFANT":
-					fb.InfantsTotal += amt
-					fb.InfantsCount++
-				default:
-					// Treat unknown traveler types as adults.
-					fb.AdultsTotal += amt
-					fb.AdultsCount++
-				}
-			}
-			if fb.AdultsTotal > 0 || fb.ChildrenTotal > 0 || fb.InfantsTotal > 0 {
-				fb.Total = fb.AdultsTotal + fb.ChildrenTotal + fb.InfantsTotal
-				fare = fb
-			}
-		}
-
-		opt := FlightOption{
-			ID:                    fmt.Sprintf("opt_%d", idx),
-			Price:                 MonetaryAmount{Currency: req.CurrencyOrDefault(), Amount: price},
-			DurationMinutes:       totalDuration,
-			Legs:                  legs,
-			Fare:                  fare,
-			ValidatingAirlines:    validating,
-			BaggageClass:          baggageClass,
-			PrimaryDisplayCarrier: primaryCarrier,
-			Source:                "amadeus",
-		}
-		sanitizeSegmentTimes(opt.Legs)
-		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
-		opt.OutboundSummary = computeOutboundSummary(&opt)
-		options = append(options, opt)
-	}
-
-	return options
 }
 
 // computeTotalDurationFromLegs returns total minutes (flight + layovers) per leg: last segment arrival - first segment departure per leg.
@@ -1762,27 +1323,6 @@ func groupCodeshareAndMerge(opts []FlightOption) []FlightOption {
 	return out
 }
 
-// parseAmadeusTime parses ISO timestamps from Amadeus; prefers RFC3339 (timezone preserved).
-func parseAmadeusTime(s string) (time.Time, error) {
-	if s == "" {
-		return time.Time{}, fmt.Errorf("empty time")
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-		return t, nil
-	}
-	// No Z suffix: treat as UTC for consistency
-	if t, err := time.Parse("2006-01-02T15:04:05.999", s); err == nil {
-		return t.UTC(), nil
-	}
-	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
-		return t.UTC(), nil
-	}
-	return time.Time{}, fmt.Errorf("could not parse time %q", s)
-}
-
 func (r *CreateSearchSessionRequest) CurrencyOrDefault() string {
 	if r.Currency != "" {
 		return r.Currency
@@ -1880,6 +1420,34 @@ func extractDealMeta(offer map[string]interface{}) (stops int, carriers []string
 	}
 	for code := range seen {
 		carriers = append(carriers, code)
+	}
+	return stops, carriers, path
+}
+
+// extractDealMetaFromLeg derives stop count, carrier codes, and route path from a normalized FlightLeg (GF2).
+func extractDealMetaFromLeg(leg *FlightLeg) (stops int, carriers []string, path []string) {
+	if leg == nil || len(leg.Segments) == 0 {
+		return 0, nil, nil
+	}
+	segs := leg.Segments
+	stops = len(segs) - 1
+	seen := make(map[string]struct{})
+	for _, seg := range segs {
+		if c := seg.MarketingCarrier.Code; c != "" {
+			seen[strings.ToUpper(c)] = struct{}{}
+		}
+	}
+	for c := range seen {
+		carriers = append(carriers, c)
+	}
+	sort.Strings(carriers)
+	for i, seg := range segs {
+		if i == 0 && seg.From.Code != "" {
+			path = append(path, seg.From.Code)
+		}
+		if seg.To.Code != "" {
+			path = append(path, seg.To.Code)
+		}
 	}
 	return stops, carriers, path
 }
@@ -1991,16 +1559,6 @@ type FlightDetailsResponse struct {
 	Stops         StopsSummary   `json:"stops"`
 }
 
-// normalizeSingleOffer converts a single raw offer into one FlightOption using the
-// existing normalization logic.
-func normalizeSingleOffer(offer map[string]interface{}, req *CreateSearchSessionRequest) (*FlightOption, error) {
-	options := normalizeFlightOptions([]map[string]interface{}{offer}, req)
-	if len(options) == 0 {
-		return nil, fmt.Errorf("no normalized options")
-	}
-	return &options[0], nil
-}
-
 func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		writeJSON(w, http.StatusNoContent, nil)
@@ -2011,8 +1569,8 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if amadeusClient == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+	if googleFlights2Provider == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
 		return
 	}
 
@@ -2064,43 +1622,26 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 
 	endDate := startDate
 
-	// Reuse existing deals search for a single day to find the best round-trip.
-	deals, err := amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays, currency, adults, children, false)
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	deals, err := gf2SearchDealsRange(ctx, googleFlights2Provider, origin, destination, startDate, endDate, durationDays, currency, adults, children, false, "ECONOMY", false)
 	if err != nil || len(deals) == 0 {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no deals found for requested date"})
 		return
 	}
-	trip := deals[0]
-
-	// Normalize outbound and return offers to FlightLegs using existing logic.
-	outReq := &CreateSearchSessionRequest{
-		Origin:        origin,
-		Destination:   destination,
-		DepartureDate: trip.OutboundDate,
-		CabinClass:    "ECONOMY",
-		Currency:      currency,
+	var trip *FullRoundTrip
+	for i := range deals {
+		if trip == nil || deals[i].TotalCost < trip.TotalCost {
+			trip = &deals[i]
+		}
 	}
-	retReq := &CreateSearchSessionRequest{
-		Origin:        destination,
-		Destination:   origin,
-		DepartureDate: trip.ReturnDate,
-		CabinClass:    "ECONOMY",
-		Currency:      currency,
-	}
-
-	outOpt, err := normalizeSingleOffer(trip.OutboundFlight, outReq)
-	if err != nil || len(outOpt.Legs) == 0 {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to normalize outbound flight"})
+	if trip == nil || trip.CombinedOption == nil || len(trip.CombinedOption.Legs) < 2 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to load flight details"})
 		return
 	}
-	retOpt, err := normalizeSingleOffer(trip.ReturnFlight, retReq)
-	if err != nil || len(retOpt.Legs) == 0 {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to normalize return flight"})
-		return
-	}
-
-	outLeg := outOpt.Legs[0]
-	retLeg := retOpt.Legs[0]
+	opt := trip.CombinedOption
+	outLeg := opt.Legs[0]
+	retLeg := opt.Legs[1]
 
 	countStops := func(leg FlightLeg) int {
 		if len(leg.Segments) == 0 {
@@ -2118,11 +1659,11 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		Outbound:      outLeg,
 		Return:        retLeg,
 		TotalPrice: MonetaryAmount{
-			Currency: outReq.CurrencyOrDefault(),
+			Currency: currency,
 			Amount:   trip.TotalCost,
 		},
 		Fare: &FareBreakdown{
-			Currency: outReq.CurrencyOrDefault(),
+			Currency: currency,
 			Total:    trip.TotalCost,
 		},
 		Stops: StopsSummary{
@@ -2169,8 +1710,8 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if amadeusClient == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+	if googleFlights2Provider == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
 		return
 	}
 
@@ -2201,28 +1742,21 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Month-mode explore uses one Flight Cheapest Date Search per destination (Amadeus), with a
-	// single Flight Offers fallback when needed — far fewer calls than day-sampling.
-	timeout := 90 * time.Second
-	if useMonthDealsExplore {
-		timeout = 120 * time.Second
-	}
+	timeout := 300 * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
-	var destinations []map[string]interface{}
-	var err error
 	if useMonthDealsExplore {
-		log.Printf("[EXPLORE] MONTH origin=%s year=%d month=%d durationDays=%d currency=%s adults=%d children=%d nonStop=%v",
+		log.Printf("[EXPLORE] MONTH GF2 origin=%s year=%d month=%d durationDays=%d currency=%s adults=%d children=%d nonStop=%v",
 			origin, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
-		destinations, err = amadeusClient.FlightDestinationsMonthCtx(ctx, origin, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
 	} else {
-		log.Printf("[EXPLORE] origin=%s departureDate=%s returnDate=%s currency=%s adults=%d",
+		log.Printf("[EXPLORE] GF2 origin=%s departureDate=%s returnDate=%s currency=%s adults=%d",
 			origin, departureDate, returnDate, currency, adults)
-		destinations, err = amadeusClient.FlightDestinationsCtx(ctx, origin, departureDate, returnDate, currency, adults)
 	}
+
+	destinations, err := gf2ExploreDestinations(ctx, googleFlights2Provider, origin, departureDate, returnDate, currency, adults, children, nonStop, "ECONOMY", false, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration)
 	if err != nil {
-		log.Printf("[EXPLORE] FlightDestinations error for %s: %v", origin, err)
+		log.Printf("[EXPLORE] GF2 error for %s: %v", origin, err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to fetch destinations"})
 		return
 	}
@@ -2255,7 +1789,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	if currency == "" {
 		currency = "USD"
 	}
-	// Amadeus supports common codes; default to USD if unsupported
+	// Supported display currencies; default to USD if unsupported
 	switch currency {
 	case "USD", "GBP", "EUR", "ILS", "JPY":
 		// use as-is
@@ -2310,18 +1844,21 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	}
 	nonStop := strings.ToLower(r.URL.Query().Get("nonStop")) == "true"
 
-	if amadeusClient == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "backend not initialized"})
+	if googleFlights2Provider == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
+	defer cancel()
+	cabinPref := "ECONOMY"
+	includeBag := false
+
 	var deals []FullRoundTrip
-	var byDate map[string]float64
 	var days []DayDeal
 	var rangeYear, rangeMonth int
 	var err error
 
-	// tripByDate maps outbound date → cheapest FullRoundTrip (for meta extraction)
 	type tripMeta struct {
 		price        float64
 		stops        int
@@ -2337,8 +1874,16 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 			if existing, ok := metaByDate[d]; ok && existing.price <= trip.TotalCost {
 				continue
 			}
-			stops, carriers, outPath := extractDealMeta(trip.OutboundFlight)
-			_, _, retPath := extractDealMeta(trip.ReturnFlight)
+			var stops int
+			var carriers []string
+			var outPath, retPath []string
+			if trip.CombinedOption != nil && len(trip.CombinedOption.Legs) >= 2 {
+				stops, carriers, outPath = extractDealMetaFromLeg(&trip.CombinedOption.Legs[0])
+				_, _, retPath = extractDealMetaFromLeg(&trip.CombinedOption.Legs[1])
+			} else {
+				stops, carriers, outPath = extractDealMeta(trip.OutboundFlight)
+				_, _, retPath = extractDealMeta(trip.ReturnFlight)
+			}
 			metaByDate[d] = tripMeta{
 				price:        trip.TotalCost,
 				stops:        stops,
@@ -2356,18 +1901,11 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid startDate/endDate (use YYYY-MM-DD)"})
 			return
 		}
-		deals, err = amadeusClient.SearchDealsRange(origin, destination, startDate, endDate, durationDays, currency, adults, children, nonStop)
+		deals, err = gf2SearchDealsRange(ctx, googleFlights2Provider, origin, destination, startDate, endDate, durationDays, currency, adults, children, nonStop, cabinPref, includeBag)
 		if err != nil {
-			log.Printf("[MONTH_DEALS] SearchDealsRange error: %v", err)
+			log.Printf("[MONTH_DEALS] gf2SearchDealsRange error: %v", err)
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("deals search failed: %v", err)})
 			return
-		}
-		byDate = make(map[string]float64)
-		for _, trip := range deals {
-			d := trip.OutboundDate
-			if p, ok := byDate[d]; !ok || trip.TotalCost < p {
-				byDate[d] = trip.TotalCost
-			}
 		}
 		populateMeta(deals)
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
@@ -2386,18 +1924,11 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		rangeMonth = int(startDate.Month())
 	} else {
 		monthTime := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-		deals, err = amadeusClient.SearchMonthDeals(origin, destination, monthTime, durationDays, currency, adults, children, nonStop)
+		deals, err = gf2SearchMonthDeals(ctx, googleFlights2Provider, origin, destination, monthTime, durationDays, currency, adults, children, nonStop, cabinPref, includeBag)
 		if err != nil {
-			log.Printf("[MONTH_DEALS] SearchMonthDeals error: %v", err)
+			log.Printf("[MONTH_DEALS] gf2SearchMonthDeals error: %v", err)
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("month deals search failed: %v", err)})
 			return
-		}
-		byDate = make(map[string]float64)
-		for _, trip := range deals {
-			d := trip.OutboundDate
-			if p, ok := byDate[d]; !ok || trip.TotalCost < p {
-				byDate[d] = trip.TotalCost
-			}
 		}
 		populateMeta(deals)
 		daysInMonth := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
@@ -2650,7 +2181,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Load .env file for AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET, DUFFEL_API_KEY, etc.
+	// Load .env for GOOGLEFLIGHTS2_* and other config.
 	if err := godotenv.Load(); err != nil {
 		// Try backend/.env when run from project root
 		if err2 := godotenv.Load(filepath.Join("backend", ".env")); err2 != nil {
@@ -2658,18 +2189,11 @@ func main() {
 		}
 	}
 
-	amadeusClient = NewAmadeusClient()
-	duffelClient = NewDuffelClient()
-	if duffelClient != nil {
-		log.Println("[STARTUP] Duffel client: enabled")
-	} else {
-		log.Println("[STARTUP] Duffel client: disabled (set DUFFEL_API_KEY in .env to enable)")
-	}
 	googleFlights2Provider = search.NewGoogleFlights2Provider()
 	if googleFlights2Provider != nil {
-		log.Println("[STARTUP] Google Flights2 provider: enabled")
+		log.Println("[STARTUP] Google Flights2 provider: enabled (primary flight data source)")
 	} else {
-		log.Println("[STARTUP] Google Flights2 provider: disabled (set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY)")
+		log.Println("[STARTUP] Google Flights2 provider: disabled — set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY (required for search, deals, explore)")
 	}
 	startExchangeRateRefresh()
 
@@ -2697,7 +2221,7 @@ func main() {
 		Addr:         addr,
 		Handler:      corsMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 120 * time.Second, // explore searches fire ~40 Amadeus calls concurrently
+		WriteTimeout: 300 * time.Second, // explore / month-deals can run many sequential GF2 calls (rate-limited)
 	}
 
 	log.Printf("Go HTTP API listening on %s", addr)
