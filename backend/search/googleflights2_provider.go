@@ -9,15 +9,18 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	gf2Timeout         = 15 * time.Second
-	gf2CacheTTL        = 10 * time.Minute
-	gf2RateLimitPerMin = 5
+	gf2Timeout = 15 * time.Second
+	gf2CacheTTL = 10 * time.Minute
+	// Default max calls to Search() per rolling minute (in-process). Explore uses up to 10 per request;
+	// the old default of 5 caused the follow-up "real" search after Anywhere to always hit rate limit.
+	gf2RateLimitPerMinDefault = 30
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
@@ -43,7 +46,15 @@ type gf2CacheEntry struct {
 type gf2RateLimiter struct {
 	mu         sync.Mutex
 	tokens     int
+	maxPerMin  int
 	lastRefill time.Time
+}
+
+func newGF2RateLimiter(maxPerMin int) *gf2RateLimiter {
+	if maxPerMin < 1 {
+		maxPerMin = 1
+	}
+	return &gf2RateLimiter{tokens: maxPerMin, maxPerMin: maxPerMin, lastRefill: time.Now()}
 }
 
 func (r *gf2RateLimiter) allow() bool {
@@ -52,7 +63,7 @@ func (r *gf2RateLimiter) allow() bool {
 	now := time.Now()
 	elapsed := now.Sub(r.lastRefill).Minutes()
 	if elapsed >= 1 {
-		r.tokens = gf2RateLimitPerMin
+		r.tokens = r.maxPerMin
 		r.lastRefill = now
 	}
 	if r.tokens <= 0 {
@@ -121,13 +132,20 @@ func NewGoogleFlights2Provider() *GoogleFlights2Provider {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
+	maxPerMin := gf2RateLimitPerMinDefault
+	if s := strings.TrimSpace(os.Getenv("GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN")); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 1 && v <= 500 {
+			maxPerMin = v
+		}
+	}
+	log.Printf("[GF2] in-process rate limit: %d Search() calls per rolling minute (set GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN to override)", maxPerMin)
 	return &GoogleFlights2Provider{
 		apiKey:  apiKey,
 		host:    host,
 		path:    path,
 		client:  &http.Client{Timeout: gf2Timeout},
 		cache:   newGF2Cache(),
-		limiter: &gf2RateLimiter{tokens: gf2RateLimitPerMin, lastRefill: time.Now()},
+		limiter: newGF2RateLimiter(maxPerMin),
 	}
 }
 
@@ -153,11 +171,7 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		}
 	}()
 
-	if !p.limiter.allow() {
-		errLog = "rate limited"
-		return nil, nil
-	}
-
+	// Serve cache before rate limit so repeat searches and burst traffic still get prior results.
 	cacheKey := p.buildCacheKey(req)
 	if cached, ok := p.cache.get(cacheKey); ok {
 		cacheHit = true
@@ -166,6 +180,11 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 			cheapest = cached[0].Price.Amount
 		}
 		return cached, nil
+	}
+
+	if !p.limiter.allow() {
+		errLog = "rate limited"
+		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
 	// For round-trip: search outbound and return separately (one-way each), then combine legs.
@@ -1200,8 +1219,8 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 	if segsArr, ok := leg["segments"].([]interface{}); ok && len(segsArr) > 0 {
 		for _, sAny := range segsArr {
 			s, _ := sAny.(map[string]interface{})
-		if s == nil {
-			continue
+			if s == nil {
+				continue
 			}
 			seg, dur := extractGF2Segment(s, defaultFrom, defaultTo, departureDate, cabin)
 			if seg != nil {

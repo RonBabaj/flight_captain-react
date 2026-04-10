@@ -66,11 +66,13 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - "Book now" from deal details redirects directly to Skyscanner.
 
 ### Explore (Anywhere)
-- From **Search** or **Monthly Deals**, choosing **Anywhere** opens the **Explore** screen: a grid of curated destinations with **from** prices.
+- From **Search** or **Monthly Deals**, choosing **Anywhere** opens the **Explore** screen: a grid of curated destinations with **from** prices, sorted cheapest-first.
 - **Search mode** (`mode: 'search'`): uses fixed departure/return dates; tapping a destination starts a normal flight search session for that airport.
 - **Deals mode** (`mode: 'deals'`): uses year, month, and trip duration (same semantics as Monthly Deals). Tapping a destination loads **full monthly deals** for that origin/destination via `GET /api/deals/month`, then navigates to **Monthly deals results**. The deals store is updated (route, month, duration) and loading state is cleared so the results screen does not spin forever.
-- **Backend** (`GET /api/explore`): samples a capped list of destinations and runs **Google Flights2** searches (rate-limited). Month-style requests use a representative mid-month departure/return pair per destination to limit API usage.
-- **UI**: Region filters reset when a new search runs so stale filters cannot hide a non-empty result set; results column uses flex layout so the list scrolls correctly on desktop web.
+- **API cost control (backend):** Explore uses a **fixed pool** of major airports (~64 IATA codes), not the full dictionary. Prices come from three layers: **(1)** in-memory **24h cache** per `{ origin, destination, trip key (dates or month/duration), currency, passengers, non-stop }`; **(2)** **live Google Flights2** only in small batches; **(3)** **distance-based estimates** when there is no cache yet (rows include `priceSource`: `live` | `cached` | `estimated`). This keeps monthly RapidAPI usage predictable versus scanning hundreds of destinations.
+- **Live fetch caps:** At most **~12** GF2 round-trip probes per HTTP request that opts into live refresh, and **~36** per explore **session** (roughly three refresh rounds). Month-style explore uses a representative mid-month departure/return pair per live probe, same as before.
+- **Progressive loading:** The client calls `GET /api/explore` with **`prefetch=true`** first (cache + estimates, no live GF2), then continues with **`sessionId`** and **`live=true`** in a few rounds until live quota is exhausted or the queue is empty. The summary bar can show **“Updating prices…”** while live data lands; destination cards can show an **Estimate** pill until replaced by cache or live prices.
+- **UI:** Region filters reset when a new search runs; results column uses flex layout for desktop web; disclaimer copy explains fixed pool, 24h cache, and estimates.
 
 ### Cheaper departure cities (positioning optimizer)
 - After results load, the app checks whether flying from a nearby hub would reduce total cost.
@@ -131,6 +133,9 @@ Create `backend/.env`:
 GOOGLEFLIGHTS2_ENABLED=true
 GOOGLEFLIGHTS2_RAPIDAPI_KEY=your_rapidapi_key
 GOOGLEFLIGHTS2_RAPIDAPI_HOST=google-flights2.p.rapidapi.com
+
+# Optional: in-process cap on GF2 Search() calls per rolling minute (default 30). Range 1–500.
+# GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN=30
 ```
 
 ### Run the HTTP API
@@ -146,10 +151,15 @@ Server listens on **http://localhost:8080**. CORS is enabled for browser clients
 
 - **`POST /api/search/sessions`** – Create flight search session. Returns session `id`, `status`, `params`.
 - **`GET /api/search/sessions/{id}`** – Poll session status and normalized results.
-- **`GET /api/deals/month`** – Monthly deals: returns `days[]` with `date` and `lowestPrice`.
-- **`GET /api/explore`** – Cheapest destinations from an origin. Query: `origin`, `currency`, `adults`. Either **fixed dates** (`departureDate`, `returnDate`) or **monthly-deals-style** (`year`, `month`, `durationDays`, optional `children`, `nonStop`). Returns `{ destinations: [{ destination, price, currency, departureDate? }] }`. Uses Google Flights2 with a capped destination list and rate limiting.
+- **`GET /api/deals/month`** – Monthly deals: returns `days[]` with `date` and `lowestPrice`. Identical params may be served from a **short in-memory cache** (~90s) to avoid duplicate GF2 work.
+- **`GET /api/explore`** – Cheapest destinations from an origin using a **fixed airport pool**, **24h server cache**, optional **live GF2** batches, and **estimates** for gaps.  
+  - **New session:** `origin`, `currency`, `adults`, optional `offset`/`limit` (limit capped at **80**). Either **fixed dates** (`departureDate`, `returnDate`) or **month** mode (`year`, `month`, `durationDays`, optional `children`, `nonStop`).  
+  - **`prefetch=true`:** Return cache + estimates only (no live GF2 on that request).  
+  - **Continuation:** `sessionId`, optional `offset`/`limit`; add **`live=true`** to run one live batch (~12 destinations max per call, session cap ~36 total live attempts).  
+  - **Response:** `destinations[]` (`destination`, `price`, `currency`, `departureDate?`, `priceSource`), `sessionId`, `total`, `offset`, `limit`, `hasMore`, `partialResults` (any row still estimated), `liveRefreshAvailable` (more live batches allowed for this session).
 - **`GET /api/flights/details`** – Flight details for a route/date/duration.
-- **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete.
+- **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete (empty `q` returns the first `limit` directory entries).
+- **`GET /health`** – JSON for uptime/readiness: `status`, `timestamp`, `version` (from `APP_VERSION` or `dev`), and whether Google Flights2 is configured (`services.googleFlights2`).
 - **`GET /api/out/booking?sessionId=...&optionId=...`** – Uniform booking redirect. Uses provider deep link or Skyscanner fallback. Also accepts `origin`, `destination`, `departureDate`, `returnDate` params for deals without a session.
 - **`GET /api/affiliate/provider`** – Provider info for an option.
 - **`GET /api/affiliate/outbound-link`** – Booking URL + click recording.
@@ -206,7 +216,7 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 1. **Home** – Optional entry at `/`: read value props → **Search flights** (`/search`) or **Explore monthly deals** (`/monthly-deals`).
 2. **Flight search** – From `/search`: enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results at `/search/results` with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site). Shareable URLs keep query params (e.g. `sessionId`) on the `/search` path.
 3. **Monthly deals** – From `/monthly-deals`: set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner). Optional: set destination to **Anywhere** → **Explore** (deals mode) → pick a city → loads full calendar for that destination on **Monthly deals results**.
-4. **Explore** – From Search or Monthly Deals with **Anywhere**: browse destination cards → tap to open either search results (date mode) or monthly deals results (month/duration mode).
+4. **Explore** – From Search or Monthly Deals with **Anywhere**: the app loads **prefetch** results (cache + estimates), then may **refresh live prices** in the background within server limits → browse destination cards → tap to open either search results (date mode) or monthly deals results (month/duration mode).
 
 ### Web routes (deep links & refresh)
 
@@ -244,8 +254,8 @@ Summary of recent changes:
 | Area | Change |
 |------|--------|
 | **Fly-Fix: Product structure** | **`/`** = landing page (hero, features, how-it-works, CTAs). **`/search`** and **`/search/results`** = main flight search UI (unchanged behavior). **`/monthly-deals`** (+ `/monthly-deals/results`) = monthly deals. Top nav: **Home \| Search \| Monthly Deals**. React Navigation linking + optional `.htaccess` 301s from legacy `/results` and `/deals`. |
-| **Explore (Anywhere)** | **Search** and **Monthly Deals** support **Anywhere** → **Explore** screen: curated destination grid with indicative prices. **Deals Explore** uses `GET /api/explore` with `year`/`month`/`durationDays`; backend uses Google Flights2 with a capped destination list. Tapping a destination runs **`GET /api/deals/month`** and opens **Monthly deals results** with store sync (`setRoute`, `setMonth`, `setDurationDays`) and **`setLoading(false)` in `finally`** so the overlay does not hang. |
-| **Explore UI** | Region filter resets on each fetch; ScrollView/flex fixes for desktop results column; loading copy without hardcoded destination counts (i18n). |
+| **Explore (Anywhere)** | **Search** and **Monthly Deals** support **Anywhere** → **Explore**: fixed ~64-hub pool, **24h price cache**, **estimates** for cold cache, **incremental live GF2** (`prefetch` + `sessionId`/`live`) with per-request and per-session caps. API returns `priceSource`, `partialResults`, `liveRefreshAvailable`. **Deals Explore** still uses month/duration params; tapping a card runs **`GET /api/deals/month`** and opens **Monthly deals results** with store sync and **`setLoading(false)` in `finally`**. |
+| **Explore UI** | Prefetch-first loading with chained live refresh; summary **“Updating prices…”**; **Estimate** pill on cards when `priceSource` is estimated; region filter reset; flex/ScrollView layout on desktop; i18n for disclaimer and labels (EN/HE/RU). |
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
 | **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Monthly Deals uses the shared `CheaperCitiesSection` UI and the positioning optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry). |

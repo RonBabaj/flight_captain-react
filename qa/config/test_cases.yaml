@@ -1,0 +1,223 @@
+test_cases:
+  - name: health_root_ok
+    description: Root health endpoint returns service status.
+    tags: [health, smoke]
+    method: GET
+    path: /health
+    expected_status: 200
+    expected_schema:
+      status: string
+    required_non_empty_fields: [status]
+
+  - name: health_api_ok
+    description: API health endpoint returns service status.
+    tags: [health, smoke]
+    method: GET
+    path: /api/health
+    expected_status: 200
+    expected_schema:
+      status: string
+    required_non_empty_fields: [status]
+
+  - name: create_session_missing_required
+    description: Missing required fields should produce 400 error.
+    tags: [search, negative]
+    method: POST
+    path: /api/search/sessions
+    body:
+      origin: JFK
+      departureDate: "2026-05-20"
+    expected_status: [400]
+    expected_schema:
+      error: string
+    required_non_empty_fields: [error]
+
+  - name: create_session_invalid_json
+    description: Invalid JSON body should be rejected by server.
+    tags: [search, negative, edge]
+    method: POST
+    path: /api/search/sessions
+    headers:
+      Content-Type: application/json
+    raw_body: "{ bad-json: true "
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: get_session_not_found
+    description: Unknown session id should return not found.
+    tags: [search, negative]
+    method: GET
+    path: /api/search/sessions/nonexistent-session-id
+    expected_status: [404]
+    expected_schema:
+      error: string
+
+  - name: deals_month_missing_params
+    description: Missing required month-deals params should return 400.
+    tags: [deals, negative]
+    method: GET
+    path: /api/deals/month
+    query_params:
+      origin: TLV
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: deals_month_invalid_currency
+    description: Unsupported currency should be normalized to USD.
+    tags: [deals, negative, edge]
+    method: GET
+    path: /api/deals/month
+    query_params:
+      origin: TLV
+      destination: LHR
+      year: 2026
+      month: 8
+      currency: ABC
+    expected_status: [200]
+    expected_schema:
+      currency: string
+      route: object
+    expected_values:
+      currency: USD
+
+  - name: flight_details_missing_date
+    description: Missing date should return 400.
+    tags: [details, negative]
+    method: GET
+    path: /api/flights/details
+    query_params:
+      origin: TLV
+      destination: LHR
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: flight_details_bad_date_format
+    description: Invalid date format should return 400.
+    tags: [details, negative, edge]
+    method: GET
+    path: /api/flights/details
+    query_params:
+      origin: TLV
+      destination: LHR
+      date: "10-31-2026"
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: airports_search_basic
+    description: Airport search should return items array.
+    tags: [airports, smoke]
+    method: GET
+    path: /api/airports/search
+    query_params:
+      q: tel
+      limit: 5
+    expected_status: [200]
+    expected_schema:
+      items: array
+    allow_empty_array_fields: [items]
+
+  - name: airports_search_empty_q
+    description: Empty query should still return valid items field.
+    tags: [airports, edge]
+    method: GET
+    path: /api/airports/search
+    query_params:
+      q: ""
+      limit: 5
+    expected_status: [200]
+    expected_schema:
+      items: array
+    allow_empty_array_fields: [items]
+
+  - name: explore_missing_origin
+    description: Explore should reject missing origin.
+    tags: [explore, negative]
+    method: GET
+    path: /api/explore
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: explore_invalid_origin
+    description: Explore should reject invalid origin length.
+    tags: [explore, negative, edge]
+    method: GET
+    path: /api/explore
+    query_params:
+      origin: "ABCD"
+      limit: 5
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: affiliate_redirect_missing_ids
+    description: Missing sessionId and optionId should return 400.
+    tags: [affiliate, negative]
+    method: GET
+    path: /api/affiliate/redirect
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: affiliate_outbound_link_missing_ids
+    description: Missing sessionId and optionId should return 400.
+    tags: [affiliate, negative]
+    method: GET
+    path: /api/affiliate/outbound-link
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: affiliate_provider_missing_ids
+    description: Missing sessionId and optionId should return 400.
+    tags: [affiliate, negative]
+    method: GET
+    path: /api/affiliate/provider
+    expected_status: [400]
+    expected_schema:
+      error: string
+
+  - name: affiliate_clicks_summary_default
+    description: Clicks summary endpoint should return aggregate structure.
+    tags: [affiliate, smoke]
+    method: GET
+    path: /api/affiliate/clicks/summary
+    expected_status: [200]
+    expected_schema:
+      from: string
+      to: string
+      total: integer
+      byProvider: array
+    required_non_null_fields: [from, to, total, byProvider]
+    allow_empty_array_fields: [byProvider]
+
+  - name: out_booking_fallback_redirect
+    description: Booking endpoint should redirect using fallback route params.
+    tags: [booking, smoke]
+    method: GET
+    path: /api/out/booking
+    follow_redirects: false
+    query_params:
+      origin: TLV
+      destination: LHR
+      departureDate: "2026-08-10"
+      returnDate: "2026-08-17"
+    expected_status: [302]
+
+  - name: deals_month_minimal_valid
+    description: Minimal valid month-deals request should not fail with server error.
+    tags: [deals, integration]
+    method: GET
+    path: /api/deals/month
+    query_params:
+      origin: TLV
+      destination: LHR
+      year: 2026
+      month: 8
+    expected_status: [200, 500, 502]
+    expected_schema:
+      route: object

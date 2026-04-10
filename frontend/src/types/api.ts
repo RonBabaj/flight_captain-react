@@ -217,9 +217,13 @@ export interface AirportCitySearchResponse {
 export const ANYWHERE_CODE = 'ANYWHERE';
 
 // A single destination returned by the /api/explore endpoint (Amadeus Flight Inspiration).
+export type ExplorePriceSource = 'live' | 'cached' | 'estimated';
+
 export interface ExploreDestination {
   destination: string;
   price: string;
   currency: string;
   departureDate?: string;
+  /** live = fresh GF2; cached = 24h server cache; estimated = distance heuristic */
+  priceSource?: ExplorePriceSource;
 }

@@ -1,0 +1,1456 @@
+{
+  "generated_at_utc": "2026-04-09T09:32:11.849938+00:00",
+  "summary": {
+    "total_tests": 19,
+    "passed_tests": 19,
+    "failed_tests": 0,
+    "warning_count": 13,
+    "error_count": 0,
+    "ai_insights_count": 19
+  },
+  "results": [
+    {
+      "test_case": {
+        "name": "health_root_ok",
+        "method": "GET",
+        "path": "/health",
+        "description": "Root health endpoint returns service status.",
+        "tags": [
+          "health",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "status": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "status"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.263569+00:00",
+      "finished_at": "2026-04-09T09:32:07.276435+00:00",
+      "request_url": "http://localhost:8080/health",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 12.33,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "16"
+      },
+      "response_text": "{\"status\":\"ok\"}\n",
+      "response_json": {
+        "status": "ok"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "health_api_ok",
+        "method": "GET",
+        "path": "/api/health",
+        "description": "API health endpoint returns service status.",
+        "tags": [
+          "health",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "status": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "status"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.277624+00:00",
+      "finished_at": "2026-04-09T09:32:07.278574+00:00",
+      "request_url": "http://localhost:8080/api/health",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 0.93,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "16"
+      },
+      "response_text": "{\"status\":\"ok\"}\n",
+      "response_json": {
+        "status": "ok"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "create_session_missing_required",
+        "method": "POST",
+        "path": "/api/search/sessions",
+        "description": "Missing required fields should produce 400 error.",
+        "tags": [
+          "search",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": {
+          "origin": "JFK",
+          "departureDate": "2026-05-20"
+        },
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "error"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.279256+00:00",
+      "finished_at": "2026-04-09T09:32:07.332219+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": {
+        "origin": "JFK",
+        "departureDate": "2026-05-20"
+      },
+      "actual_status": 400,
+      "response_time_ms": 52.94,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "63"
+      },
+      "response_text": "{\"error\":\"origin, destination and departureDate are required\"}\n",
+      "response_json": {
+        "error": "origin, destination and departureDate are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "create_session_invalid_json",
+        "method": "POST",
+        "path": "/api/search/sessions",
+        "description": "Invalid JSON body should be rejected by server.",
+        "tags": [
+          "search",
+          "negative",
+          "edge"
+        ],
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query_params": {},
+        "body": null,
+        "raw_body": "{ bad-json: true ",
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.333386+00:00",
+      "finished_at": "2026-04-09T09:32:07.334228+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "request_query_params": {},
+      "request_body": "{ bad-json: true ",
+      "actual_status": 400,
+      "response_time_ms": 0.81,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "25"
+      },
+      "response_text": "{\"error\":\"invalid JSON\"}\n",
+      "response_json": {
+        "error": "invalid JSON"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "get_session_not_found",
+        "method": "GET",
+        "path": "/api/search/sessions/nonexistent-session-id",
+        "description": "Unknown session id should return not found.",
+        "tags": [
+          "search",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          404
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.335339+00:00",
+      "finished_at": "2026-04-09T09:32:07.336865+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions/nonexistent-session-id",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 404,
+      "response_time_ms": 1.5,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "30"
+      },
+      "response_text": "{\"error\":\"session not found\"}\n",
+      "response_json": {
+        "error": "session not found"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 404.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_missing_params",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Missing required month-deals params should return 400.",
+        "tags": [
+          "deals",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.337865+00:00",
+      "finished_at": "2026-04-09T09:32:07.338523+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 0.64,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:07 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"origin and destination are required\"}\n",
+      "response_json": {
+        "error": "origin and destination are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_invalid_currency",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Unsupported currency should be normalized to USD.",
+        "tags": [
+          "deals",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "year": 2026,
+          "month": 8,
+          "currency": "ABC"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "currency": "string",
+          "route": "object"
+        },
+        "expected_values": {
+          "currency": "USD"
+        },
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:07.339626+00:00",
+      "finished_at": "2026-04-09T09:32:09.688510+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "year": 2026,
+        "month": 8,
+        "currency": "ABC"
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2348.81,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "795"
+      },
+      "response_text": "{\"route\":{\"origin\":{\"code\":\"TLV\"},\"destination\":{\"code\":\"LHR\"}},\"year\":2026,\"month\":8,\"currency\":\"USD\",\"days\":[{\"date\":\"2026-08-01\"},{\"date\":\"2026-08-02\"},{\"date\":\"2026-08-03\"},{\"date\":\"2026-08-04\"},{\"date\":\"2026-08-05\"},{\"date\":\"2026-08-06\"},{\"date\":\"2026-08-07\"},{\"date\":\"2026-08-08\"},{\"date\":\"2026-08-09\"},{\"date\":\"2026-08-10\"},{\"date\":\"2026-08-11\"},{\"date\":\"2026-08-12\"},{\"date\":\"2026-08-13\"},{\"date\":\"2026-08-14\"},{\"date\":\"2026-08-15\"},{\"date\":\"2026-08-16\"},{\"date\":\"2026-08-17\"},{\"date\":\"2026-08-18\"},{\"date\":\"2026-08-19\"},{\"date\":\"2026-08-20\"},{\"date\":\"2026-08-21\"},{\"date\":\"2026-08-22\"},{\"date\":\"2026-08-23\"},{\"date\":\"2026-08-24\"},{\"date\":\"2026-08-25\"},{\"date\":\"2026-08-26\"},{\"date\":\"2026-08-27\"},{\"date\":\"2026-08-28\"},{\"date\":\"2026-08-29\"},{\"date\":\"2026-08-30\"},{\"date\":\"2026-08-31\"}]}\n",
+      "response_json": {
+        "route": {
+          "origin": {
+            "code": "TLV"
+          },
+          "destination": {
+            "code": "LHR"
+          }
+        },
+        "year": 2026,
+        "month": 8,
+        "currency": "USD",
+        "days": [
+          {
+            "date": "2026-08-01"
+          },
+          {
+            "date": "2026-08-02"
+          },
+          {
+            "date": "2026-08-03"
+          },
+          {
+            "date": "2026-08-04"
+          },
+          {
+            "date": "2026-08-05"
+          },
+          {
+            "date": "2026-08-06"
+          },
+          {
+            "date": "2026-08-07"
+          },
+          {
+            "date": "2026-08-08"
+          },
+          {
+            "date": "2026-08-09"
+          },
+          {
+            "date": "2026-08-10"
+          },
+          {
+            "date": "2026-08-11"
+          },
+          {
+            "date": "2026-08-12"
+          },
+          {
+            "date": "2026-08-13"
+          },
+          {
+            "date": "2026-08-14"
+          },
+          {
+            "date": "2026-08-15"
+          },
+          {
+            "date": "2026-08-16"
+          },
+          {
+            "date": "2026-08-17"
+          },
+          {
+            "date": "2026-08-18"
+          },
+          {
+            "date": "2026-08-19"
+          },
+          {
+            "date": "2026-08-20"
+          },
+          {
+            "date": "2026-08-21"
+          },
+          {
+            "date": "2026-08-22"
+          },
+          {
+            "date": "2026-08-23"
+          },
+          {
+            "date": "2026-08-24"
+          },
+          {
+            "date": "2026-08-25"
+          },
+          {
+            "date": "2026-08-26"
+          },
+          {
+            "date": "2026-08-27"
+          },
+          {
+            "date": "2026-08-28"
+          },
+          {
+            "date": "2026-08-29"
+          },
+          {
+            "date": "2026-08-30"
+          },
+          {
+            "date": "2026-08-31"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "performance",
+          "message": "Slow response detected: 2348.81ms (threshold 2000ms).",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "flight_details_missing_date",
+        "method": "GET",
+        "path": "/api/flights/details",
+        "description": "Missing date should return 400.",
+        "tags": [
+          "details",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.691915+00:00",
+      "finished_at": "2026-04-09T09:32:09.694366+00:00",
+      "request_url": "http://localhost:8080/api/flights/details",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 2.39,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "54"
+      },
+      "response_text": "{\"error\":\"origin, destination and date are required\"}\n",
+      "response_json": {
+        "error": "origin, destination and date are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "flight_details_bad_date_format",
+        "method": "GET",
+        "path": "/api/flights/details",
+        "description": "Invalid date format should return 400.",
+        "tags": [
+          "details",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "date": "10-31-2026"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.696110+00:00",
+      "finished_at": "2026-04-09T09:32:09.697292+00:00",
+      "request_url": "http://localhost:8080/api/flights/details",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "date": "10-31-2026"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 1.14,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "42"
+      },
+      "response_text": "{\"error\":\"invalid date (use YYYY-MM-DD)\"}\n",
+      "response_json": {
+        "error": "invalid date (use YYYY-MM-DD)"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "airports_search_basic",
+        "method": "GET",
+        "path": "/api/airports/search",
+        "description": "Airport search should return items array.",
+        "tags": [
+          "airports",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {
+          "q": "tel",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "items": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "items"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.698658+00:00",
+      "finished_at": "2026-04-09T09:32:09.700198+00:00",
+      "request_url": "http://localhost:8080/api/airports/search",
+      "request_headers": {},
+      "request_query_params": {
+        "q": "tel",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 1.49,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "145"
+      },
+      "response_text": "{\"items\":[{\"id\":\"TLV\",\"type\":\"AIRPORT\",\"airportCode\":\"TLV\",\"cityCode\":\"TLV\",\"name\":\"Ben Gurion Intl\",\"cityName\":\"Tel Aviv\",\"countryCode\":\"IL\"}]}\n",
+      "response_json": {
+        "items": [
+          {
+            "id": "TLV",
+            "type": "AIRPORT",
+            "airportCode": "TLV",
+            "cityCode": "TLV",
+            "name": "Ben Gurion Intl",
+            "cityName": "Tel Aviv",
+            "countryCode": "IL"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "airports_search_empty_q",
+        "method": "GET",
+        "path": "/api/airports/search",
+        "description": "Empty query should still return valid items field.",
+        "tags": [
+          "airports",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "q": "",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "items": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "items"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.701648+00:00",
+      "finished_at": "2026-04-09T09:32:09.702895+00:00",
+      "request_url": "http://localhost:8080/api/airports/search",
+      "request_headers": {},
+      "request_query_params": {
+        "q": "",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 1.2,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "13"
+      },
+      "response_text": "{\"items\":[]}\n",
+      "response_json": {
+        "items": []
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "explore_missing_origin",
+        "method": "GET",
+        "path": "/api/explore",
+        "description": "Explore should reject missing origin.",
+        "tags": [
+          "explore",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.704439+00:00",
+      "finished_at": "2026-04-09T09:32:09.705378+00:00",
+      "request_url": "http://localhost:8080/api/explore",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 0.9,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "31"
+      },
+      "response_text": "{\"error\":\"origin is required\"}\n",
+      "response_json": {
+        "error": "origin is required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "explore_invalid_origin",
+        "method": "GET",
+        "path": "/api/explore",
+        "description": "Explore should reject invalid origin length.",
+        "tags": [
+          "explore",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "ABCD",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.706612+00:00",
+      "finished_at": "2026-04-09T09:32:09.708449+00:00",
+      "request_url": "http://localhost:8080/api/explore",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "ABCD",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 1.79,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "61"
+      },
+      "response_text": "{\"error\":\"origin must be a valid 2\u20133 character IATA code\"}\n",
+      "response_json": {
+        "error": "origin must be a valid 2\u20133 character IATA code"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_redirect_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/redirect",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.710728+00:00",
+      "finished_at": "2026-04-09T09:32:09.711852+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/redirect",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 1.08,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_outbound_link_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/outbound-link",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.713438+00:00",
+      "finished_at": "2026-04-09T09:32:09.715551+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/outbound-link",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 2.05,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_provider_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/provider",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.717480+00:00",
+      "finished_at": "2026-04-09T09:32:09.718662+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/provider",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 1.14,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_clicks_summary_default",
+        "method": "GET",
+        "path": "/api/affiliate/clicks/summary",
+        "description": "Clicks summary endpoint should return aggregate structure.",
+        "tags": [
+          "affiliate",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "from": "string",
+          "to": "string",
+          "total": "integer",
+          "byProvider": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [
+          "from",
+          "to",
+          "total",
+          "byProvider"
+        ],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "byProvider"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.720121+00:00",
+      "finished_at": "2026-04-09T09:32:09.722155+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/clicks/summary",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2.0,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "66"
+      },
+      "response_text": "{\"from\":\"0001-01-01\",\"to\":\"0001-01-01\",\"total\":0,\"byProvider\":[]}\n",
+      "response_json": {
+        "from": "0001-01-01",
+        "to": "0001-01-01",
+        "total": 0,
+        "byProvider": []
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "out_booking_fallback_redirect",
+        "method": "GET",
+        "path": "/api/out/booking",
+        "description": "Booking endpoint should redirect using fallback route params.",
+        "tags": [
+          "booking",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "departureDate": "2026-08-10",
+          "returnDate": "2026-08-17"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          302
+        ],
+        "expected_schema": {},
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": false
+      },
+      "started_at": "2026-04-09T09:32:09.723310+00:00",
+      "finished_at": "2026-04-09T09:32:09.725773+00:00",
+      "request_url": "http://localhost:8080/api/out/booking",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "departureDate": "2026-08-10",
+        "returnDate": "2026-08-17"
+      },
+      "request_body": null,
+      "actual_status": 302,
+      "response_time_ms": 2.44,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Location": "https://www.skyscanner.net/transport/flights/tlv/lhr/260810/260817/?adultsv2=1",
+        "Date": "Thu, 09 Apr 2026 09:32:09 GMT",
+        "Content-Length": "0"
+      },
+      "response_text": "",
+      "response_json": null,
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_minimal_valid",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Minimal valid month-deals request should not fail with server error.",
+        "tags": [
+          "deals",
+          "integration"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "year": 2026,
+          "month": 8
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200,
+          500,
+          502
+        ],
+        "expected_schema": {
+          "route": "object"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T09:32:09.727086+00:00",
+      "finished_at": "2026-04-09T09:32:11.841547+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "year": 2026,
+        "month": 8
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2114.5,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 09:32:11 GMT",
+        "Content-Length": "795"
+      },
+      "response_text": "{\"route\":{\"origin\":{\"code\":\"TLV\"},\"destination\":{\"code\":\"LHR\"}},\"year\":2026,\"month\":8,\"currency\":\"USD\",\"days\":[{\"date\":\"2026-08-01\"},{\"date\":\"2026-08-02\"},{\"date\":\"2026-08-03\"},{\"date\":\"2026-08-04\"},{\"date\":\"2026-08-05\"},{\"date\":\"2026-08-06\"},{\"date\":\"2026-08-07\"},{\"date\":\"2026-08-08\"},{\"date\":\"2026-08-09\"},{\"date\":\"2026-08-10\"},{\"date\":\"2026-08-11\"},{\"date\":\"2026-08-12\"},{\"date\":\"2026-08-13\"},{\"date\":\"2026-08-14\"},{\"date\":\"2026-08-15\"},{\"date\":\"2026-08-16\"},{\"date\":\"2026-08-17\"},{\"date\":\"2026-08-18\"},{\"date\":\"2026-08-19\"},{\"date\":\"2026-08-20\"},{\"date\":\"2026-08-21\"},{\"date\":\"2026-08-22\"},{\"date\":\"2026-08-23\"},{\"date\":\"2026-08-24\"},{\"date\":\"2026-08-25\"},{\"date\":\"2026-08-26\"},{\"date\":\"2026-08-27\"},{\"date\":\"2026-08-28\"},{\"date\":\"2026-08-29\"},{\"date\":\"2026-08-30\"},{\"date\":\"2026-08-31\"}]}\n",
+      "response_json": {
+        "route": {
+          "origin": {
+            "code": "TLV"
+          },
+          "destination": {
+            "code": "LHR"
+          }
+        },
+        "year": 2026,
+        "month": 8,
+        "currency": "USD",
+        "days": [
+          {
+            "date": "2026-08-01"
+          },
+          {
+            "date": "2026-08-02"
+          },
+          {
+            "date": "2026-08-03"
+          },
+          {
+            "date": "2026-08-04"
+          },
+          {
+            "date": "2026-08-05"
+          },
+          {
+            "date": "2026-08-06"
+          },
+          {
+            "date": "2026-08-07"
+          },
+          {
+            "date": "2026-08-08"
+          },
+          {
+            "date": "2026-08-09"
+          },
+          {
+            "date": "2026-08-10"
+          },
+          {
+            "date": "2026-08-11"
+          },
+          {
+            "date": "2026-08-12"
+          },
+          {
+            "date": "2026-08-13"
+          },
+          {
+            "date": "2026-08-14"
+          },
+          {
+            "date": "2026-08-15"
+          },
+          {
+            "date": "2026-08-16"
+          },
+          {
+            "date": "2026-08-17"
+          },
+          {
+            "date": "2026-08-18"
+          },
+          {
+            "date": "2026-08-19"
+          },
+          {
+            "date": "2026-08-20"
+          },
+          {
+            "date": "2026-08-21"
+          },
+          {
+            "date": "2026-08-22"
+          },
+          {
+            "date": "2026-08-23"
+          },
+          {
+            "date": "2026-08-24"
+          },
+          {
+            "date": "2026-08-25"
+          },
+          {
+            "date": "2026-08-26"
+          },
+          {
+            "date": "2026-08-27"
+          },
+          {
+            "date": "2026-08-28"
+          },
+          {
+            "date": "2026-08-29"
+          },
+          {
+            "date": "2026-08-30"
+          },
+          {
+            "date": "2026-08-31"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "performance",
+          "message": "Slow response detected: 2114.50ms (threshold 2000ms).",
+          "field": null
+        }
+      ],
+      "ai_insight": "Ollama unavailable; falling back to deterministic checks.\n- No logical inconsistencies detected by rule-based checks.",
+      "ai_used": false,
+      "passed": true
+    }
+  ]
+}

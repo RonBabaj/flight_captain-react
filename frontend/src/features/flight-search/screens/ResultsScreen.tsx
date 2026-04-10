@@ -17,6 +17,7 @@ import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
 import type { FlightOption, MonetaryAmount } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
+import { ANYWHERE_CODE } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions } from '../../../store';
@@ -31,6 +32,7 @@ import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { getCurrencySymbol } from '../../../utils/exchangeRates';
+import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
@@ -306,12 +308,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const [positioningDetails, setPositioningDetails] = useState<PositioningOption | null>(null);
   const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
 
+  // Only reset the edit form when the search session changes. Syncing on every storeParams field
+  // (or spreading ...storeParams over local state) overwrote in-progress edits: e.g. user replaces
+  // Anywhere with LHR, then store still had ANYWHERE until submit — a re-run could revert the field.
   useEffect(() => {
     if (storeParams) {
-      setFormParams((p) => ({ ...defaultFormParams, ...p, ...storeParams }));
+      setFormParams({ ...defaultFormParams, ...storeParams });
       setTripType(storeParams.returnDate ? 'round-trip' : 'one-way');
     }
-  }, [sessionId, storeParams?.origin, storeParams?.destination, storeParams?.departureDate, storeParams?.returnDate]);
+  }, [sessionId]);
 
   const updateFormParams = <K extends keyof CreateSearchSessionRequest>(
     key: K,
@@ -322,6 +327,24 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const p = formParams;
     if (!p.origin.trim() || !p.destination.trim() || !p.departureDate) {
       setSidebarSearchError(t('fill_origin_destination_dates'));
+      return;
+    }
+    // Match SearchForm: Anywhere opens Explore instead of POSTing ANYWHERE to GF2.
+    if (p.destination.trim().toUpperCase() === ANYWHERE_CODE) {
+      setSidebarSearchError(null);
+      setShowEditSearchModal(false);
+      const dr = clampExploreSearchDates(
+        p.departureDate || undefined,
+        p.returnDate || undefined,
+        tripType === 'round-trip',
+      );
+      navigation.navigate('Explore', {
+        origin: p.origin.trim().toUpperCase(),
+        departureDate: dr.departureDate,
+        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
+        adults: p.adults ?? 1,
+        currency: currency || 'USD',
+      });
       return;
     }
     if (tripType === 'round-trip' && !p.returnDate) {
@@ -449,8 +472,14 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     setPositioningLoading(true);
     const found: PositioningOption[] = [];
 
+    let hubRunIndex = 0;
     for (const hub of HUB_AIRPORTS) {
       if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
+      // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
+      if (hubRunIndex > 0) {
+        await delay(3500);
+      }
+      hubRunIndex += 1;
       try {
         const baseOpts: Partial<CreateSearchSessionRequest> = {
           adults: storeParams.adults ?? 1,
@@ -464,20 +493,19 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           returnDate: '',
         };
 
-        const [positioning, hubFlight] = await Promise.all([
-          findCheapestOptionForParams({
-            ...(baseOpts as CreateSearchSessionRequest),
-            origin: origin.toUpperCase(),
-            destination: hub,
-            departureDate,
-          }),
-          findCheapestOptionForParams({
-            ...(baseOpts as CreateSearchSessionRequest),
-            origin: hub,
-            destination: destination.toUpperCase(),
-            departureDate,
-          }),
-        ]);
+        // Sequential (not Promise.all): two fewer concurrent Search() calls per hub.
+        const positioning = await findCheapestOptionForParams({
+          ...(baseOpts as CreateSearchSessionRequest),
+          origin: origin.toUpperCase(),
+          destination: hub,
+          departureDate,
+        });
+        const hubFlight = await findCheapestOptionForParams({
+          ...(baseOpts as CreateSearchSessionRequest),
+          origin: hub,
+          destination: destination.toUpperCase(),
+          departureDate,
+        });
 
         if (!positioning || !hubFlight) continue;
 

@@ -26,6 +26,8 @@ import { ANYWHERE_CODE } from '../../../types';
 import type { ExploreDestination } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { ExploreScreenParams } from '../../../navigation/types';
+import { updateSearchUrl } from '../../../hooks/useSearchParams';
+import { setCachedSearch } from '../../../utils/searchCache';
 import {
   addDaysYmdUtc,
   clampExploreDealsDates,
@@ -197,11 +199,11 @@ const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'] as const;
 
 export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const params = route.params;
-  const { adults, currency } = params;
+  const { adults, currency: routeCurrency } = params;
   const isDealsMode = params.mode === 'deals';
 
   const { theme } = useTheme();
-  const { t, language } = useLocale();
+  const { t, language, locale, currency: localeCurrency } = useLocale();
   const { width } = useWindowDimensions();
   const isMobile = useIsMobile();
 
@@ -263,12 +265,19 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const [destinations, setDestinations] = useState<ExploreDestination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formSearchError, setFormSearchError] = useState<string | null>(null);
   const [searchingDest, setSearchingDest] = useState<string | null>(null);
 
-  // Filter / sort / pagination state
+  /** Server-side explore session (top N cheapest + load more without re-scanning from scratch). */
+  const [exploreSessionId, setExploreSessionId] = useState('');
+  const [exploreHasMore, setExploreHasMore] = useState(false);
+  const [exploreNextOffset, setExploreNextOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [liveRefreshing, setLiveRefreshing] = useState(false);
+
+  // Filter / sort
   const [sortAsc, setSortAsc] = useState(true);
   const [regionFilter, setRegionFilter] = useState<string>('All');
-  const [visibleCount, setVisibleCount] = useState(10);
 
   // Mobile / summary-bar: date-change picker
   const [showDateModal, setShowDateModal] = useState(false);
@@ -285,6 +294,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     setLoading(true);
     setError(null);
     setDestinations([]);
+    setExploreSessionId('');
+    setExploreHasMore(false);
+    setExploreNextOffset(0);
     // New result set: a stale region filter can hide every row while destinations.length > 0.
     setRegionFilter('All');
     const dep = overrides?.departureDate ?? departureDate;
@@ -297,7 +309,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             year: localYear,
             month: localMonth,
             durationDays: localDuration,
-            currency,
+            currency: routeCurrency,
             adults: localAdults,
             children: localChildren,
             nonStop: localNonStop,
@@ -306,25 +318,75 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             origin: org,
             departureDate: dep || undefined,
             returnDate: ret || undefined,
-            currency,
+            currency: routeCurrency,
             adults: formParams.adults ?? adults ?? 1,
           };
 
-    getExploreDestinations(req)
-      .then(setDestinations)
+    const pageSize = 64;
+    getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true })
+      .then(async (res) => {
+        setDestinations(res.destinations);
+        setExploreSessionId(res.sessionId);
+        setExploreHasMore(res.hasMore);
+        setExploreNextOffset(res.offset + res.destinations.length);
+        if (!res.sessionId || !res.liveRefreshAvailable) return;
+        setLiveRefreshing(true);
+        try {
+          let avail = true;
+          let rounds = 0;
+          const maxRounds = 6;
+          while (avail && rounds < maxRounds) {
+            const r2 = await getExploreDestinations({
+              sessionId: res.sessionId,
+              offset: 0,
+              limit: pageSize,
+              live: true,
+            });
+            setDestinations(r2.destinations);
+            setExploreHasMore(r2.hasMore);
+            setExploreNextOffset(r2.offset + r2.destinations.length);
+            avail = !!r2.liveRefreshAvailable;
+            rounds += 1;
+          }
+        } finally {
+          setLiveRefreshing(false);
+        }
+      })
       .catch(() => setError(t('explore_error')))
       .finally(() => setLoading(false));
+  };
+
+  const loadMoreExplore = () => {
+    if (!exploreSessionId || !exploreHasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    getExploreDestinations({
+      sessionId: exploreSessionId,
+      offset: exploreNextOffset,
+      limit: 10,
+    })
+      .then((res) => {
+        setDestinations((prev) => {
+          const seen = new Set(prev.map((d) => d.destination));
+          const next = [...prev];
+          for (const d of res.destinations) {
+            if (!seen.has(d.destination)) {
+              next.push(d);
+              seen.add(d.destination);
+            }
+          }
+          return next;
+        });
+        setExploreHasMore(res.hasMore);
+        setExploreNextOffset(res.offset + res.destinations.length);
+      })
+      .catch(() => setError(t('explore_error')))
+      .finally(() => setLoadingMore(false));
   };
 
   useEffect(() => {
     doFetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Reset pagination when the result set or filters change (must not call setState inside useMemo).
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [destinations, regionFilter, sortAsc]);
 
   // If the region pill no longer applies to any row (e.g. stale selection), show all again.
   useEffect(() => {
@@ -351,7 +413,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           year: localYear,
           month: localMonth,
           durationDays: localDuration,
-          currency,
+          currency: routeCurrency,
           adults: localAdults,
           children: localChildren,
           nonStop: localNonStop,
@@ -379,13 +441,15 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         adults: formParams.adults ?? adults ?? 1,
         children: formParams.children ?? 0,
         infants: 0,
-        currency: currency || 'USD',
-        locale: 'en-US',
+        currency: routeCurrency || 'USD',
+        locale: locale || 'en-US',
       };
+      setCachedSearch(payload);
       searchActions.setParams(payload);
       const session = await createSearchSession(payload);
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);
+      updateSearchUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch {
       setError(t('search_failed'));
@@ -433,6 +497,83 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       doFetch();
     } else {
       doFetch({ departureDate: dep, returnDate: newRet });
+    }
+  };
+
+  /** Sidebar "Search flights": Anywhere → re-fetch explore; specific airport → normal GF2 session + Results. */
+  const handleSidebarSearch = async () => {
+    const newOrigin = (formParams.origin || origin).trim();
+    const destRaw = (formParams.destination || '').trim().toUpperCase();
+    const newDep = formParams.departureDate || departureDate;
+    const newRet = tripType === 'round-trip' ? (formParams.returnDate || returnDate) : '';
+
+    if (!newOrigin || !destRaw) {
+      setFormSearchError(t('please_fill_origin_destination'));
+      return;
+    }
+
+    if (destRaw === ANYWHERE_CODE) {
+      setFormSearchError(null);
+      setOrigin(newOrigin.toUpperCase());
+      setDepartureDate(newDep);
+      setReturnDate(newRet);
+      setFormParams((p) => ({
+        ...p,
+        origin: newOrigin.toUpperCase(),
+        departureDate: newDep,
+        returnDate: tripType === 'one-way' ? (undefined as any) : newRet || undefined,
+      }));
+      doFetch({ origin: newOrigin, departureDate: newDep, returnDate: newRet });
+      return;
+    }
+
+    if (!newDep) {
+      setFormSearchError(t('please_fill_origin_destination'));
+      return;
+    }
+    if (tripType === 'round-trip' && !newRet) {
+      setFormSearchError(t('please_choose_return'));
+      return;
+    }
+
+    setFormSearchError(null);
+    setLoading(true);
+    try {
+      const cabin: CreateSearchSessionRequest['cabinClass'] =
+        formParams.cabinClass === 'ECONOMY' || formParams.cabinClass === 'PREMIUM_ECONOMY' ||
+        formParams.cabinClass === 'BUSINESS' || formParams.cabinClass === 'FIRST'
+          ? formParams.cabinClass
+          : 'ECONOMY';
+      const payload: CreateSearchSessionRequest = {
+        ...formParams,
+        origin: newOrigin.toUpperCase(),
+        destination: destRaw,
+        departureDate: newDep,
+        returnDate: tripType === 'one-way' ? undefined : newRet || undefined,
+        cabinClass: cabin,
+        cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
+        includeCheckedBag: false,
+        currency: localeCurrency || formParams.currency || 'USD',
+        locale: locale || formParams.locale || 'en-US',
+        adults: formParams.adults ?? adults ?? 1,
+        children: formParams.children ?? 0,
+        infants: formParams.infants ?? 0,
+      };
+      setOrigin(payload.origin);
+      setDepartureDate(newDep);
+      setReturnDate(newRet);
+      setFormParams((p) => ({ ...p, ...payload }));
+      setCachedSearch(payload);
+      searchActions.setParams(payload);
+      const session = await createSearchSession(payload);
+      searchActions.setSession(session.id, session, session.status);
+      searchActions.setResults([], 0);
+      updateSearchUrl({ ...payload, sessionId: session.id });
+      navigation.navigate('Results', { sessionId: session.id });
+    } catch (e) {
+      setFormSearchError(e instanceof Error ? e.message : t('search_failed'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -553,17 +694,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             setTripType(tt);
             if (tt === 'one-way') updateForm('returnDate', undefined as any);
           }}
-          onSearch={() => {
-            const newOrigin = formParams.origin || origin;
-            const newDep    = formParams.departureDate || departureDate;
-            const newRet    = tripType === 'round-trip' ? (formParams.returnDate || returnDate) : '';
-            setOrigin(newOrigin);
-            setDepartureDate(newDep);
-            setReturnDate(newRet);
-            doFetch({ origin: newOrigin, departureDate: newDep, returnDate: newRet });
-          }}
+          onSearch={handleSidebarSearch}
           loading={loading}
-          error={null}
+          error={formSearchError}
           compact
         />
       </ScrollView>
@@ -667,7 +800,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             <>
               <Text style={[s.sectionLabel, { color: theme.textMuted }]}>Top picks</Text>
               <View style={s.grid}>
-                {displayed.slice(0, Math.min(3, visibleCount)).map((dest, idx) => (
+                {displayed.slice(0, Math.min(3, displayed.length)).map((dest, idx) => (
                   <DestCard
                     key={dest.destination}
                     dest={dest}
@@ -686,15 +819,13 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           )}
 
           {/* Remaining visible results */}
-          {(regionFilter !== 'All' ? displayed : displayed.slice(3)).slice(0, Math.max(0, visibleCount - 3)).length > 0 && (
+          {(regionFilter !== 'All' ? displayed : displayed.slice(3)).length > 0 && (
             <>
               <Text style={[s.sectionLabel, { color: theme.textMuted }]}>
                 {regionFilter === 'All' ? 'More destinations' : regionFilter}
               </Text>
               <View style={s.grid}>
-                {(regionFilter !== 'All' ? displayed : displayed.slice(3))
-                  .slice(0, Math.max(0, visibleCount - (regionFilter === 'All' ? 3 : 0)))
-                  .map((dest) => (
+                {(regionFilter !== 'All' ? displayed : displayed.slice(3)).map((dest) => (
                     <DestCard
                       key={dest.destination}
                       dest={dest}
@@ -713,16 +844,21 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           )}
 
           {/* Load more button */}
-          {visibleCount < displayed.length && (
+          {exploreHasMore && (
             <TouchableOpacity
               style={[s.loadMoreBtn, { borderColor: theme.primary }]}
-              onPress={() => setVisibleCount((n) => n + 10)}
+              onPress={loadMoreExplore}
+              disabled={loadingMore}
               activeOpacity={0.8}
             >
-              <Text style={[s.loadMoreText, { color: theme.primary }]}>
-                Load 10 more  ({displayed.length - visibleCount} remaining)
-              </Text>
-              <AppIcon name="chevron-down" size={16} color={theme.primary} fallbackText="↓" />
+              {loadingMore ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <>
+                  <Text style={[s.loadMoreText, { color: theme.primary }]}>Load 10 more</Text>
+                  <AppIcon name="chevron-down" size={16} color={theme.primary} fallbackText="↓" />
+                </>
+              )}
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -732,6 +868,13 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   // ── Top summary bar (shared mobile + desktop) ─────────────────────────────
 
+  const formDestCode = formParams.destination?.trim().toUpperCase();
+  let summaryDestLabel = t('anywhere');
+  if (!isDealsMode && formDestCode && formDestCode !== ANYWHERE_CODE) {
+    const entry = getAirportEntry(formDestCode);
+    summaryDestLabel = entry ? getCityDisplayName(entry, language as any) : formDestCode;
+  }
+
   const summaryBar = (
     <View style={[s.summaryBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
       <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -739,10 +882,16 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       </TouchableOpacity>
       <View style={s.summaryMid}>
         <Text style={[s.summaryRoute, { color: theme.text }]} numberOfLines={1}>
-          {originFlagEmoji} {originCity} → <Text style={{ color: theme.primary }}>{t('anywhere')}</Text>
+          {originFlagEmoji} {originCity} → <Text style={{ color: theme.primary }}>{summaryDestLabel}</Text>
         </Text>
         {tripLabel ? (
           <Text style={[s.summaryDate, { color: theme.textMuted }]}>{tripLabel}</Text>
+        ) : null}
+        {liveRefreshing ? (
+          <View style={s.liveRefreshRow}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={[s.liveRefreshText, { color: theme.textMuted }]}>{t('explore_live_updating')}</Text>
+          </View>
         ) : null}
       </View>
       {/* Mobile: Edit button opens date modal */}
@@ -866,6 +1015,7 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
   const rankColor = rank !== null ? RANK_COLORS[rank] : undefined;
   const isFeatured = rank === 0;
   const ctaLabel = isDealsMode ? 'Search deals' : 'Search flights';
+  const isEstimate = dest.priceSource === 'estimated';
 
   return (
     <TouchableOpacity
@@ -879,7 +1029,12 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
           <Text style={c.rankText}>{rank === 0 ? '🏆' : rank === 1 ? '🥈' : '🥉'}</Text>
         </View>
       )}
-      <View style={c.topRow}>
+      {isEstimate && (
+        <View style={[c.estimatePill, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}>
+          <Text style={[c.estimatePillText, { color: theme.textMuted }]}>{t('explore_price_estimate_label')}</Text>
+        </View>
+      )}
+      <View style={[c.topRow, isEstimate && c.topRowWithEstimate]}>
         <Text style={c.flagEmoji}>{flag}</Text>
         <View style={c.cityWrap}>
           <Text style={[c.cityName, { color: theme.text }]} numberOfLines={1}>{cityName}</Text>
@@ -1006,6 +1161,8 @@ const s = StyleSheet.create({
   summaryMid: { flex: 1 },
   summaryRoute: { fontSize: 15, fontWeight: '700' },
   summaryDate: { fontSize: 12, marginTop: 2 },
+  liveRefreshRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  liveRefreshText: { fontSize: 12 },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1066,7 +1223,19 @@ const c = StyleSheet.create({
   cardFeatured: { borderWidth: 2 },
   rankBadge: { position: 'absolute', top: 0, right: 0, paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 12, borderTopRightRadius: 14 },
   rankText: { fontSize: 13 },
+  estimatePill: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    zIndex: 1,
+  },
+  estimatePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  topRowWithEstimate: { paddingTop: 20 },
   flagEmoji: { fontSize: 32, lineHeight: 36 },
   cityWrap: { flex: 1 },
   cityName: { fontSize: 17, fontWeight: '700' },

@@ -1,0 +1,1456 @@
+{
+  "generated_at_utc": "2026-04-09T11:52:31.117681+00:00",
+  "summary": {
+    "total_tests": 19,
+    "passed_tests": 19,
+    "failed_tests": 0,
+    "warning_count": 13,
+    "error_count": 0,
+    "ai_insights_count": 19
+  },
+  "results": [
+    {
+      "test_case": {
+        "name": "health_root_ok",
+        "method": "GET",
+        "path": "/health",
+        "description": "Root health endpoint returns service status.",
+        "tags": [
+          "health",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "status": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "status"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:37:23.479133+00:00",
+      "finished_at": "2026-04-09T11:37:23.488872+00:00",
+      "request_url": "http://localhost:8080/health",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 9.18,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:37:23 GMT",
+        "Content-Length": "16"
+      },
+      "response_text": "{\"status\":\"ok\"}\n",
+      "response_json": {
+        "status": "ok"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nWhile the test successfully asserts a 200 OK status, the response payload is suspiciously minimal. A backend health endpoint returning only `{\"status\": \"ok\"}` often indicates a superficial check that does not verify actual system readiness, which can lead to false positives during infrastructure outages.\n\n**Concrete Issue Statements:**\n*   **Issue 1: Missing Dependency Health Data.** The payload lacks the status of critical backend dependencies (e.g., database, cache, message broker). If a database goes down, this endpoint will likely still return `\"ok\"`, rendering it useless for monitoring and automated failover.\n*   **Issue 2: Suspiciously Static Payload.** The response contains no dynamic metadata (e.g., `timestamp`, `version`, or `uptime`). This suggests the endpoint might simply be returning a hardcoded string rather than performing an actual health evaluation at runtime.\n*   **Issue 3: Liveness vs. Readiness Ambiguity.** The description states it \"returns service status,\" but the payload fails to distinguish between the service process running (liveness) and the service being capable of handling traffic (readiness). A single `\"ok\"` is insufficient for orchestrators (like Kubernetes) to make intelligent routing decisions.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "health_api_ok",
+        "method": "GET",
+        "path": "/api/health",
+        "description": "API health endpoint returns service status.",
+        "tags": [
+          "health",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "status": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "status"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:37:34.022346+00:00",
+      "finished_at": "2026-04-09T11:37:34.025100+00:00",
+      "request_url": "http://localhost:8080/api/health",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2.7,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:37:34 GMT",
+        "Content-Length": "16"
+      },
+      "response_text": "{\"status\":\"ok\"}\n",
+      "response_json": {
+        "status": "ok"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation**\nWhile the test technically passes (200 OK), the response payload is suspiciously minimal for a backend health endpoint. A simple `{\"status\": \"ok\"}` often masks underlying issues, as it typically only indicates that the web server is running, not that the application's critical dependencies are functional. \n\n**Concrete Issue Statements**\n*   **Issue 1: Missing Dependency Health Data (Missing Required Data):** The payload lacks the health status of critical backend dependencies (e.g., database, cache, message broker). If the database goes down, this endpoint will likely still return `{\"status\": \"ok\"}`, making the health check unreliable for monitoring.\n*   **Issue 2: Missing Operational Metadata (Missing Required Data):** Standard health checks usually include metadata such as `timestamp`, `version`, or `uptime`. The absence of these fields suggests the endpoint might be returning a hardcoded dummy response rather than performing an actual system evaluation.\n*   **Issue 3: Suspiciously Simplistic Payload (Suspicious Payload):** The response is so minimal that it may represent a \"liveness\" check (is the process running?) rather than a true \"readiness\" check (can the app handle requests?). Relying on this endpoint for deployment rollouts or auto-scaling could route traffic to a broken instance.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "create_session_missing_required",
+        "method": "POST",
+        "path": "/api/search/sessions",
+        "description": "Missing required fields should produce 400 error.",
+        "tags": [
+          "search",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": {
+          "origin": "JFK",
+          "departureDate": "2026-05-20"
+        },
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [
+          "error"
+        ],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:37:42.090459+00:00",
+      "finished_at": "2026-04-09T11:37:42.114859+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": {
+        "origin": "JFK",
+        "departureDate": "2026-05-20"
+      },
+      "actual_status": 400,
+      "response_time_ms": 24.32,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:37:42 GMT",
+        "Content-Length": "63"
+      },
+      "response_text": "{\"error\":\"origin, destination and departureDate are required\"}\n",
+      "response_json": {
+        "error": "origin, destination and departureDate are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation**\nWhile the test passes mechanically (Actual Status 400 matches Expected Status 400), the response payload reveals a suspicious and potentially inaccurate error-handling pattern. The API returns a generic, unstructured string listing multiple fields, which may contradict the actual state of the request payload and makes programmatic error handling impossible for the client.\n\n**Concrete Issue Statements**\n1. **Suspicious Payload (Unstructured Error):** The error is returned as a single flat string rather than a structured JSON object (e.g., containing an error code and an array of specific field errors). This prevents the client from programmatically parsing exactly which field(s) failed validation.\n2. **Potential Logical Inaccuracy (Contradictory Fields):** If the test request was missing *only one* field (e.g., `departureDate`), the API still returns an error stating *all three* (`origin, destination and departureDate`) are required. This provides logically inaccurate and misleading feedback to the client if only a single field was omitted.\n3. **Missing Error Code:** The payload lacks a machine-readable error code or type (e.g., `VALIDATION_ERROR`), relying entirely on a human-readable string, which is an anti-pattern for robust backend API design.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "create_session_invalid_json",
+        "method": "POST",
+        "path": "/api/search/sessions",
+        "description": "Invalid JSON body should be rejected by server.",
+        "tags": [
+          "search",
+          "negative",
+          "edge"
+        ],
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "query_params": {},
+        "body": null,
+        "raw_body": "{ bad-json: true ",
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:38:19.344433+00:00",
+      "finished_at": "2026-04-09T11:38:19.348213+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "request_query_params": {},
+      "request_body": "{ bad-json: true ",
+      "actual_status": 400,
+      "response_time_ms": 3.69,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:38:19 GMT",
+        "Content-Length": "25"
+      },
+      "response_text": "{\"error\":\"invalid JSON\"}\n",
+      "response_json": {
+        "error": "invalid JSON"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nThe test passed as expected. The server correctly rejected the malformed JSON payload with a 400 Bad Request status, and the response payload accurately describes the error. Since this is an expected failure response, there are no missing success data fields, contradictory fields, or suspicious payloads.\n\n**Concrete Issue Statements:**\n* **No logical inconsistencies found.** The actual status (400) matches the expected status, and the error message (`\"invalid JSON\"`) is logically consistent with the test's intent and the HTTP method.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "get_session_not_found",
+        "method": "GET",
+        "path": "/api/search/sessions/nonexistent-session-id",
+        "description": "Unknown session id should return not found.",
+        "tags": [
+          "search",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          404
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:38:30.102157+00:00",
+      "finished_at": "2026-04-09T11:38:30.113688+00:00",
+      "request_url": "http://localhost:8080/api/search/sessions/nonexistent-session-id",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 404,
+      "response_time_ms": 11.45,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:38:30 GMT",
+        "Content-Length": "30"
+      },
+      "response_text": "{\"error\":\"session not found\"}\n",
+      "response_json": {
+        "error": "session not found"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 404.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation**\nThe test behaves exactly as expected. The actual HTTP status (404) matches the expected status, and the response payload logically aligns with the request for a non-existent resource. There are no success responses missing data (as this is an error response), no contradictory fields, and no suspicious payloads. The API correctly rejects the invalid ID.\n\n**Concrete Issue Statements**\n*No logical inconsistencies found.*\n\n**QA Observation (Best Practice, not a logical bug):**\nWhile logically consistent, the error payload is extremely flat. Standard REST API design (and specifications like RFC 7807) typically recommends returning a structured error body\u2014including an error `code`/`type`, a `message`, and potentially a `trace_id` or `timestamp`\u2014to help frontend clients handle errors programmatically and assist with debugging.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_missing_params",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Missing required month-deals params should return 400.",
+        "tags": [
+          "deals",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:38:47.204698+00:00",
+      "finished_at": "2026-04-09T11:38:47.209622+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 4.81,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:38:47 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"origin and destination are required\"}\n",
+      "response_json": {
+        "error": "origin and destination are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nWhile the test correctly returned the expected 400 status code, the response payload reveals a logical inconsistency between the endpoint context and the validation error. The test and endpoint path (`/api/deals/month`) imply that a \"month\" parameter is the primary focus, yet the API error message demands \"origin and destination\" parameters. This means the test is not actually validating the missing \"month\" parameter as intended.\n\n**Concrete Issue Statements:**\n1. **Suspicious Payload / Contradictory Error Message:** The API returns an error stating \"origin and destination are required\" for an endpoint explicitly named `/api/deals/month`. If the test only omitted the month parameter, the API is validating the wrong missing parameters first, or the endpoint path is misleading.\n2. **Test Intent Mismatch:** The test is named `deals_month_missing_params` and described as testing missing *month* parameters, but the actual 400 error was triggered by missing *origin and destination* parameters. The test passes by accident rather than validating the intended missing parameter constraint.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_invalid_currency",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Unsupported currency should be normalized to USD.",
+        "tags": [
+          "deals",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "year": 2026,
+          "month": 8,
+          "currency": "ABC"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "currency": "string",
+          "route": "object"
+        },
+        "expected_values": {
+          "currency": "USD"
+        },
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:39:58.856623+00:00",
+      "finished_at": "2026-04-09T11:40:01.187501+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "year": 2026,
+        "month": 8,
+        "currency": "ABC"
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2330.9,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:40:01 GMT",
+        "Content-Length": "795"
+      },
+      "response_text": "{\"route\":{\"origin\":{\"code\":\"TLV\"},\"destination\":{\"code\":\"LHR\"}},\"year\":2026,\"month\":8,\"currency\":\"USD\",\"days\":[{\"date\":\"2026-08-01\"},{\"date\":\"2026-08-02\"},{\"date\":\"2026-08-03\"},{\"date\":\"2026-08-04\"},{\"date\":\"2026-08-05\"},{\"date\":\"2026-08-06\"},{\"date\":\"2026-08-07\"},{\"date\":\"2026-08-08\"},{\"date\":\"2026-08-09\"},{\"date\":\"2026-08-10\"},{\"date\":\"2026-08-11\"},{\"date\":\"2026-08-12\"},{\"date\":\"2026-08-13\"},{\"date\":\"2026-08-14\"},{\"date\":\"2026-08-15\"},{\"date\":\"2026-08-16\"},{\"date\":\"2026-08-17\"},{\"date\":\"2026-08-18\"},{\"date\":\"2026-08-19\"},{\"date\":\"2026-08-20\"},{\"date\":\"2026-08-21\"},{\"date\":\"2026-08-22\"},{\"date\":\"2026-08-23\"},{\"date\":\"2026-08-24\"},{\"date\":\"2026-08-25\"},{\"date\":\"2026-08-26\"},{\"date\":\"2026-08-27\"},{\"date\":\"2026-08-28\"},{\"date\":\"2026-08-29\"},{\"date\":\"2026-08-30\"},{\"date\":\"2026-08-31\"}]}\n",
+      "response_json": {
+        "route": {
+          "origin": {
+            "code": "TLV"
+          },
+          "destination": {
+            "code": "LHR"
+          }
+        },
+        "year": 2026,
+        "month": 8,
+        "currency": "USD",
+        "days": [
+          {
+            "date": "2026-08-01"
+          },
+          {
+            "date": "2026-08-02"
+          },
+          {
+            "date": "2026-08-03"
+          },
+          {
+            "date": "2026-08-04"
+          },
+          {
+            "date": "2026-08-05"
+          },
+          {
+            "date": "2026-08-06"
+          },
+          {
+            "date": "2026-08-07"
+          },
+          {
+            "date": "2026-08-08"
+          },
+          {
+            "date": "2026-08-09"
+          },
+          {
+            "date": "2026-08-10"
+          },
+          {
+            "date": "2026-08-11"
+          },
+          {
+            "date": "2026-08-12"
+          },
+          {
+            "date": "2026-08-13"
+          },
+          {
+            "date": "2026-08-14"
+          },
+          {
+            "date": "2026-08-15"
+          },
+          {
+            "date": "2026-08-16"
+          },
+          {
+            "date": "2026-08-17"
+          },
+          {
+            "date": "2026-08-18"
+          },
+          {
+            "date": "2026-08-19"
+          },
+          {
+            "date": "2026-08-20"
+          },
+          {
+            "date": "2026-08-21"
+          },
+          {
+            "date": "2026-08-22"
+          },
+          {
+            "date": "2026-08-23"
+          },
+          {
+            "date": "2026-08-24"
+          },
+          {
+            "date": "2026-08-25"
+          },
+          {
+            "date": "2026-08-26"
+          },
+          {
+            "date": "2026-08-27"
+          },
+          {
+            "date": "2026-08-28"
+          },
+          {
+            "date": "2026-08-29"
+          },
+          {
+            "date": "2026-08-30"
+          },
+          {
+            "date": "2026-08-31"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "performance",
+          "message": "Slow response detected: 2330.90ms (threshold 2000ms).",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation**\nWhile the API successfully returned a 200 OK and correctly normalized the currency to \"USD\" as per the test description, the response payload is logically hollow. The endpoint is supposed to return \"deals,\" but the payload only contains a structural skeleton (dates) with absolutely no commercial data. This suggests the backend successfully handled the currency normalization but silently failed to fetch or map the actual deal data, returning an empty shell instead of an error or a populated list.\n\n**Concrete Issues**\n\n*   **Missing Required Data - No Deal Information:** The endpoint path is `/api/deals/month`, yet the objects inside the `days` array contain only a `date` field. There are no fields representing a \"deal\" (e.g., `price`, `minimumPrice`, `availability`, `flightDetails`). A success response for a deals endpoint is useless without deal data.\n*   **Suspicious Payload - \"Empty Shell\" Response:** Returning an array of 31 objects that contain nothing but the date string is a suspicious payload pattern. It implies the backend generated a calendar scaffold but the business logic responsible for attaching pricing/deals to those dates failed, was skipped, or filtered out all results without returning an appropriate empty state or error.\n*   **Contradictory Context - Currency Without Amount:** The root-level `currency` field is set to \"USD\", but there are absolutely no numeric fields in the response payload that utilize this currency. The presence of the `currency` field contradicts the total absence of monetary values in the response.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "flight_details_missing_date",
+        "method": "GET",
+        "path": "/api/flights/details",
+        "description": "Missing date should return 400.",
+        "tags": [
+          "details",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:40:11.948741+00:00",
+      "finished_at": "2026-04-09T11:40:11.956578+00:00",
+      "request_url": "http://localhost:8080/api/flights/details",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 7.78,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:40:11 GMT",
+        "Content-Length": "54"
+      },
+      "response_text": "{\"error\":\"origin, destination and date are required\"}\n",
+      "response_json": {
+        "error": "origin, destination and date are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation**\nWhile the API correctly returned the expected 400 status code, the error message in the payload contradicts the specific intent of the test. The test is designed to isolate a missing `date` parameter, but the response claims that `origin` and `destination` are also missing.\n\n**Concrete Issue Statements**\n1. **Contradictory Error Message vs. Test Intent:** The test name (`flight_details_missing_date`) implies that only the date was omitted, yet the error message states \"origin, destination and date are required\". \n2. **Potential Test Payload Error:** The request payload sent during the test likely omitted `origin` and `destination` in addition to `date`, meaning the test is not actually validating the isolated \"missing date\" scenario it claims to be.\n3. **Potential Backend Validation Error:** If the test payload *did* include `origin` and `destination`, the backend is incorrectly failing to parse or recognize them, triggering a generic \"all fields missing\" error instead of a specific \"date is required\" error.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "flight_details_bad_date_format",
+        "method": "GET",
+        "path": "/api/flights/details",
+        "description": "Invalid date format should return 400.",
+        "tags": [
+          "details",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "date": "10-31-2026"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:40:41.079021+00:00",
+      "finished_at": "2026-04-09T11:40:41.084170+00:00",
+      "request_url": "http://localhost:8080/api/flights/details",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "date": "10-31-2026"
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 5.03,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:40:41 GMT",
+        "Content-Length": "42"
+      },
+      "response_text": "{\"error\":\"invalid date (use YYYY-MM-DD)\"}\n",
+      "response_json": {
+        "error": "invalid date (use YYYY-MM-DD)"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation:**\nThe test executed exactly as expected. The actual status code (400) matches the expected status code, and the response payload logically aligns with the test's premise (invalid date format). Because this is an intentional error case, there are no missing success data fields or contradictory fields within the response.\n\n**Concrete Issue Statements:**\n*   **Logical Inconsistencies:** None identified. The 400 status and error message correctly reflect the invalid input scenario.\n*   **Contradictory Fields:** None identified.\n*   **Suspicious Payload (Minor Observation):** While not logically inconsistent, the error payload is highly minimal. It lacks standard API error metadata\u2014such as a machine-readable `code`, the specific `field` that failed validation, or a `timestamp`. This minimal structure can make programmatic error handling and debugging more difficult for API consumers, though it does not invalidate the test result.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "airports_search_basic",
+        "method": "GET",
+        "path": "/api/airports/search",
+        "description": "Airport search should return items array.",
+        "tags": [
+          "airports",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {
+          "q": "tel",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "items": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "items"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:42:13.200752+00:00",
+      "finished_at": "2026-04-09T11:42:13.202482+00:00",
+      "request_url": "http://localhost:8080/api/airports/search",
+      "request_headers": {},
+      "request_query_params": {
+        "q": "tel",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 1.7,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:42:13 GMT",
+        "Content-Length": "145"
+      },
+      "response_text": "{\"items\":[{\"id\":\"TLV\",\"type\":\"AIRPORT\",\"airportCode\":\"TLV\",\"cityCode\":\"TLV\",\"name\":\"Ben Gurion Intl\",\"cityName\":\"Tel Aviv\",\"countryCode\":\"IL\"}]}\n",
+      "response_json": {
+        "items": [
+          {
+            "id": "TLV",
+            "type": "AIRPORT",
+            "airportCode": "TLV",
+            "cityCode": "TLV",
+            "name": "Ben Gurion Intl",
+            "cityName": "Tel Aviv",
+            "countryCode": "IL"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation**\nThe API successfully returns a 200 OK status and the expected `items` array, fulfilling the basic test assertion. However, the payload exhibits data modeling smells and missing standard aviation data. Specifically, the relationship between the `id`, `airportCode`, and `cityCode` is logically suspicious and suggests the system may not properly support multi-airport cities. Additionally, standard fields expected in an airport search result are absent.\n\n**Concrete Issue Statements**\n\n1. **Suspicious Redundancy between `id` and `airportCode`**: The `id` (\"TLV\") is identical to the `airportCode` (\"TLV\"). If `id` is intended to be the primary database key, using an IATA code is risky because IATA codes can be recycled or shared with non-airport entities (e.g., train stations). It should typically be a unique, immutable internal identifier (like a UUID or numeric ID).\n2. **Conflated `cityCode` and `airportCode`**: Both fields are set to \"TLV\". While this happens to be factually true for Tel Aviv, in aviation data models, city codes and airport codes are distinct entities (e.g., city code `NYC` maps to airports `JFK`, `LGA`, `EWR`). Storing them as identical values implies a flawed 1:1 data model that will break search filtering for multi-airport cities.\n3. **Missing Required Domain Data**: For an airport search API, the payload is missing critical geographical and scheduling fields\u2014specifically `latitude`, `longitude`, and `timezone`. Without these, a consuming client cannot perform distance calculations or accurate flight itinerary scheduling, rendering the search result logically incomplete for standard use cases.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "airports_search_empty_q",
+        "method": "GET",
+        "path": "/api/airports/search",
+        "description": "Empty query should still return valid items field.",
+        "tags": [
+          "airports",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "q": "",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "items": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "items"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:43:41.064563+00:00",
+      "finished_at": "2026-04-09T11:43:41.071500+00:00",
+      "request_url": "http://localhost:8080/api/airports/search",
+      "request_headers": {},
+      "request_query_params": {
+        "q": "",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 6.81,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:43:41 GMT",
+        "Content-Length": "13"
+      },
+      "response_text": "{\"items\":[]}\n",
+      "response_json": {
+        "items": []
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation:**\nWhile the API returns the expected 200 OK status and includes the `items` field, returning an empty array for an empty query is a logical inconsistency for a search endpoint. In standard API design, an empty query parameter typically acts as a \"no filter\" or \"fetch default\" request, meaning it should return all (or a paginated subset of) available airports, not zero results. \n\n**Concrete Issues:**\n1. **Suspicious Payload / Missing Data:** The `items` array is empty (`[]`). If the database contains airports, an unfiltered search should return a default list of airports, not an empty list.\n2. **Contradictory Logic:** The backend is likely treating an empty query as \"search for nothing\" (matching the string \"\") rather than \"apply no filter\" (return all). This contradicts standard search API behavior.\n3. **Test Description Mismatch:** The test description states it \"should still return *valid* items field.\" While the field exists structurally, an empty array is likely not the intended \"valid\" business data for an unfiltered search, making the test assertion potentially too loose (checking only for the key's existence rather than its populated state).",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "explore_missing_origin",
+        "method": "GET",
+        "path": "/api/explore",
+        "description": "Explore should reject missing origin.",
+        "tags": [
+          "explore",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:44:20.885198+00:00",
+      "finished_at": "2026-04-09T11:44:20.887488+00:00",
+      "request_url": "http://localhost:8080/api/explore",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 2.25,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:44:20 GMT",
+        "Content-Length": "31"
+      },
+      "response_text": "{\"error\":\"origin is required\"}\n",
+      "response_json": {
+        "error": "origin is required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation:** \nThe API behaves exactly as expected. It correctly rejects the request with a 400 Bad Request status code and provides a clear, accurate error message regarding the missing required parameter. There are no logical inconsistencies, contradictory fields, or suspicious payloads in this response.\n\n**Issues:** \nNone.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "explore_invalid_origin",
+        "method": "GET",
+        "path": "/api/explore",
+        "description": "Explore should reject invalid origin length.",
+        "tags": [
+          "explore",
+          "negative",
+          "edge"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "ABCD",
+          "limit": 5
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:44:28.008837+00:00",
+      "finished_at": "2026-04-09T11:44:28.011034+00:00",
+      "request_url": "http://localhost:8080/api/explore",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "ABCD",
+        "limit": 5
+      },
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 2.16,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:44:28 GMT",
+        "Content-Length": "61"
+      },
+      "response_text": "{\"error\":\"origin must be a valid 2\u20133 character IATA code\"}\n",
+      "response_json": {
+        "error": "origin must be a valid 2\u20133 character IATA code"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nThe test successfully passed its primary assertion (returning a 400 status for an invalid origin). There are no missing success data or contradictory fields, as this is a properly formatted error response. However, the error message reveals a potential domain logic flaw regarding IATA code validation.\n\n**Concrete Issue Statements:**\n*   **Suspicious Payload / Domain Inconsistency:** The error message states `\"origin must be a valid 2\u20133 character IATA code\"`. If the `origin` parameter is expected to be an airport, IATA airport codes are strictly 3 characters. 2-character IATA codes represent airlines, not airports. Allowing 2-character inputs for an \"origin\" may indicate a backend validation flaw that could let invalid airport data slip through if the length is 2 but the code is not a valid airport.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_redirect_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/redirect",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:45:59.801723+00:00",
+      "finished_at": "2026-04-09T11:45:59.806686+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/redirect",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 4.88,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:45:59 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nThe test passes its primary assertion (HTTP 400) and the error message logically aligns with the test description (missing IDs). However, analyzing the payload for structural inconsistencies reveals that the error response is suspiciously minimal. It lacks standard API error envelope fields, which violates typical backend design standards and makes programmatic error handling and debugging difficult.\n\n**Concrete Issue Statements:**\n*   **Missing Machine-Readable Error Code (Suspicious Payload):** The payload only provides a human-readable string (`\"error\": \"sessionId and optionId are required\"`). It lacks a machine-readable error code (e.g., `\"code\": \"VALIDATION_ERROR\"` or `\"code\": \"MISSING_REQUIRED_FIELDS\"`). This forces API clients to parse plain text to determine the specific failure, which is fragile and inconsistent with robust API design.\n*   **Missing Trace/Request ID (Missing Required Data):** The error payload lacks a `traceId`, `requestId`, or `correlationId`. While this is an error response, trace IDs are standard required data for correlating client-side 400 errors with backend logs for debugging.\n*   **No Contradictory Fields Found:** The actual status code (400) and the error message are logically consistent with the test's intent to validate missing parameters.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_outbound_link_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/outbound-link",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:46:53.294773+00:00",
+      "finished_at": "2026-04-09T11:46:53.299691+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/outbound-link",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 4.82,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:46:53 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nThe test successfully returned the expected 400 status code, but the response payload is suspiciously minimal and lacks standard API error structures. While the error message is technically accurate, it fails to provide granular validation details or debugging context, which can cause issues for API consumers.\n\n**Concrete Issue Statements:**\n1. **Missing Standard Error Metadata:** The payload only returns a generic `error` string. It lacks an application-specific `code` (e.g., `VALIDATION_ERROR` or `MISSING_PARAMETER`) and a `traceId`/`requestId`, which are standard requirements for debugging and programmatic client-side error handling.\n2. **Non-Granular Validation Feedback:** The API groups both missing fields into a single string message. Best practice dictates returning a structured `details` array (e.g., `[{ \"field\": \"sessionId\", \"message\": \"is required\" }, { \"field\": \"optionId\", \"message\": \"is required\" }]`) so the client can systematically parse and highlight all errors for the user at once.\n3. **Suspicious GET Design with Required Parameters:** The endpoint uses a GET request but strictly requires `sessionId` and `optionId`. If these IDs are mandatory to fetch the resource, they should likely be path variables (e.g., `GET /api/affiliate/outbound-link/{sessionId}/{optionId}`) rather than query parameters, which are conventionally used for optional filtering.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_provider_missing_ids",
+        "method": "GET",
+        "path": "/api/affiliate/provider",
+        "description": "Missing sessionId and optionId should return 400.",
+        "tags": [
+          "affiliate",
+          "negative"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          400
+        ],
+        "expected_schema": {
+          "error": "string"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:48:25.016889+00:00",
+      "finished_at": "2026-04-09T11:48:25.021194+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/provider",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 400,
+      "response_time_ms": 4.23,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:48:25 GMT",
+        "Content-Length": "48"
+      },
+      "response_text": "{\"error\":\"sessionId and optionId are required\"}\n",
+      "response_json": {
+        "error": "sessionId and optionId are required"
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "http",
+          "message": "Client-side error response detected: 400.",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation:**\nThe test performs exactly as expected\u2014returning a 400 status code and a descriptive error message for the missing parameters. There are no logical inconsistencies, contradictory fields, or missing success data in this error response. However, analyzing the payload and endpoint design reveals a few structural and domain-level concerns worth investigating.\n\n**Concrete Issue Statements:**\n\n*   **Suspicious Payload (Lack of Machine-Readable Error Code):** The response payload only provides a human-readable string (`\"sessionId and optionId are required\"`). Without a structured, machine-readable error code (e.g., `\"code\": \"MISSING_REQUIRED_FIELDS\"`), client-side error handling is forced to rely on string matching, which is fragile and prone to breaking if the copy is updated.\n*   **Domain Logic Smell (Overly Restrictive Parameters):** Requiring *both* `sessionId` and `optionId` to fetch an affiliate provider via a GET request is potentially suspicious. Typically, a `sessionId` alone is sufficient to establish the context of a session and its associated provider. Requiring an `optionId` implies the provider changes based on the option selected, which may be a business logic flaw or an unnecessarily tight coupling.\n*   **REST Design Smell (Required IDs in GET Request):** If `sessionId` and `optionId` are strictly required to identify the resource, they are functioning as primary keys and should ideally be represented as path variables (e.g., `/api/affiliate/provider/{sessionId}/{optionId}`) rather than query parameters in a GET request.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "affiliate_clicks_summary_default",
+        "method": "GET",
+        "path": "/api/affiliate/clicks/summary",
+        "description": "Clicks summary endpoint should return aggregate structure.",
+        "tags": [
+          "affiliate",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {},
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200
+        ],
+        "expected_schema": {
+          "from": "string",
+          "to": "string",
+          "total": "integer",
+          "byProvider": "array"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [
+          "from",
+          "to",
+          "total",
+          "byProvider"
+        ],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [
+          "byProvider"
+        ],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:50:12.838147+00:00",
+      "finished_at": "2026-04-09T11:50:12.844187+00:00",
+      "request_url": "http://localhost:8080/api/affiliate/clicks/summary",
+      "request_headers": {},
+      "request_query_params": {},
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 5.93,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:50:12 GMT",
+        "Content-Length": "66"
+      },
+      "response_text": "{\"from\":\"0001-01-01\",\"to\":\"0001-01-01\",\"total\":0,\"byProvider\":[]}\n",
+      "response_json": {
+        "from": "0001-01-01",
+        "to": "0001-01-01",
+        "total": 0,
+        "byProvider": []
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation**\nAlthough the API returned a 200 OK, the payload contains uninitialized, zero-value data rather than a meaningful business response. The dates \"0001-01-01\" are language-level defaults (common in Go, C#, or SQL) indicating that no actual date range was applied or calculated. While the `total: 0` and empty `byProvider` array are logically consistent with each other, the entire payload appears to be an empty struct fallback rather than a calculated aggregate summary.\n\n**Concrete Issue Statements**\n1. **Uninitialized Date Fields:** The `from` and `to` fields return `\"0001-01-01\"`, which is a default zero-value for uninitialized datetime objects. The backend is failing to apply a sensible default date range (e.g., current month, last 30 days) when none is explicitly requested.\n2. **Suspicious Empty Payload (Missing Business Logic):** A \"default\" summary should return calculated aggregates for a standard business period. The combination of zero-dates, `total: 0`, and an empty `byProvider` array suggests the endpoint is returning a blank struct instead of executing a database query. \n3. **Missing Validation/Default Handling:** If the endpoint requires explicit date parameters to function, it should return a `400 Bad Request` when they are missing, rather than a `200 OK` with zero-value fallbacks.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "out_booking_fallback_redirect",
+        "method": "GET",
+        "path": "/api/out/booking",
+        "description": "Booking endpoint should redirect using fallback route params.",
+        "tags": [
+          "booking",
+          "smoke"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "departureDate": "2026-08-10",
+          "returnDate": "2026-08-17"
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          302
+        ],
+        "expected_schema": {},
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": false
+      },
+      "started_at": "2026-04-09T11:50:37.203718+00:00",
+      "finished_at": "2026-04-09T11:50:37.485613+00:00",
+      "request_url": "http://localhost:8080/api/out/booking",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "departureDate": "2026-08-10",
+        "returnDate": "2026-08-17"
+      },
+      "request_body": null,
+      "actual_status": 302,
+      "response_time_ms": 281.87,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Location": "https://www.skyscanner.net/transport/flights/tlv/lhr/260810/260817/?adultsv2=1",
+        "Date": "Thu, 09 Apr 2026 11:50:37 GMT",
+        "Content-Length": "0"
+      },
+      "response_text": "",
+      "response_json": null,
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Short Explanation**\nWhile the test passed based on the expected 302 status code, a redirect is logically incomplete and unverified if the destination is unknown. The empty payload and lack of header visibility mean the core requirement\u2014redirecting using \"fallback route params\"\u2014was never actually validated. A 302 without a verified destination is functionally equivalent to a black hole.\n\n**Concrete Issue Statements**\n1. **Missing Redirect Destination Validation:** A 302 response is invalid without a `Location` header. The test result does not display response headers, meaning the test asserts a redirect happened but never checks *where* it redirected to.\n2. **Unverified Fallback Route Params:** The test description explicitly requires \"fallback route params\" to be used. Because the payload is empty and headers are missing, there is no evidence that the fallback parameters were correctly appended to the redirect URL. \n3. **Suspicious Empty Payload:** While 302 responses typically have empty bodies, returning a completely empty string (`\"\"`) instead of a standard empty JSON object (`{}`) or `null` can indicate an unhandled edge case or a rendering error in the backend that is masking the expected redirect data.",
+      "ai_used": true,
+      "passed": true
+    },
+    {
+      "test_case": {
+        "name": "deals_month_minimal_valid",
+        "method": "GET",
+        "path": "/api/deals/month",
+        "description": "Minimal valid month-deals request should not fail with server error.",
+        "tags": [
+          "deals",
+          "integration"
+        ],
+        "headers": {},
+        "query_params": {
+          "origin": "TLV",
+          "destination": "LHR",
+          "year": 2026,
+          "month": 8
+        },
+        "body": null,
+        "raw_body": null,
+        "expected_status": [
+          200,
+          500,
+          502
+        ],
+        "expected_schema": {
+          "route": "object"
+        },
+        "expected_values": {},
+        "required_non_null_fields": [],
+        "required_non_empty_fields": [],
+        "required_when_success_fields": [],
+        "allow_empty_array_fields": [],
+        "max_response_time_ms": null,
+        "follow_redirects": true
+      },
+      "started_at": "2026-04-09T11:51:00.906358+00:00",
+      "finished_at": "2026-04-09T11:51:03.358900+00:00",
+      "request_url": "http://localhost:8080/api/deals/month",
+      "request_headers": {},
+      "request_query_params": {
+        "origin": "TLV",
+        "destination": "LHR",
+        "year": 2026,
+        "month": 8
+      },
+      "request_body": null,
+      "actual_status": 200,
+      "response_time_ms": 2452.57,
+      "response_headers": {
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Content-Type": "application/json",
+        "Date": "Thu, 09 Apr 2026 11:51:03 GMT",
+        "Content-Length": "795"
+      },
+      "response_text": "{\"route\":{\"origin\":{\"code\":\"TLV\"},\"destination\":{\"code\":\"LHR\"}},\"year\":2026,\"month\":8,\"currency\":\"USD\",\"days\":[{\"date\":\"2026-08-01\"},{\"date\":\"2026-08-02\"},{\"date\":\"2026-08-03\"},{\"date\":\"2026-08-04\"},{\"date\":\"2026-08-05\"},{\"date\":\"2026-08-06\"},{\"date\":\"2026-08-07\"},{\"date\":\"2026-08-08\"},{\"date\":\"2026-08-09\"},{\"date\":\"2026-08-10\"},{\"date\":\"2026-08-11\"},{\"date\":\"2026-08-12\"},{\"date\":\"2026-08-13\"},{\"date\":\"2026-08-14\"},{\"date\":\"2026-08-15\"},{\"date\":\"2026-08-16\"},{\"date\":\"2026-08-17\"},{\"date\":\"2026-08-18\"},{\"date\":\"2026-08-19\"},{\"date\":\"2026-08-20\"},{\"date\":\"2026-08-21\"},{\"date\":\"2026-08-22\"},{\"date\":\"2026-08-23\"},{\"date\":\"2026-08-24\"},{\"date\":\"2026-08-25\"},{\"date\":\"2026-08-26\"},{\"date\":\"2026-08-27\"},{\"date\":\"2026-08-28\"},{\"date\":\"2026-08-29\"},{\"date\":\"2026-08-30\"},{\"date\":\"2026-08-31\"}]}\n",
+      "response_json": {
+        "route": {
+          "origin": {
+            "code": "TLV"
+          },
+          "destination": {
+            "code": "LHR"
+          }
+        },
+        "year": 2026,
+        "month": 8,
+        "currency": "USD",
+        "days": [
+          {
+            "date": "2026-08-01"
+          },
+          {
+            "date": "2026-08-02"
+          },
+          {
+            "date": "2026-08-03"
+          },
+          {
+            "date": "2026-08-04"
+          },
+          {
+            "date": "2026-08-05"
+          },
+          {
+            "date": "2026-08-06"
+          },
+          {
+            "date": "2026-08-07"
+          },
+          {
+            "date": "2026-08-08"
+          },
+          {
+            "date": "2026-08-09"
+          },
+          {
+            "date": "2026-08-10"
+          },
+          {
+            "date": "2026-08-11"
+          },
+          {
+            "date": "2026-08-12"
+          },
+          {
+            "date": "2026-08-13"
+          },
+          {
+            "date": "2026-08-14"
+          },
+          {
+            "date": "2026-08-15"
+          },
+          {
+            "date": "2026-08-16"
+          },
+          {
+            "date": "2026-08-17"
+          },
+          {
+            "date": "2026-08-18"
+          },
+          {
+            "date": "2026-08-19"
+          },
+          {
+            "date": "2026-08-20"
+          },
+          {
+            "date": "2026-08-21"
+          },
+          {
+            "date": "2026-08-22"
+          },
+          {
+            "date": "2026-08-23"
+          },
+          {
+            "date": "2026-08-24"
+          },
+          {
+            "date": "2026-08-25"
+          },
+          {
+            "date": "2026-08-26"
+          },
+          {
+            "date": "2026-08-27"
+          },
+          {
+            "date": "2026-08-28"
+          },
+          {
+            "date": "2026-08-29"
+          },
+          {
+            "date": "2026-08-30"
+          },
+          {
+            "date": "2026-08-31"
+          }
+        ]
+      },
+      "network_error": null,
+      "retries_used": 0,
+      "issues": [
+        {
+          "severity": "warning",
+          "category": "performance",
+          "message": "Slow response detected: 2452.57ms (threshold 2000ms).",
+          "field": null
+        }
+      ],
+      "ai_insight": "- No logical inconsistencies detected by rule-based checks.\n- **Explanation**\nThe API returned a 200 OK status, but the payload is logically incomplete for a \"deals\" endpoint. While the date math is correct (August 2026 has 31 days, and all dates are present), the response only contains a calendar structure without any actual deal information. This strongly suggests the backend is returning a structural fallback or empty state rather than valid business data.\n\n**Concrete Issues**\n1. **Missing Required Data (No Deal Information):** The `days` array contains objects with only a `date` field. For a `/deals/month` endpoint, each day object is missing the core business attributes expected in a deal, such as `price`, `flights`, or `availability`. \n2. **Suspicious Payload (Fallback/Empty State):** Returning a 200 OK with a list of dates but zero deal details indicates the API is likely masking a downstream failure (e.g., the pricing or inventory service timed out) by returning the structural skeleton of the expected response instead of an error.\n3. **High Latency for Empty Data:** The response took ~2.4 seconds to return what is essentially an empty calendar. This further supports the theory of a downstream timeout; the backend likely waited for a pricing service to fail before falling back to returning just the dates.",
+      "ai_used": true,
+      "passed": true
+    }
+  ]
+}

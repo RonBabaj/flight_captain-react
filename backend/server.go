@@ -467,9 +467,18 @@ func optionMatchesCabinFlightOption(opt *FlightOption, cabin string) bool {
 	if cabin == "" {
 		return true
 	}
+	want := strings.ToUpper(strings.TrimSpace(cabin))
+	// GF2 often omits cabin on segments; treat missing cabin as economy so we do not drop all results.
 	for _, leg := range opt.Legs {
 		for _, seg := range leg.Segments {
-			if seg.CabinClass != "" && strings.EqualFold(seg.CabinClass, cabin) {
+			sc := strings.TrimSpace(seg.CabinClass)
+			if sc == "" {
+				if want == "ECONOMY" {
+					return true
+				}
+				continue
+			}
+			if strings.EqualFold(sc, want) {
 				return true
 			}
 		}
@@ -647,8 +656,20 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
-	if req.Origin == "" || req.Destination == "" || req.DepartureDate == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin, destination and departureDate are required"})
+	var missing []string
+	if strings.TrimSpace(req.Origin) == "" {
+		missing = append(missing, "origin")
+	}
+	if strings.TrimSpace(req.Destination) == "" {
+		missing = append(missing, "destination")
+	}
+	if strings.TrimSpace(req.DepartureDate) == "" {
+		missing = append(missing, "departureDate")
+	}
+	if len(missing) > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("missing required field(s): %s", strings.Join(missing, ", ")),
+		})
 		return
 	}
 
@@ -1463,6 +1484,46 @@ type MonthDealsResponse struct {
 	Days     []DayDeal `json:"days"`
 }
 
+// Short TTL cache so repeat identical month-deals requests (e.g. QA back-to-back) avoid redundant GF2 work.
+type monthDealsCacheEntry struct {
+	expires time.Time
+	resp    MonthDealsResponse
+}
+
+var (
+	monthDealsCacheMu sync.Mutex
+	monthDealsCache   = make(map[string]monthDealsCacheEntry)
+)
+
+const monthDealsCacheTTL = 90 * time.Second
+
+func monthDealsCacheKey(origin, destination, currency string, useRange bool, year, month int, startDateStr, endDateStr string, durationDays, adults, children int, nonStop bool) string {
+	if useRange {
+		return fmt.Sprintf("r\x1e%s\x1e%s\x1e%s\x1e%s\x1e%s\x1e%d\x1e%d\x1e%d\x1e%v", origin, destination, currency, startDateStr, endDateStr, durationDays, adults, children, nonStop)
+	}
+	return fmt.Sprintf("m\x1e%s\x1e%s\x1e%s\x1e%d\x1e%d\x1e%d\x1e%d\x1e%d\x1e%v", origin, destination, currency, year, month, durationDays, adults, children, nonStop)
+}
+
+func monthDealsCacheGet(key string) (MonthDealsResponse, bool) {
+	now := time.Now()
+	monthDealsCacheMu.Lock()
+	defer monthDealsCacheMu.Unlock()
+	e, ok := monthDealsCache[key]
+	if !ok || now.After(e.expires) {
+		if ok {
+			delete(monthDealsCache, key)
+		}
+		return MonthDealsResponse{}, false
+	}
+	return e.resp, true
+}
+
+func monthDealsCachePut(key string, resp MonthDealsResponse) {
+	monthDealsCacheMu.Lock()
+	defer monthDealsCacheMu.Unlock()
+	monthDealsCache[key] = monthDealsCacheEntry{expires: time.Now().Add(monthDealsCacheTTL), resp: resp}
+}
+
 // --- Airport autocomplete API ---
 
 type AirportCityType string
@@ -1503,15 +1564,19 @@ func handleAirportSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("q")))
-	if q == "" {
-		writeJSON(w, http.StatusOK, AirportCitySearchResponse{Items: []AirportCityResult{}})
-		return
-	}
 	limit := 10
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
 		if v, err := strconv.Atoi(lStr); err == nil && v > 0 {
 			limit = v
 		}
+	}
+	if q == "" {
+		n := len(airportDirectory)
+		if n > limit {
+			n = limit
+		}
+		writeJSON(w, http.StatusOK, AirportCitySearchResponse{Items: airportDirectory[:n]})
+		return
 	}
 	var items []AirportCityResult
 	for _, a := range airportDirectory {
@@ -1589,8 +1654,20 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		currency = "USD"
 	}
 
-	if origin == "" || destination == "" || dateStr == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin, destination and date are required"})
+	var missingFD []string
+	if origin == "" {
+		missingFD = append(missingFD, "origin")
+	}
+	if destination == "" {
+		missingFD = append(missingFD, "destination")
+	}
+	if strings.TrimSpace(dateStr) == "" {
+		missingFD = append(missingFD, "date")
+	}
+	if len(missingFD) > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("missing required field(s): %s", strings.Join(missingFD, ", ")),
+		})
 		return
 	}
 
@@ -1685,12 +1762,98 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limit := 10
+	if ls := r.URL.Query().Get("limit"); ls != "" {
+		if v, err := strconv.Atoi(ls); err == nil && v >= 1 {
+			limit = v
+			// Fixed destination pool is ≤ explorePoolMax (~64); allow one page for full list + progressive refresh.
+			if limit > 80 {
+				limit = 80
+			}
+		}
+	}
+	offset := 0
+	if os := r.URL.Query().Get("offset"); os != "" {
+		if v, err := strconv.Atoi(os); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+	sessionID := strings.TrimSpace(r.URL.Query().Get("sessionId"))
+
+	if googleFlights2Provider == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
+		return
+	}
+
+	timeout := 10 * time.Minute
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+
+	writeExplorePage := func(w http.ResponseWriter, sess *exploreSession, sid string, offset, limit int) {
+		sess.mu.Lock()
+		total := len(sess.Rows)
+		sliceFrom := offset
+		if sliceFrom > total {
+			sliceFrom = total
+		}
+		sliceEnd := sliceFrom + limit
+		if sliceEnd > total {
+			sliceEnd = total
+		}
+		var page []map[string]interface{}
+		if sliceFrom < total {
+			page = exploreDestRowsToMaps(sess.Rows[sliceFrom:sliceEnd], sess.Currency)
+		} else {
+			page = []map[string]interface{}{}
+		}
+		hasMorePages := sliceFrom+len(page) < total
+		liveRefreshAvailable := sess.LiveQueueCursor < len(sess.LiveQueue) && sess.LiveFetchAttempts < exploreMaxLiveFetchesPerSession
+		partial := false
+		for _, r := range sess.Rows {
+			if r.priceSource == "estimated" {
+				partial = true
+				break
+			}
+		}
+		sess.mu.Unlock()
+
+		log.Printf("[EXPLORE] session=%s offset=%d limit=%d page=%d total=%d partial=%v liveAvail=%v", sid, offset, limit, len(page), total, partial, liveRefreshAvailable)
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"destinations":         page,
+			"sessionId":            sid,
+			"total":                total,
+			"offset":               offset,
+			"limit":                limit,
+			"hasMore":              hasMorePages,
+			"partialResults":       partial,
+			"liveRefreshAvailable": liveRefreshAvailable,
+		})
+	}
+
+	if sessionID != "" {
+		sess := getExploreSession(sessionID)
+		if sess == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "explore session expired or invalid"})
+			return
+		}
+		liveRefresh := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("live")), "true")
+		if liveRefresh {
+			if err := exploreRunLiveBatch(ctx, googleFlights2Provider, sess); err != nil {
+				log.Printf("[EXPLORE] live batch error: %v", err)
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to fetch destinations"})
+				return
+			}
+		}
+		putExploreSession(sessionID, sess)
+		writeExplorePage(w, sess, sessionID, offset, limit)
+		return
+	}
+
 	origin := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("origin")))
 	if origin == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin is required"})
 		return
 	}
-	// Reject obviously invalid origin codes (IATA codes are 2–3 uppercase letters/numbers)
 	if len(origin) < 2 || len(origin) > 3 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin must be a valid 2–3 character IATA code"})
 		return
@@ -1708,11 +1871,6 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		if v, err := strconv.Atoi(a); err == nil && v >= 1 {
 			adults = v
 		}
-	}
-
-	if googleFlights2Provider == nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
-		return
 	}
 
 	departureDate := strings.TrimSpace(r.URL.Query().Get("departureDate"))
@@ -1742,10 +1900,6 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	timeout := 300 * time.Second
-	ctx, cancel := context.WithTimeout(r.Context(), timeout)
-	defer cancel()
-
 	if useMonthDealsExplore {
 		log.Printf("[EXPLORE] MONTH GF2 origin=%s year=%d month=%d durationDays=%d currency=%s adults=%d children=%d nonStop=%v",
 			origin, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
@@ -1754,18 +1908,57 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 			origin, departureDate, returnDate, currency, adults)
 	}
 
-	destinations, err := gf2ExploreDestinations(ctx, googleFlights2Provider, origin, departureDate, returnDate, currency, adults, children, nonStop, "ECONOMY", false, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration)
-	if err != nil {
-		log.Printf("[EXPLORE] GF2 error for %s: %v", origin, err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to fetch destinations"})
+	dep, ret, monthEmpty := gf2ExploreResolveDeps(departureDate, returnDate, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration)
+	if monthEmpty {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"destinations":           []map[string]interface{}{},
+			"sessionId":              "",
+			"total":                  0,
+			"offset":                 offset,
+			"limit":                  limit,
+			"hasMore":                false,
+			"partialResults":         false,
+			"liveRefreshAvailable":   false,
+		})
 		return
 	}
 
-	log.Printf("[EXPLORE] origin=%s found %d destinations", origin, len(destinations))
-	if destinations == nil {
-		destinations = []map[string]interface{}{}
+	prefetch := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("prefetch")), "true")
+
+	sessionKey := exploreSessionKey(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+	rows, liveQ := exploreBuildRowsAndQueue(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+	sess := &exploreSession{
+		Key:               sessionKey,
+		Rows:              rows,
+		LiveQueue:         liveQ,
+		LiveQueueCursor:   0,
+		LiveFetchAttempts: 0,
+		Origin:            origin,
+		Dep:               dep,
+		Ret:               ret,
+		UseMonth:          useMonthDealsExplore,
+		Year:              exploreYear,
+		Month:             exploreMonth,
+		DurationDays:      exploreDuration,
+		Currency:          currency,
+		Adults:            adults,
+		Children:          children,
+		NonStop:           nonStop,
+		CabinPref:         "ECONOMY",
+		IncludeBag:        false,
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"destinations": destinations})
+
+	if !prefetch {
+		if err := exploreRunLiveBatch(ctx, googleFlights2Provider, sess); err != nil {
+			log.Printf("[EXPLORE] GF2 error for %s: %v", origin, err)
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to fetch destinations"})
+			return
+		}
+	}
+
+	id := newExploreSessionID()
+	putExploreSession(id, sess)
+	writeExplorePage(w, sess, id, offset, limit)
 }
 
 func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
@@ -1780,11 +1973,11 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 
 	origin := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("origin")))
 	destination := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("destination")))
-	yearStr := r.URL.Query().Get("year")
-	monthStr := r.URL.Query().Get("month")
+	yearStr := strings.TrimSpace(r.URL.Query().Get("year"))
+	monthStr := strings.TrimSpace(r.URL.Query().Get("month"))
 	durationStr := r.URL.Query().Get("durationDays")
-	startDateStr := r.URL.Query().Get("startDate")
-	endDateStr := r.URL.Query().Get("endDate")
+	startDateStr := strings.TrimSpace(r.URL.Query().Get("startDate"))
+	endDateStr := strings.TrimSpace(r.URL.Query().Get("endDate"))
 	currency := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("currency")))
 	if currency == "" {
 		currency = "USD"
@@ -1797,14 +1990,31 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		currency = "USD"
 	}
 
-	if origin == "" || destination == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "origin and destination are required"})
+	var missing []string
+	if origin == "" {
+		missing = append(missing, "origin")
+	}
+	if destination == "" {
+		missing = append(missing, "destination")
+	}
+	useRange := startDateStr != "" && endDateStr != ""
+	partialRange := (startDateStr != "" && endDateStr == "") || (startDateStr == "" && endDateStr != "")
+	if partialRange {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "startDate and endDate must be provided together"})
 		return
 	}
-	// Either (year + month) for full month, or (startDate + endDate) for range.
-	useRange := startDateStr != "" && endDateStr != ""
-	if !useRange && (yearStr == "" || monthStr == "") {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "year and month are required, or startDate and endDate"})
+	if !useRange {
+		if yearStr == "" {
+			missing = append(missing, "year")
+		}
+		if monthStr == "" {
+			missing = append(missing, "month")
+		}
+	}
+	if len(missing) > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("missing required field(s): %s (or use startDate and endDate together)", strings.Join(missing, ", ")),
+		})
 		return
 	}
 
@@ -1846,6 +2056,12 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 
 	if googleFlights2Provider == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
+		return
+	}
+
+	cacheKey := monthDealsCacheKey(origin, destination, currency, useRange, year, month, startDateStr, endDateStr, durationDays, adults, children, nonStop)
+	if cached, ok := monthDealsCacheGet(cacheKey); ok {
+		writeJSON(w, http.StatusOK, cached)
 		return
 	}
 
@@ -1957,6 +2173,7 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	resp.Route.Origin = AirportLike{Code: origin}
 	resp.Route.Destination = AirportLike{Code: destination}
 
+	monthDealsCachePut(cacheKey, resp)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -2123,6 +2340,8 @@ func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	fromStr := q.Get("from")
 	toStr := q.Get("to")
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	var from, to time.Time
 	if fromStr != "" {
 		t, err := time.Parse("2006-01-02", fromStr)
@@ -2140,11 +2359,20 @@ func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 		}
 		to = t
 	}
+	switch {
+	case fromStr == "" && toStr == "":
+		to = today
+		from = to.AddDate(0, 0, -30)
+	case fromStr != "" && toStr == "":
+		to = today
+	case fromStr == "" && toStr != "":
+		from = to.AddDate(0, 0, -30)
+	}
 	summary := GetClicksSummary(from, to)
 	writeJSON(w, http.StatusOK, summary)
 }
 
-// handleHealth returns a simple JSON health status for uptime checks.
+// handleHealth returns JSON for uptime and lightweight readiness (no external calls).
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		writeJSON(w, http.StatusNoContent, nil)
@@ -2154,7 +2382,22 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	gf2 := "disabled"
+	if googleFlights2Provider != nil {
+		gf2 = "enabled"
+	}
+	ver := strings.TrimSpace(os.Getenv("APP_VERSION"))
+	if ver == "" {
+		ver = "dev"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":    "ok",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"version":   ver,
+		"services": map[string]string{
+			"googleFlights2": gf2,
+		},
+	})
 }
 
 // allowedCORSOrigins are origins allowed for CORS (production + dev).
@@ -2196,6 +2439,7 @@ func main() {
 		log.Println("[STARTUP] Google Flights2 provider: disabled — set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY (required for search, deals, explore)")
 	}
 	startExchangeRateRefresh()
+	startExploreSessionCleanup()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
@@ -2221,7 +2465,7 @@ func main() {
 		Addr:         addr,
 		Handler:      corsMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 300 * time.Second, // explore / month-deals can run many sequential GF2 calls (rate-limited)
+		WriteTimeout: 630 * time.Second, // explore can run up to ~10m of sequential GF2 calls + backoff
 	}
 
 	log.Printf("Go HTTP API listening on %s", addr)

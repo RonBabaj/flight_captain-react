@@ -6,7 +6,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 
 	"flightcaptainweb/search"
@@ -24,73 +24,14 @@ type FullRoundTrip struct {
 }
 
 const (
-	maxGF2CalendarSamples     = 12 // cap RT searches per month/range request (cost control)
-	maxExploreGF2Destinations = 24 // cap destinations per /api/explore (cost control)
-	exploreGF2Concurrency     = 2  // parallel explore workers (RapidAPI GF2 is rate-limited)
-)
+	maxGF2CalendarSamples = 12 // cap RT searches per month/range request (cost control)
 
-// anywhereDestinations is a curated list of major airports for /api/explore (GF2 one search per destination).
-var anywhereDestinations = []string{
-	"LHR", "LGW", "STN", "MAN", "EDI", "BHX",
-	"CDG", "ORY", "NCE", "LYS", "MRS",
-	"FCO", "MXP", "VCE", "NAP", "BLQ",
-	"AMS", "BRU", "LUX",
-	"MAD", "BCN", "VLC", "AGP", "PMI", "SVQ",
-	"LIS", "OPO",
-	"FRA", "MUC", "BER", "HAM", "DUS", "STR",
-	"ZRH", "GVA",
-	"VIE",
-	"CPH", "OSL", "ARN", "HEL", "KEF", "RKV",
-	"WAW", "KRK", "GDN",
-	"PRG", "BUD", "BTS",
-	"BEG", "SKP", "TGD",
-	"ATH", "SKG", "HER", "RHO",
-	"SOF", "OTP", "CLJ",
-	"DUB", "SNN",
-	"DXB", "AUH", "DOH", "KWI", "BAH", "MCT",
-	"IST", "SAW",
-	"AMM", "BEY", "RUH", "JED",
-	"CAI", "HRG", "SSH",
-	"NBO", "JNB", "CPT", "DUR",
-	"CMN", "TUN", "ALG",
-	"ADD", "ACC", "LOS", "ABV", "DKR",
-	"DAR", "EBB",
-	"DEL", "BOM", "MAA", "BLR", "HYD", "CCU",
-	"CMB", "KTM", "DAC",
-	"BKK", "DMK", "KBV",
-	"SIN",
-	"KUL", "PEN",
-	"CGK", "DPS",
-	"MNL",
-	"SGN", "HAN",
-	"REP",
-	"RGN",
-	"HKG",
-	"TPE",
-	"ICN", "PUS",
-	"HND", "NRT", "KIX", "NGO", "FUK", "CTS",
-	"PVG", "PEK", "CAN", "CTU", "WUH", "SZX",
-	"SYD", "MEL", "BNE", "PER", "ADL",
-	"AKL", "CHC",
-	"MLE",
-	"JFK", "EWR", "LGA", "BOS", "PHL", "DCA",
-	"ATL", "MCO", "MIA", "FLL", "TPA",
-	"ORD", "MDW", "DTW", "MSP", "CLE",
-	"DFW", "IAH", "AUS", "SAT",
-	"DEN", "PHX", "LAS", "SLC",
-	"LAX", "SFO", "SEA", "PDX", "SAN",
-	"YYZ", "YUL", "YVR", "YYC",
-	"MEX", "GDL", "MTY", "CUN",
-	"PTY",
-	"BOG", "MDE",
-	"LIM",
-	"GRU", "GIG", "BSB", "SSA",
-	"EZE", "COR",
-	"SCL",
-	"UIO", "GYE",
-	"CCS",
-	"HAV",
-}
+	// Explore: fixed destination pool + 24h cache; live GF2 only for small batches per request.
+	exploreLiveFetchesPerRequest    = 12 // max GF2 round-trips per HTTP call
+	exploreMaxLiveFetchesPerSession = 36 // hard cap per explore session (~3 refresh rounds)
+	exploreRateLimitRetries         = 8  // per destination: wait for GF2 token bucket
+	exploreRateLimitBackoff         = 14 * time.Second
+)
 
 func outboundDatesForMonthBookable(year, month int) []string {
 	tomorrow := time.Now().UTC()
@@ -267,104 +208,154 @@ type exploreDestRow struct {
 	destination   string
 	price         float64
 	departureDate string
+	priceSource   string // live | cached | estimated
 }
 
-// gf2ExploreDestinations runs GF2 searches for a capped subset of anywhereDestinations.
-func gf2ExploreDestinations(ctx context.Context, p *search.GoogleFlights2Provider, origin, departureDate, returnDate, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool, useMonthSample bool, year, month, durationDays int) ([]map[string]interface{}, error) {
-	if p == nil {
-		return nil, fmt.Errorf("google flights provider not configured")
+func isGF2RateLimitErr(err error) bool {
+	if err == nil {
+		return false
 	}
-	var dep, ret string
+	return strings.Contains(strings.ToLower(err.Error()), "rate limit")
+}
+
+// gf2ExploreResolveDeps returns departure/return dates used for GF2 explore searches.
+func gf2ExploreResolveDeps(departureDate, returnDate string, useMonthSample bool, year, month, durationDays int) (dep, ret string, monthEmpty bool) {
 	if useMonthSample {
 		dates := outboundDatesForMonthBookable(year, month)
 		if len(dates) == 0 {
-			return []map[string]interface{}{}, nil
+			return "", "", true
 		}
 		mid := dates[len(dates)/2]
 		dep = mid
 		if t, err := time.Parse("2006-01-02", mid); err == nil {
 			ret = t.AddDate(0, 0, durationDays).Format("2006-01-02")
 		}
-	} else {
-		dep = departureDate
-		ret = returnDate
+		return dep, ret, false
 	}
+	dep = departureDate
+	ret = returnDate
 	if dep == "" {
 		dep = time.Now().UTC().AddDate(0, 0, 14).Format("2006-01-02")
 	}
+	return dep, ret, false
+}
 
-	destList := make([]string, 0, len(anywhereDestinations))
-	for _, d := range anywhereDestinations {
-		if d != origin {
-			destList = append(destList, d)
-		}
-	}
-	if len(destList) > maxExploreGF2Destinations {
-		destList = destList[:maxExploreGF2Destinations]
-	}
-
-	sem := make(chan struct{}, exploreGF2Concurrency)
-	type jobRes struct {
-		row exploreDestRow
-		ok  bool
-	}
-	resCh := make(chan jobRes, len(destList))
-	var wg sync.WaitGroup
-	for _, dest := range destList {
-		dest := dest
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			sreq := search.SearchRequest{
-				Origin:            origin,
-				Destination:       dest,
-				DepartureDate:     dep,
-				ReturnDate:        ret,
-				CabinClass:        cabinPref,
-				CabinPreference:   cabinPref,
-				IncludeCheckedBag: includeBag,
-				Adults:            adults,
-				Children:          children,
-				Currency:          currency,
-			}
-			prs, err := p.Search(ctx, sreq)
-			if err != nil || len(prs) == 0 {
-				return
-			}
-			opt := pickCheapestGF2Option(prs)
-			if opt == nil {
-				return
-			}
-			if nonStop && totalStopsInOption(opt) > 0 {
-				return
-			}
-			resCh <- jobRes{row: exploreDestRow{destination: dest, price: opt.Price.Amount, departureDate: dep}, ok: true}
-		}()
-	}
-	go func() {
-		wg.Wait()
-		close(resCh)
-	}()
-
-	var all []exploreDestRow
-	for r := range resCh {
-		if r.ok {
-			all = append(all, r.row)
-		}
-	}
-	sort.Slice(all, func(i, j int) bool { return all[i].price < all[j].price })
-
-	out := make([]map[string]interface{}, 0, len(all))
-	for _, r := range all {
-		out = append(out, map[string]interface{}{
+func exploreDestRowsToMaps(rows []exploreDestRow, currency string) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		m := map[string]interface{}{
 			"destination":   r.destination,
 			"price":         strconv.FormatFloat(r.price, 'f', 2, 64),
 			"currency":      currency,
 			"departureDate": r.departureDate,
-		})
+			"priceSource":   r.priceSource,
+		}
+		out = append(out, m)
 	}
-	return out, nil
+	return out
+}
+
+// gf2ExploreSearchOneDestination runs one GF2 RT search for explore; returns nil if no price.
+func gf2ExploreSearchOneDestination(ctx context.Context, p *search.GoogleFlights2Provider, sess *exploreSession, dest string) *exploreDestRow {
+	sreq := search.SearchRequest{
+		Origin:            sess.Origin,
+		Destination:       dest,
+		DepartureDate:     sess.Dep,
+		ReturnDate:        sess.Ret,
+		CabinClass:        sess.CabinPref,
+		CabinPreference:   sess.CabinPref,
+		IncludeCheckedBag: sess.IncludeBag,
+		Adults:            sess.Adults,
+		Children:          sess.Children,
+		Currency:          sess.Currency,
+	}
+	var prs []search.ProviderResult
+	var err error
+	for attempt := 0; attempt < exploreRateLimitRetries; attempt++ {
+		if ctx.Err() != nil {
+			return nil
+		}
+		prs, err = p.Search(ctx, sreq)
+		if err == nil {
+			break
+		}
+		if isGF2RateLimitErr(err) {
+			select {
+			case <-time.After(exploreRateLimitBackoff):
+			case <-ctx.Done():
+				return nil
+			}
+			continue
+		}
+		break
+	}
+	if err != nil || len(prs) == 0 {
+		return nil
+	}
+	opt := pickCheapestGF2Option(prs)
+	if opt == nil {
+		return nil
+	}
+	if sess.NonStop && totalStopsInOption(opt) > 0 {
+		return nil
+	}
+	return &exploreDestRow{
+		destination:   dest,
+		price:         opt.Price.Amount,
+		departureDate: sess.Dep,
+		priceSource:   "live",
+	}
+}
+
+// exploreRunLiveBatch runs up to exploreLiveFetchesPerRequest live GF2 calls for the next slice of LiveQueue.
+func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, sess *exploreSession) error {
+	if p == nil {
+		return nil
+	}
+	sess.mu.Lock()
+	if sess.LiveFetchAttempts >= exploreMaxLiveFetchesPerSession {
+		sess.mu.Unlock()
+		return nil
+	}
+	start := sess.LiveQueueCursor
+	if start >= len(sess.LiveQueue) {
+		sess.mu.Unlock()
+		return nil
+	}
+	room := exploreMaxLiveFetchesPerSession - sess.LiveFetchAttempts
+	max := exploreLiveFetchesPerRequest
+	if max > room {
+		max = room
+	}
+	end := start + max
+	if end > len(sess.LiveQueue) {
+		end = len(sess.LiveQueue)
+	}
+	batch := append([]string(nil), sess.LiveQueue[start:end]...)
+	sess.LiveQueueCursor = end
+	sess.mu.Unlock()
+
+	var incoming []exploreDestRow
+	for _, dest := range batch {
+		if ctx.Err() != nil {
+			break
+		}
+		row := gf2ExploreSearchOneDestination(ctx, p, sess, dest)
+		sess.mu.Lock()
+		sess.LiveFetchAttempts++
+		sess.mu.Unlock()
+		if row == nil {
+			continue
+		}
+		key := explorePriceCacheKey(sess.Origin, dest, sess.Currency, sess.UseMonth, sess.Year, sess.Month, sess.DurationDays, sess.Adults, sess.Children, sess.NonStop, sess.Dep, sess.Ret)
+		explorePriceCachePut(key, row.price, row.departureDate)
+		incoming = append(incoming, *row)
+	}
+
+	sess.mu.Lock()
+	sess.Rows = mergeExplorePriceRows(sess.Rows, incoming)
+	attempts := sess.LiveFetchAttempts
+	sess.mu.Unlock()
+	log.Printf("[EXPLORE_LIVE] batchDests=%d mergedLive=%d totalAttempts=%d", len(batch), len(incoming), attempts)
+	return nil
 }

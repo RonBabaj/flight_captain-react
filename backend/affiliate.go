@@ -253,6 +253,20 @@ func RecordClick(sessionID, optionID string, provider *Provider, redirectURL str
 
 // GetClicksSummary returns counts by provider and total for the given date range (inclusive).
 func GetClicksSummary(from, to time.Time) ClicksSummaryResponse {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	if from.IsZero() && to.IsZero() {
+		to = today
+		from = to.AddDate(0, 0, -30)
+	} else if from.IsZero() {
+		from = to.AddDate(0, 0, -30)
+	} else if to.IsZero() {
+		to = today
+	}
+	if from.After(to) {
+		from, to = to, from
+	}
+
 	clickStoreMu.RLock()
 	defer clickStoreMu.RUnlock()
 
@@ -260,7 +274,10 @@ func GetClicksSummary(from, to time.Time) ClicksSummaryResponse {
 	byProvider := make(map[string]ClicksByProvider)
 
 	for _, c := range clickStore {
-		if (c.CreatedAt.Before(from) || c.CreatedAt.After(to)) && !from.IsZero() && !to.IsZero() {
+		day := c.CreatedAt.UTC().Format("2006-01-02")
+		fromDay := from.Format("2006-01-02")
+		toDay := to.Format("2006-01-02")
+		if day < fromDay || day > toDay {
 			continue
 		}
 		total++

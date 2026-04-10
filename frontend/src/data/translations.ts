@@ -277,7 +277,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   anywhere_subtitle: { en: 'See cheapest destinations', he: 'ראה יעדים זולים', ru: 'Смотреть дешёвые направления' },
   all_airports: { en: 'All airports', he: 'כל שדות התעופה', ru: 'Все аэропорты' },
   explore_destinations: { en: 'Explore destinations', he: 'גלה יעדים', ru: 'Исследовать направления' },
-  explore_prices_indicative: { en: 'Prices are indicative – based on cheapest fares found. Tap a destination to search.', he: 'המחירים אינדיקטיביים. הקש על יעד לחיפוש.', ru: 'Цены ориентировочные. Нажмите на направление для поиска.' },
+  explore_prices_indicative: {
+    en: 'We use a fixed list of major airports. Prices mix live checks, a 24h cache, and distance-based estimates (marked “Estimate”). Sorted by displayed price.',
+    he: 'אנחנו משתמשים ברשימה קבועה של שדות מרכזיים. המחירים משלבים בדיקות חיות, מטמון 24 שעות והערכות מרחק (מסומן כהערכה). ממוין לפי המחיר המוצג.',
+    ru: 'Фиксированный список крупных аэропортов. Цены: живые проверки, кэш 24 ч и оценки по расстоянию (помечены «Оценка»). Сортировка по показанной цене.',
+  },
   explore_month_deals_disclaimer: {
     en: 'Each card shows the cheapest round-trip for your trip length on any day in this month. Tap a destination for the full monthly calendar and all flight options.',
     he: 'בכל כרטיס מוצגת הטיסה הזולה ביותר (הלוך ושוב) לאורך הטיול שבחרת, בכל יום בחודש. הקשו על יעד ללוח החודשי המלא ולכל אפשרויות הטיסה.',
@@ -297,6 +301,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   explore_from: { en: 'From', he: 'מ', ru: 'От' },
   explore_error: { en: 'Could not load destinations. Please try again.', he: 'לא ניתן לטעון יעדים. נסה שוב.', ru: 'Не удалось загрузить направления. Попробуйте снова.' },
   explore_pick_destination: { en: 'Pick a destination', he: 'בחר יעד', ru: 'Выберите направление' },
+  explore_live_updating: {
+    en: 'Updating prices…',
+    he: 'מעדכן מחירים…',
+    ru: 'Обновляем цены…',
+  },
+  explore_price_estimate_label: {
+    en: 'Estimate',
+    he: 'הערכה',
+    ru: 'Оценка',
+  },
 };
 
 export function getTranslation(key: string, language: LanguageCode): string {
