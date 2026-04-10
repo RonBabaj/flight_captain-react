@@ -27,8 +27,11 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: https://flight-captain-react.onrender.com
         run: npx expo export -p web
 
+      # "Timeout (control socket)" = control connection never completed. Often: host firewall blocking
+      # GitHub runner IPs, wrong host, or TLS handshake too slow. Try longer timeout, verbose logs,
+      # FTP_SERVER as IP, Hostinger support, or SFTP if your plan has SSH.
       - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
@@ -36,7 +39,9 @@ jobs:
           port: 21
           protocol: ftps
           security: loose
-          timeout: 60000
+          # Milliseconds (action default is short); 5m helps slow TLS / busy shared hosts.
+          timeout: 300000
+          log-level: verbose
           local-dir: frontend/dist/
           server-dir: ./
           dangerous-clean-slate: true
