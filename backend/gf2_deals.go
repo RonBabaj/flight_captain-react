@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"flightcaptainweb/search"
@@ -27,7 +28,8 @@ const (
 	maxGF2CalendarSamples = 12 // cap RT searches per month/range request (cost control)
 
 	// Explore: fixed destination pool + 24h cache; live GF2 only for small batches per request.
-	exploreLiveFetchesPerRequest    = 12 // max GF2 round-trips per HTTP call
+	exploreLiveFetchesPerRequest    = 12 // max GF2 Search() calls per HTTP batch (each RT may do 2 upstream legs inside provider)
+	exploreLiveConcurrency          = 4  // parallel explore searches per batch (bounded to reduce in-process rate-limit spikes)
 	exploreMaxLiveFetchesPerSession = 36 // hard cap per explore session (~3 refresh rounds)
 	exploreRateLimitRetries         = 8  // per destination: wait for GF2 token bucket
 	exploreRateLimitBackoff         = 14 * time.Second
@@ -336,21 +338,41 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 	sess.mu.Unlock()
 
 	var incoming []exploreDestRow
+	var incomingMu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, exploreLiveConcurrency)
 	for _, dest := range batch {
 		if ctx.Err() != nil {
 			break
 		}
-		row := gf2ExploreSearchOneDestination(ctx, p, sess, dest)
-		sess.mu.Lock()
-		sess.LiveFetchAttempts++
-		sess.mu.Unlock()
-		if row == nil {
-			continue
-		}
-		key := explorePriceCacheKey(sess.Origin, dest, sess.Currency, sess.UseMonth, sess.Year, sess.Month, sess.DurationDays, sess.Adults, sess.Children, sess.NonStop, sess.Dep, sess.Ret)
-		explorePriceCachePut(key, row.price, row.departureDate)
-		incoming = append(incoming, *row)
+		dest := dest
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			row := gf2ExploreSearchOneDestination(ctx, p, sess, dest)
+			sess.mu.Lock()
+			sess.LiveFetchAttempts++
+			sess.mu.Unlock()
+			if row == nil {
+				return
+			}
+			key := explorePriceCacheKey(sess.Origin, dest, sess.Currency, sess.UseMonth, sess.Year, sess.Month, sess.DurationDays, sess.Adults, sess.Children, sess.NonStop, sess.Dep, sess.Ret)
+			explorePriceCachePut(key, row.price, row.departureDate)
+			incomingMu.Lock()
+			incoming = append(incoming, *row)
+			incomingMu.Unlock()
+		}()
 	}
+	wg.Wait()
 
 	sess.mu.Lock()
 	sess.Rows = mergeExplorePriceRows(sess.Rows, incoming)

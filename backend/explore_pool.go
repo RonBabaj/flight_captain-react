@@ -29,13 +29,20 @@ var exploreFixedPool = []string{
 
 const explorePoolMax = 64
 
-// explorePoolOrderedForOrigin returns exploreFixedPool minus origin, ordered by great-circle distance
-// (nearest first). Unknown coordinates fall back to fixed list order.
+// explorePoolOrderedForOrigin returns exploreFixedPool minus origin and minus any destination in the
+// same metro (no NYC→JFK-style rows; people use ground transport within a city).
 func explorePoolOrderedForOrigin(origin string) []string {
 	o := strings.ToUpper(strings.TrimSpace(origin))
+	oMetro := exploreMetroKey(o)
 	out := make([]string, 0, len(exploreFixedPool))
 	for _, d := range exploreFixedPool {
-		if d != o && len(out) < explorePoolMax {
+		if d == o {
+			continue
+		}
+		if exploreMetroKey(d) == oMetro {
+			continue
+		}
+		if len(out) < explorePoolMax {
 			out = append(out, d)
 		}
 	}

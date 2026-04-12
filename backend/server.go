@@ -128,6 +128,13 @@ func (r *CreateSearchSessionRequest) ChildrenOrDefault() int {
 	return r.Children
 }
 
+func (r *CreateSearchSessionRequest) InfantsOrDefault() int {
+	if r.Infants < 0 {
+		return 0
+	}
+	return r.Infants
+}
+
 type MonetaryAmount struct {
 	Currency string  `json:"currency"`
 	Amount   float64 `json:"amount"`
@@ -213,11 +220,45 @@ type SearchSessionResultsResponse struct {
 	Results []FlightOption `json:"results"`
 }
 
+const searchSessionTTL = 25 * time.Minute
+
 var (
 	sessions               = make(map[string]SearchSessionResultsResponse)
-	sessionsMu             sync.RWMutex
+	sessionsMu             sync.Mutex
 	googleFlights2Provider *search.GoogleFlights2Provider
 )
+
+// loadSearchSession returns the stored session if present and not expired; expired entries are deleted.
+func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
+	sessionsMu.Lock()
+	defer sessionsMu.Unlock()
+	resp, ok := sessions[id]
+	if !ok {
+		return SearchSessionResultsResponse{}, false
+	}
+	if time.Since(resp.Session.CreatedAt) > searchSessionTTL {
+		delete(sessions, id)
+		return SearchSessionResultsResponse{}, false
+	}
+	return resp, true
+}
+
+func startSearchSessionCleanup() {
+	go func() {
+		t := time.NewTicker(5 * time.Minute)
+		defer t.Stop()
+		for range t.C {
+			sessionsMu.Lock()
+			now := time.Now()
+			for id, resp := range sessions {
+				if now.Sub(resp.Session.CreatedAt) > searchSessionTTL {
+					delete(sessions, id)
+				}
+			}
+			sessionsMu.Unlock()
+		}
+	}()
+}
 
 const (
 	maxOffersReturnedToClient = 50
@@ -463,22 +504,23 @@ func applySoftStrictBaggageOptions(offers []FlightOption, includeCheckedBag bool
 	return selected, okCount, unknownCount, includedCount, false, fallback
 }
 
+// segmentMatchesCabinClass implements the same cabin rule as early GF2 filtering: empty segment cabin counts as ECONOMY only.
+func segmentMatchesCabinClass(seg FlightSegment, wantUpper string) bool {
+	sc := strings.TrimSpace(seg.CabinClass)
+	if sc == "" {
+		return wantUpper == "ECONOMY"
+	}
+	return strings.EqualFold(sc, wantUpper)
+}
+
 func optionMatchesCabinFlightOption(opt *FlightOption, cabin string) bool {
 	if cabin == "" {
 		return true
 	}
 	want := strings.ToUpper(strings.TrimSpace(cabin))
-	// GF2 often omits cabin on segments; treat missing cabin as economy so we do not drop all results.
 	for _, leg := range opt.Legs {
 		for _, seg := range leg.Segments {
-			sc := strings.TrimSpace(seg.CabinClass)
-			if sc == "" {
-				if want == "ECONOMY" {
-					return true
-				}
-				continue
-			}
-			if strings.EqualFold(sc, want) {
+			if segmentMatchesCabinClass(seg, want) {
 				return true
 			}
 		}
@@ -561,65 +603,20 @@ func PrimaryDisplayCarrier(offer map[string]interface{}) string {
 	return ""
 }
 
-// #region agent log (de4859)
-func appendDebugLogDe4859(entry map[string]any) {
-	logPath := "/Users/rongurfinkel/Desktop/Projects/GO/flight_captain web/.cursor/debug-de4859.log"
-	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	entry["timestamp"] = time.Now().UnixMilli()
-	entry["sessionId"] = "de4859"
-
-	b, err := json.Marshal(entry)
-	if err != nil {
-		return
-	}
-	_, _ = f.Write(append(b, '\n'))
-}
-
-// #endregion
-
-// #region agent log
-func appendDebugLog(entry map[string]any) {
-	dir, _ := os.Getwd()
-	// When run from backend/, project root is parent; write to project .cursor/debug-68d1d3.log
-	logPath := filepath.Join(dir, ".cursor", "debug-68d1d3.log")
-	if filepath.Base(dir) == "backend" {
-		logPath = filepath.Join(dir, "..", ".cursor", "debug-68d1d3.log")
-	}
-	logPath = filepath.Clean(logPath)
-	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	entry["timestamp"] = time.Now().UnixMilli()
-	entry["sessionId"] = "68d1d3"
-
-	b, err := json.Marshal(entry)
-	if err != nil {
-		return
-	}
-	_, _ = f.Write(append(b, '\n'))
-}
-
-// #endregion
-
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeOptionsNoContent responds to CORS preflight without a JSON body (204 must be empty).
+func writeOptionsNoContent(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -644,18 +641,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		req.Currency = "USD"
 	}
 
-	appendDebugLog(map[string]any{
-		"location":     "backend/server.go:handleCreateSession",
-		"message":      "Create session request",
-		"hypothesisId": "backend-A",
-		"data": map[string]any{
-			"origin":        req.Origin,
-			"destination":   req.Destination,
-			"departureDate": req.DepartureDate,
-			"hasReturnDate": req.ReturnDate != "",
-		},
-	})
-
 	var missing []string
 	if strings.TrimSpace(req.Origin) == "" {
 		missing = append(missing, "origin")
@@ -676,6 +661,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Adults <= 0 {
 		req.Adults = 1
 	}
+	req.Infants = req.InfantsOrDefault()
 
 	if googleFlights2Provider == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
@@ -749,21 +735,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[SEARCH] includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallback=%s cheapest=%.2f baggageClass=%s",
 			includeBag, okCount, unknownCount, includedCount, fallbackFlag, options[0].Price.Amount, options[0].BaggageClass)
-
-		appendDebugLogDe4859(map[string]any{
-			"location":     "backend/server.go:handleCreateSession",
-			"message":      "Cheapest GF2 option (post-sort)",
-			"hypothesisId": "pricing-2",
-			"runId":        "pre-fix",
-			"data": map[string]any{
-				"origin":      req.Origin,
-				"destination": req.Destination,
-				"departure":   req.DepartureDate,
-				"returnDate":  req.ReturnDate,
-				"currency":    options[0].Price.Currency,
-				"amount":      options[0].Price.Amount,
-			},
-		})
 	}
 
 	if len(options) > 0 {
@@ -793,12 +764,13 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	requestedCurr := req.CurrencyOrDefault()
 
 	if cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY") {
+		wantCabin := strings.ToUpper(strings.TrimSpace(cabinPref))
 		filtered := options[:0]
 		for _, opt := range options {
 			match := false
 			for _, leg := range opt.Legs {
 				for _, seg := range leg.Segments {
-					if strings.EqualFold(seg.CabinClass, cabinPref) {
+					if segmentMatchesCabinClass(seg, wantCabin) {
 						match = true
 						break
 					}
@@ -847,25 +819,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		options = options[:maxOffersReturnedToClient]
 	}
 
-	if len(options) > 0 {
-		firstOpt := options[0]
-		appendDebugLogDe4859(map[string]any{
-			"location":     "backend/server.go:handleCreateSession",
-			"message":      "Normalized first option price",
-			"hypothesisId": "pricing-3",
-			"runId":        "pre-fix",
-			"data": map[string]any{
-				"optionId":      firstOpt.ID,
-				"currency":      firstOpt.Price.Currency,
-				"amount":        firstOpt.Price.Amount,
-				"adults":        req.Adults,
-				"children":      req.Children,
-				"infants":       req.Infants,
-				"requestedCurr": req.CurrencyOrDefault(),
-			},
-		})
-	}
-
 	id := randomID("sess_")
 	now := time.Now().UTC()
 
@@ -886,22 +839,12 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	sessions[id] = resp
 	sessionsMu.Unlock()
 
-	appendDebugLog(map[string]any{
-		"location":     "backend/server.go:handleCreateSession",
-		"message":      "Create session success",
-		"hypothesisId": "backend-A",
-		"data": map[string]any{
-			"sessionId":    id,
-			"resultsCount": len(options),
-		},
-	})
-
 	writeJSON(w, http.StatusOK, session)
 }
 
 func handleGetSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -915,47 +858,12 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parts[0]
-	sessionsMu.RLock()
-	resp, ok := sessions[id]
-	sessionsMu.RUnlock()
+	resp, ok := loadSearchSession(id)
 	if !ok {
-		appendDebugLog(map[string]any{
-			"location":     "backend/server.go:handleGetSession",
-			"message":      "Session not found",
-			"hypothesisId": "backend-B",
-			"data": map[string]any{
-				"id": id,
-			},
-		})
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
 
-	if len(resp.Results) > 0 {
-		first := resp.Results[0]
-		appendDebugLogDe4859(map[string]any{
-			"location":     "backend/server.go:handleGetSession",
-			"message":      "Get session first option price",
-			"hypothesisId": "pricing-4",
-			"runId":        "pre-fix",
-			"data": map[string]any{
-				"sessionId": id,
-				"optionId":  first.ID,
-				"currency":  first.Price.Currency,
-				"amount":    first.Price.Amount,
-			},
-		})
-	}
-	appendDebugLog(map[string]any{
-		"location":     "backend/server.go:handleGetSession",
-		"message":      "Get session success",
-		"hypothesisId": "backend-B",
-		"data": map[string]any{
-			"id":           id,
-			"resultsCount": len(resp.Results),
-			"version":      resp.Version,
-		},
-	})
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -1478,10 +1386,12 @@ type MonthDealsResponse struct {
 		Origin      AirportLike `json:"origin"`
 		Destination AirportLike `json:"destination"`
 	} `json:"route"`
-	Year     int       `json:"year"`
-	Month    int       `json:"month"`
-	Currency string    `json:"currency"`
-	Days     []DayDeal `json:"days"`
+	Year      int       `json:"year"`
+	Month     int       `json:"month"`
+	StartDate string    `json:"startDate,omitempty"` // full range when using startDate/endDate query mode
+	EndDate   string    `json:"endDate,omitempty"`
+	Currency  string    `json:"currency"`
+	Days      []DayDeal `json:"days"`
 }
 
 // Short TTL cache so repeat identical month-deals requests (e.g. QA back-to-back) avoid redundant GF2 work.
@@ -1556,7 +1466,7 @@ var airportDirectory = []AirportCityResult{
 
 func handleAirportSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -1626,7 +1536,7 @@ type FlightDetailsResponse struct {
 
 func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -1679,9 +1589,12 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 
 	durationDays := 7
 	if durationStr != "" {
-		if v, err := strconv.Atoi(durationStr); err == nil && v > 0 {
-			durationDays = v
+		v, err := strconv.Atoi(durationStr)
+		if err != nil || v <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "durationDays must be a positive integer"})
+			return
 		}
+		durationDays = v
 	}
 
 	adults := 1
@@ -1754,7 +1667,7 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 
 func handleExplore(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -1911,18 +1824,19 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 	dep, ret, monthEmpty := gf2ExploreResolveDeps(departureDate, returnDate, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration)
 	if monthEmpty {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"destinations":           []map[string]interface{}{},
-			"sessionId":              "",
-			"total":                  0,
-			"offset":                 offset,
-			"limit":                  limit,
-			"hasMore":                false,
-			"partialResults":         false,
-			"liveRefreshAvailable":   false,
+			"destinations":         []map[string]interface{}{},
+			"sessionId":            "",
+			"total":                0,
+			"offset":               offset,
+			"limit":                limit,
+			"hasMore":              false,
+			"partialResults":       false,
+			"liveRefreshAvailable": false,
 		})
 		return
 	}
 
+	// prefetch=true skips the initial live GF2 batch (estimates + cache only); use for instant first paint, then ?live=true to refresh prices.
 	prefetch := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("prefetch")), "true")
 
 	sessionKey := exploreSessionKey(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
@@ -1963,7 +1877,7 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 
 func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -2170,6 +2084,10 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 		Currency: currency,
 		Days:     days,
 	}
+	if useRange {
+		resp.StartDate = startDateStr
+		resp.EndDate = endDateStr
+	}
 	resp.Route.Origin = AirportLike{Code: origin}
 	resp.Route.Destination = AirportLike{Code: destination}
 
@@ -2196,8 +2114,12 @@ func handleAffiliateRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, option := GetSessionAndOption(sessionID, optionID)
-	if resp == nil || option == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
+	if resp == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	if option == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
 		return
 	}
 	var redirectURL string
@@ -2234,8 +2156,12 @@ func handleAffiliateOutboundLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, option := GetSessionAndOption(sessionID, optionID)
-	if resp == nil || option == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
+	if resp == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	if option == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
 		return
 	}
 	var redirectURL string
@@ -2274,9 +2200,13 @@ func handleAffiliateProvider(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sessionId and optionId are required"})
 		return
 	}
-	_, option := GetSessionAndOption(sessionID, optionID)
+	resp, option := GetSessionAndOption(sessionID, optionID)
+	if resp == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
 	if option == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session or option not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
 		return
 	}
 	provider := ResolveProvider(option)
@@ -2375,7 +2305,7 @@ func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns JSON for uptime and lightweight readiness (no external calls).
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		writeJSON(w, http.StatusNoContent, nil)
+		writeOptionsNoContent(w)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -2440,6 +2370,7 @@ func main() {
 	}
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
+	startSearchSessionCleanup()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
@@ -2455,6 +2386,7 @@ func main() {
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
+	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
 
 	port := os.Getenv("PORT")
 	if port == "" {

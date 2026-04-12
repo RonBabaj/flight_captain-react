@@ -20,6 +20,7 @@ const TITLE_KEYS: Record<string, string> = {
   Results: 'nav_results',
   Search: 'nav_flight_search',
   MonthDeals: 'nav_monthly_deals',
+  FlyFixRefine: 'flyfix_refine_nav_title',
 };
 
 export function TopNavMenu() {

@@ -89,6 +89,16 @@ function fmtDate(d?: string): string {
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+/** True when origin and destination are the same metro (e.g. NYC + JFK). Avoids showing "NYC → JFK". */
+function originSameMetroAsDestination(originCode: string, destAirportCode: string): boolean {
+  const o = originCode.trim().toUpperCase();
+  const destEntry = getAirportEntry(destAirportCode);
+  if (!destEntry?.cityCode) return false;
+  if (o === destEntry.cityCode) return true;
+  const originEntry = getAirportEntry(o);
+  return !!(originEntry?.cityCode && originEntry.cityCode === destEntry.cityCode);
+}
+
 const REGION_MAP: Record<string, string[]> = {
   Europe: [
     // UK
@@ -1030,8 +1040,13 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
         </View>
       )}
       {isEstimate && (
-        <View style={[c.estimatePill, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}>
-          <Text style={[c.estimatePillText, { color: theme.textMuted }]}>{t('explore_price_estimate_label')}</Text>
+        <View style={c.estimateBadgeWrap} pointerEvents="none">
+          <View style={[c.estimatePill, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}>
+            <Text style={[c.estimatePillText, { color: theme.textMuted }]}>{t('explore_price_estimate_label')}</Text>
+          </View>
+          <Text style={[c.estimateLoadingSub, { color: theme.textMuted }]} numberOfLines={2}>
+            {t('explore_price_estimate_loading')}
+          </Text>
         </View>
       )}
       <View style={[c.topRow, isEstimate && c.topRowWithEstimate]}>
@@ -1054,7 +1069,11 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
         </View>
       </View>
       <View style={c.bottomRow}>
-        <Text style={[c.route, { color: theme.textMuted }]}>{origin} → {dest.destination}</Text>
+        <Text style={[c.route, { color: theme.textMuted }]}>
+          {originSameMetroAsDestination(origin, dest.destination)
+            ? t('explore_route_same_metro_hint').replace(/\{\{code\}\}/g, dest.destination)
+            : `${origin} → ${dest.destination}`}
+        </Text>
         {!isSearching && (
           <View style={[c.ctaChip, { backgroundColor: isFeatured ? theme.primary : theme.controlBg }]}>
             <Text style={[c.ctaText, { color: isFeatured ? '#fff' : theme.primary }]}>{ctaLabel}</Text>
@@ -1223,19 +1242,25 @@ const c = StyleSheet.create({
   cardFeatured: { borderWidth: 2 },
   rankBadge: { position: 'absolute', top: 0, right: 0, paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 12, borderTopRightRadius: 14 },
   rankText: { fontSize: 13 },
-  estimatePill: {
+  estimateBadgeWrap: {
     position: 'absolute',
     top: 8,
     left: 8,
+    right: 44,
+    zIndex: 1,
+    gap: 4,
+  },
+  estimatePill: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    zIndex: 1,
   },
   estimatePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  estimateLoadingSub: { fontSize: 11, lineHeight: 14, fontWeight: '500' },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  topRowWithEstimate: { paddingTop: 20 },
+  topRowWithEstimate: { paddingTop: 52 },
   flagEmoji: { fontSize: 32, lineHeight: 36 },
   cityWrap: { flex: 1 },
   cityName: { fontSize: 17, fontWeight: '700' },

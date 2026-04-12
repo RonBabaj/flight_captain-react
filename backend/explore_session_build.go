@@ -15,6 +15,7 @@ func exploreBuildRowsAndQueue(
 ) (rows []exploreDestRow, liveQueue []string) {
 	pool := explorePoolOrderedForOrigin(origin)
 	rows = make([]exploreDestRow, 0, len(pool))
+	needsLive := make(map[string]struct{}, len(pool))
 	for _, dest := range pool {
 		dest = strings.ToUpper(strings.TrimSpace(dest))
 		key := explorePriceCacheKey(origin, dest, currency, useMonth, year, month, duration, adults, children, nonStop, dep, ret)
@@ -36,7 +37,7 @@ func exploreBuildRowsAndQueue(
 				departureDate: ent.DepartureDate,
 				priceSource:   "cached",
 			})
-			liveQueue = append(liveQueue, dest)
+			needsLive[dest] = struct{}{}
 			continue
 		}
 		est := exploreEstimateInCurrency(origin, dest, dep, currency)
@@ -46,7 +47,7 @@ func exploreBuildRowsAndQueue(
 			departureDate: dep,
 			priceSource:   "estimated",
 		})
-		liveQueue = append(liveQueue, dest)
+		needsLive[dest] = struct{}{}
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].price != rows[j].price {
@@ -54,6 +55,13 @@ func exploreBuildRowsAndQueue(
 		}
 		return rows[i].destination < rows[j].destination
 	})
+	// Order live fetches like the UI (cheapest-first by heuristic), not airport-pool order, so early batches improve the top of the list.
+	for _, r := range rows {
+		if _, ok := needsLive[r.destination]; ok {
+			liveQueue = append(liveQueue, r.destination)
+			delete(needsLive, r.destination)
+		}
+	}
 	return rows, liveQueue
 }
 

@@ -278,9 +278,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   all_airports: { en: 'All airports', he: 'כל שדות התעופה', ru: 'Все аэропорты' },
   explore_destinations: { en: 'Explore destinations', he: 'גלה יעדים', ru: 'Исследовать направления' },
   explore_prices_indicative: {
-    en: 'We use a fixed list of major airports. Prices mix live checks, a 24h cache, and distance-based estimates (marked “Estimate”). Sorted by displayed price.',
-    he: 'אנחנו משתמשים ברשימה קבועה של שדות מרכזיים. המחירים משלבים בדיקות חיות, מטמון 24 שעות והערכות מרחק (מסומן כהערכה). ממוין לפי המחיר המוצג.',
-    ru: 'Фиксированный список крупных аэропортов. Цены: живые проверки, кэш 24 ч и оценки по расстоянию (помечены «Оценка»). Сортировка по показанной цене.',
+    en: 'We use a fixed list of major airports. Until a live price loads, we show a rough round-trip hint from distance only (not a quote or inventory). Then: live Google Flights checks, or a 24h cache. “Approx.” = not searched yet.',
+    he: 'רשימה קבועה של שדות מרכזיים. עד לטעינת מחיר חי מוצגת הערכה גסה לפי מרחק בלבד (לא הצעת מחיר). אחר כך: בדיקות חיות או מטמון 24 שעות. «משוער» = עדיין לא נבדק.',
+    ru: 'Фиксированный список аэропортов. Пока нет живой цены — грубая оценка по расстоянию (не предложение билета). Затем: живой поиск или кэш 24 ч. «Прибл.» — ещё не проверено.',
   },
   explore_month_deals_disclaimer: {
     en: 'Each card shows the cheapest round-trip for your trip length on any day in this month. Tap a destination for the full monthly calendar and all flight options.',
@@ -307,9 +307,19 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Обновляем цены…',
   },
   explore_price_estimate_label: {
-    en: 'Estimate',
-    he: 'הערכה',
-    ru: 'Оценка',
+    en: 'Approx.',
+    he: 'משוער',
+    ru: 'Прибл.',
+  },
+  explore_price_estimate_loading: {
+    en: 'Updating to live prices…',
+    he: 'מעדכן למחירים חיים…',
+    ru: 'Обновляем до актуальных цен…',
+  },
+  explore_route_same_metro_hint: {
+    en: '{{code}} · same metro as departure',
+    he: '{{code}} · אותו מטרופולין כנקודת יציאה',
+    ru: '{{code}} · тот же город, что и вылет',
   },
 };
 

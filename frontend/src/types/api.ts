@@ -224,6 +224,6 @@ export interface ExploreDestination {
   price: string;
   currency: string;
   departureDate?: string;
-  /** live = fresh GF2; cached = 24h server cache; estimated = distance heuristic */
+  /** live = fresh GF2; cached = 24h server cache; estimated = distance-only hint until searched (not a quote) */
   priceSource?: ExplorePriceSource;
 }

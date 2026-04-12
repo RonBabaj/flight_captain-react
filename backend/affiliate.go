@@ -230,6 +230,8 @@ func BuildRedirectURL(session *SearchSession, option *FlightOption, provider *Pr
 	return s
 }
 
+const maxClickStoreRecords = 100_000
+
 // RecordClick stores a click and returns its ID. Call before returning redirect or outbound-link.
 func RecordClick(sessionID, optionID string, provider *Provider, redirectURL string) string {
 	id := randomID("click_")
@@ -245,6 +247,10 @@ func RecordClick(sessionID, optionID string, provider *Provider, redirectURL str
 	}
 	clickStoreMu.Lock()
 	clickStore = append(clickStore, rec)
+	if len(clickStore) > maxClickStoreRecords {
+		drop := len(clickStore) - maxClickStoreRecords
+		clickStore = clickStore[drop:]
+	}
 	clickStoreMu.Unlock()
 
 	log.Printf("[affiliate] click recorded clickId=%s sessionId=%s optionId=%s provider=%s", id, sessionID, optionID, provider.Code)
@@ -313,24 +319,25 @@ func ParseOptionIndex(optionID string) int {
 	return i
 }
 
-// GetSessionAndOption looks up session and option by sessionId and optionId. Returns nil if not found.
+// GetSessionAndOption looks up session and option by sessionId and optionId.
+// Returns (nil, nil) if the session is missing or expired; (*resp, nil) if the session exists but optionId does not match any result; otherwise both non-nil.
 // Tries index first (opt_N -> Results[N]), then finds by option ID in case of reordering.
 func GetSessionAndOption(sessionID, optionID string) (*SearchSessionResultsResponse, *FlightOption) {
-	sessionsMu.RLock()
-	defer sessionsMu.RUnlock()
-	resp, ok := sessions[sessionID]
+	resp, ok := loadSearchSession(sessionID)
 	if !ok {
 		return nil, nil
 	}
 	idx := ParseOptionIndex(optionID)
 	if idx >= 0 && idx < len(resp.Results) && resp.Results[idx].ID == optionID {
-		return &resp, &resp.Results[idx]
+		out := resp
+		return &out, &out.Results[idx]
 	}
-	// Fallback: find by ID (handles client/server ordering mismatch)
 	for i := range resp.Results {
 		if resp.Results[i].ID == optionID {
-			return &resp, &resp.Results[i]
+			out := resp
+			return &out, &out.Results[i]
 		}
 	}
-	return nil, nil
+	out := resp
+	return &out, nil
 }
