@@ -6,9 +6,14 @@
  *
  * Fallbacks (for backwards compatibility/local dev):
  * - EXPO_PUBLIC_API_URL
- * - VITE_API_BASE_URL
  * - http://localhost:8080 (ONLY when running on localhost)
+ *
+ * IMPORTANT: Expo/Metro statically inlines EXPO_PUBLIC_* only when accessed via
+ * direct `process.env.EXPO_PUBLIC_*` references (no typeof checks, no dynamic lookup).
  */
+const EXPO_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const EXPO_API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 function isLocalHostname(): boolean {
   try {
     const g = typeof globalThis !== 'undefined' ? (globalThis as any) : undefined;
@@ -24,14 +29,7 @@ function isLocalHostname(): boolean {
 }
 
 function resolveApiBase(): string {
-  // IMPORTANT: Expo inlines EXPO_PUBLIC_* only when accessed directly via process.env.X,
-  // so we avoid going through an intermediate env object.
-  const fromEnv =
-    (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_API_BASE_URL) ||
-    (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_API_URL) ||
-    '';
-
-  let raw = (fromEnv || '').trim();
+  let raw = (EXPO_API_BASE_URL || EXPO_API_URL || '').trim();
 
   // No env configured.
   if (!raw) {

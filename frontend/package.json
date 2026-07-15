@@ -5,7 +5,7 @@
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
-    "build": "expo export -p web",
+    "build": "EXPO_PUBLIC_API_BASE_URL=${EXPO_PUBLIC_API_BASE_URL:-https://api.fly-fix.com} npx expo export -p web",
     "android": "expo start --android",
     "ios": "expo start --ios"
   },
