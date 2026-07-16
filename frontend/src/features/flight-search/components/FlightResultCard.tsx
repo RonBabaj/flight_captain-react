@@ -249,18 +249,19 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
             {priceStr}
           </Text>
           {/* Estimated badge + original provider price (if present) */}
-          {(option as any).priceIsEstimate ? (
+          {option.priceIsEstimate ? (
             <View style={[c.badgeRow, ...row()]}>
               <View style={[c.estBadge, { backgroundColor: theme.controlBg }]}>
-                <Text style={[c.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total') || 'Est. total'}</Text>
+                <Text style={[c.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total')}</Text>
               </View>
               {option.originalPrice?.amount && option.originalPrice?.currency ? (
                 <Text style={[c.wasPrice, { color: theme.textMuted }]}>
                   {(function () {
                     const { amount, currency } = option.originalPrice!;
-                    const { amount: conv, currency: cur2 } = getDisplayPrice(amount, currency, displayCurrency);
+                    const origTotal = amount * passengers;
+                    const { amount: convTotal, currency: cur2 } = getDisplayPrice(origTotal, currency, displayCurrency);
                     const sym = getCurrencySymbol(cur2);
-                    return `${t('provider_price') || 'Provider'}: ${sym} ${conv.toFixed(0)}`;
+                    return `${t('provider_price')}: ${sym} ${convTotal.toFixed(0)}`;
                   })()}
                 </Text>
               ) : null}
