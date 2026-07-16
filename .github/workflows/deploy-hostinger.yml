@@ -3,11 +3,11 @@ name: Deploy frontend to Hostinger
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,21 +19,37 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm install
+        run: npm ci
 
       - name: Build Expo web
         working-directory: frontend
         env:
-          EXPO_PUBLIC_API_BASE_URL: https://flight-captain-react.onrender.com
+          EXPO_PUBLIC_API_BASE_URL: https://api.fly-fix.com
         run: npx expo export -p web
 
       - name: Write SPA route fallbacks (nginx /search/results refresh)
         working-directory: frontend
         run: node scripts/write-spa-fallbacks.mjs
 
-      # "Timeout (control socket)" = control connection never completed. Often: host firewall blocking
-      # GitHub runner IPs, wrong host, or TLS handshake too slow. Try longer timeout, verbose logs,
-      # FTP_SERVER as IP, Hostinger support, or SFTP if your plan has SSH.
+      - name: Upload frontend dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fly-fix-web-dist
+          path: frontend/dist/
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fly-fix-web-dist
+          path: frontend/dist/
+
+      # FTP secrets must match Hostinger hPanel → Files → FTP Accounts.
+      # 530 Login incorrect = wrong host/user/password or account disabled.
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -43,7 +59,6 @@ jobs:
           port: 21
           protocol: ftps
           security: loose
-          # Milliseconds (action default is short); 5m helps slow TLS / busy shared hosts.
           timeout: 300000
           log-level: verbose
           local-dir: frontend/dist/
