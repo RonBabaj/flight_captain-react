@@ -248,7 +248,6 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           <Text style={[c.price, { color: theme.primary }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
             {priceStr}
           </Text>
-          {/* Estimated badge + original provider price (if present) */}
           {option.priceIsEstimate ? (
             <View style={[c.badgeRow, ...row()]}>
               <View style={[c.estBadge, { backgroundColor: theme.controlBg }]}>
