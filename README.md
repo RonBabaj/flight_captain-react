@@ -228,13 +228,14 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 | `/monthly-deals` | Monthly deals form |
 | `/monthly-deals/results` | Monthly deals results |
 
-Legacy bookmarks: **`frontend/public/.htaccess`** **301**-redirects `/results` → `/search/results` and `/deals` → `/monthly-deals/` (query string preserved). All other app routes still fall back to `index.html` for SPA refresh.
+Legacy bookmarks (Apache/LiteSpeed, optional): **`frontend/public/.htaccess`** **301**-redirects `/results` → `/search/results` and `/deals` → `/monthly-deals/` (query string preserved). With nginx/Docker, these legacy paths are handled via build-time SPA route shells (see `frontend/scripts/write-spa-fallbacks.mjs`).
 
 ---
 
 ## Production deployment (web)
 
-- **SPA routing:** `frontend/public/.htaccess` is included in the web build so that refreshing on any app route (e.g. `/search/results`, `/monthly-deals`) serves `index.html` instead of 404. Hostinger/Apache: if the request is not a file or directory, it rewrites to `/index.html`.
+- **SPA routing:** Docker/nginx serves the SPA using physical `index.html` route shells generated at build time by `frontend/scripts/write-spa-fallbacks.mjs`. `frontend/public/.htaccess` remains for legacy Apache/LiteSpeed hosting (optional).
+- **Deploy:** GitHub Actions deploys the Docker stack to the VPS on every push to `main` (see `.github/workflows/deploy.yml`).
 - **Legacy URLs:** **301** redirects for `/results` and `/deals` to the new paths; see **Web routes** above.
 
 ## Notes
@@ -259,7 +260,7 @@ Summary of recent changes:
 | **Fly-Fix: Icons** | All UI icons use **local static SVGs** (`WebIconSvg` + `AppIcon`). No `@expo/vector-icons` or icon fonts; icons render reliably on Expo web, iOS/Android browsers, and in incognito/private mode. Icons: search, filter, calendar, close, chevrons, airplane, globe, theme, menu, etc. |
 | **Fly-Fix: RTL** | **Main search:** Dates in RTL show return ← departure with right-aligned text; "Passengers & cabin" label has top/bottom margin. **Sort bar:** Uses `direction: 'rtl'` so label and pills flow from the right; pill order reversed in RTL. **Monthly Deals:** Search column (right) and filters (left) swap in RTL via parent direction; deal cards and details modal swap price/info; month nav: הבא (Next) on left, הקודם (Prev) on right, arrow after הבא and before הקודם; positioning section and filters header RTL. **Header:** Extra padding for title and action icons. |
 | **Fly-Fix: Cheaper cities** | "Cheaper departure cities" only clears when the search session (origin/destination/year or month) changes, so the section stays visible on Chrome iOS and across re-renders. Monthly Deals uses the shared `CheaperCitiesSection` UI and the positioning optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry). |
-| **Fly-Fix: Production 404** | `frontend/public/.htaccess` rewrites non-file requests to `/index.html` for SPA routing on Hostinger/Apache. |
+| **Fly-Fix: Production 404** | `frontend/public/.htaccess` provides an optional Apache/LiteSpeed SPA fallback by rewriting non-file requests to `/index.html`. nginx/Docker relies on build-time SPA route shells instead. |
 | **Fly-Fix: Monthly Deals UX** | Loading: single rotating message below progress bar only; search button shows static "Searching…". Layout: wider search column (320px), more padding in hero and results; month nav has horizontal margins; deal cards have more padding/gap; nav buttons have no extra padding. |
 | **Loading UX** | Full-screen search overlay with rotating status text (EN/HE/RU); search button shows spinner + rotating phrases; results page loading banner with animated progress bar and cycling messages; monthly deals use progress bar + single rotating text below (see Fly-Fix). |
 | **Positioning optimizer** | "Cheaper departure cities" for any origin/destination; hub list ATH, VIE, BUD, FCO, MXP, SOF, OTP; UI rendered via shared `CheaperCitiesSection` on both main search and Monthly Deals; selecting a hub re-runs Monthly Deals as origin → hub → destination. Optimizer is resilient to intermittent `/api/deals/month` failures (promise cache + single-leg retry) and emits `[MONTHLY_POSITIONING]` / `[MONTHLY_POSITIONING_RENDER]` logs. |

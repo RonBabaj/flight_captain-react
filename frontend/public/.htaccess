@@ -1,7 +1,7 @@
 # SPA fallback: serve index.html for client-side routes so refresh/back don't 404.
-# Apache / LiteSpeed on Hostinger: mod_rewrite below.
-# Nginx on Hostinger: .htaccess is NOT applied — use hostinger-nginx-spa.conf in hPanel
-# AND deploy post-build copies (scripts/write-spa-fallbacks.mjs) for /search/results etc.
+# Apache / LiteSpeed: mod_rewrite below.
+# Nginx-based hosts ignore .htaccess — use an nginx `try_files` SPA fallback configuration if needed.
+# AND deploy/build physical route shells (scripts/write-spa-fallbacks.mjs) for /search/results etc.
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
