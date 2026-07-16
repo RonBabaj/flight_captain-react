@@ -76,6 +76,10 @@ export interface SellerOption {
 export interface FlightOption {
   id: string;
   price: MonetaryAmount;
+  /** Raw provider price before any server-side normalization (if applied). */
+  originalPrice?: MonetaryAmount;
+  /** True if the server normalized the price (e.g., uplift heuristic). */
+  priceIsEstimate?: boolean;
   durationMinutes: number;
   legs: FlightLeg[];
   fare?: FareBreakdown;

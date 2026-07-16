@@ -248,6 +248,24 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           <Text style={[c.price, { color: theme.primary }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
             {priceStr}
           </Text>
+          {/* Estimated badge + original provider price (if present) */}
+          {(option as any).priceIsEstimate ? (
+            <View style={[c.badgeRow, ...row()]}>
+              <View style={[c.estBadge, { backgroundColor: theme.controlBg }]}>
+                <Text style={[c.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total') || 'Est. total'}</Text>
+              </View>
+              {option.originalPrice?.amount && option.originalPrice?.currency ? (
+                <Text style={[c.wasPrice, { color: theme.textMuted }]}>
+                  {(function () {
+                    const { amount, currency } = option.originalPrice!;
+                    const { amount: conv, currency: cur2 } = getDisplayPrice(amount, currency, displayCurrency);
+                    const sym = getCurrencySymbol(cur2);
+                    return `${t('provider_price') || 'Provider'}: ${sym} ${conv.toFixed(0)}`;
+                  })()}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {perPassengerStr ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {perPassengerStr}
@@ -332,6 +350,10 @@ const c = StyleSheet.create({
   stopsChipText: { fontSize: 12, fontWeight: '600' },
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 100 },
   price: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  estBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  wasPrice: { fontSize: 11 },
   perPerson: { fontSize: 11, marginTop: 2 },
   bookBtn: {
     marginTop: 8,
