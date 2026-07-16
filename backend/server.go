@@ -1662,28 +1662,35 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endDate := startDate
 
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	deals, err := gf2SearchDealsRange(ctx, googleFlights2Provider, origin, destination, startDate, endDate, durationDays, currency, adults, children, false, "ECONOMY", false)
-	if err != nil || len(deals) == 0 {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no deals found for requested date"})
-		return
-	}
-	var trip *FullRoundTrip
-	for i := range deals {
-		if trip == nil || deals[i].TotalCost < trip.TotalCost {
-			trip = &deals[i]
-		}
-	}
-	if trip == nil || trip.CombinedOption == nil || len(trip.CombinedOption.Legs) < 2 {
+	outStr := startDate.Format("2006-01-02")
+	retStr := startDate.AddDate(0, 0, durationDays).Format("2006-01-02")
+	trip, err := gf2OneRoundTrip(ctx, googleFlights2Provider, origin, destination, outStr, retStr, currency, adults, children, "ECONOMY", false, false)
+	if err != nil {
+		log.Printf("[FLIGHT_DETAILS] gf2OneRoundTrip error: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to load flight details"})
 		return
 	}
+	if trip == nil || trip.CombinedOption == nil || len(trip.CombinedOption.Legs) == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no deals found for requested date"})
+		return
+	}
 	opt := trip.CombinedOption
+	opts := []FlightOption{*opt}
+	convertOptionsToCurrency(opts, currency)
+	applyPriceNormalization(opts)
+	*opt = opts[0]
+	trip.TotalCost = opt.Price.Amount
+
 	outLeg := opt.Legs[0]
-	retLeg := opt.Legs[1]
+	retLeg := FlightLeg{}
+	if len(opt.Legs) >= 2 {
+		retLeg = opt.Legs[1]
+	} else {
+		log.Printf("[FLIGHT_DETAILS] warning: only outbound leg for %s→%s %s (return %s)", origin, destination, outStr, retStr)
+	}
 
 	countStops := func(leg FlightLeg) int {
 		if len(leg.Segments) == 0 {

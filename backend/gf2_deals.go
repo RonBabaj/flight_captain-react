@@ -133,6 +133,7 @@ func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, orig
 	if opt == nil {
 		return nil, nil
 	}
+	opt = ensureRoundTripLegs(ctx, p, opt, origin, destination, retStr, currency, adults, children, cabinPref, includeBag)
 	if nonStop && totalStopsInOption(opt) > 0 {
 		return nil, nil
 	}
@@ -143,6 +144,38 @@ func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, orig
 		OutboundDate:   outStr,
 		ReturnDate:     retStr,
 	}, nil
+}
+
+// ensureRoundTripLegs appends a return leg when GF2 only returned outbound segment data.
+func ensureRoundTripLegs(ctx context.Context, p *search.GoogleFlights2Provider, opt *FlightOption, origin, destination, returnDate, currency string, adults, children int, cabinPref string, includeBag bool) *FlightOption {
+	if opt == nil || len(opt.Legs) >= 2 || returnDate == "" || p == nil {
+		return opt
+	}
+	log.Printf("[GF2_RT] option %s has %d leg(s); fetching return one-way %s→%s on %s", opt.ID, len(opt.Legs), destination, origin, returnDate)
+	returnReq := search.SearchRequest{
+		Origin:            destination,
+		Destination:       origin,
+		DepartureDate:     returnDate,
+		CabinClass:        cabinPref,
+		CabinPreference:   cabinPref,
+		IncludeCheckedBag: includeBag,
+		Adults:            adults,
+		Children:          children,
+		Currency:          currency,
+	}
+	prs, err := p.Search(ctx, returnReq)
+	if err != nil || len(prs) == 0 {
+		log.Printf("[GF2_RT] return leg search failed: err=%v results=%d", err, len(prs))
+		return opt
+	}
+	retOpt := pickCheapestGF2Option(prs)
+	if retOpt == nil || len(retOpt.Legs) == 0 {
+		return opt
+	}
+	outboundCost := opt.Price.Amount
+	opt.Legs = append(opt.Legs, retOpt.Legs[0])
+	opt.Price.Amount = outboundCost + retOpt.Price.Amount
+	return opt
 }
 
 func gf2SearchDealsRange(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination string, startDate, endDate time.Time, durationDays int, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool) ([]FullRoundTrip, error) {
