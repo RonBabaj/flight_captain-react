@@ -226,6 +226,13 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   adults_label: { en: 'Adults', he: 'מבוגרים', ru: 'Взрослые' },
   children_label: { en: 'Children', he: 'ילדים', ru: 'Дети' },
   per_passenger: { en: 'per passenger', he: 'לנוסע', ru: 'за пассажира' },
+  estimated_total: { en: 'Est. total', he: 'סה״כ משוער', ru: 'Примерно' },
+  provider_price: { en: 'Provider quote', he: 'מחיר ספק', ru: 'Цена поставщика' },
+  price_estimate_note: {
+    en: 'Includes typical taxes and fees. Final price may differ at checkout.',
+    he: 'כולל מסים ועמלות משוערים. המחיר הסופי עשוי להשתנות בקופה.',
+    ru: 'Включает типичные налоги и сборы. Итоговая цена может отличаться при оплате.',
+  },
   cabin_class: { en: 'Cabin class', he: 'מחלקה', ru: 'Класс' },
   cabin_economy: { en: 'Economy', he: 'מחלקת תיירים', ru: 'Эконом' },
   operated_by: { en: 'Operated by', he: 'מופעל על ידי', ru: 'Выполняет' },

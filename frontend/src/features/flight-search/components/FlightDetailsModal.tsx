@@ -219,6 +219,28 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                     {priceSymbol} {perPassengerAmount.toFixed(0)} {t('per_passenger')}
                   </Text>
                 )}
+                {option.priceIsEstimate && (
+                  <View style={s.priceEstimateBlock}>
+                    <View style={[s.estBadge, { backgroundColor: theme.controlBg }]}>
+                      <Text style={[s.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total')}</Text>
+                    </View>
+                    {option.originalPrice?.amount != null && option.originalPrice.currency ? (
+                      <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
+                        {t('provider_price')}: {(() => {
+                          const { amount: conv, currency: cur2 } = getDisplayPrice(
+                            option.originalPrice.amount * passengers,
+                            option.originalPrice.currency,
+                            displayCurrency,
+                          );
+                          return `${getCurrencySymbol(cur2)} ${conv.toFixed(0)}`;
+                        })()}
+                      </Text>
+                    ) : null}
+                    <Text style={[s.priceEstimateNote, { color: theme.textMuted }]}>
+                      {t('price_estimate_note')}
+                    </Text>
+                  </View>
+                )}
                 {breakdownParts.length > 0 && (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
                     {breakdownParts.join('   ')}
@@ -451,6 +473,10 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   price: { fontSize: 26, fontWeight: '700' },
+  priceEstimateBlock: { marginTop: 8, gap: 4, maxWidth: 220 },
+  estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
   summaryText: { fontSize: 15, fontWeight: '600' },
   summaryMuted: { fontSize: 14, marginTop: 2 },
