@@ -1,0 +1,43 @@
+# Deploy to Ubuntu VPS via SSH whenever code is pushed to main.
+# Requires GitHub Actions secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY.
+
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout is not required for remote-only SSH deploy, but keeps the job
+      # explicit and makes future local pre-deploy steps easier to add.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Connect to the VPS over SSH and run the production update sequence:
+      # 1) cd into the app directory
+      # 2) pull latest main
+      # 3) rebuild Docker images without cache
+      # 4) restart containers in detached mode
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # Step 1: enter the deployed app directory on the VPS
+            cd /opt/apps/flight_captain-react
+
+            # Step 2: fetch and apply the latest commits from main
+            git pull origin main
+
+            # Step 3: rebuild Docker images from a clean cache
+            docker compose build --no-cache
+
+            # Step 4: recreate and start production containers in the background
+            docker compose up -d
