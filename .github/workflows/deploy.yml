@@ -36,8 +36,15 @@ jobs:
             # Step 2: fetch and apply the latest commits from main
             git pull origin main
 
-            # Step 3: rebuild Docker images from a clean cache
+            # Step 3: rebuild the Expo web bundle on the VPS so the
+            # frontend container never reuses a stale untracked dist/.
+            cd frontend
+            npm ci
+            EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
+            cd ..
+
+            # Step 4: rebuild Docker images from a clean cache
             docker compose build --no-cache
 
-            # Step 4: recreate and start production containers in the background
+            # Step 5: recreate and start production containers in the background
             docker compose up -d
