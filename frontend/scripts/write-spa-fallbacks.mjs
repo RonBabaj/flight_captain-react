@@ -1,7 +1,8 @@
 /**
  * After `expo export -p web`, copy index.html into each client-side route directory.
- * Nginx (Hostinger) does not read .htaccess; without try_files, refreshing
- * /search/results returns 404. Physical .../index.html files fix that for common paths.
+ * Nginx-based hosts ignore `.htaccess`; without a `try_files` SPA fallback,
+ * refreshing `/search/results` returns 404. Physical `.../index.html` route shells fix that
+ * for common paths.
  */
 import fs from 'fs';
 import path from 'path';
