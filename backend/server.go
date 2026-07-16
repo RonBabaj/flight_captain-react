@@ -192,6 +192,8 @@ type SellerOption struct {
 type FlightOption struct {
 	ID                    string           `json:"id"`
 	Price                 MonetaryAmount   `json:"price"`
+	OriginalPrice         *MonetaryAmount  `json:"originalPrice,omitempty"`
+	PriceIsEstimate       bool             `json:"priceIsEstimate,omitempty"`
 	DurationMinutes       int              `json:"durationMinutes"`
 	Legs                  []FlightLeg      `json:"legs"`
 	Fare                  *FareBreakdown   `json:"fare,omitempty"`
@@ -812,6 +814,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	convertOptionsToCurrency(options, requestedCurr)
+	applyPriceNormalization(options)
 	sort.Slice(options, func(i, j int) bool {
 		return options[i].Price.Amount < options[j].Price.Amount
 	})
@@ -895,6 +898,14 @@ func convertOptionsToCurrency(options []FlightOption, requestedCurr string) {
 			converted, _ := convertPrice(p.Amount, p.Currency, requestedCurr)
 			p.Amount = converted
 			p.Currency = requestedCurr
+		}
+		if options[i].OriginalPrice != nil {
+			op := options[i].OriginalPrice
+			if op.Currency != requestedCurr {
+				converted, _ := convertPrice(op.Amount, op.Currency, requestedCurr)
+				op.Amount = converted
+				op.Currency = requestedCurr
+			}
 		}
 		if options[i].Fare != nil {
 			f := options[i].Fare
@@ -1257,6 +1268,47 @@ func (r *CreateSearchSessionRequest) CurrencyOrDefault() string {
 		return r.Currency
 	}
 	return "USD"
+}
+
+// priceUpliftMultiplier returns a configurable multiplier to approximate realistic checkout totals.
+// Env: SEARCH_PRICE_UPLIFT_PCT (e.g., "25" means 25% uplift => 1.25x). Defaults to 1.20 (20%).
+func priceUpliftMultiplier() float64 {
+	raw := strings.TrimSpace(os.Getenv("SEARCH_PRICE_UPLIFT_PCT"))
+	if raw == "" {
+		return 1.20
+	}
+	if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0 && v < 200 {
+		return 1.0 + v/100.0
+	}
+	return 1.20
+}
+
+// applyPriceNormalization adjusts provider prices to be more realistic (include typical taxes/fees/OTA variance).
+// Current strategy: apply a configurable uplift to Google Flights-derived results, preserving original in OriginalPrice.
+func applyPriceNormalization(options []FlightOption) {
+	if len(options) == 0 {
+		return
+	}
+	mult := priceUpliftMultiplier()
+	if mult <= 1.0 {
+		return
+	}
+	for i := range options {
+		if strings.EqualFold(strings.TrimSpace(options[i].Source), "googleflights2") {
+			orig := options[i].Price
+			newAmt := orig.Amount * mult
+			// Basic sanity guard to avoid wild swings
+			if newAmt > 0 && newAmt < orig.Amount*2.5 {
+				options[i].OriginalPrice = &MonetaryAmount{Currency: orig.Currency, Amount: orig.Amount}
+				options[i].Price.Amount = newAmt
+				options[i].PriceIsEstimate = true
+			}
+			if options[i].Fare != nil && options[i].Fare.Total <= 0 {
+				options[i].Fare.Total = options[i].Price.Amount
+				options[i].Fare.Currency = options[i].Price.Currency
+			}
+		}
+	}
 }
 
 // --- Monthly deals API (per backend_api_contracts.md) ---
