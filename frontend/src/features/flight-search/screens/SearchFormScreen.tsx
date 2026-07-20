@@ -3,7 +3,6 @@ import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
 import { ANYWHERE_CODE } from '../../../types';
 import { searchActions } from '../../../store';
-import { createSearchSession } from '../../../api';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
@@ -152,11 +151,12 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
       };
       setCachedSearch(payload);
       searchActions.setParams(payload);
-      const session = await createSearchSession(payload);
-      searchActions.setSession(session.id, session, session.status);
+      // Optimistic navigation: create the session after the Results screen mounts.
+      // This removes the user-visible delay of waiting for POST /api/search/sessions.
+      searchActions.setSession(null, null, 'PENDING');
       searchActions.setResults([], 0);
-      updateUrl({ ...payload, sessionId: session.id });
-      navigation.navigate('Results', { sessionId: session.id });
+      updateUrl(payload);
+      navigation.navigate('Results', { sessionId: '' });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('search_failed'));
     } finally {

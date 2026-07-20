@@ -269,6 +269,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
+  const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -396,7 +397,85 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [sessionId]);
 
+  // ─── Optimistic session bootstrap ──────────────────────────────────────────
+  // If we navigated here with `sessionId=""`, we create the session after the
+  // Results screen is mounted (so the user sees the UI immediately).
+  const statusRef = useRef(status);
+  const storeParamsRef = useRef(storeParams);
   useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+  useEffect(() => {
+    storeParamsRef.current = storeParams;
+  }, [storeParams]);
+
+  const creatingSessionRef = useRef(false);
+  useEffect(() => {
+    if (sessionId) return;
+    if (creatingSessionRef.current) return;
+
+    const base = {
+      ...defaultFormParams,
+      ...(storeParams ?? {}),
+      ...(paramsFromUrl ?? {}),
+    } as Partial<CreateSearchSessionRequest>;
+
+    const origin = (base.origin ?? '').trim();
+    const destination = (base.destination ?? '').trim();
+    const departureDate = (base.departureDate ?? '').trim();
+    if (!origin || !destination || !departureDate) return;
+
+    creatingSessionRef.current = true;
+    setBootstrappingSession(true);
+
+    // Ensure UI goes into loading mode even before we have a sessionId.
+    searchActions.setSession(null, null, 'PENDING');
+    searchActions.setResults([], 0);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const cabin = base.cabinClass ?? 'ECONOMY';
+        const payload: CreateSearchSessionRequest = {
+          ...defaultFormParams,
+          ...base,
+          origin: origin.toUpperCase(),
+          destination: destination.toUpperCase(),
+          departureDate,
+          returnDate: base.returnDate ? String(base.returnDate) : undefined,
+          cabinClass: String(cabin),
+          cabinPreference: (base.cabinPreference ?? cabin) as any,
+          includeCheckedBag: base.includeCheckedBag ?? false,
+          adults: base.adults ?? 1,
+          children: base.children ?? 0,
+          infants: base.infants ?? 0,
+          currency: (base.currency ?? currency ?? 'USD') as any,
+          locale: (base.locale ?? locale ?? 'en-US') as any,
+        };
+
+        const session = await createSearchSession(payload);
+        if (cancelled) return;
+
+        searchActions.setSession(session.id, session, session.status);
+        navigation.replace('Results', { sessionId: session.id });
+      } catch (e) {
+        if (cancelled) return;
+        searchActions.setSession(null, null, 'FAILED');
+      } finally {
+        if (cancelled) return;
+        creatingSessionRef.current = false;
+        setBootstrappingSession(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, storeParams, paramsFromUrl, navigation, currency, locale]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
@@ -405,7 +484,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         const res = await getSearchSessionResults(
           sessionId,
           sinceVersion,
-          storeParams ?? undefined
+          storeParamsRef.current ?? undefined
         );
         if (cancelled) return;
         versionRef.current = res.version;
@@ -415,19 +494,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         // keep polling on transient errors
       }
     };
+
     const id = setInterval(() => {
-      if (status === 'COMPLETE' || status === 'FAILED') {
+      const st = statusRef.current;
+      if (st === 'COMPLETE' || st === 'FAILED') {
         clearInterval(id);
         return;
       }
       poll();
     }, POLL_INTERVAL_MS);
+
     poll();
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [sessionId, status, storeParams]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (sessionId && storeParams) {
@@ -609,7 +691,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
 
-  const isLoading = status === 'PENDING' || status === 'PARTIAL';
+  const isLoading = bootstrappingSession || status === 'PENDING' || status === 'PARTIAL';
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
   const hasActiveSession = !!sessionId;
