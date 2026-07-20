@@ -25,7 +25,9 @@ type FullRoundTrip struct {
 }
 
 const (
-	maxGF2CalendarSamples = 12 // cap RT searches per month/range request (cost control)
+	maxGF2CalendarSamples = 10 // cap RT searches per month/range request (cost control)
+	// Parallel calendar probes — sequential 12× RT regularly exceeds ~90s reverse-proxy timeouts (504).
+	gf2CalendarConcurrency = 4
 
 	// Explore: fixed destination pool + 24h cache; live GF2 only for small batches per request.
 	exploreLiveFetchesPerRequest    = 12 // max GF2 Search() calls per HTTP batch (each RT may do 2 upstream legs inside provider)
@@ -106,7 +108,9 @@ func pickCheapestGF2Option(prs []search.ProviderResult) *FlightOption {
 }
 
 // gf2OneRoundTrip runs one GF2 round-trip search and returns a FullRoundTrip with CombinedOption set.
-func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination, outStr, retStr, currency string, adults, children int, cabinPref string, includeBag bool, nonStop bool) (*FullRoundTrip, error) {
+// When ensureLegs is true, missing return segment data triggers an extra one-way fetch (needed for flight details).
+// Calendar/month deals should pass ensureLegs=false — price is already combined by searchRoundTrip.
+func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination, outStr, retStr, currency string, adults, children int, cabinPref string, includeBag bool, nonStop bool, ensureLegs bool) (*FullRoundTrip, error) {
 	if p == nil {
 		return nil, fmt.Errorf("google flights provider not configured")
 	}
@@ -133,7 +137,9 @@ func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, orig
 	if opt == nil {
 		return nil, nil
 	}
-	opt = ensureRoundTripLegs(ctx, p, opt, origin, destination, retStr, currency, adults, children, cabinPref, includeBag)
+	if ensureLegs {
+		opt = ensureRoundTripLegs(ctx, p, opt, origin, destination, retStr, currency, adults, children, cabinPref, includeBag)
+	}
 	if nonStop && totalStopsInOption(opt) > 0 {
 		return nil, nil
 	}
@@ -184,20 +190,7 @@ func gf2SearchDealsRange(ctx context.Context, p *search.GoogleFlights2Provider, 
 		days = append(days, d)
 	}
 	days = subsampleDatesEvenly(days, maxGF2CalendarSamples)
-	var trips []FullRoundTrip
-	for _, day := range days {
-		outStr := day.Format("2006-01-02")
-		retStr := day.AddDate(0, 0, durationDays).Format("2006-01-02")
-		trip, err := gf2OneRoundTrip(ctx, p, origin, destination, outStr, retStr, currency, adults, children, cabinPref, includeBag, nonStop)
-		if err != nil {
-			log.Printf("[GF2_DEALS] range %s: %v", outStr, err)
-			continue
-		}
-		if trip != nil {
-			trips = append(trips, *trip)
-		}
-	}
-	return trips, nil
+	return gf2SearchDealsOnDates(ctx, p, origin, destination, days, durationDays, currency, adults, children, nonStop, cabinPref, includeBag)
 }
 
 func gf2SearchMonthDeals(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination string, month time.Time, durationDays int, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool) ([]FullRoundTrip, error) {
@@ -223,19 +216,64 @@ func gf2SearchMonthDeals(ctx context.Context, p *search.GoogleFlights2Provider, 
 		days = append(days, day)
 	}
 	days = subsampleDatesEvenly(days, maxGF2CalendarSamples)
-	var trips []FullRoundTrip
+	return gf2SearchDealsOnDates(ctx, p, origin, destination, days, durationDays, currency, adults, children, nonStop, cabinPref, includeBag)
+}
+
+// gf2SearchDealsOnDates probes sampled departure dates in parallel (bounded concurrency).
+// ensureLegs is false: calendar cards only need combined price + best-effort meta.
+func gf2SearchDealsOnDates(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination string, days []time.Time, durationDays int, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool) ([]FullRoundTrip, error) {
+	if len(days) == 0 {
+		return nil, nil
+	}
+	type result struct {
+		trip *FullRoundTrip
+		err  error
+		day  string
+	}
+	workers := gf2CalendarConcurrency
+	if workers > len(days) {
+		workers = len(days)
+	}
+	jobs := make(chan time.Time, len(days))
+	out := make(chan result, len(days))
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for day := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				outStr := day.Format("2006-01-02")
+				retStr := day.AddDate(0, 0, durationDays).Format("2006-01-02")
+				trip, err := gf2OneRoundTrip(ctx, p, origin, destination, outStr, retStr, currency, adults, children, cabinPref, includeBag, nonStop, false)
+				out <- result{trip: trip, err: err, day: outStr}
+			}
+		}()
+	}
 	for _, day := range days {
-		outStr := day.Format("2006-01-02")
-		retStr := day.AddDate(0, 0, durationDays).Format("2006-01-02")
-		trip, err := gf2OneRoundTrip(ctx, p, origin, destination, outStr, retStr, currency, adults, children, cabinPref, includeBag, nonStop)
-		if err != nil {
-			log.Printf("[GF2_DEALS] month %s: %v", outStr, err)
+		jobs <- day
+	}
+	close(jobs)
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	var trips []FullRoundTrip
+	for r := range out {
+		if r.err != nil {
+			log.Printf("[GF2_DEALS] %s: %v", r.day, r.err)
 			continue
 		}
-		if trip != nil {
-			trips = append(trips, *trip)
+		if r.trip != nil {
+			trips = append(trips, *r.trip)
 		}
 	}
+	sort.Slice(trips, func(i, j int) bool {
+		return trips[i].OutboundDate < trips[j].OutboundDate
+	})
 	return trips, nil
 }
 

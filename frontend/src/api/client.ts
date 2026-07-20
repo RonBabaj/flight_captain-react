@@ -88,6 +88,13 @@ export async function apiRequest<T>(
   });
   if (!res.ok) {
     const text = await res.text();
+    // Gateway proxies often return HTML for timeouts; keep the message short for UI.
+    if (res.status === 504 || /gateway time-?out/i.test(text)) {
+      throw new Error('Search timed out. Please try again in a moment.');
+    }
+    if (res.status === 502) {
+      throw new Error('Flight search is temporarily unavailable. Please try again.');
+    }
     throw new Error(`API ${res.status}: ${text || res.statusText}`);
   }
   return res.json() as Promise<T>;
