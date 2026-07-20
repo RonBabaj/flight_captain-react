@@ -10,6 +10,7 @@ import {
   Pressable,
   Linking,
   useWindowDimensions,
+  Animated,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -234,6 +235,90 @@ function buildDealsPositioningSignature(
   }
   return `${sorted.length}|${sorted[0].date}|${sorted[sorted.length - 1].date}|${sum.toFixed(0)}`;
 }
+
+/** Same rotating status copy as Search results / SearchLoadingOverlay. */
+const DEALS_LOADING_PHRASES: Record<string, string[]> = {
+  en: [
+    'Searching hundreds of airlines…',
+    'Comparing prices across providers…',
+    'Checking direct and connecting flights…',
+    'Finding the best fares…',
+    'Almost done…',
+  ],
+  he: [
+    'מחפש מאות חברות תעופה…',
+    'משווה מחירים בין ספקים…',
+    'בודק טיסות ישירות ועם עצירות…',
+    'מוצא את המחירים הטובים…',
+    'עוד רגע…',
+  ],
+  ru: [
+    'Ищем сотни авиакомпаний…',
+    'Сравниваем цены у провайдеров…',
+    'Проверяем прямые и стыковочные рейсы…',
+    'Ищем лучшие тарифы…',
+    'Почти готово…',
+  ],
+};
+
+function DealsLoadingBanner({
+  language,
+  theme,
+}: {
+  language: string;
+  theme: import('../../../theme/ThemeContext').Theme;
+}) {
+  const phrases = DEALS_LOADING_PHRASES[language] ?? DEALS_LOADING_PHRASES.en;
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(progressAnim, { toValue: 1, duration: 2200, useNativeDriver: false }),
+        Animated.timing(progressAnim, { toValue: 0, duration: 0, useNativeDriver: false }),
+      ])
+    ).start();
+
+    const cycle = () => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+      setPhraseIdx((i) => (i + 1) % phrases.length);
+    };
+    const id = setInterval(cycle, 2200);
+    return () => {
+      clearInterval(id);
+      progressAnim.stopAnimation();
+    };
+  }, [phrases.length, fadeAnim, progressAnim]);
+
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
+
+  return (
+    <View style={[dlb.wrap, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
+      <View style={[dlb.track, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
+        <Animated.View style={[dlb.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
+      </View>
+      <View style={dlb.row}>
+        <ActivityIndicator size="small" color={theme.primary} />
+        <Animated.Text style={[dlb.text, { color: theme.primary, opacity: fadeAnim }]}>
+          {phrases[phraseIdx]}
+        </Animated.Text>
+      </View>
+    </View>
+  );
+}
+
+const dlb = StyleSheet.create({
+  wrap: { paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14 },
+  track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
+  fill: { height: 3, borderRadius: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  text: { fontSize: 13, fontWeight: '500', flex: 1 },
+});
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
@@ -1390,12 +1475,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       {/* Full-screen overlay only on the form route. Results uses skeletons / inline banner. */}
       <SearchLoadingOverlay visible={isLoading && showForm} origin={origin} destination={destination} />
       {isLoading && showResultsShell ? (
-        <View style={[p.dealsLoadingBanner, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[p.dealsLoadingBannerText, { color: theme.primary }]}>
-            {t('searching')}
-          </Text>
-        </View>
+        <DealsLoadingBanner language={language} theme={theme} />
       ) : null}
       {hasResultsLayout ? (
         /* Same as main search: parent direction:rtl causes the browser to flow columns
@@ -1809,14 +1889,6 @@ const p = StyleSheet.create({
   loaderText: { marginTop: 12, fontSize: 14, textAlign: 'center' },
   dealsProgressTrack: { width: '70%', maxWidth: 280, height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
   dealsProgressFill: { height: 4, borderRadius: 2 },
-  dealsLoadingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  dealsLoadingBannerText: { fontSize: 13, fontWeight: '500', flex: 1 },
   skelLine: { height: 16, borderRadius: 6 },
 
   emptyCard: { borderRadius: 14, padding: 28, borderWidth: 1, alignItems: 'center' },
