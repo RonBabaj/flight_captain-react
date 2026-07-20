@@ -318,6 +318,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     const samePeriod = cy === year && cm === month;
     const sameDuration = !toRestore.durationDays || toRestore.durationDays === durationDays;
     if (data != null && sameRoute && samePeriod && sameDuration) return;
+    // Optimistic search already in flight from handleSearchDeals — don't double-fetch.
+    if (useDealsStore.getState().isLoading) return;
 
     if (toRestore.year) dealsActions.setMonth(cy, cm);
     if (toRestore.durationDays) dealsActions.setDurationDays(toRestore.durationDays);
@@ -424,10 +426,10 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const bestDeals = sortDeals(filteredDeals, sortField, sortOrder, highestPrice);
   const visibleDeals = bestDeals.slice(0, visibleCount);
   const hasMore = bestDeals.length > visibleCount;
-  const hasResultsLayout = data != null && !isMobile;
-  // On mobile, once data is loaded collapse the full search form into a compact summary bar
-  // with an "Edit search" popup (same pattern as the main search engine's ResultsScreen).
-  const mobileCompact = isMobile && data != null;
+  const hasResultsLayout = (data != null || view === 'results') && !isMobile;
+  // On mobile, once we are on the results route (or data is loaded) collapse the full search form
+  // into a compact summary bar with an "Edit search" popup (same pattern as ResultsScreen).
+  const mobileCompact = isMobile && (data != null || view === 'results');
 
   const handleSearchDeals = () => {
     const o = origin.trim(), d = destination.trim();
@@ -459,6 +461,23 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     setShowEditSearchModal(false);
     dealsActions.setLoading(true);
     dealsActions.setError(null);
+    // Optimistic navigation: show the Results shell immediately, then fetch.
+    dealsActions.setRoute(o, d);
+    dealsActions.setData(null);
+    setPendingDealsParams({
+      origin: o,
+      destination: d,
+      year: clampedYm.year,
+      month: clampedYm.month,
+      durationDays,
+      adults,
+      children,
+      nonStop,
+    });
+    try {
+      navigation?.navigate?.('MonthDealsResults');
+    } catch {}
+
     getMonthDeals({
       origin: o,
       destination: d,
@@ -472,9 +491,6 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     })
       .then(res => {
         dealsActions.setData(res);
-        try {
-          navigation?.navigate?.('MonthDealsResults');
-        } catch {}
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
@@ -1120,7 +1136,26 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // ─── Deal cards list ────────────────────────────────────────────────────────
 
   const resultsContent = (
-    data != null && bestDeals.length === 0 ? (
+    isLoading && data == null ? (
+      <View style={p.list}>
+        {[1, 2, 3, 4].map((i) => (
+          <View
+            key={i}
+            style={[p.dealCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+          >
+            <View style={[p.dealTop, isRTL && { flexDirection: 'row-reverse' }]}>
+              <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+                <View style={[p.skelLine, { backgroundColor: theme.controlBg, width: '70%' }]} />
+                <View style={[p.skelLine, { backgroundColor: theme.controlBg, width: '55%', height: 12 }]} />
+                <View style={[p.skelLine, { backgroundColor: theme.controlBg, width: '45%', height: 12 }]} />
+              </View>
+              <View style={[p.skelLine, { backgroundColor: theme.controlBg, width: 64, height: 22 }]} />
+            </View>
+            <View style={[p.skelLine, { backgroundColor: theme.controlBg, width: '35%', height: 12, marginTop: 10 }]} />
+          </View>
+        ))}
+      </View>
+    ) : data != null && bestDeals.length === 0 ? (
       <>
         <View style={[p.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <Text style={[p.emptyTitle, { color: theme.text }]}>{t('no_deals_month')}</Text>
@@ -1352,8 +1387,16 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       {summaryBar}
-      {/* Must show even if previous results are still present (data stays non-null until fetch resolves). */}
-      <SearchLoadingOverlay visible={isLoading} origin={origin} destination={destination} />
+      {/* Full-screen overlay only on the form route. Results uses skeletons / inline banner. */}
+      <SearchLoadingOverlay visible={isLoading && showForm} origin={origin} destination={destination} />
+      {isLoading && showResultsShell ? (
+        <View style={[p.dealsLoadingBanner, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={[p.dealsLoadingBannerText, { color: theme.primary }]}>
+            {t('searching')}
+          </Text>
+        </View>
+      ) : null}
       {hasResultsLayout ? (
         /* Same as main search: parent direction:rtl causes the browser to flow columns
            right-to-left, so heroCol (1st) sits on the right, filterCol (3rd) on the left.
@@ -1766,6 +1809,15 @@ const p = StyleSheet.create({
   loaderText: { marginTop: 12, fontSize: 14, textAlign: 'center' },
   dealsProgressTrack: { width: '70%', maxWidth: 280, height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
   dealsProgressFill: { height: 4, borderRadius: 2 },
+  dealsLoadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  dealsLoadingBannerText: { fontSize: 13, fontWeight: '500', flex: 1 },
+  skelLine: { height: 16, borderRadius: 6 },
 
   emptyCard: { borderRadius: 14, padding: 28, borderWidth: 1, alignItems: 'center' },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
