@@ -1,6 +1,6 @@
 /**
  * TypeScript types aligned with backend API contracts.
- * Backend normalizes Amadeus into these shapes.
+ * Backend normalizes Google Flights 2 results into these shapes.
  */
 
 // --- Monetary & common ---
@@ -195,6 +195,9 @@ export interface FlightDetailsResponse {
   totalPrice: MonetaryAmount;
   fare?: FareBreakdown;
   stops: StopsSummary;
+  /** Short-lived session for Book now → partner checkout resolve */
+  sessionId?: string;
+  optionId?: string;
 }
 
 // Fare breakdown for a live search option (same shape as for monthly deals).

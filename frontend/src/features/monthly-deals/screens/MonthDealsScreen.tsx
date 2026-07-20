@@ -888,12 +888,16 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     retDate.setUTCDate(retDate.getUTCDate() + durationDays);
     const returnDateStr = retDate.toISOString().slice(0, 10);
 
-    const url = getUniformBookingRedirectUrl('', '', {
-      origin: o,
-      destination: d,
-      departureDate: selectedDate,
-      returnDate: returnDateStr,
-    });
+    const url = getUniformBookingRedirectUrl(
+      details.sessionId || '',
+      details.optionId || '',
+      {
+        origin: o,
+        destination: d,
+        departureDate: selectedDate,
+        returnDate: returnDateStr,
+      }
+    );
 
     setBookLoading(true);
     setBookError(null);

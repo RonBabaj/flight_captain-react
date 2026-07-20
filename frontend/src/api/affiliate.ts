@@ -45,8 +45,8 @@ export interface BookingRedirectParams {
 }
 
 /**
- * URL for the uniform booking redirect. Open this URL (e.g. Linking.openURL); backend will 302 to the actual booking page and record the click.
- * Pass optionOrParams so the backend can redirect to a Skyscanner search for that flight if session/option is missing.
+ * URL for the uniform booking redirect. Open this URL (e.g. Linking.openURL); backend will 302 to the partner checkout page (or Google Flights prefill) and record the click.
+ * Pass optionOrParams so the backend can resolve a booking URL for that flight if session/option is missing.
  */
 export function getUniformBookingRedirectUrl(
   sessionId: string,

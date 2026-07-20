@@ -1,5 +1,5 @@
 /**
- * UTC YYYY-MM-DD helpers for flight search (Amadeus expects future departures).
+ * UTC YYYY-MM-DD helpers for flight search (future departures).
  */
 
 /** Next calendar day in UTC (matches DateRangePicker "earliest selectable"). */

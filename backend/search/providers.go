@@ -78,6 +78,7 @@ type ProviderResult struct {
 	PrimaryDisplayCarrier string
 	Source                string // "googleflights2" | "kiwi" | future providers
 	DeepLink              string // booking URL if present
+	BookingToken          string // GF2 booking_token for partner checkout resolution
 	VendorName            string // kayak/expedia/kiwi etc if present
 	FareConditions        string
 	SelfTransfer          bool                   // separate tickets / virtual interlining

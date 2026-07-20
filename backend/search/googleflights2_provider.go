@@ -187,8 +187,8 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
-	// For round-trip: search outbound and return separately (one-way each), then combine legs.
-	// This mirrors the Amadeus approach and guarantees we always have the actual return flight data.
+	// For round-trip: search outbound and return separately (one-way each), then combine legs
+	// so every result has both legs with full route data.
 	if req.ReturnDate != "" {
 		results, err := p.searchRoundTrip(ctx, req)
 		if err != nil {
@@ -277,7 +277,10 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 				DurationMinutes:       ob.DurationMinutes + ret.DurationMinutes,
 				Legs:                  legs,
 				Source:                "googleflights2",
-				DeepLink:              ob.DeepLink,
+				DeepLink:              firstNonEmpty(ob.DeepLink, ret.DeepLink),
+				// One-way booking tokens are not valid for combined round-trip partner checkout.
+				// Book now resolves a native round-trip token via ResolvePartnerBookingForRoute.
+				BookingToken:          "",
 				PrimaryDisplayCarrier: ob.PrimaryDisplayCarrier,
 				BaggageClass:          ob.BaggageClass,
 			}
@@ -935,6 +938,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 	if u, ok := itin["booking_link"].(string); ok && strings.HasPrefix(u, "http") {
 		deepLink = u
 	}
+	bookingToken := extractGF2BookingToken(itin)
 
 	return &ProviderResult{
 		ID:              fmt.Sprintf("gf2_itin_%d", idx),
@@ -943,6 +947,7 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 		Legs:            legs,
 		Source:          "googleflights2",
 		DeepLink:        deepLink,
+		BookingToken:    bookingToken,
 	}
 }
 
@@ -1057,6 +1062,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	if u, ok := f["deep_link"].(string); ok && strings.HasPrefix(u, "http") {
 		deepLink = u
 	}
+	bookingToken := extractGF2BookingToken(f)
 
 	return &ProviderResult{
 		ID:              fmt.Sprintf("gf2_%d", idx),
@@ -1065,6 +1071,7 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 		Legs:            legs,
 		Source:          "googleflights2",
 		DeepLink:        deepLink,
+		BookingToken:    bookingToken,
 	}
 }
 
@@ -1416,6 +1423,289 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		DurationMinutes:  durMin,
 		CabinClass:       cabin,
 	}, durMin
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func extractGF2BookingToken(m map[string]interface{}) string {
+	if m == nil {
+		return ""
+	}
+	for _, key := range []string{"booking_token", "bookingToken", "departure_token", "token"} {
+		if s, ok := m[key].(string); ok && strings.TrimSpace(s) != "" {
+			// Prefer booking_token-shaped values; skip bare URLs.
+			v := strings.TrimSpace(s)
+			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+				continue
+			}
+			if key == "token" && len(v) < 12 {
+				continue
+			}
+			return v
+		}
+	}
+	return ""
+}
+
+// ResolvePartnerBookingURL turns a GF2 search booking_token into a partner checkout URL
+// (the site Google Flights redirects to) via getBookingDetails → getBookingURL.
+func (p *GoogleFlights2Provider) ResolvePartnerBookingURL(ctx context.Context, bookingToken, currency string) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("google flights provider not configured")
+	}
+	token := strings.TrimSpace(bookingToken)
+	if token == "" {
+		return "", fmt.Errorf("missing booking token")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if !p.limiter.allow() {
+		return "", fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+
+	detailsURL := fmt.Sprintf("https://%s/api/v1/getBookingDetails?%s", p.host, url.Values{
+		"booking_token": {token},
+		"currency":      {currency},
+		"language_code": {"en-US"},
+		"country_code":  {"US"},
+	}.Encode())
+
+	detailsBody, err := p.doGF2GET(ctx, detailsURL)
+	if err != nil {
+		return "", err
+	}
+
+	partnerToken, directURL := extractGF2PartnerBookingToken(detailsBody)
+	if directURL != "" {
+		return directURL, nil
+	}
+	if partnerToken == "" {
+		return "", fmt.Errorf("no partner booking token in getBookingDetails")
+	}
+
+	bookingURLReq := fmt.Sprintf("https://%s/api/v1/getBookingURL?%s", p.host, url.Values{
+		"token": {partnerToken},
+	}.Encode())
+	if !p.limiter.allow() {
+		return "", fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	urlBody, err := p.doGF2GET(ctx, bookingURLReq)
+	if err != nil {
+		return "", err
+	}
+	out := extractGF2BookingURL(urlBody)
+	if out == "" {
+		return "", fmt.Errorf("empty booking URL from getBookingURL")
+	}
+	return out, nil
+}
+
+func (p *GoogleFlights2Provider) doGF2GET(ctx context.Context, fullURL string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, gf2Timeout)
+	defer cancel()
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("x-rapidapi-host", p.host)
+	httpReq.Header.Set("x-rapidapi-key", p.apiKey)
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[GF2_BOOKING] status=%d url=%s body=%s", resp.StatusCode, fullURL, truncateGF2(string(body), 300))
+		return nil, fmt.Errorf("GF2 booking status %d", resp.StatusCode)
+	}
+	return body, nil
+}
+
+func extractGF2PartnerBookingToken(body []byte) (partnerToken, directURL string) {
+	var raw interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", ""
+	}
+	if u := findFirstPartnerCheckoutURL(raw); u != "" {
+		directURL = u
+	}
+	partnerToken = findFirstStringByKeys(raw, []string{
+		"booking_request_token", "bookingRequestToken",
+		"request_token", "requestToken",
+		"partner_token", "partnerToken",
+		"booking_token", "bookingToken",
+		"token",
+	})
+	if directURL != "" {
+		return partnerToken, directURL
+	}
+	return partnerToken, ""
+}
+
+// ResolvePartnerBookingForRoute runs a native GF2 search (including round-trip when returnDate is set),
+// picks the cheapest result with a booking_token, and resolves it to a partner checkout URL.
+// Used on Book click when the cached option has no usable token (e.g. combined RT legs).
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Context, origin, destination, departureDate, returnDate, currency string, adults int) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("google flights provider not configured")
+	}
+	origin = strings.ToUpper(strings.TrimSpace(origin))
+	destination = strings.ToUpper(strings.TrimSpace(destination))
+	departureDate = strings.TrimSpace(departureDate)
+	if origin == "" || destination == "" || departureDate == "" {
+		return "", fmt.Errorf("missing route params for partner booking")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if adults < 1 {
+		adults = 1
+	}
+	if !p.limiter.allow() {
+		return "", fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	results, err := p.doSearch(ctx, SearchRequest{
+		Origin:        origin,
+		Destination:   destination,
+		DepartureDate: departureDate,
+		ReturnDate:    strings.TrimSpace(returnDate),
+		Adults:        adults,
+		Currency:      currency,
+		CabinClass:    "ECONOMY",
+	})
+	if err != nil {
+		return "", err
+	}
+	token := ""
+	for _, r := range results {
+		if strings.TrimSpace(r.BookingToken) != "" {
+			token = strings.TrimSpace(r.BookingToken)
+			break
+		}
+	}
+	if token == "" {
+		return "", fmt.Errorf("no booking_token in route search")
+	}
+	return p.ResolvePartnerBookingURL(ctx, token, currency)
+}
+
+func isLikelyPartnerCheckoutURL(u string) bool {
+	s := strings.ToLower(strings.TrimSpace(u))
+	if !strings.HasPrefix(s, "https://") {
+		return false
+	}
+	// Google Flights itself is not the partner checkout destination.
+	if strings.Contains(s, "google.") || strings.Contains(s, "gstatic.") {
+		return false
+	}
+	return true
+}
+
+func findFirstPartnerCheckoutURL(v interface{}) string {
+	switch x := v.(type) {
+	case string:
+		if isLikelyPartnerCheckoutURL(x) {
+			return strings.TrimSpace(x)
+		}
+	case map[string]interface{}:
+		for _, key := range []string{"url", "booking_url", "bookingUrl", "redirect_url", "redirectUrl", "deep_link", "deepLink", "link"} {
+			if s, ok := x[key].(string); ok && isLikelyPartnerCheckoutURL(s) {
+				return strings.TrimSpace(s)
+			}
+		}
+		for _, child := range x {
+			if s := findFirstPartnerCheckoutURL(child); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, child := range x {
+			if s := findFirstPartnerCheckoutURL(child); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func extractGF2BookingURL(body []byte) string {
+	var raw interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return ""
+	}
+	if m, ok := raw.(map[string]interface{}); ok {
+		if s, ok := m["data"].(string); ok && strings.HasPrefix(s, "http") {
+			return strings.TrimSpace(s)
+		}
+	}
+	return findFirstHTTPSURL(raw)
+}
+
+func findFirstStringByKeys(v interface{}, keys []string) string {
+	switch x := v.(type) {
+	case map[string]interface{}:
+		for _, k := range keys {
+			if s, ok := x[k].(string); ok {
+				s = strings.TrimSpace(s)
+				if s == "" || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+					continue
+				}
+				if k == "token" && len(s) < 12 {
+					continue
+				}
+				return s
+			}
+		}
+		for _, child := range x {
+			if s := findFirstStringByKeys(child, keys); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, child := range x {
+			if s := findFirstStringByKeys(child, keys); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func findFirstHTTPSURL(v interface{}) string {
+	switch x := v.(type) {
+	case string:
+		s := strings.TrimSpace(x)
+		if strings.HasPrefix(s, "https://") {
+			return s
+		}
+	case map[string]interface{}:
+		for _, key := range []string{"url", "booking_url", "bookingUrl", "redirect_url", "redirectUrl", "deep_link", "deepLink", "link"} {
+			if s, ok := x[key].(string); ok && strings.HasPrefix(strings.TrimSpace(s), "https://") {
+				return strings.TrimSpace(s)
+			}
+		}
+		for _, child := range x {
+			if s := findFirstHTTPSURL(child); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, child := range x {
+			if s := findFirstHTTPSURL(child); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 func truncateGF2(s string, max int) string {

@@ -186,7 +186,7 @@ type OutboundSummary struct {
 // SellerOption represents one way to book the same physical flight (e.g. different marketing carrier or provider).
 type SellerOption struct {
 	CarrierCode string         `json:"carrierCode"`        // marketing carrier for this offer
-	Provider    string         `json:"provider,omitempty"` // "amadeus" | "duffel" | "compare"
+	Provider    string         `json:"provider,omitempty"` // "googleflights2" | OTA code
 	VendorName  string         `json:"vendorName,omitempty"`
 	Price       MonetaryAmount `json:"price"`
 	BookingURL  string         `json:"bookingUrl,omitempty"` // empty if not available
@@ -206,6 +206,7 @@ type FlightOption struct {
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
+	BookingToken          string           `json:"-"`                               // GF2 booking_token; resolved to partner URL on Book
 	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
@@ -1136,6 +1137,7 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			PrimaryDisplayCarrier: pr.PrimaryDisplayCarrier,
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
+			BookingToken:          pr.BookingToken,
 			VendorName:            pr.VendorName,
 			SelfTransfer:          pr.SelfTransfer,
 		}
@@ -1638,6 +1640,9 @@ type FlightDetailsResponse struct {
 	TotalPrice    MonetaryAmount `json:"totalPrice"`
 	Fare          *FareBreakdown `json:"fare,omitempty"`
 	Stops         StopsSummary   `json:"stops"`
+	// SessionId/OptionId let Book now use /api/out/booking with the same partner-resolve path as Search.
+	SessionId string `json:"sessionId,omitempty"`
+	OptionId  string `json:"optionId,omitempty"`
 }
 
 func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
@@ -1774,6 +1779,33 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 			Return:   countStops(retLeg),
 		},
 	}
+
+	// Persist a short-lived session so Book now can resolve GF2 partner checkout URLs.
+	opt.ID = "opt_0"
+	sessID := randomID("sess_")
+	sessionsMu.Lock()
+	sessions[sessID] = SearchSessionResultsResponse{
+		Session: SearchSession{
+			ID:        sessID,
+			Status:    StatusComplete,
+			CreatedAt: time.Now().UTC(),
+			Params: CreateSearchSessionRequest{
+				Origin:        origin,
+				Destination:   destination,
+				DepartureDate: trip.OutboundDate,
+				ReturnDate:    trip.ReturnDate,
+				Adults:        adults,
+				Children:      children,
+				Currency:      currency,
+				CabinClass:    "ECONOMY",
+			},
+		},
+		Version: 1,
+		Results: []FlightOption{*opt},
+	}
+	sessionsMu.Unlock()
+	resp.SessionId = sessID
+	resp.OptionId = opt.ID
 
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -2205,6 +2237,58 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 
 // --- Affiliate redirect and outbound-link (per affiliate plan) ---
 
+// resolveBookingRedirectURL prefers: deep link → GF2 partner checkout (booking_token / live route search) → Google Flights prefill.
+func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, option *FlightOption) string {
+	if option != nil {
+		if u := normalizeProviderBookingURL(option.BookingURL); u != "" {
+			return u
+		}
+		if u := normalizeProviderBookingURL(option.DeepLink); u != "" {
+			return u
+		}
+	}
+
+	currency := "USD"
+	adults := 1
+	if session != nil {
+		if session.Params.Currency != "" {
+			currency = session.Params.Currency
+		}
+		if session.Params.Adults > 0 {
+			adults = session.Params.Adults
+		}
+	} else if option != nil && option.Price.Currency != "" {
+		currency = option.Price.Currency
+	}
+
+	if googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
+		u, err := googleFlights2Provider.ResolvePartnerBookingURL(ctx, option.BookingToken, currency)
+		if err == nil && normalizeProviderBookingURL(u) != "" {
+			log.Printf("[BOOKING] resolved partner URL from booking_token")
+			return u
+		}
+		if err != nil {
+			log.Printf("[BOOKING] booking_token resolve failed: %v", err)
+		}
+	}
+
+	if googleFlights2Provider != nil {
+		origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
+		if origin != "" && dest != "" && dep != "" {
+			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults)
+			if err == nil && normalizeProviderBookingURL(u) != "" {
+				log.Printf("[BOOKING] resolved partner URL from route search %s→%s %s", origin, dest, dep)
+				return u
+			}
+			if err != nil {
+				log.Printf("[BOOKING] route partner resolve failed: %v", err)
+			}
+		}
+	}
+
+	return BuildUniformBookingLink(session, option)
+}
+
 func handleAffiliateRedirect(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -2230,13 +2314,9 @@ func handleAffiliateRedirect(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
 		return
 	}
-	var redirectURL string
-	if option.DeepLink != "" {
-		redirectURL = option.DeepLink
-	} else {
-		provider := ResolveProvider(option)
-		redirectURL = BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
-	}
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	redirectURL := resolveBookingRedirectURL(ctx, &resp.Session, option)
 	if redirectURL == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build redirect URL"})
 		return
@@ -2272,13 +2352,9 @@ func handleAffiliateOutboundLink(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
 		return
 	}
-	var redirectURL string
-	if option.DeepLink != "" {
-		redirectURL = option.DeepLink
-	} else {
-		provider := ResolveProvider(option)
-		redirectURL = BuildRedirectURL(&resp.Session, option, provider, sessionID, optionID)
-	}
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	redirectURL := resolveBookingRedirectURL(ctx, &resp.Session, option)
 	if redirectURL == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not build redirect URL"})
 		return
@@ -2323,7 +2399,7 @@ func handleAffiliateProvider(w http.ResponseWriter, r *http.Request) {
 
 // handleOutBooking is the uniform booking redirect: GET /api/out/booking?sessionId=...&optionId=...
 // Optional query params (origin, destination, departureDate, returnDate) are used when session/option is not found
-// so we still redirect to a Skyscanner search instead of returning JSON error.
+// so we still redirect to a Google Flights (or configured) prefill instead of returning JSON error.
 func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -2341,10 +2417,13 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	departureDate := strings.TrimSpace(q.Get("departureDate"))
 	returnDate := strings.TrimSpace(q.Get("returnDate"))
 
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+
 	if sessionID != "" && optionID != "" {
 		resp, option := GetSessionAndOption(sessionID, optionID)
 		if resp != nil && option != nil {
-			redirectURL := BuildUniformBookingLink(&resp.Session, option)
+			redirectURL := resolveBookingRedirectURL(ctx, &resp.Session, option)
 			if redirectURL != "" {
 				provider := ResolveProvider(option)
 				_ = RecordClick(sessionID, optionID, provider, redirectURL)
@@ -2356,9 +2435,24 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	{
-		redirectURL := BuildSkyscannerFallbackFromParams(origin, destination, departureDate, returnDate)
+		var redirectURL string
+		if googleFlights2Provider != nil && origin != "" && destination != "" && departureDate != "" {
+			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, destination, departureDate, returnDate, "USD", 1)
+			if err == nil && normalizeProviderBookingURL(u) != "" {
+				redirectURL = u
+			} else if err != nil {
+				log.Printf("[BOOKING] params partner resolve failed: %v", err)
+			}
+		}
 		if redirectURL == "" {
-			redirectURL = "https://www.skyscanner.net/transport/flights/"
+			if bookingLinkMode() == BookingModeSkyscannerPrefill {
+				redirectURL = BuildSkyscannerFallbackFromParams(origin, destination, departureDate, returnDate)
+			} else {
+				redirectURL = BuildGoogleFlightsFallbackFromParams(origin, destination, departureDate, returnDate)
+			}
+		}
+		if redirectURL == "" {
+			redirectURL = "https://www.google.com/travel/flights"
 		}
 		w.Header().Set("Location", redirectURL)
 		w.WriteHeader(http.StatusFound)
