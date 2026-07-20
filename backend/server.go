@@ -1457,7 +1457,7 @@ var (
 	monthDealsCache   = make(map[string]monthDealsCacheEntry)
 )
 
-const monthDealsCacheTTL = 90 * time.Second
+const monthDealsCacheTTL = 15 * time.Minute
 
 func monthDealsCacheKey(origin, destination, currency string, useRange bool, year, month int, startDateStr, endDateStr string, durationDays, adults, children int, nonStop bool) string {
 	if useRange {
@@ -1667,7 +1667,7 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	outStr := startDate.Format("2006-01-02")
 	retStr := startDate.AddDate(0, 0, durationDays).Format("2006-01-02")
-	trip, err := gf2OneRoundTrip(ctx, googleFlights2Provider, origin, destination, outStr, retStr, currency, adults, children, "ECONOMY", false, false)
+	trip, err := gf2OneRoundTrip(ctx, googleFlights2Provider, origin, destination, outStr, retStr, currency, adults, children, "ECONOMY", false, false, true)
 	if err != nil {
 		log.Printf("[FLIGHT_DETAILS] gf2OneRoundTrip error: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "failed to load flight details"})
