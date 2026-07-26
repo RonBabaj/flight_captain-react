@@ -57,5 +57,9 @@
   "55": "@expo/metro-runtime",
   "56": "expo-status-bar",
   "57": "react-native",
-  "58": "@react-navigation/native"
+  "58": "@react-navigation/native",
+  "59": "search.ts",
+  "60": "MultiSearchResult",
+  "61": "RWMutex",
+  "62": "T"
 }

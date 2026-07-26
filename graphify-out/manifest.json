@@ -115,13 +115,13 @@
     "semantic_hash": ""
   },
   "backend/search/providers.go": {
-    "mtime": 1785092403.3056393,
-    "ast_hash": "15e2a1f146971f9569f8f84ecc370392",
+    "mtime": 1785092481.4657304,
+    "ast_hash": "348d64b70f1babf642cf469eb046baba",
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1785092403.3056393,
-    "ast_hash": "f45005257c2f47f3a337a40f0c44ddf4",
+    "mtime": 1785092481.4697304,
+    "ast_hash": "1bd4bd62a6cc17389a0eaeb297e85e48",
     "semantic_hash": ""
   },
   "backend/server_baggage_test.go": {
@@ -275,8 +275,8 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1785092006.5534816,
-    "ast_hash": "8653cc040b92e10c7de520de05f2aeed",
+    "mtime": 1785092540.9897766,
+    "ast_hash": "a34b6fa496b84cbfe7284ddcd0170ca4",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -315,13 +315,13 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1784925786.8628926,
-    "ast_hash": "d717366df2b3c5038608790bf00fd546",
+    "mtime": 1785092531.8017704,
+    "ast_hash": "f192d576ce03bd69030e790a06f1ebd9",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
-    "mtime": 1784925786.8628926,
-    "ast_hash": "552257326a55af41d18dd2d2d46a96f0",
+    "mtime": 1785092514.497758,
+    "ast_hash": "ffa58265ee01f54f5f13c9b32db37f0b",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx": {
@@ -445,8 +445,8 @@
     "semantic_hash": ""
   },
   "frontend/src/types/api.ts": {
-    "mtime": 1785092006.5574815,
-    "ast_hash": "7b48289af19f16b2f095e75a70623518",
+    "mtime": 1785092496.6857438,
+    "ast_hash": "5f6b12b93fb8beacc9732e8ffc164b84",
     "semantic_hash": ""
   },
   "frontend/src/types/index.ts": {
@@ -595,8 +595,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1785092425.60167,
-    "ast_hash": "2db8158228a600306e4d26ea06a1f817",
+    "mtime": 1785092526.3097665,
+    "ast_hash": "dd027155042faa5d97d34d72a6051597",
     "semantic_hash": ""
   },
   "backend/backend_api_contracts.md": {
@@ -652,6 +652,26 @@
   "backend/main.go": {
     "mtime": 1785092006.5534816,
     "ast_hash": "5fdf53582806395a717a49e4c4430453",
+    "semantic_hash": ""
+  },
+  "backend/search/dedupe.go": {
+    "mtime": 1785092481.5017304,
+    "ast_hash": "f7456125840ec690750f0c9f05f07ceb",
+    "semantic_hash": ""
+  },
+  "backend/search/kiwi_apify_provider.go": {
+    "mtime": 1785092481.5017304,
+    "ast_hash": "1faba0572f3a9d401af0396d7bc8508c",
+    "semantic_hash": ""
+  },
+  "backend/search/multi_provider_test.go": {
+    "mtime": 1785092481.5017304,
+    "ast_hash": "86c5f5af79fd157e43b62209f387648d",
+    "semantic_hash": ""
+  },
+  "backend/search/registry.go": {
+    "mtime": 1785092481.5017304,
+    "ast_hash": "f68493cdcbb9d485845d58a0fd1e1769",
     "semantic_hash": ""
   }
 }
