@@ -28,6 +28,13 @@ const linking = {
           MonthDealsResults: 'results',
         },
       },
+      HotelDeals: {
+        path: 'hotel-deals',
+        screens: {
+          HotelDealsForm: '',
+          HotelDealsResults: 'results',
+        },
+      },
     },
   },
 };

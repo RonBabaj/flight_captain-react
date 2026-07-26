@@ -5,3 +5,4 @@ export * from './airports';
 export * from './flights';
 export * from './affiliate';
 export * from './explore';
+export * from './hotels';

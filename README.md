@@ -1,15 +1,15 @@
 # Fly-Fix
 
-A Skyscanner-style flight metasearch app: **Go backend** (Google Flights via RapidAPI) + **React Native (Expo) frontend** for web, iOS, and Android.
+A Skyscanner-style **flight + hotel** travel deal platform: **Go backend** (Google Flights via RapidAPI + RateHawk/ETG hotels) + **React Native (Expo) frontend** for web, iOS, and Android.
 
 ---
 
 ## Overview
 
-- **Backend (`backend/`)** – Go HTTP API backed by **Google Flights2** (RapidAPI). REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
-- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`. Top navbar (**Home | Search | Monthly Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
+- **Backend (`backend/`)** – Go HTTP API backed by **Google Flights2** (RapidAPI) for flights and optionally **RateHawk (ETG API v3)** for hotels. REST endpoints for flight search, monthly deals, hotel search/estimates, trip estimates, airport search, and affiliate booking redirects.
+- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`, hotel deals at `/hotel-deals`. Top navbar (**Home | Search | Monthly Deals | Hotel Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
-Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
+Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts. **RateHawk credentials never reach the frontend.**
 
 ---
 
@@ -86,6 +86,36 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
   - `[MONTHLY_POSITIONING] origin=... hub=... dest=... total=... savings=...`
   - `[MONTHLY_POSITIONING_RENDER] optionsCount=...`
 
+### Hotel Deals
+- Third primary nav tab: **Hotel Deals** (`/hotel-deals`).
+- Standalone hotel search: destination, check-in/out, guests, rooms, optional filters (stars, free cancellation, breakfast).
+- Results show name, price, per-night, nights, cancellation, meal plan, amenities, and **View Deal** (live hotelpage rate when available).
+- Sort modes (explicit ranking logic):
+  - **Cheapest** — lowest total stay price
+  - **Best value** — `totalPrice ÷ guestRating ÷ starRating` (lower is better)
+  - **Highest rated** — guest rating, then stars
+  - **Most popular** — review count, then guest rating
+- Search SERP prices are labeled **Estimated**; hotelpage rates are labeled **Live**.
+
+### Flight + hotel estimates
+- After round-trip flight results load, the backend is asked **once** for a destination/date hotel estimate (not once per flight card).
+- Cards can show: Flight price · Estimated hotel · Estimated trip total.
+- **Find hotels** CTA opens Hotel Deals prefilled with destination, dates, and travelers.
+- Hotel failures never block flight search; UI shows “Hotel prices unavailable”.
+- One-way and multi-city itineraries do not get a misleading single-stay estimate.
+
+### Hotel provider architecture (RateHawk / ETG)
+- `HotelProvider` interface in `backend/search/hotels/` with `RateHawkProvider` implementation.
+- Normalized `HotelOffer`, `HotelEstimate`, and `TripDeal` models (provider-agnostic).
+- Official ETG API v3 docs: https://docs.emergingtravel.com/
+  - Auth: HTTP Basic (`RATEHAWK_KEY_ID` / `RATEHAWK_API_KEY`) — **backend only**
+  - Suggest: `POST /api/b2b/v3/search/multicomplete/`
+  - Search: `POST /api/b2b/v3/search/serp/region/` or `/serp/geo/`
+  - Details: `POST /api/b2b/v3/search/hp/`
+- IATA destinations without a region id are resolved via airport coordinates → geo search.
+- In-process TTL cache for suggest/search/estimate (`RATEHAWK_CACHE_TTL_SECONDS`, default 300s).
+- Full ETG booking/prebook certification flow is not implemented yet; **View Deal** retrieves live hotelpage pricing.
+
 ### Loading & progress
 - **Search (main form):** On "Search", a full-screen **SearchLoadingOverlay** appears with a spinner, route (e.g. TLV → HND), and **rotating status text** (e.g. "Searching hundreds of airlines…", "Comparing prices…") in the active language (EN/HE/RU).
 - **Search button:** While loading, the button shows a spinner and the same rotating phrases instead of static "Searching…".
@@ -96,7 +126,7 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 - Consistent design language across search results and monthly deals.
 - Pill-shaped sort buttons, lightweight collapsible filter sidebar, compact search form.
 - **Responsive layout:** Three-column desktop (hero | deals | filters), single column + bottom-sheet modals on mobile.
-  - **Header:** On narrow viewports, nav collapses into a **hamburger menu** (Home / Search / Monthly deals).
+  - **Header:** On narrow viewports, nav collapses into a **hamburger menu** (Home / Search / Monthly deals / Hotel Deals).
   - **Results toolbar (mobile):** The **Filters** button sits on its own row **between** the sort options and the flight cards to avoid overflow.
   - **Flight details modal:** Bottom-sheet on mobile with constrained height/width so it stays within the viewport (e.g. Samsung S24 Ultra, iPhone).
 - Dark and light themes with **full RTL support** (English, Hebrew, Russian): flight cards and modals swap price/info columns; sort bar and month nav flow from the correct side; main search dates show return ← departure and arrow direction in RTL; header and labels have appropriate padding/margins. **Icons** use local static SVGs (no runtime icon fonts) for reliable rendering in normal and incognito/private browsing.
@@ -136,6 +166,16 @@ GOOGLEFLIGHTS2_RAPIDAPI_HOST=google-flights2.p.rapidapi.com
 
 # Optional: in-process cap on GF2 Search() calls per rolling minute (default 30). Range 1–500.
 # GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN=30
+
+# Optional RateHawk / ETG hotels (never expose these to the frontend)
+# RATEHAWK_ENABLED=true
+# RATEHAWK_KEY_ID=
+# RATEHAWK_API_KEY=
+# RATEHAWK_BASE_URL=https://api.worldota.net
+# RATEHAWK_RESIDENCY=us
+# RATEHAWK_GEO_RADIUS_KM=25
+# RATEHAWK_CACHE_TTL_SECONDS=300
+# RATEHAWK_TIMEOUT_SECONDS=30
 ```
 
 ### Run the HTTP API
@@ -159,7 +199,12 @@ Server listens on **http://localhost:8080**. CORS is enabled for browser clients
   - **Response:** `destinations[]` (`destination`, `price`, `currency`, `departureDate?`, `priceSource`), `sessionId`, `total`, `offset`, `limit`, `hasMore`, `partialResults` (any row still estimated), `liveRefreshAvailable` (more live batches allowed for this session).
 - **`GET /api/flights/details`** – Flight details for a route/date/duration.
 - **`GET /api/airports/search?q=...&limit=...`** – Airport/city autocomplete (empty `q` returns the first `limit` directory entries).
-- **`GET /health`** – JSON for uptime/readiness: `status`, `timestamp`, `version` (from `APP_VERSION` or `dev`), and whether Google Flights2 is configured (`services.googleFlights2`).
+- **`GET /health`** – JSON for uptime/readiness: `status`, `timestamp`, `version` (from `APP_VERSION` or `dev`), and whether Google Flights2 / RateHawk are configured (`services.googleFlights2`, `services.ratehawk`).
+- **`GET /api/hotels/destinations?q=...`** – Hotel destination autocomplete (RateHawk multicomplete).
+- **`POST /api/hotels/search`** – Hotel search (SERP). Prices returned as **estimated**.
+- **`GET|POST /api/hotels/details`** – Live hotelpage rates for a selected hotel.
+- **`POST /api/hotels/estimate`** – Single or batched destination hotel estimates (deduped + cached). Soft-fails if RateHawk is down.
+- **`POST /api/trips/estimate`** – Combined flight + hotel `TripDeal` (estimated vs live total semantics).
 - **`GET /api/out/booking?sessionId=...&optionId=...`** – Uniform booking redirect. Uses provider deep link or Skyscanner fallback. Also accepts `origin`, `destination`, `departureDate`, `returnDate` params for deals without a session.
 - **`GET /api/affiliate/provider`** – Provider info for an option.
 - **`GET /api/affiliate/outbound-link`** – Booking URL + click recording.
@@ -199,7 +244,8 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 
 ### Structure
 
-- **`src/api/`** – API client (search, deals, explore, flights, airports, affiliate/booking).
+- **`src/api/`** – API client (search, deals, explore, flights, airports, hotels, affiliate/booking).
+- **`src/features/hotel-search/`** – Hotel Deals form, results, hotel cards.
 - **`src/types/`** – Shared TypeScript types.
 - **`src/store/`** – Zustand stores (search, deals).
 - **`src/theme/`** – Theme context (dark/light, indigo accent). Dark is default.
@@ -216,6 +262,7 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 1. **Home** – Optional entry at `/`: read value props → **Search flights** (`/search`) or **Explore monthly deals** (`/monthly-deals`).
 2. **Flight search** – From `/search`: enter From/To (autocomplete), pick dates, passengers and cabin → Search → Results at `/search/results` with sort/filter → View details modal (outbound + return legs) → Book now (redirects to partner site). Shareable URLs keep query params (e.g. `sessionId`) on the `/search` path.
 3. **Monthly deals** – From `/monthly-deals`: set route, trip duration, month → Search deals → Sort/filter by price, stops, airlines, preferred departure days → Tap deal for details modal → Book now (redirects to Skyscanner). Optional: set destination to **Anywhere** → **Explore** (deals mode) → pick a city → loads full calendar for that destination on **Monthly deals results**.
+4. **Hotel deals** – From `/hotel-deals` (or **Find hotels** on a flight result): set destination/dates/guests → search hotels via Fly-Fix backend (RateHawk) → sort/filter → **View Deal** for live hotelpage pricing. Flight results may also show an async **estimated hotel** + trip total without blocking flight search.
 4. **Explore** – From Search or Monthly Deals with **Anywhere**: the app loads **prefetch** results (cache + estimates), then may **refresh live prices** in the background within server limits → browse destination cards → tap to open either search results (date mode) or monthly deals results (month/duration mode).
 
 ### Web routes (deep links & refresh)
@@ -227,6 +274,8 @@ Web dev server runs at **http://localhost:8081**. Ensure the backend is running 
 | `/search/results` | Search results |
 | `/monthly-deals` | Monthly deals form |
 | `/monthly-deals/results` | Monthly deals results |
+| `/hotel-deals` | Hotel deals form |
+| `/hotel-deals/results` | Hotel deals results |
 
 Legacy bookmarks (Apache/LiteSpeed, optional): **`frontend/public/.htaccess`** **301**-redirects `/results` → `/search/results` and `/deals` → `/monthly-deals/` (query string preserved). With nginx/Docker, these legacy paths are handled via build-time SPA route shells (see `frontend/scripts/write-spa-fallbacks.mjs`).
 

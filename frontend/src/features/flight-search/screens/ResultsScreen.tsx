@@ -22,7 +22,8 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions } from '../../../store';
 import type { LocaleContextValue } from '../../../context/LocaleContext';
-import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
+import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl, getHotelEstimate } from '../../../api';
+import type { HotelEstimate } from '../../../types';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams } from '../../../hooks/useSearchParams';
@@ -622,6 +623,85 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [status, results.length, storeParams, runPositioningOptimizer]);
 
+  // Async hotel estimate for the search destination/dates (one request, not per flight card).
+  const [hotelEstimate, setHotelEstimate] = useState<HotelEstimate | null>(null);
+  const [hotelEstimateLoading, setHotelEstimateLoading] = useState(false);
+
+  useEffect(() => {
+    if (status !== 'COMPLETE' || !storeParams) {
+      setHotelEstimate(null);
+      return;
+    }
+    const dest = (storeParams.destination || '').trim().toUpperCase();
+    const dep = storeParams.departureDate;
+    const ret = storeParams.returnDate;
+    if (!dest || dest === 'ANYWHERE' || !dep || !ret) {
+      setHotelEstimate({
+        destination: dest,
+        checkIn: dep || '',
+        checkOut: ret || '',
+        nights: 0,
+        rooms: 1,
+        guests: storeParams.adults ?? 1,
+        currency: storeParams.currency || currency || 'USD',
+        priceStatus: 'estimated',
+        available: false,
+        message: t('hotel_estimate_unavailable'),
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setHotelEstimateLoading(true);
+    (async () => {
+      try {
+        const rooms = Math.max(1, Math.ceil((storeParams.adults ?? 1) / 2));
+        const res = await getHotelEstimate({
+          destination: dest,
+          flightDepartureDate: dep,
+          flightReturnDate: ret,
+          itineraryType: 'round_trip',
+          adults: storeParams.adults ?? 2,
+          rooms,
+          currency: storeParams.currency || currency || 'USD',
+        });
+        if (!cancelled) setHotelEstimate(res.estimate ?? null);
+      } catch {
+        if (!cancelled) {
+          setHotelEstimate({
+            destination: dest,
+            checkIn: dep,
+            checkOut: ret,
+            nights: 0,
+            rooms: 1,
+            guests: storeParams.adults ?? 1,
+            currency: storeParams.currency || currency || 'USD',
+            priceStatus: 'estimated',
+            available: false,
+            message: t('hotel_estimate_unavailable'),
+          });
+        }
+      } finally {
+        if (!cancelled) setHotelEstimateLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, storeParams?.destination, storeParams?.departureDate, storeParams?.returnDate, storeParams?.adults, storeParams?.currency, currency, t]);
+
+  const handleFindHotels = useCallback(() => {
+    if (!storeParams) return;
+    (navigation as any).navigate('HotelDeals', {
+      destination: storeParams.destination,
+      checkIn: storeParams.departureDate,
+      checkOut: storeParams.returnDate,
+      adults: storeParams.adults ?? 2,
+      rooms: Math.max(1, Math.ceil((storeParams.adults ?? 1) / 2)),
+      autoSearch: true,
+    });
+  }, [navigation, storeParams]);
+
   const filtered = useMemo(() => {
     let list = results;
     if (filters.maxStops != null) {
@@ -811,6 +891,9 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
               (storeParams?.children ?? 0) +
               (storeParams?.infants ?? 0)
             }
+            hotelEstimate={hotelEstimate}
+            hotelEstimateLoading={hotelEstimateLoading}
+            onFindHotels={storeParams?.returnDate ? handleFindHotels : undefined}
           />
         )}
         ListEmptyComponent={

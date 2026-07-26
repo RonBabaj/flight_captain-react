@@ -1,0 +1,1 @@
+export { HotelDealsScreen } from './HotelDealsScreen';

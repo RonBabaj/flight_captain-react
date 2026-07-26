@@ -25,6 +25,8 @@ const SPA_ROUTES = [
   'search/results',
   'monthly-deals',
   'monthly-deals/results',
+  'hotel-deals',
+  'hotel-deals/results',
   // Legacy bookmarks / old links (.htaccess redirected these on Apache only)
   'results',
   'deals',
