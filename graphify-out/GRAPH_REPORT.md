@@ -1,8 +1,7 @@
-# Graph Report - workspace  (2026-07-26)
+# Graph Report - .  (2026-07-26)
 
 ## Corpus Check
-- 124 files · ~138,839 words
-- Verdict: corpus is large enough that graph structure adds value.
+- cluster-only mode — file stats not available
 
 ## Summary
 - 987 nodes · 2104 edges · 59 communities (52 shown, 7 thin omitted)
@@ -10,7 +9,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `93dd7606`
+- Built from commit: `be2257e5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -130,7 +129,7 @@ Nodes (17): expo, dependencies, expo, react-dom, react-native-safe-area-context,
 
 ### Community 7 - "server.go"
 Cohesion: 0.09
-Nodes (36): AirportCityResult, AirportCitySearchResponse, AirportCityType, AirportLike, Carrier, DayDeal, startExploreSessionCleanup(), FareBreakdown (+28 more)
+Nodes (37): AirportCityResult, AirportCitySearchResponse, AirportCityType, AirportLike, Carrier, DayDeal, startExploreSessionCleanup(), FareBreakdown (+29 more)
 
 ### Community 8 - "Features"
 Cohesion: 0.06
@@ -157,8 +156,8 @@ Cohesion: 0.08
 Nodes (23): compilerOptions, baseUrl, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+15 more)
 
 ### Community 14 - "handleCreateSession"
-Cohesion: 0.16
-Nodes (14): CreateSearchSessionRequest, FlightOption, applyPriceNormalization(), applySoftStrictBaggageOptions(), baggageOrderString(), classifyFlightOptionBaggage(), convertOptionsToCurrency(), convertPrice() (+6 more)
+Cohesion: 0.17
+Nodes (13): CreateSearchSessionRequest, FlightOption, applyPriceNormalization(), applySoftStrictBaggageOptions(), baggageOrderString(), classifyFlightOptionBaggage(), convertOptionsToCurrency(), convertPrice() (+5 more)
 
 ### Community 15 - "AirportAutocomplete.tsx"
 Cohesion: 0.22
