@@ -1,15 +1,16 @@
-# Graph Report - .  (2026-07-26)
+# Graph Report - workspace  (2026-07-26)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 124 files · ~138,973 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 987 nodes · 2104 edges · 59 communities (52 shown, 7 thin omitted)
+- 988 nodes · 2105 edges · 59 communities (52 shown, 7 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 95 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `be2257e5`
+- Built from commit: `174f96b5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -133,7 +134,7 @@ Nodes (37): AirportCityResult, AirportCitySearchResponse, AirportCityType, Airpo
 
 ### Community 8 - "Features"
 Cohesion: 0.06
-Nodes (31): AdSense & consent (CMP), Affiliate setup (optional), Backend, Booking Redirect, Cheaper departure cities (positioning optimizer), Environment, Environment, Explore (Anywhere) (+23 more)
+Nodes (32): AdSense & consent (CMP), Affiliate setup (optional), Backend, Booking Redirect, Cheaper departure cities (positioning optimizer), Environment, Environment, Explore (Anywhere) (+24 more)
 
 ### Community 9 - "affiliate.go"
 Cohesion: 0.15
@@ -292,7 +293,7 @@ Cohesion: 0.40
 Nodes (4): main, name, private, version
 
 ## Knowledge Gaps
-- **235 isolated node(s):** `ClicksByProvider`, `flightcaptainweb`, `Provider`, `name`, `slug` (+230 more)
+- **236 isolated node(s):** `Overview`, `Graphify (codebase knowledge graph)`, `Landing (home)`, `Flight Search`, `Flight Result Cards` (+231 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -304,11 +305,11 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `react` connect `DatePickerCalendar.tsx` to `AppIcon.tsx`, `dependencies`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Why does `dependencies` connect `dependencies` to `DatePickerCalendar.tsx`, `package.json`, `@expo/metro-runtime`, `expo-status-bar`, `react-native`, `@react-navigation/native`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `TestResult` (e.g. with `ResponseAnalyzer` and `ApiClient`) actually correct?**
   _`TestResult` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `ClicksByProvider`, `flightcaptainweb`, `Provider` to the rest of the system?**
-  _235 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Overview`, `Graphify (codebase knowledge graph)`, `Landing (home)` to the rest of the system?**
+  _236 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `googleflights2_provider.go` be split into smaller, more focused modules?**
   _Cohesion score 0.09796806966618288 - nodes in this community are weakly interconnected._
 - **Should `LocaleContext.tsx` be split into smaller, more focused modules?**
