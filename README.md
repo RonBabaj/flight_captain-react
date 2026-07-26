@@ -13,6 +13,36 @@ Backend and frontend are decoupled; the frontend depends only on the HTTP API co
 
 ---
 
+## Graphify (codebase knowledge graph)
+
+This repo includes a [Graphify](https://github.com/safishamsi/graphify) knowledge graph so Cursor agents can answer architecture questions with far fewer tokens than grepping the tree.
+
+**Committed artifacts**
+- `.cursor/rules/graphify.mdc` — always-on Cursor rule (prefer `graphify query` / `path` / `explain` over memory or broad reads)
+- `graphify-out/graph.json`, `GRAPH_REPORT.md`, `graph.html`, `manifest.json`
+- `.gitattributes` — union-merge driver for `graphify-out/graph.json`
+
+**One-time local setup**
+```bash
+pip install graphifyy
+export PATH="$HOME/.local/bin:$PATH"   # if needed
+graphify cursor install                # writes/refreshes .cursor/rules/graphify.mdc
+graphify hook install                  # optional: rebuild graph after commits
+graphify update .                      # AST rebuild (no API cost)
+```
+
+**Day-to-day**
+```bash
+graphify query "how does flight search work?"
+graphify path "Provider" "handleCreateSession"
+graphify explain "GoogleFlights2Provider"
+graphify update .                      # after code changes
+```
+
+Agents should prefer the graph over conversation memory whenever this feature is present.
+
+---
+
 ## Features
 
 ### Landing (home)

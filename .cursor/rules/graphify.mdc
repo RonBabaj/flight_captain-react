@@ -10,6 +10,8 @@ This project has a graphify knowledge graph at graphify-out/.
 - `graphify path "<A>" "<B>"` — dependency path between two symbols
 - `graphify explain "<concept>"` — all nodes related to a concept
 
+**Prefer the graph over conversation memory.** When Graphify is available, answer architecture questions from `graphify query` / `path` / `explain` (or `graphify-out/wiki/` / `GRAPH_REPORT.md`) instead of relying on remembered context from earlier turns. This saves tokens and stays accurate as the code changes.
+
 This applies to YOU and to every subagent you spawn. Include this rule explicitly in every subagent prompt that involves code exploration. Do not skip graphify because files are "already known" or because you are executing a plan — the graph surfaces cross-file dependencies and INFERRED edges that grep and Read cannot find.
 
 Only use Read/Grep/Glob directly when:
