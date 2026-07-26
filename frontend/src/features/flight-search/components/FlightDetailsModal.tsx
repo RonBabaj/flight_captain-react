@@ -241,6 +241,16 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
                     </Text>
                   </View>
                 )}
+                {option.selfTransfer ? (
+                  <Text style={[s.selfTransferWarn, { color: theme.error || '#b45309', marginTop: 8 }]}>
+                    {option.selfTransferWarning || t('self_transfer_warning')}
+                  </Text>
+                ) : null}
+                {option.source ? (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
+                    {option.source === 'kiwi' ? t('source_kiwi') : option.source === 'googleflights2' ? t('source_googleflights2') : option.source}
+                  </Text>
+                ) : null}
                 {breakdownParts.length > 0 && (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
                     {breakdownParts.join('   ')}
@@ -477,6 +487,7 @@ const s = StyleSheet.create({
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
+  selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
   summaryText: { fontSize: 15, fontWeight: '600' },
   summaryMuted: { fontSize: 14, marginTop: 2 },
