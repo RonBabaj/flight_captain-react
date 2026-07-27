@@ -20,9 +20,6 @@ const TITLE_KEYS: Record<string, string> = {
   Results: 'nav_results',
   Search: 'nav_flight_search',
   MonthDeals: 'nav_monthly_deals',
-  HotelDeals: 'nav_hotel_deals',
-  HotelDealsForm: 'nav_hotel_deals',
-  HotelDealsResults: 'nav_hotel_deals',
   FlyFixRefine: 'flyfix_refine_nav_title',
 };
 
@@ -46,7 +43,6 @@ export function TopNavMenu() {
   const isHome = currentRoot === 'Home';
   const isSearch = currentRoot === 'Search';
   const isDeals = currentRoot === 'MonthDeals';
-  const isHotels = currentRoot === 'HotelDeals';
 
   const handleGoToHome = () => {
     if (!isHome) {
@@ -71,13 +67,6 @@ export function TopNavMenu() {
   const handleGoToDeals = () => {
     if (!isDeals) {
       navigation.navigate('MonthDeals' as never);
-    }
-    setShowMobileMenu(false);
-  };
-
-  const handleGoToHotels = () => {
-    if (!isHotels) {
-      navigation.navigate('HotelDeals' as never);
     }
     setShowMobileMenu(false);
   };
@@ -194,21 +183,6 @@ export function TopNavMenu() {
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToHotels}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isHotels && { color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_hotel_deals')}
-                </Text>
-              </TouchableOpacity>
             </View>
           </>
         ) : (
@@ -262,21 +236,6 @@ export function TopNavMenu() {
                   ]}
                 >
                   {t('nav_monthly_deals')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToHotels}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isHotels && { color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_hotel_deals')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -410,21 +369,6 @@ export function TopNavMenu() {
                   ]}
                 >
                   {t('nav_monthly_deals')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.mobileMenuItem}
-                onPress={handleGoToHotels}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.mobileMenuItemText,
-                    { color: theme.text },
-                    isHotels && { fontWeight: '700', color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_hotel_deals')}
                 </Text>
               </TouchableOpacity>
             </View>

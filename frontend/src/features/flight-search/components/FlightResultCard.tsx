@@ -114,25 +114,9 @@ export interface FlightResultCardProps {
   searchReturnDate?: string;
   /** Total number of travelers in the search (adults + children + infants) */
   passengerCount?: number;
-  /** Optional destination-level hotel estimate (shared across same stay dates). */
-  hotelEstimate?: import('../../../types/hotels').HotelEstimate | null;
-  hotelEstimateLoading?: boolean;
-  onFindHotels?: () => void;
 }
 
-export function FlightResultCard({
-  option,
-  onDetails,
-  onBook,
-  bookLoading = false,
-  bookLabel,
-  tripType,
-  searchReturnDate,
-  passengerCount,
-  hotelEstimate,
-  hotelEstimateLoading,
-  onFindHotels,
-}: FlightResultCardProps) {
+export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate, passengerCount }: FlightResultCardProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency } = useLocale();
   const summary = buildSummary(option);
@@ -335,57 +319,6 @@ export function FlightResultCard({
           </View>
         )}
       </View>
-
-      {/* ── Trip cost: flight + optional hotel estimate ── */}
-      {(hotelEstimateLoading || hotelEstimate || onFindHotels) && (
-        <View style={[c.tripBox, { borderTopColor: theme.cardBorder, backgroundColor: theme.controlBg }]}>
-          <Text style={[c.tripLine, { color: theme.text }]}>
-            {t('flight_label')}: {priceStr}
-          </Text>
-          {hotelEstimateLoading ? (
-            <Text style={[c.tripLine, { color: theme.textMuted }]}>{t('hotel_estimate_label')}: …</Text>
-          ) : hotelEstimate?.available && hotelEstimate.totalPrice ? (
-            <>
-              <Text style={[c.tripLine, { color: theme.text }]}>
-                {t('hotel_estimate_label')}: {getCurrencySymbol(getDisplayPrice(hotelEstimate.totalPrice.amount, hotelEstimate.totalPrice.currency || hotelEstimate.currency, displayCurrency).currency)}{' '}
-                {getDisplayPrice(hotelEstimate.totalPrice.amount, hotelEstimate.totalPrice.currency || hotelEstimate.currency, displayCurrency).amount.toFixed(0)}
-                {hotelEstimate.nights ? ` · ${hotelEstimate.nights} ${t('hotel_nights')}` : ''}
-                {' · '}
-                {t('hotel_price_estimated')}
-              </Text>
-              <Text style={[c.tripTotal, { color: theme.primary }]}>
-                {t('trip_total_estimated')}: {getCurrencySymbol(cur)}{' '}
-                {(
-                  totalAmount +
-                  getDisplayPrice(
-                    hotelEstimate.totalPrice.amount,
-                    hotelEstimate.totalPrice.currency || hotelEstimate.currency,
-                    displayCurrency
-                  ).amount
-                ).toFixed(0)}
-              </Text>
-            </>
-          ) : hotelEstimate ? (
-            <Text style={[c.tripLine, { color: theme.textMuted }]}>
-              {t('hotel_estimate_label')}: {hotelEstimate.message || t('hotel_estimate_unavailable')}
-            </Text>
-          ) : null}
-          {onFindHotels ? (
-            <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation();
-                onFindHotels();
-              }}
-              style={{ marginTop: 6 }}
-              hitSlop={6}
-            >
-              <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 13 }}>
-                {t('hotel_find_hotels')}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )}
     </TouchableOpacity>
   );
 }
@@ -448,14 +381,4 @@ const c = StyleSheet.create({
   codeshareText: { fontSize: 11, marginTop: 2 },
   bagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   bagBadgeText: { fontSize: 11 },
-  tripBox: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-  },
-  tripLine: { fontSize: 12, marginTop: 2 },
-  tripTotal: { fontSize: 13, fontWeight: '700', marginTop: 4 },
 });

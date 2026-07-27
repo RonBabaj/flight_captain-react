@@ -1,1 +1,0 @@
-export { HotelDealsScreen } from './HotelDealsScreen';

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"flightcaptainweb/search"
-	"flightcaptainweb/search/hotels"
 
 	"github.com/joho/godotenv"
 )
@@ -1663,6 +1662,7 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	outStr := startDate.Format("2006-01-02")
@@ -2375,10 +2375,6 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if googleFlights2Provider != nil {
 		gf2 = "enabled"
 	}
-	rh := "disabled"
-	if hotelProvider != nil {
-		rh = "enabled"
-	}
 	ver := strings.TrimSpace(os.Getenv("APP_VERSION"))
 	if ver == "" {
 		ver = "dev"
@@ -2389,7 +2385,6 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"version":   ver,
 		"services": map[string]string{
 			"googleFlights2": gf2,
-			"ratehawk":       rh,
 		},
 	})
 }
@@ -2432,12 +2427,6 @@ func main() {
 	} else {
 		log.Println("[STARTUP] Google Flights2 provider: disabled — set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY (required for search, deals, explore)")
 	}
-	hotelProvider = hotels.NewRateHawkProvider()
-	if hotelProvider != nil {
-		log.Println("[STARTUP] RateHawk hotel provider: enabled")
-	} else {
-		log.Println("[STARTUP] RateHawk hotel provider: disabled — set RATEHAWK_ENABLED=true, RATEHAWK_KEY_ID, RATEHAWK_API_KEY (optional; flights still work)")
-	}
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
 	startSearchSessionCleanup()
@@ -2457,11 +2446,6 @@ func main() {
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
 	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
-	mux.HandleFunc("/api/hotels/destinations", handleHotelDestinations)
-	mux.HandleFunc("/api/hotels/search", handleHotelSearch)
-	mux.HandleFunc("/api/hotels/details", handleHotelDetails)
-	mux.HandleFunc("/api/hotels/estimate", handleHotelEstimate)
-	mux.HandleFunc("/api/trips/estimate", handleTripEstimate)
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -4,7 +4,6 @@ import { SearchStack } from './SearchStack';
 import { TopNavMenu } from './TopNavMenu';
 import type { RootStackParamList } from './types';
 import { MonthDealsStack } from './MonthDealsStack';
-import { HotelDealsStack } from './HotelDealsStack';
 import { LandingScreen } from '../features/landing';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -19,7 +18,6 @@ export function RootNavigator() {
       <Stack.Screen name="Home" component={LandingScreen} />
       <Stack.Screen name="Search" component={SearchStack} />
       <Stack.Screen name="MonthDeals" component={MonthDealsStack} />
-      <Stack.Screen name="HotelDeals" component={HotelDealsStack} />
     </Stack.Navigator>
   );
 }
