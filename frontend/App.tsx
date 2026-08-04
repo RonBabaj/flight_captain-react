@@ -19,6 +19,7 @@ const linking = {
         screens: {
           SearchForm: '',
           Results: 'results',
+          Explore: 'explore',
         },
       },
       MonthDeals: {
@@ -26,6 +27,7 @@ const linking = {
         screens: {
           MonthDealsForm: '',
           MonthDealsResults: 'results',
+          Explore: 'explore',
         },
       },
     },

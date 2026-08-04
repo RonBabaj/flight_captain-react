@@ -19,12 +19,17 @@ if (!fs.existsSync(indexPath)) {
 
 const indexHtml = fs.readFileSync(indexPath, 'utf8');
 
-/** Must match App.tsx linking.config screens paths */
+/** Must match App.tsx linking.config screens paths (plus legacy capitalised Explore URLs). */
 const SPA_ROUTES = [
   'search',
   'search/results',
+  'search/explore',
+  // React Navigation previously used the screen name "Explore" when linking omitted it
+  'search/Explore',
   'monthly-deals',
   'monthly-deals/results',
+  'monthly-deals/explore',
+  'monthly-deals/Explore',
   // Legacy bookmarks / old links (.htaccess redirected these on Apache only)
   'results',
   'deals',
