@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   useWindowDimensions,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -17,7 +19,6 @@ import { getMonthDeals } from '../../../api/deals';
 import { searchActions, dealsActions } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
-import { DateRangePicker } from '../components/DateRangePicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchFormContent } from '../components/SearchFormContent';
@@ -289,8 +290,8 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const [sortAsc, setSortAsc] = useState(true);
   const [regionFilter, setRegionFilter] = useState<string>('All');
 
-  // Mobile / summary-bar: date-change picker
-  const [showDateModal, setShowDateModal] = useState(false);
+  // Mobile Edit: full search / deals form (same fields as desktop sidebar)
+  const [showEditSearchModal, setShowEditSearchModal] = useState(false);
 
   const originEntry = getAirportEntry(origin);
   const originCity = originEntry ? getCityDisplayName(originEntry, language as any) : origin;
@@ -307,6 +308,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     setExploreSessionId('');
     setExploreHasMore(false);
     setExploreNextOffset(0);
+    setLiveRefreshing(false);
     // New result set: a stale region filter can hide every row while destinations.length > 0.
     setRegionFilter('All');
     const dep = overrides?.departureDate ?? departureDate;
@@ -333,37 +335,51 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           };
 
     const pageSize = 64;
+    // Prefetch is fast (cache/estimates). Clear the full-page spinner as soon as it returns,
+    // then refresh live prices in the background ("Updating prices…") so the UI is not blocked.
     getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true })
       .then(async (res) => {
         setDestinations(res.destinations);
         setExploreSessionId(res.sessionId);
         setExploreHasMore(res.hasMore);
         setExploreNextOffset(res.offset + res.destinations.length);
+        setLoading(false);
+
         if (!res.sessionId || !res.liveRefreshAvailable) return;
+
         setLiveRefreshing(true);
         try {
           let avail = true;
           let rounds = 0;
-          const maxRounds = 6;
+          // Backend caps ~36 live GF2 calls/session (~3 batches of 12).
+          const maxRounds = 3;
           while (avail && rounds < maxRounds) {
-            const r2 = await getExploreDestinations({
-              sessionId: res.sessionId,
-              offset: 0,
-              limit: pageSize,
-              live: true,
-            });
-            setDestinations(r2.destinations);
-            setExploreHasMore(r2.hasMore);
-            setExploreNextOffset(r2.offset + r2.destinations.length);
-            avail = !!r2.liveRefreshAvailable;
+            try {
+              const r2 = await getExploreDestinations({
+                sessionId: res.sessionId,
+                offset: 0,
+                limit: pageSize,
+                live: true,
+              });
+              setDestinations(r2.destinations);
+              setExploreHasMore(r2.hasMore);
+              setExploreNextOffset(r2.offset + r2.destinations.length);
+              avail = !!r2.liveRefreshAvailable;
+            } catch {
+              // Keep prefetch / partial results; stop live refresh on soft failure.
+              break;
+            }
             rounds += 1;
           }
         } finally {
           setLiveRefreshing(false);
         }
       })
-      .catch(() => setError(t('explore_error')))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        setError(t('explore_error'));
+        setLoading(false);
+        setLiveRefreshing(false);
+      });
   };
 
   const loadMoreExplore = () => {
@@ -493,24 +509,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       ? `${fmtDate(departureDate)} – ${fmtDate(returnDate)}`
       : fmtDate(departureDate);
 
-  const applyDateModal = (dep: string, ret?: string) => {
-    const newRet = ret ?? (isDealsMode ? addDaysYmdUtc(dep, localDuration) : returnDate);
-    if (isDealsMode) {
-      const dt = new Date(dep + 'T12:00:00Z');
-      setLocalYear(dt.getUTCFullYear());
-      setLocalMonth(dt.getUTCMonth() + 1);
-    }
-    setDepartureDate(dep);
-    setReturnDate(newRet);
-    setShowDateModal(false);
-    if (isDealsMode) {
-      doFetch();
-    } else {
-      doFetch({ departureDate: dep, returnDate: newRet });
-    }
-  };
-
-  /** Sidebar "Search flights": Anywhere → re-fetch explore; specific airport → normal GF2 session + Results. */
+  /** Sidebar / Edit modal "Search flights": Anywhere → re-fetch explore; specific airport → Results. */
   const handleSidebarSearch = async () => {
     const newOrigin = (formParams.origin || origin).trim();
     const destRaw = (formParams.destination || '').trim().toUpperCase();
@@ -524,6 +523,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
     if (destRaw === ANYWHERE_CODE) {
       setFormSearchError(null);
+      setShowEditSearchModal(false);
       setOrigin(newOrigin.toUpperCase());
       setDepartureDate(newDep);
       setReturnDate(newRet);
@@ -547,6 +547,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     }
 
     setFormSearchError(null);
+    setShowEditSearchModal(false);
     setLoading(true);
     try {
       const cabin: CreateSearchSessionRequest['cabinClass'] =
@@ -587,128 +588,137 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     }
   };
 
-  // ── Search sidebar (desktop left panel) ───────────────────────────────────
+  // ── Search / deals form fields (desktop sidebar + mobile Edit modal) ───────
 
-  const searchSidebar = isDealsMode ? (
-    // ── Deals mode: replica of the monthly deals hero form ───────────────────
-    <View style={[d.searchSidebar, { backgroundColor: theme.cardBg, borderRightColor: theme.cardBorder }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
-        <AirportAutocomplete
-          label={t('from')}
-          value={origin}
-          onChange={(v) => { setOrigin(v); updateForm('origin', v); }}
-          placeholder={t('city_or_airport')}
-        />
-        {/* Destination locked to Anywhere */}
-        <AirportAutocomplete
-          label={t('to')}
-          value={ANYWHERE_CODE}
-          onChange={() => {}}
-          placeholder={t('anywhere')}
-          showAnywhere
-        />
+  const runDealsExploreSearch = () => {
+    const dep = firstBookableDepartureInMonth(localYear, localMonth);
+    const ret = addDaysYmdUtc(dep, localDuration);
+    setDepartureDate(dep);
+    setReturnDate(ret);
+    setShowEditSearchModal(false);
+    doFetch();
+  };
 
-        <PassengerCabinPicker
-          adults={localAdults}
-          children={localChildren}
-          cabinClass="ECONOMY"
-          onAdultsChange={(n) => { setLocalAdults(n); }}
-          onChildrenChange={(n) => { setLocalChildren(n); }}
-          onCabinChange={() => {}}
-          label={t('passengers_cabin')}
-          passengersOnly
-        />
+  const dealsFormFields = (
+    <>
+      <AirportAutocomplete
+        label={t('from')}
+        value={origin}
+        onChange={(v) => { setOrigin(v); updateForm('origin', v); }}
+        placeholder={t('city_or_airport')}
+      />
+      {/* Destination locked to Anywhere */}
+      <AirportAutocomplete
+        label={t('to')}
+        value={ANYWHERE_CODE}
+        onChange={() => {}}
+        placeholder={t('anywhere')}
+        showAnywhere
+      />
 
-        {/* Duration stepper */}
-        <Text style={[p.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
-        <View style={p.stepperRow}>
-          <TouchableOpacity
-            style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
-            onPress={() => {
-              const nd = Math.max(1, localDuration - 1);
-              setLocalDuration(nd);
-              const dep = departureDate || firstBookableDepartureInMonth(localYear, localMonth);
-              setReturnDate(addDaysYmdUtc(dep, nd));
-            }}
-          >
-            <Text style={[p.stepBtnText, { color: theme.text }]}>−</Text>
-          </TouchableOpacity>
-          <Text style={[p.stepValue, { color: theme.text }]}>{localDuration} {t('days')}</Text>
-          <TouchableOpacity
-            style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
-            onPress={() => {
-              const nd = Math.min(21, localDuration + 1);
-              setLocalDuration(nd);
-              const dep = departureDate || firstBookableDepartureInMonth(localYear, localMonth);
-              setReturnDate(addDaysYmdUtc(dep, nd));
-            }}
-          >
-            <Text style={[p.stepBtnText, { color: theme.text }]}>+</Text>
-          </TouchableOpacity>
-        </View>
+      <PassengerCabinPicker
+        adults={localAdults}
+        children={localChildren}
+        cabinClass="ECONOMY"
+        onAdultsChange={(n) => { setLocalAdults(n); }}
+        onChildrenChange={(n) => { setLocalChildren(n); }}
+        onCabinChange={() => {}}
+        label={t('passengers_cabin')}
+        passengersOnly
+      />
 
-        {/* Month navigator */}
-        <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
-          <TouchableOpacity
-            onPress={() => bumpDealsMonth(-1)}
-            style={[p.navBtn, atEarliestMonth && { opacity: 0.45 }]}
-            disabled={atEarliestMonth}
-            activeOpacity={atEarliestMonth ? 1 : 0.7}
-          >
-            <View style={p.navBtnInner}>
-              <AppIcon name="chevron-back" size={18} color={atEarliestMonth ? theme.textMuted : theme.primary} fallbackText={t('prev')} />
-              <Text style={[p.navText, { color: atEarliestMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
-            </View>
-          </TouchableOpacity>
-          <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[localMonth - 1]} {localYear}</Text>
-          <TouchableOpacity onPress={() => bumpDealsMonth(1)} style={p.navBtn}>
-            <View style={p.navBtnInner}>
-              <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
-              <AppIcon name="chevron-forward" size={18} color={theme.primary} fallbackText={t('next')} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
+      {/* Duration stepper */}
+      <Text style={[p.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
+      <View style={p.stepperRow}>
         <TouchableOpacity
-          style={[p.searchBtn, { backgroundColor: theme.buttonBg }, loading && { opacity: 0.5 }]}
-          disabled={loading}
+          style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
           onPress={() => {
-            const dep = firstBookableDepartureInMonth(localYear, localMonth);
-            const ret = addDaysYmdUtc(dep, localDuration);
-            setDepartureDate(dep);
-            setReturnDate(ret);
-            doFetch();
+            const nd = Math.max(1, localDuration - 1);
+            setLocalDuration(nd);
+            const dep = departureDate || firstBookableDepartureInMonth(localYear, localMonth);
+            setReturnDate(addDaysYmdUtc(dep, nd));
           }}
-          activeOpacity={0.8}
         >
-          {loading ? (
-            <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('searching')}</Text>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
-              <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
-            </View>
-          )}
+          <Text style={[p.stepBtnText, { color: theme.text }]}>−</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </View>
-  ) : (
-    // ── Search mode: use the real SearchFormContent in compact mode ──────────
-    <View style={[d.searchSidebar, { backgroundColor: theme.cardBg, borderRightColor: theme.cardBorder }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <SearchFormContent
-          params={formParams}
-          update={updateForm}
-          tripType={tripType}
-          setTripType={(tt) => {
-            setTripType(tt);
-            if (tt === 'one-way') updateForm('returnDate', undefined as any);
+        <Text style={[p.stepValue, { color: theme.text }]}>{localDuration} {t('days')}</Text>
+        <TouchableOpacity
+          style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
+          onPress={() => {
+            const nd = Math.min(21, localDuration + 1);
+            setLocalDuration(nd);
+            const dep = departureDate || firstBookableDepartureInMonth(localYear, localMonth);
+            setReturnDate(addDaysYmdUtc(dep, nd));
           }}
-          onSearch={handleSidebarSearch}
-          loading={loading}
-          error={formSearchError}
-          compact
-        />
+        >
+          <Text style={[p.stepBtnText, { color: theme.text }]}>+</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Month navigator */}
+      <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
+        <TouchableOpacity
+          onPress={() => bumpDealsMonth(-1)}
+          style={[p.navBtn, atEarliestMonth && { opacity: 0.45 }]}
+          disabled={atEarliestMonth}
+          activeOpacity={atEarliestMonth ? 1 : 0.7}
+        >
+          <View style={p.navBtnInner}>
+            <AppIcon name="chevron-back" size={18} color={atEarliestMonth ? theme.textMuted : theme.primary} fallbackText={t('prev')} />
+            <Text style={[p.navText, { color: atEarliestMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
+          </View>
+        </TouchableOpacity>
+        <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[localMonth - 1]} {localYear}</Text>
+        <TouchableOpacity onPress={() => bumpDealsMonth(1)} style={p.navBtn}>
+          <View style={p.navBtnInner}>
+            <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
+            <AppIcon name="chevron-forward" size={18} color={theme.primary} fallbackText={t('next')} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={[p.searchBtn, { backgroundColor: theme.buttonBg }, loading && { opacity: 0.5 }]}
+        disabled={loading}
+        onPress={runDealsExploreSearch}
+        activeOpacity={0.8}
+      >
+        {loading ? (
+          <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('searching')}</Text>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
+            <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </>
+  );
+
+  const searchFormFields = (
+    <SearchFormContent
+      params={formParams}
+      update={updateForm}
+      tripType={tripType}
+      setTripType={(tt) => {
+        setTripType(tt);
+        if (tt === 'one-way') updateForm('returnDate', undefined as any);
+      }}
+      onSearch={handleSidebarSearch}
+      onPassengerCabinDone={handleSidebarSearch}
+      loading={loading}
+      error={formSearchError}
+      compact
+    />
+  );
+
+  const searchSidebar = (
+    <View style={[d.searchSidebar, { backgroundColor: theme.cardBg, borderRightColor: theme.cardBorder }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={isDealsMode ? { gap: 4 } : undefined}
+      >
+        {isDealsMode ? dealsFormFields : searchFormFields}
       </ScrollView>
     </View>
   );
@@ -904,11 +914,11 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           </View>
         ) : null}
       </View>
-      {/* Mobile: Edit button opens date modal */}
+      {/* Mobile: Edit opens full search / deals form (not calendar-only) */}
       {isMobile && (
         <TouchableOpacity
           style={[s.editBtn, { borderColor: theme.cardBorder }]}
-          onPress={() => setShowDateModal(true)}
+          onPress={() => setShowEditSearchModal(true)}
           activeOpacity={0.7}
         >
           <AppIcon name="create-outline" size={15} color={theme.primary} fallbackText="✏" />
@@ -988,16 +998,27 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         destination={searchingDest ?? undefined}
       />
 
-      {/* Date-change picker — past dates are disabled inside DateRangePicker */}
-      <DateRangePicker
-        visible={showDateModal}
-        onClose={() => setShowDateModal(false)}
-        mode={isDealsMode ? 'single' : 'range'}
-        initialDate={departureDate || undefined}
-        initialEndDate={!isDealsMode ? (returnDate || undefined) : undefined}
-        onSelect={(dep) => applyDateModal(dep)}
-        onSelectRange={(dep, ret) => applyDateModal(dep, ret)}
-      />
+      {/* Mobile Edit search / deals form */}
+      <Modal visible={showEditSearchModal} transparent animationType="fade">
+        <View style={s.editSearchOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
+          <View style={[s.editSearchModalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={[s.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
+              <Text style={[s.editSearchModalTitle, { color: theme.text }]}>{t('change_search')}</Text>
+              <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={s.editSearchModalClose}>
+                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={s.editSearchModalScroll}
+              contentContainerStyle={[s.editSearchModalContent, isDealsMode && { gap: 4 }]}
+              keyboardShouldPersistTaps="handled"
+            >
+              {isDealsMode ? dealsFormFields : searchFormFields}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1225,16 +1246,34 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   loadMoreText: { fontSize: 14, fontWeight: '600' },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 420, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 17, fontWeight: '700' },
-  modalBody: { padding: 16 },
-  dateLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  dateInput: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, fontSize: 15 },
-  applyBtn: { marginTop: 18, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  // Edit search modal (mobile)
+  editSearchOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  editSearchModalCard: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '90%',
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  editSearchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+  },
+  editSearchModalTitle: { fontSize: 18, fontWeight: '700' },
+  editSearchModalClose: { padding: 6 },
+  editSearchModalScroll: { maxHeight: 480 },
+  editSearchModalContent: { padding: 18, paddingBottom: 28 },
 });
 
 const c = StyleSheet.create({
