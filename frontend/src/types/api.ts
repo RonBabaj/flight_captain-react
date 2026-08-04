@@ -86,12 +86,17 @@ export interface FlightOption {
   outboundSummary?: OutboundSummary;
   score?: number;
   provider?: string;
-  source?: string;  // "amadeus" | "duffel" | "compare" - backend sends this
+  source?: string;  // "googleflights2" | "kiwi" | …
   validatingAirlines?: string[];
   primaryDisplayCarrier?: string;
   baggageClass?: BaggageClass;
-  deepLink?: string;    // booking URL when present (e.g. Duffel, OTA)
-  vendorName?: string;  // OTA name (kayak/expedia etc) when source=compare
+  deepLink?: string;    // booking URL when present
+  vendorName?: string;  // OTA name (kayak/expedia/kiwi etc)
+  /** True when itinerary is self-transfer / virtual interlining (separate tickets). */
+  selfTransfer?: boolean;
+  /** User-facing warning when selfTransfer is true. */
+  selfTransferWarning?: string;
+  fetchedAt?: string;
   // Codeshare / multi-seller (additive)
   primaryMarketingCarrier?: string;
   primaryOperatingCarrier?: string;

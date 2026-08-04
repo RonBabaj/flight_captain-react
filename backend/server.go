@@ -201,11 +201,14 @@ type FlightOption struct {
 	ValidatingAirlines    []string         `json:"validatingAirlines,omitempty"`
 	BaggageClass          string           `json:"baggageClass,omitempty"`          // BAG_OK, BAG_UNKNOWN, BAG_INCLUDED
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
-	Source                string           `json:"source,omitempty"`                // "amadeus" | "duffel" | "compare"
-	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link (e.g. Duffel)
+	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
+	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
 	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
-	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia etc) when source=compare
+	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
+	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
+	SelfTransferWarning   string           `json:"selfTransferWarning,omitempty"`   // user-facing warning when SelfTransfer
 	CanonicalFingerprint  string           `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
+	FetchedAt             *time.Time       `json:"fetchedAt,omitempty"`             // provider data freshness when known
 
 	// Codeshare / multi-seller (additive)
 	PrimaryMarketingCarrier string         `json:"primaryMarketingCarrier,omitempty"` // first segment marketing
@@ -228,6 +231,7 @@ var (
 	sessions               = make(map[string]SearchSessionResultsResponse)
 	sessionsMu             sync.Mutex
 	googleFlights2Provider *search.GoogleFlights2Provider
+	flightProviderRegistry *search.Registry
 )
 
 // loadSearchSession returns the stored session if present and not expired; expired entries are deleted.
@@ -665,7 +669,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Infants = req.InfantsOrDefault()
 
-	if googleFlights2Provider == nil {
+	if flightProviderRegistry == nil || !flightProviderRegistry.HasAny() {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
 		return
 	}
@@ -673,7 +677,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	cabinPref := req.CabinPrefOrDefault()
 	includeBag := req.IncludeCheckedBagOrDefault()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	sreq := search.SearchRequest{
 		Origin:            strings.ToUpper(req.Origin),
@@ -689,13 +693,17 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Currency:          req.CurrencyOrDefault(),
 	}
 
-	prs, err := googleFlights2Provider.Search(ctx, sreq)
-	if err != nil {
-		log.Printf("[SEARCH] Google Flights2 error: %v", err)
+	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	if multi.AllFailed() {
+		log.Printf("[SEARCH] all providers failed stats=%+v", multi.Stats)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "flight search failed"})
 		return
 	}
+	if len(multi.Results) == 0 {
+		log.Printf("[SEARCH] empty results stats=%+v", multi.Stats)
+	}
 
+	prs := multi.Results
 	options := providerResultsToFlightOptions(prs)
 	offersInitial := options
 
@@ -789,6 +797,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options = groupCodeshareAndMerge(options)
+	options = dedupeFlightOptions(options)
 
 	for i := range options {
 		sanitizeSegmentTimes(options[i].Legs)
@@ -1095,6 +1104,17 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
 			VendorName:            pr.VendorName,
+			SelfTransfer:          pr.SelfTransfer,
+		}
+		if pr.SelfTransfer {
+			opt.SelfTransferWarning = "Self-transfer — separate tickets may be required"
+			if pr.FareConditions != "" {
+				opt.SelfTransferWarning = pr.FareConditions
+			}
+		}
+		if !pr.FetchedAt.IsZero() {
+			t := pr.FetchedAt
+			opt.FetchedAt = &t
 		}
 		sanitizeSegmentTimes(opt.Legs)
 		ensurePrimaryCarrier(&opt)
@@ -2372,8 +2392,16 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gf2 := "disabled"
+	kiwi := "disabled"
 	if googleFlights2Provider != nil {
 		gf2 = "enabled"
+	}
+	if flightProviderRegistry != nil && flightProviderRegistry.Get("kiwi") != nil {
+		kiwi = "enabled"
+	}
+	providers := []string{}
+	if flightProviderRegistry != nil {
+		providers = flightProviderRegistry.Names()
 	}
 	ver := strings.TrimSpace(os.Getenv("APP_VERSION"))
 	if ver == "" {
@@ -2383,8 +2411,10 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"version":   ver,
-		"services": map[string]string{
+		"services": map[string]any{
 			"googleFlights2": gf2,
+			"kiwi":           kiwi,
+			"providers":      providers,
 		},
 	})
 }
@@ -2413,7 +2443,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Load .env for GOOGLEFLIGHTS2_* and other config.
+	// Load .env for GOOGLEFLIGHTS2_*, APIFY_*, FLIGHT_PROVIDERS, and other config.
 	if err := godotenv.Load(); err != nil {
 		// Try backend/.env when run from project root
 		if err2 := godotenv.Load(filepath.Join("backend", ".env")); err2 != nil {
@@ -2421,11 +2451,15 @@ func main() {
 		}
 	}
 
-	googleFlights2Provider = search.NewGoogleFlights2Provider()
-	if googleFlights2Provider != nil {
-		log.Println("[STARTUP] Google Flights2 provider: enabled (primary flight data source)")
+	flightProviderRegistry = search.NewRegistryFromEnv()
+	googleFlights2Provider = nil
+	if flightProviderRegistry != nil {
+		googleFlights2Provider = flightProviderRegistry.GoogleFlights2()
+	}
+	if flightProviderRegistry != nil && flightProviderRegistry.HasAny() {
+		log.Printf("[STARTUP] flight providers enabled: %s", strings.Join(flightProviderRegistry.Names(), ", "))
 	} else {
-		log.Println("[STARTUP] Google Flights2 provider: disabled — set GOOGLEFLIGHTS2_ENABLED=true and GOOGLEFLIGHTS2_RAPIDAPI_KEY (required for search, deals, explore)")
+		log.Println("[STARTUP] no flight providers configured — set FLIGHT_PROVIDERS (default googleflights2) and provider credentials")
 	}
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()

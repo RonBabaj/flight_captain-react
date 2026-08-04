@@ -266,6 +266,16 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
               ) : null}
             </View>
           ) : null}
+          {option.selfTransfer ? (
+            <Text style={[c.selfTransferWarn, { color: theme.error || '#b45309' }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+              {option.selfTransferWarning || t('self_transfer_warning')}
+            </Text>
+          ) : null}
+          {option.source === 'kiwi' || option.vendorName ? (
+            <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+              {option.source === 'kiwi' ? t('source_kiwi') : option.vendorName}
+            </Text>
+          ) : null}
           {perPassengerStr ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {perPassengerStr}
@@ -355,6 +365,7 @@ const c = StyleSheet.create({
   estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   wasPrice: { fontSize: 11 },
   perPerson: { fontSize: 11, marginTop: 2 },
+  selfTransferWarn: { fontSize: 11, marginTop: 6, fontWeight: '600', lineHeight: 15 },
   bookBtn: {
     marginTop: 8,
     paddingVertical: 9,

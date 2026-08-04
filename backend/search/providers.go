@@ -26,19 +26,32 @@ type Monetary struct {
 	Amount   float64
 }
 
+// Layover describes a connection between segments.
+type Layover struct {
+	Airport         string
+	DurationMinutes int
+}
+
 // ProviderResult is the normalized flight option shape returned by providers.
 // Matches backend FlightOption for easy conversion.
 type ProviderResult struct {
 	ID                    string
 	Price                 Monetary
 	DurationMinutes       int
+	Stops                 int // total stops across all legs (segments-1 summed)
 	Legs                  []Leg
+	Layovers              []Layover
 	ValidatingAirlines    []string
 	BaggageClass          string
+	BaggageInfo           string // free-text baggage note when available
 	PrimaryDisplayCarrier string
-	Source                string  // "amadeus" | "duffel" | "googleflights2"
-	DeepLink              string  // booking URL if present
-	VendorName            string  // kayak/expedia etc if present
+	Source                string // "googleflights2" | "kiwi" | future providers
+	DeepLink              string // booking URL if present
+	VendorName            string // kayak/expedia/kiwi etc if present
+	FareConditions        string
+	SelfTransfer          bool                   // separate tickets / virtual interlining
+	FetchedAt             time.Time              // data freshness
+	Metadata              map[string]interface{} // provider-specific extras (never secrets)
 }
 
 // Leg represents one direction (outbound or return).
@@ -62,4 +75,19 @@ type Segment struct {
 type Provider interface {
 	Name() string
 	Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error)
+}
+
+// ProviderSearchStats is diagnostic info for one provider within a multi search.
+type ProviderSearchStats struct {
+	Provider   string
+	DurationMs int64
+	Results    int
+	Err        string // empty on success
+	CacheHit   bool
+}
+
+// MultiSearchResult aggregates results from one or more providers.
+type MultiSearchResult struct {
+	Results []ProviderResult
+	Stats   []ProviderSearchStats
 }
