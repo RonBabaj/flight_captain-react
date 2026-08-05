@@ -1800,13 +1800,8 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		}
 		hasMorePages := sliceFrom+len(page) < total
 		liveRefreshAvailable := sess.LiveQueueCursor < len(sess.LiveQueue) && sess.LiveFetchAttempts < exploreMaxLiveFetchesPerSession
-		partial := false
-		for _, r := range sess.Rows {
-			if r.priceSource == "estimated" {
-				partial = true
-				break
-			}
-		}
+		// partialResults: more live destinations may still be discovered (no estimate placeholders).
+		partial := liveRefreshAvailable
 		sess.mu.Unlock()
 
 		log.Printf("[EXPLORE] session=%s offset=%d limit=%d page=%d total=%d partial=%v liveAvail=%v", sid, offset, limit, len(page), total, partial, liveRefreshAvailable)
@@ -1915,7 +1910,7 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// prefetch=true skips the initial live GF2 batch (estimates + cache only); use for instant first paint, then ?live=true to refresh prices.
+	// prefetch=true skips the initial live GF2 batch (cached prices only; no estimate placeholders). Client then polls ?live=true to grow the list.
 	prefetch := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("prefetch")), "true")
 
 	sessionKey := exploreSessionKey(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)

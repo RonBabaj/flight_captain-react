@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+type exploreLiveCandidate struct {
+	dest string
+	est  float64
+}
+
 func exploreBuildRowsAndQueue(
 	origin, dep, ret string,
 	useMonth bool,
@@ -15,7 +20,7 @@ func exploreBuildRowsAndQueue(
 ) (rows []exploreDestRow, liveQueue []string) {
 	pool := explorePoolOrderedForOrigin(origin)
 	rows = make([]exploreDestRow, 0, len(pool))
-	needsLive := make(map[string]struct{}, len(pool))
+	needLive := make([]exploreLiveCandidate, 0, len(pool))
 	for _, dest := range pool {
 		dest = strings.ToUpper(strings.TrimSpace(dest))
 		key := explorePriceCacheKey(origin, dest, currency, useMonth, year, month, duration, adults, children, nonStop, dep, ret)
@@ -30,24 +35,24 @@ func exploreBuildRowsAndQueue(
 			continue
 		}
 		if ok {
-			// Stale cache: show last price but queue for live refresh.
+			// Stale cache: show last known real price, but still refresh live.
 			rows = append(rows, exploreDestRow{
 				destination:   dest,
 				price:         ent.Price,
 				departureDate: ent.DepartureDate,
 				priceSource:   "cached",
 			})
-			needsLive[dest] = struct{}{}
+			needLive = append(needLive, exploreLiveCandidate{
+				dest: dest,
+				est:  ent.Price,
+			})
 			continue
 		}
-		est := exploreEstimateInCurrency(origin, dest, dep, currency)
-		rows = append(rows, exploreDestRow{
-			destination:   dest,
-			price:         est,
-			departureDate: dep,
-			priceSource:   "estimated",
+		// No placeholder estimate cards — only queue for live GF2 so the UI grows with real prices.
+		needLive = append(needLive, exploreLiveCandidate{
+			dest: dest,
+			est:  exploreEstimateInCurrency(origin, dest, dep, currency),
 		})
-		needsLive[dest] = struct{}{}
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].price != rows[j].price {
@@ -55,12 +60,16 @@ func exploreBuildRowsAndQueue(
 		}
 		return rows[i].destination < rows[j].destination
 	})
-	// Order live fetches like the UI (cheapest-first by heuristic), not airport-pool order, so early batches improve the top of the list.
-	for _, r := range rows {
-		if _, ok := needsLive[r.destination]; ok {
-			liveQueue = append(liveQueue, r.destination)
-			delete(needsLive, r.destination)
+	// Cheapest-heuristic first so early live batches fill the top of the list.
+	sort.Slice(needLive, func(i, j int) bool {
+		if needLive[i].est != needLive[j].est {
+			return needLive[i].est < needLive[j].est
 		}
+		return needLive[i].dest < needLive[j].dest
+	})
+	liveQueue = make([]string, 0, len(needLive))
+	for _, c := range needLive {
+		liveQueue = append(liveQueue, c.dest)
 	}
 	return rows, liveQueue
 }

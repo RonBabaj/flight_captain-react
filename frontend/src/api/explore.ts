@@ -34,7 +34,7 @@ export interface ExploreResponse {
   offset: number;
   limit: number;
   hasMore: boolean;
-  /** Some rows still use estimates (not yet replaced by cache/live). */
+  /** Some destinations may still arrive via live GF2 batches. */
   partialResults?: boolean;
   /** More live GF2 batches allowed for this session. */
   liveRefreshAvailable?: boolean;

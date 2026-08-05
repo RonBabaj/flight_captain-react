@@ -335,17 +335,27 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           };
 
     const pageSize = 64;
-    // Prefetch is fast (cache/estimates). Clear the full-page spinner as soon as it returns,
-    // then refresh live prices in the background ("Updating prices…") so the UI is not blocked.
+    // Prefetch returns cached real prices only (no estimate placeholders). Live batches
+    // then grow the list as confirmed destinations arrive.
     getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true })
       .then(async (res) => {
-        setDestinations(res.destinations);
+        const confirmed = (res.destinations ?? []).filter(
+          (d) => d.priceSource !== 'estimated',
+        );
+        setDestinations(confirmed);
         setExploreSessionId(res.sessionId);
         setExploreHasMore(res.hasMore);
         setExploreNextOffset(res.offset + res.destinations.length);
-        setLoading(false);
 
-        if (!res.sessionId || !res.liveRefreshAvailable) return;
+        // Keep the centered search UI until we have at least one real card (or live finishes).
+        if (confirmed.length > 0) {
+          setLoading(false);
+        }
+
+        if (!res.sessionId || !res.liveRefreshAvailable) {
+          setLoading(false);
+          return;
+        }
 
         setLiveRefreshing(true);
         try {
@@ -361,18 +371,25 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
                 limit: pageSize,
                 live: true,
               });
-              setDestinations(r2.destinations);
+              const next = (r2.destinations ?? []).filter(
+                (d) => d.priceSource !== 'estimated',
+              );
+              setDestinations(next);
               setExploreHasMore(r2.hasMore);
               setExploreNextOffset(r2.offset + r2.destinations.length);
+              if (next.length > 0) {
+                setLoading(false);
+              }
               avail = !!r2.liveRefreshAvailable;
             } catch {
-              // Keep prefetch / partial results; stop live refresh on soft failure.
+              // Keep whatever confirmed cards we already have.
               break;
             }
             rounds += 1;
           }
         } finally {
           setLiveRefreshing(false);
+          setLoading(false);
         }
       })
       .catch(() => {
@@ -395,6 +412,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           const seen = new Set(prev.map((d) => d.destination));
           const next = [...prev];
           for (const d of res.destinations) {
+            if (d.priceSource === 'estimated') continue;
             if (!seen.has(d.destination)) {
               next.push(d);
               seen.add(d.destination);
@@ -778,7 +796,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   const resultsList = (
     <>
-      {loading ? (
+      {loading || (liveRefreshing && destinations.length === 0 && !error) ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[s.loadingTitle, { color: theme.text }]}>{t('explore_loading')}</Text>
@@ -907,7 +925,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         {tripLabel ? (
           <Text style={[s.summaryDate, { color: theme.textMuted }]}>{tripLabel}</Text>
         ) : null}
-        {liveRefreshing ? (
+        {liveRefreshing && destinations.length > 0 ? (
           <View style={s.liveRefreshRow}>
             <ActivityIndicator size="small" color={theme.primary} />
             <Text style={[s.liveRefreshText, { color: theme.textMuted }]}>{t('explore_live_updating')}</Text>
@@ -1046,7 +1064,6 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
   const rankColor = rank !== null ? RANK_COLORS[rank] : undefined;
   const isFeatured = rank === 0;
   const ctaLabel = isDealsMode ? 'Search deals' : 'Search flights';
-  const isEstimate = dest.priceSource === 'estimated';
 
   return (
     <TouchableOpacity
@@ -1060,17 +1077,7 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
           <Text style={c.rankText}>{rank === 0 ? '🏆' : rank === 1 ? '🥈' : '🥉'}</Text>
         </View>
       )}
-      {isEstimate && (
-        <View style={c.estimateBadgeWrap} pointerEvents="none">
-          <View style={[c.estimatePill, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}>
-            <Text style={[c.estimatePillText, { color: theme.textMuted }]}>{t('explore_price_estimate_label')}</Text>
-          </View>
-          <Text style={[c.estimateLoadingSub, { color: theme.textMuted }]} numberOfLines={2}>
-            {t('explore_price_estimate_loading')}
-          </Text>
-        </View>
-      )}
-      <View style={[c.topRow, isEstimate && c.topRowWithEstimate]}>
+      <View style={c.topRow}>
         <Text style={c.flagEmoji}>{flag}</Text>
         <View style={c.cityWrap}>
           <Text style={[c.cityName, { color: theme.text }]} numberOfLines={1}>{cityName}</Text>
@@ -1281,25 +1288,7 @@ const c = StyleSheet.create({
   cardFeatured: { borderWidth: 2 },
   rankBadge: { position: 'absolute', top: 0, right: 0, paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 12, borderTopRightRadius: 14 },
   rankText: { fontSize: 13 },
-  estimateBadgeWrap: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    right: 44,
-    zIndex: 1,
-    gap: 4,
-  },
-  estimatePill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  estimatePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
-  estimateLoadingSub: { fontSize: 11, lineHeight: 14, fontWeight: '500' },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  topRowWithEstimate: { paddingTop: 52 },
   flagEmoji: { fontSize: 32, lineHeight: 36 },
   cityWrap: { flex: 1 },
   cityName: { fontSize: 17, fontWeight: '700' },
