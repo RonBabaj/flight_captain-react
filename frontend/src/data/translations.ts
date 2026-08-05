@@ -314,9 +314,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   explore_error: { en: 'Could not load destinations. Please try again.', he: 'לא ניתן לטעון יעדים. נסה שוב.', ru: 'Не удалось загрузить направления. Попробуйте снова.' },
   explore_pick_destination: { en: 'Pick a destination', he: 'בחר יעד', ru: 'Выберите направление' },
   explore_live_updating: {
-    en: 'Updating prices…',
-    he: 'מעדכן מחירים…',
-    ru: 'Обновляем цены…',
+    en: 'Finding more destinations…',
+    he: 'מחפש עוד יעדים…',
+    ru: 'Ищем ещё направления…',
   },
   explore_price_estimate_label: {
     en: 'Approx.',
