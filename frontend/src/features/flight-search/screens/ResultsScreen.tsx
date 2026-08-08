@@ -459,10 +459,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         searchActions.setSession(session.id, session, session.status);
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
-        if (cancelled) return;
-        searchActions.setSession(null, null, 'FAILED');
+        if (!cancelled) {
+          searchActions.setSession(null, null, 'FAILED');
+        }
       } finally {
-        if (cancelled) return;
+        // Always clear — if we skip this when cancelled (e.g. replace() changed sessionId
+        // mid-flight), the top LoadingBanner stays forever while results are already visible.
         creatingSessionRef.current = false;
         setBootstrappingSession(false);
       }
@@ -477,6 +479,9 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (!sessionId) return;
 
     let cancelled = false;
+    let consecutiveFailures = 0;
+    const MAX_POLL_FAILURES = 8;
+
     const poll = async () => {
       if (cancelled) return;
       try {
@@ -487,11 +492,16 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           storeParamsRef.current ?? undefined
         );
         if (cancelled) return;
+        consecutiveFailures = 0;
         versionRef.current = res.version;
         searchActions.setSession(sessionId, res.session, res.session.status);
         searchActions.appendResults(res.results, res.version);
       } catch (_) {
-        // keep polling on transient errors
+        consecutiveFailures += 1;
+        // Expired/missing sessions (e.g. backend restart) otherwise spin forever.
+        if (consecutiveFailures >= MAX_POLL_FAILURES && statusRef.current !== 'COMPLETE') {
+          searchActions.setSession(sessionId, null, 'FAILED');
+        }
       }
     };
 
@@ -523,6 +533,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (positioningSessionIdRef.current !== sessionId) {
       positioningSessionIdRef.current = sessionId;
       setPositioningOptions([]);
+      setPositioningLoading(false);
       optimizerSessionRef.current = null;
     }
   }, [sessionId]);
@@ -553,67 +564,82 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
     setPositioningLoading(true);
     const found: PositioningOption[] = [];
+    const startedAt = Date.now();
+    // Hard cap so "Searching cheaper departure cities..." cannot run for many minutes.
+    const POSITIONING_BUDGET_MS = 45_000;
+    const sessionStillActive = () => optimizerSessionRef.current === sessionId;
 
-    let hubRunIndex = 0;
-    for (const hub of HUB_AIRPORTS) {
-      if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
-      // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
-      if (hubRunIndex > 0) {
-        await delay(3500);
+    try {
+      let hubRunIndex = 0;
+      for (const hub of HUB_AIRPORTS) {
+        if (!sessionStillActive()) break;
+        if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+        if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
+        // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
+        if (hubRunIndex > 0) {
+          await delay(2000);
+        }
+        hubRunIndex += 1;
+        try {
+          const baseOpts: Partial<CreateSearchSessionRequest> = {
+            adults: storeParams.adults ?? 1,
+            children: storeParams.children ?? 0,
+            infants: storeParams.infants ?? 0,
+            cabinClass: storeParams.cabinClass ?? 'ECONOMY',
+            cabinPreference: storeParams.cabinPreference ?? 'ECONOMY',
+            includeCheckedBag: storeParams.includeCheckedBag ?? false,
+            currency: cur,
+            locale: storeParams.locale ?? 'en-US',
+            returnDate: '',
+          };
+
+          // Sequential (not Promise.all): two fewer concurrent Search() calls per hub.
+          const positioning = await findCheapestOptionForParams({
+            ...(baseOpts as CreateSearchSessionRequest),
+            origin: origin.toUpperCase(),
+            destination: hub,
+            departureDate,
+          });
+          if (!sessionStillActive()) break;
+          if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+          const hubFlight = await findCheapestOptionForParams({
+            ...(baseOpts as CreateSearchSessionRequest),
+            origin: hub,
+            destination: destination.toUpperCase(),
+            departureDate,
+          });
+
+          if (!positioning || !hubFlight) continue;
+
+          const totalAmount = positioning.option.price.amount + hubFlight.option.price.amount;
+          const savingsAmount = directCheapest - totalAmount;
+          if (savingsAmount <= 80) continue;
+
+          found.push({
+            hubAirport: hub,
+            positioningPrice: { amount: positioning.option.price.amount, currency: cur },
+            hubFlightPrice: { amount: hubFlight.option.price.amount, currency: cur },
+            totalPrice: { amount: totalAmount, currency: cur },
+            savings: { amount: savingsAmount, currency: cur },
+            positioningSessionId: positioning.sessionId,
+            positioningOptionId: positioning.option.id,
+            hubSessionId: hubFlight.sessionId,
+            hubOptionId: hubFlight.option.id,
+          });
+        } catch {
+          // skip hubs that fail
+        }
       }
-      hubRunIndex += 1;
-      try {
-        const baseOpts: Partial<CreateSearchSessionRequest> = {
-          adults: storeParams.adults ?? 1,
-          children: storeParams.children ?? 0,
-          infants: storeParams.infants ?? 0,
-          cabinClass: storeParams.cabinClass ?? 'ECONOMY',
-          cabinPreference: storeParams.cabinPreference ?? 'ECONOMY',
-          includeCheckedBag: storeParams.includeCheckedBag ?? false,
-          currency: cur,
-          locale: storeParams.locale ?? 'en-US',
-          returnDate: '',
-        };
 
-        // Sequential (not Promise.all): two fewer concurrent Search() calls per hub.
-        const positioning = await findCheapestOptionForParams({
-          ...(baseOpts as CreateSearchSessionRequest),
-          origin: origin.toUpperCase(),
-          destination: hub,
-          departureDate,
-        });
-        const hubFlight = await findCheapestOptionForParams({
-          ...(baseOpts as CreateSearchSessionRequest),
-          origin: hub,
-          destination: destination.toUpperCase(),
-          departureDate,
-        });
-
-        if (!positioning || !hubFlight) continue;
-
-        const totalAmount = positioning.option.price.amount + hubFlight.option.price.amount;
-        const savingsAmount = directCheapest - totalAmount;
-        if (savingsAmount <= 80) continue;
-
-        found.push({
-          hubAirport: hub,
-          positioningPrice: { amount: positioning.option.price.amount, currency: cur },
-          hubFlightPrice: { amount: hubFlight.option.price.amount, currency: cur },
-          totalPrice: { amount: totalAmount, currency: cur },
-          savings: { amount: savingsAmount, currency: cur },
-          positioningSessionId: positioning.sessionId,
-          positioningOptionId: positioning.option.id,
-          hubSessionId: hubFlight.sessionId,
-          hubOptionId: hubFlight.option.id,
-        });
-      } catch {
-        // skip hubs that fail
+      found.sort((a, b) => b.savings.amount - a.savings.amount);
+      if (sessionStillActive()) {
+        setPositioningOptions(found);
+      }
+    } finally {
+      if (sessionStillActive()) {
+        setPositioningLoading(false);
       }
     }
-
-    found.sort((a, b) => b.savings.amount - a.savings.amount);
-    setPositioningOptions(found);
-    setPositioningLoading(false);
   }, [sessionId, storeParams, results]);
 
   useEffect(() => {
@@ -662,6 +688,51 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     searchActions.setSort(field, order);
   };
 
+  const [showSlowPopup, setShowSlowPopup] = useState(false);
+  const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const loading = status === 'PENDING' || status === 'PARTIAL';
+    if (!loading) {
+      setShowSlowPopup(false);
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
+      return;
+    }
+    if (slowPopupTimerRef.current || showSlowPopup) {
+      return;
+    }
+    slowPopupTimerRef.current = setTimeout(() => {
+      slowPopupTimerRef.current = null;
+      if (status === 'PENDING' || status === 'PARTIAL') {
+        setShowSlowPopup(true);
+      }
+    }, 10000);
+    return () => {
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
+    };
+  }, [status, sessionId, showSlowPopup]);
+
+  // Must stay above any early return (Rules of Hooks).
+  useEffect(() => {
+    const loadingNow =
+      ((bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') && results.length === 0);
+    const hasVisualContent =
+      results.length > 0 ||
+      (!loadingNow && !!sessionId && results.length === 0) ||
+      (!loadingNow && results.length > 0 && filtered.length === 0);
+    if (hasVisualContent) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim]);
+
   if (status === 'FAILED') {
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
@@ -691,59 +762,17 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
 
-  const isLoading = bootstrappingSession || status === 'PENDING' || status === 'PARTIAL';
+  // Hide the top progress banner once we have results (or search finished).
+  // bootstrappingSession used to stick true when create was cancelled mid-flight
+  // (navigation.replace), which left the banner looping forever over real results.
+  const isLoading =
+    (bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') &&
+    results.length === 0;
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
   const hasActiveSession = !!sessionId;
   const showEmpty = !isLoading && hasActiveSession && results.length === 0;
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
-
-  const [showSlowPopup, setShowSlowPopup] = useState(false);
-  const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Fade in whenever we have any visual content (results, empty-state, or no-match)
-  useEffect(() => {
-    const hasVisualContent = results.length > 0 || showEmpty || showNoMatch;
-    if (hasVisualContent) {
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    } else {
-      fadeAnim.setValue(0);
-    }
-  }, [results.length, showEmpty, showNoMatch, fadeAnim]);
-
-  useEffect(() => {
-    const loading = status === 'PENDING' || status === 'PARTIAL';
-
-    // If we are no longer loading, clear any timer and hide popup.
-    if (!loading) {
-      setShowSlowPopup(false);
-      if (slowPopupTimerRef.current) {
-        clearTimeout(slowPopupTimerRef.current);
-        slowPopupTimerRef.current = null;
-      }
-      return;
-    }
-
-    // Already scheduled or already visible – do nothing.
-    if (slowPopupTimerRef.current || showSlowPopup) {
-      return;
-    }
-
-    // Show hint if we stay loading for more than 10 seconds.
-    slowPopupTimerRef.current = setTimeout(() => {
-      slowPopupTimerRef.current = null;
-      if (status === 'PENDING' || status === 'PARTIAL') {
-        setShowSlowPopup(true);
-      }
-    }, 10000);
-
-    return () => {
-      if (slowPopupTimerRef.current) {
-        clearTimeout(slowPopupTimerRef.current);
-        slowPopupTimerRef.current = null;
-      }
-    };
-  }, [status, sessionId, showSlowPopup]);
 
   const makeViewCombinationHandler = (opt: PositioningOption) => () => {
     setPositioningDetails(opt);

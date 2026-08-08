@@ -21,9 +21,10 @@ type exploreSession struct {
 	Rows []exploreDestRow
 
 	// LiveQueue lists destination codes still eligible for a live GF2 refresh (estimated or stale cache).
-	LiveQueue       []string
-	LiveQueueCursor int
-	LiveFetchAttempts int // GF2 calls completed this session (hard-capped)
+	LiveQueue         []string
+	LiveQueueCursor   int
+	LiveFetchAttempts int  // GF2 calls completed this session (hard-capped)
+	LiveInFlight      bool // true while a live batch is running (blocks concurrent live)
 
 	Origin string
 	Dep    string

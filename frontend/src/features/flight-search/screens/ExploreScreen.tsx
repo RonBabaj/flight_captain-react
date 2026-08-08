@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -285,6 +285,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const [exploreNextOffset, setExploreNextOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [liveRefreshing, setLiveRefreshing] = useState(false);
+  const exploreFetchGenRef = useRef(0);
 
   // Filter / sort
   const [sortAsc, setSortAsc] = useState(true);
@@ -302,6 +303,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const doFetch = (overrides?: DoFetchOverrides) => {
     const org = (overrides?.origin ?? origin).trim();
     if (!org) return;
+    const fetchGen = ++exploreFetchGenRef.current;
+    const isCurrent = () => exploreFetchGenRef.current === fetchGen;
+
     setLoading(true);
     setError(null);
     setDestinations([]);
@@ -339,6 +343,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     // then grow the list as confirmed destinations arrive.
     getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true })
       .then(async (res) => {
+        if (!isCurrent()) return;
         const confirmed = (res.destinations ?? []).filter(
           (d) => d.priceSource !== 'estimated',
         );
@@ -358,12 +363,15 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         }
 
         setLiveRefreshing(true);
+        let liveFailed = false;
+        let lastConfirmed = confirmed;
         try {
           let avail = true;
           let rounds = 0;
           // Backend caps ~36 live GF2 calls/session (~3 batches of 12).
           const maxRounds = 3;
           while (avail && rounds < maxRounds) {
+            if (!isCurrent()) return;
             try {
               const r2 = await getExploreDestinations({
                 sessionId: res.sessionId,
@@ -371,9 +379,11 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
                 limit: pageSize,
                 live: true,
               });
+              if (!isCurrent()) return;
               const next = (r2.destinations ?? []).filter(
                 (d) => d.priceSource !== 'estimated',
               );
+              lastConfirmed = next;
               setDestinations(next);
               setExploreHasMore(r2.hasMore);
               setExploreNextOffset(r2.offset + r2.destinations.length);
@@ -382,17 +392,24 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
               }
               avail = !!r2.liveRefreshAvailable;
             } catch {
+              liveFailed = true;
               // Keep whatever confirmed cards we already have.
               break;
             }
             rounds += 1;
           }
         } finally {
+          if (!isCurrent()) return;
           setLiveRefreshing(false);
           setLoading(false);
+          // Cold cache + failed live would otherwise show a false "No destinations found".
+          if (liveFailed && lastConfirmed.length === 0) {
+            setError(t('explore_error'));
+          }
         }
       })
       .catch(() => {
+        if (!isCurrent()) return;
         setError(t('explore_error'));
         setLoading(false);
         setLiveRefreshing(false);
@@ -400,7 +417,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   };
 
   const loadMoreExplore = () => {
-    if (!exploreSessionId || !exploreHasMore || loadingMore || loading) return;
+    if (!exploreSessionId || !exploreHasMore || loadingMore || loading || liveRefreshing) return;
     setLoadingMore(true);
     getExploreDestinations({
       sessionId: exploreSessionId,
@@ -429,6 +446,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   useEffect(() => {
     doFetch();
+    return () => {
+      exploreFetchGenRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -21,7 +21,7 @@ export interface GetExploreDestinationsParams {
   sessionId?: string;
   offset?: number;
   limit?: number;
-  /** Fast path: cache + estimates only (no live GF2). */
+  /** Fast path: cache only (no live GF2). Live batches grow the list afterward. */
   prefetch?: boolean;
   /** Fetch next batch of live prices for this session (max ~12 GF2 calls). */
   live?: boolean;

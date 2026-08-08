@@ -1290,21 +1290,22 @@ func (r *CreateSearchSessionRequest) CurrencyOrDefault() string {
 	return "USD"
 }
 
-// priceUpliftMultiplier returns a configurable multiplier to approximate realistic checkout totals.
-// Env: SEARCH_PRICE_UPLIFT_PCT (e.g., "25" means 25% uplift => 1.25x). Defaults to 1.20 (20%).
+// priceUpliftMultiplier returns an optional multiplier for GF2 display prices.
+// Env: SEARCH_PRICE_UPLIFT_PCT (e.g. "20" => 1.20x). Default 0 = show provider quotes as-is
+// so listed fares match Google Flights / the upstream quote.
 func priceUpliftMultiplier() float64 {
 	raw := strings.TrimSpace(os.Getenv("SEARCH_PRICE_UPLIFT_PCT"))
 	if raw == "" {
-		return 1.20
+		return 1.0
 	}
-	if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0 && v < 200 {
+	if v, err := strconv.ParseFloat(raw, 64); err == nil && v >= 0 && v < 200 {
 		return 1.0 + v/100.0
 	}
-	return 1.20
+	return 1.0
 }
 
-// applyPriceNormalization adjusts provider prices to be more realistic (include typical taxes/fees/OTA variance).
-// Current strategy: apply a configurable uplift to Google Flights-derived results, preserving original in OriginalPrice.
+// applyPriceNormalization optionally uplifts Google Flights-derived prices (taxes/OTA variance).
+// Off by default (SEARCH_PRICE_UPLIFT_PCT unset/0). When applied, OriginalPrice keeps the provider quote.
 func applyPriceNormalization(options []FlightOption) {
 	if len(options) == 0 {
 		return
