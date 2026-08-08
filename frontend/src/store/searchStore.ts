@@ -72,10 +72,16 @@ export const searchActions = {
     }),
 
   setResults: (results: FlightOption[], version: number) =>
-    useSearchStore.setState(state => ({
-      results: state.version < version ? results : state.results,
-      version,
-    })),
+    useSearchStore.setState(state => {
+      // version === 0 is an explicit clear (bootstrap / reset); always apply.
+      if (version === 0) {
+        return { results, version: 0 };
+      }
+      return {
+        results: state.version < version ? results : state.results,
+        version,
+      };
+    }),
 
   appendResults: (newResults: FlightOption[], version: number) =>
     useSearchStore.setState(state => {

@@ -386,6 +386,10 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 		return nil
 	}
 	sess.mu.Lock()
+	if sess.LiveInFlight {
+		sess.mu.Unlock()
+		return nil
+	}
 	if sess.LiveFetchAttempts >= exploreMaxLiveFetchesPerSession {
 		sess.mu.Unlock()
 		return nil
@@ -405,8 +409,15 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 		end = len(sess.LiveQueue)
 	}
 	batch := append([]string(nil), sess.LiveQueue[start:end]...)
-	sess.LiveQueueCursor = end
+	// Claim the batch but only commit the cursor after work finishes so a timed-out
+	// HTTP handler does not permanently skip destinations that never merged.
+	sess.LiveInFlight = true
 	sess.mu.Unlock()
+	defer func() {
+		sess.mu.Lock()
+		sess.LiveInFlight = false
+		sess.mu.Unlock()
+	}()
 
 	var incoming []exploreDestRow
 	var incomingMu sync.Mutex
@@ -446,6 +457,8 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 	wg.Wait()
 
 	sess.mu.Lock()
+	// Advance past this batch only after work completes (even if some dests returned nil).
+	sess.LiveQueueCursor = end
 	sess.Rows = mergeExplorePriceRows(sess.Rows, incoming)
 	attempts := sess.LiveFetchAttempts
 	sess.mu.Unlock()

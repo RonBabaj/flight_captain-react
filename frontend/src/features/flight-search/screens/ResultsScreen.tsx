@@ -479,6 +479,9 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (!sessionId) return;
 
     let cancelled = false;
+    let consecutiveFailures = 0;
+    const MAX_POLL_FAILURES = 8;
+
     const poll = async () => {
       if (cancelled) return;
       try {
@@ -489,11 +492,16 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           storeParamsRef.current ?? undefined
         );
         if (cancelled) return;
+        consecutiveFailures = 0;
         versionRef.current = res.version;
         searchActions.setSession(sessionId, res.session, res.session.status);
         searchActions.appendResults(res.results, res.version);
       } catch (_) {
-        // keep polling on transient errors
+        consecutiveFailures += 1;
+        // Expired/missing sessions (e.g. backend restart) otherwise spin forever.
+        if (consecutiveFailures >= MAX_POLL_FAILURES && statusRef.current !== 'COMPLETE') {
+          searchActions.setSession(sessionId, null, 'FAILED');
+        }
       }
     };
 
@@ -525,6 +533,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (positioningSessionIdRef.current !== sessionId) {
       positioningSessionIdRef.current = sessionId;
       setPositioningOptions([]);
+      setPositioningLoading(false);
       optimizerSessionRef.current = null;
     }
   }, [sessionId]);
@@ -558,10 +567,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const startedAt = Date.now();
     // Hard cap so "Searching cheaper departure cities..." cannot run for many minutes.
     const POSITIONING_BUDGET_MS = 45_000;
+    const sessionStillActive = () => optimizerSessionRef.current === sessionId;
 
     try {
       let hubRunIndex = 0;
       for (const hub of HUB_AIRPORTS) {
+        if (!sessionStillActive()) break;
         if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
         if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
         // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
@@ -576,7 +587,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             infants: storeParams.infants ?? 0,
             cabinClass: storeParams.cabinClass ?? 'ECONOMY',
             cabinPreference: storeParams.cabinPreference ?? 'ECONOMY',
-            includeCheckedBags: storeParams.includeCheckedBags ?? false,
+            includeCheckedBag: storeParams.includeCheckedBag ?? false,
             currency: cur,
             locale: storeParams.locale ?? 'en-US',
             returnDate: '',
@@ -589,6 +600,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             destination: hub,
             departureDate,
           });
+          if (!sessionStillActive()) break;
           if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
           const hubFlight = await findCheapestOptionForParams({
             ...(baseOpts as CreateSearchSessionRequest),
@@ -620,9 +632,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       }
 
       found.sort((a, b) => b.savings.amount - a.savings.amount);
-      setPositioningOptions(found);
+      if (sessionStillActive()) {
+        setPositioningOptions(found);
+      }
     } finally {
-      setPositioningLoading(false);
+      if (sessionStillActive()) {
+        setPositioningLoading(false);
+      }
     }
   }, [sessionId, storeParams, results]);
 
@@ -672,6 +688,51 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     searchActions.setSort(field, order);
   };
 
+  const [showSlowPopup, setShowSlowPopup] = useState(false);
+  const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const loading = status === 'PENDING' || status === 'PARTIAL';
+    if (!loading) {
+      setShowSlowPopup(false);
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
+      return;
+    }
+    if (slowPopupTimerRef.current || showSlowPopup) {
+      return;
+    }
+    slowPopupTimerRef.current = setTimeout(() => {
+      slowPopupTimerRef.current = null;
+      if (status === 'PENDING' || status === 'PARTIAL') {
+        setShowSlowPopup(true);
+      }
+    }, 10000);
+    return () => {
+      if (slowPopupTimerRef.current) {
+        clearTimeout(slowPopupTimerRef.current);
+        slowPopupTimerRef.current = null;
+      }
+    };
+  }, [status, sessionId, showSlowPopup]);
+
+  // Must stay above any early return (Rules of Hooks).
+  useEffect(() => {
+    const loadingNow =
+      ((bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') && results.length === 0);
+    const hasVisualContent =
+      results.length > 0 ||
+      (!loadingNow && !!sessionId && results.length === 0) ||
+      (!loadingNow && results.length > 0 && filtered.length === 0);
+    if (hasVisualContent) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim]);
+
   if (status === 'FAILED') {
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
@@ -712,53 +773,6 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const hasActiveSession = !!sessionId;
   const showEmpty = !isLoading && hasActiveSession && results.length === 0;
   const showNoMatch = !isLoading && results.length > 0 && filtered.length === 0;
-
-  const [showSlowPopup, setShowSlowPopup] = useState(false);
-  const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Fade in whenever we have any visual content (results, empty-state, or no-match)
-  useEffect(() => {
-    const hasVisualContent = results.length > 0 || showEmpty || showNoMatch;
-    if (hasVisualContent) {
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    } else {
-      fadeAnim.setValue(0);
-    }
-  }, [results.length, showEmpty, showNoMatch, fadeAnim]);
-
-  useEffect(() => {
-    const loading = status === 'PENDING' || status === 'PARTIAL';
-
-    // If we are no longer loading, clear any timer and hide popup.
-    if (!loading) {
-      setShowSlowPopup(false);
-      if (slowPopupTimerRef.current) {
-        clearTimeout(slowPopupTimerRef.current);
-        slowPopupTimerRef.current = null;
-      }
-      return;
-    }
-
-    // Already scheduled or already visible – do nothing.
-    if (slowPopupTimerRef.current || showSlowPopup) {
-      return;
-    }
-
-    // Show hint if we stay loading for more than 10 seconds.
-    slowPopupTimerRef.current = setTimeout(() => {
-      slowPopupTimerRef.current = null;
-      if (status === 'PENDING' || status === 'PARTIAL') {
-        setShowSlowPopup(true);
-      }
-    }, 10000);
-
-    return () => {
-      if (slowPopupTimerRef.current) {
-        clearTimeout(slowPopupTimerRef.current);
-        slowPopupTimerRef.current = null;
-      }
-    };
-  }, [status, sessionId, showSlowPopup]);
 
   const makeViewCombinationHandler = (opt: PositioningOption) => () => {
     setPositioningDetails(opt);

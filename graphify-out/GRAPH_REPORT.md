@@ -1,7 +1,7 @@
 # Graph Report - workspace  (2026-08-08)
 
 ## Corpus Check
-- 128 files · ~144,017 words
+- 128 files · ~144,245 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0e224f01`
+- Built from commit: `9fcb55a0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -117,7 +117,7 @@ Nodes (24): App(), RTLWrapper(), API_BASE, ErrorBoundary, Props, s, State, Explo
 
 ### Community 2 - "FlightDetailsModal.tsx"
 Cohesion: 0.11
-Nodes (33): getUniformBookingRedirectUrl(), DisplayPrice(), DisplayPriceProps, AIRLINE_NAMES, getAirlineName(), AIRLINE_FULL_NAMES, NOTE: This is a starter subset of IATA airlines., getAirportNameByCode() (+25 more)
+Nodes (32): getUniformBookingRedirectUrl(), DisplayPrice(), DisplayPriceProps, AIRLINE_NAMES, getAirlineName(), AIRLINE_FULL_NAMES, NOTE: This is a starter subset of IATA airlines., cabinLabel() (+24 more)
 
 ### Community 3 - "Issue"
 Cohesion: 0.10
@@ -152,8 +152,8 @@ Cohesion: 0.20
 Nodes (11): Context, truncateGF2(), Context, MultiSearchResult, Layover, Monetary, Provider, ProviderResult (+3 more)
 
 ### Community 11 - "AppIcon.tsx"
-Cohesion: 0.19
-Nodes (12): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES (+4 more)
+Cohesion: 0.33
+Nodes (8): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES
 
 ### Community 12 - "ResultsScreen.tsx"
 Cohesion: 0.12
@@ -169,7 +169,7 @@ Nodes (19): getStorage(), languageToLocale(), loadSaved(), LocaleContext, Locale
 
 ### Community 15 - "ExploreScreen.tsx"
 Cohesion: 0.11
-Nodes (33): getExploreDestinations(), AIRPORT_DICTIONARY, getAirportDisplayName(), getAirportEntry(), getCityDisplayName(), lower(), matchesQuery(), rankResult() (+25 more)
+Nodes (34): getExploreDestinations(), AIRPORT_DICTIONARY, getAirportDisplayName(), getAirportEntry(), getAirportNameByCode(), getCityDisplayName(), lower(), matchesQuery() (+26 more)
 
 ### Community 16 - "canonical.go"
 Cohesion: 0.23
@@ -184,8 +184,8 @@ Cohesion: 0.25
 Nodes (6): CreateSearchSessionRequest, baggageOrderString(), convertOptionsToCurrency(), convertPrice(), handleCreateSession(), randomID()
 
 ### Community 19 - "useLocale"
-Cohesion: 0.26
-Nodes (11): useLocale(), CABIN_OPTIONS, PassengerCabinPicker(), PassengerCabinPickerProps, styles, makeThemedStyles(), s, SEARCH_PHRASES (+3 more)
+Cohesion: 0.15
+Nodes (17): PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, SearchLoadingOverlay(), useLocale(), CABIN_OPTIONS (+9 more)
 
 ### Community 20 - "qa_runner.py"
 Cohesion: 0.14
@@ -212,8 +212,8 @@ Cohesion: 0.18
 Nodes (14): searchAirports(), apiGet(), apiRequest(), apiUrl(), isLocalHostname(), IMPORTANT: Expo/Metro statically inlines EXPO_PUBLIC_* only when accessed via, resolveApiBase(), GetDealsRangeParams (+6 more)
 
 ### Community 26 - "ThemeContext.tsx"
-Cohesion: 0.12
-Nodes (14): PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, SearchLoadingOverlay(), ACCENT, darkTheme (+6 more)
+Cohesion: 0.14
+Nodes (12): LandingScreen(), Nav, styles, RootStackParamList, ACCENT, darkTheme, lightTheme, RADIUS (+4 more)
 
 ### Community 27 - "expo"
 Cohesion: 0.13
@@ -268,8 +268,8 @@ Cohesion: 0.46
 Nodes (7): applySoftStrictBaggage(), T, makeOfferWithBags(), makeOfferWithMissingBags(), TestApplySoftStrictBaggage(), TestClassifyOfferBaggage(), classifyOfferBaggage()
 
 ### Community 40 - "CalendarModal.tsx"
-Cohesion: 0.28
-Nodes (8): react, buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS, react
+Cohesion: 0.38
+Nodes (6): buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS
 
 ### Community 41 - "models.py"
 Cohesion: 0.25
@@ -328,8 +328,8 @@ Cohesion: 0.33
 Nodes (8): getDealsRange(), DatePickerCalendar(), DatePickerCalendarProps, getNext14Dates(), getRangeStartEnd(), styles, WEEKDAYS, DayDeal
 
 ### Community 64 - "DateRangePicker.tsx"
-Cohesion: 0.38
-Nodes (6): buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthStart(), styles, WEEKDAYS
+Cohesion: 0.28
+Nodes (8): react, buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthStart(), styles, WEEKDAYS, react
 
 ## Knowledge Gaps
 - **238 isolated node(s):** `ClicksByProvider`, `exploreLiveCandidate`, `flightcaptainweb`, `Provider`, `MultiSearchResult` (+233 more)
@@ -339,11 +339,11 @@ Nodes (6): buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthSt
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `CalendarModal.tsx` to `DateRangePicker.tsx`, `dependencies`?**
+- **Why does `react` connect `DateRangePicker.tsx` to `CalendarModal.tsx`, `dependencies`?**
   _High betweenness centrality (0.049) - this node is a cross-community bridge._
-- **Why does `DateRangePicker()` connect `DateRangePicker.tsx` to `CalendarModal.tsx`, `useLocale`, `ExploreScreen.tsx`?**
+- **Why does `DateRangePicker()` connect `DateRangePicker.tsx` to `useLocale`, `ExploreScreen.tsx`?**
   _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `dependencies` to `CalendarModal.tsx`, `react-native-safe-area-context`, `@react-navigation/native`, `package.json`?**
+- **Why does `dependencies` connect `dependencies` to `DateRangePicker.tsx`, `react-native-safe-area-context`, `@react-navigation/native`, `package.json`?**
   _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `TestResult` (e.g. with `ResponseAnalyzer` and `ApiClient`) actually correct?**
   _`TestResult` has 4 INFERRED edges - model-reasoned connections that need verification._
