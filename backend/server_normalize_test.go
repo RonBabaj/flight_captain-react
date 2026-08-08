@@ -197,3 +197,35 @@ func TestComputeOutboundSummary_OneStop(t *testing.T) {
 		t.Errorf("total outbound duration want 395 (6h35m), got %d", sum.DurationMinutes)
 	}
 }
+
+func TestPriceUpliftMultiplierDefaultOff(t *testing.T) {
+	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "")
+	if got := priceUpliftMultiplier(); got != 1.0 {
+		t.Fatalf("default multiplier = %v, want 1.0 (no uplift)", got)
+	}
+}
+
+func TestPriceUpliftMultiplierConfigured(t *testing.T) {
+	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "20")
+	if got := priceUpliftMultiplier(); got != 1.20 {
+		t.Fatalf("20%% uplift multiplier = %v, want 1.20", got)
+	}
+}
+
+func TestApplyPriceNormalizationDefaultNoChange(t *testing.T) {
+	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "")
+	opts := []FlightOption{{
+		Source: "googleflights2",
+		Price:  MonetaryAmount{Currency: "USD", Amount: 100},
+	}}
+	applyPriceNormalization(opts)
+	if opts[0].Price.Amount != 100 {
+		t.Fatalf("price = %v, want 100", opts[0].Price.Amount)
+	}
+	if opts[0].PriceIsEstimate {
+		t.Fatal("expected PriceIsEstimate false when uplift off")
+	}
+	if opts[0].OriginalPrice != nil {
+		t.Fatal("expected OriginalPrice nil when uplift off")
+	}
+}

@@ -459,10 +459,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         searchActions.setSession(session.id, session, session.status);
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
-        if (cancelled) return;
-        searchActions.setSession(null, null, 'FAILED');
+        if (!cancelled) {
+          searchActions.setSession(null, null, 'FAILED');
+        }
       } finally {
-        if (cancelled) return;
+        // Always clear — if we skip this when cancelled (e.g. replace() changed sessionId
+        // mid-flight), the top LoadingBanner stays forever while results are already visible.
         creatingSessionRef.current = false;
         setBootstrappingSession(false);
       }
@@ -553,67 +555,75 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
     setPositioningLoading(true);
     const found: PositioningOption[] = [];
+    const startedAt = Date.now();
+    // Hard cap so "Searching cheaper departure cities..." cannot run for many minutes.
+    const POSITIONING_BUDGET_MS = 45_000;
 
-    let hubRunIndex = 0;
-    for (const hub of HUB_AIRPORTS) {
-      if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
-      // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
-      if (hubRunIndex > 0) {
-        await delay(3500);
+    try {
+      let hubRunIndex = 0;
+      for (const hub of HUB_AIRPORTS) {
+        if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+        if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
+        // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
+        if (hubRunIndex > 0) {
+          await delay(2000);
+        }
+        hubRunIndex += 1;
+        try {
+          const baseOpts: Partial<CreateSearchSessionRequest> = {
+            adults: storeParams.adults ?? 1,
+            children: storeParams.children ?? 0,
+            infants: storeParams.infants ?? 0,
+            cabinClass: storeParams.cabinClass ?? 'ECONOMY',
+            cabinPreference: storeParams.cabinPreference ?? 'ECONOMY',
+            includeCheckedBags: storeParams.includeCheckedBags ?? false,
+            currency: cur,
+            locale: storeParams.locale ?? 'en-US',
+            returnDate: '',
+          };
+
+          // Sequential (not Promise.all): two fewer concurrent Search() calls per hub.
+          const positioning = await findCheapestOptionForParams({
+            ...(baseOpts as CreateSearchSessionRequest),
+            origin: origin.toUpperCase(),
+            destination: hub,
+            departureDate,
+          });
+          if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+          const hubFlight = await findCheapestOptionForParams({
+            ...(baseOpts as CreateSearchSessionRequest),
+            origin: hub,
+            destination: destination.toUpperCase(),
+            departureDate,
+          });
+
+          if (!positioning || !hubFlight) continue;
+
+          const totalAmount = positioning.option.price.amount + hubFlight.option.price.amount;
+          const savingsAmount = directCheapest - totalAmount;
+          if (savingsAmount <= 80) continue;
+
+          found.push({
+            hubAirport: hub,
+            positioningPrice: { amount: positioning.option.price.amount, currency: cur },
+            hubFlightPrice: { amount: hubFlight.option.price.amount, currency: cur },
+            totalPrice: { amount: totalAmount, currency: cur },
+            savings: { amount: savingsAmount, currency: cur },
+            positioningSessionId: positioning.sessionId,
+            positioningOptionId: positioning.option.id,
+            hubSessionId: hubFlight.sessionId,
+            hubOptionId: hubFlight.option.id,
+          });
+        } catch {
+          // skip hubs that fail
+        }
       }
-      hubRunIndex += 1;
-      try {
-        const baseOpts: Partial<CreateSearchSessionRequest> = {
-          adults: storeParams.adults ?? 1,
-          children: storeParams.children ?? 0,
-          infants: storeParams.infants ?? 0,
-          cabinClass: storeParams.cabinClass ?? 'ECONOMY',
-          cabinPreference: storeParams.cabinPreference ?? 'ECONOMY',
-          includeCheckedBag: storeParams.includeCheckedBag ?? false,
-          currency: cur,
-          locale: storeParams.locale ?? 'en-US',
-          returnDate: '',
-        };
 
-        // Sequential (not Promise.all): two fewer concurrent Search() calls per hub.
-        const positioning = await findCheapestOptionForParams({
-          ...(baseOpts as CreateSearchSessionRequest),
-          origin: origin.toUpperCase(),
-          destination: hub,
-          departureDate,
-        });
-        const hubFlight = await findCheapestOptionForParams({
-          ...(baseOpts as CreateSearchSessionRequest),
-          origin: hub,
-          destination: destination.toUpperCase(),
-          departureDate,
-        });
-
-        if (!positioning || !hubFlight) continue;
-
-        const totalAmount = positioning.option.price.amount + hubFlight.option.price.amount;
-        const savingsAmount = directCheapest - totalAmount;
-        if (savingsAmount <= 80) continue;
-
-        found.push({
-          hubAirport: hub,
-          positioningPrice: { amount: positioning.option.price.amount, currency: cur },
-          hubFlightPrice: { amount: hubFlight.option.price.amount, currency: cur },
-          totalPrice: { amount: totalAmount, currency: cur },
-          savings: { amount: savingsAmount, currency: cur },
-          positioningSessionId: positioning.sessionId,
-          positioningOptionId: positioning.option.id,
-          hubSessionId: hubFlight.sessionId,
-          hubOptionId: hubFlight.option.id,
-        });
-      } catch {
-        // skip hubs that fail
-      }
+      found.sort((a, b) => b.savings.amount - a.savings.amount);
+      setPositioningOptions(found);
+    } finally {
+      setPositioningLoading(false);
     }
-
-    found.sort((a, b) => b.savings.amount - a.savings.amount);
-    setPositioningOptions(found);
-    setPositioningLoading(false);
   }, [sessionId, storeParams, results]);
 
   useEffect(() => {
@@ -691,7 +701,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
 
-  const isLoading = bootstrappingSession || status === 'PENDING' || status === 'PARTIAL';
+  // Hide the top progress banner once we have results (or search finished).
+  // bootstrappingSession used to stick true when create was cancelled mid-flight
+  // (navigation.replace), which left the banner looping forever over real results.
+  const isLoading =
+    (bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') &&
+    results.length === 0;
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
   const hasActiveSession = !!sessionId;
