@@ -500,8 +500,9 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
     const poll = async () => {
       if (cancelled) return;
+      const currentStatus = statusRef.current;
       // Create path already set COMPLETE before replace; don't keep hammering.
-      if (statusRef.current === 'COMPLETE' || statusRef.current === 'FAILED') return;
+      if (currentStatus === 'COMPLETE' || currentStatus === 'FAILED') return;
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const res = await getSearchSessionResults(
@@ -519,8 +520,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         const notFound = /\b404\b|not found|expired/i.test(msg);
         if (notFound) {
           consecutiveNotFound += 1;
-          const st = statusRef.current;
-          if (consecutiveNotFound >= MAX_NOT_FOUND && st !== 'COMPLETE' && st !== 'FAILED') {
+          const stAfter = statusRef.current;
+          if (consecutiveNotFound >= MAX_NOT_FOUND && stAfter !== 'COMPLETE' && stAfter !== 'FAILED') {
             searchActions.setError('Search session expired. Please search again.');
             searchActions.setSession(sessionId, null, 'FAILED');
           }
