@@ -31,6 +31,9 @@ type KiwiApifyProvider struct {
 	baseURL string
 	client  *http.Client
 	cache   *kiwiCache
+
+	tokenStatusMu sync.RWMutex
+	tokenStatus   string // "ok" | "unauthorized" | "forbidden" | "error" | "" (unchecked)
 }
 
 type kiwiCache struct {
@@ -69,16 +72,88 @@ func NewKiwiApifyProvider() *KiwiApifyProvider {
 			c.evict()
 		}
 	}()
-	return &KiwiApifyProvider{
+	p := &KiwiApifyProvider{
 		token:   token,
 		actorID: actor,
 		baseURL: base,
 		client:  &http.Client{Timeout: kiwiHTTPTimeout},
 		cache:   c,
 	}
+	// Non-blocking: verify the token is accepted by Apify (common failure: key in
+	// .env.example / wrong file, or revoked token that still looks "configured").
+	go p.pingToken()
+	return p
 }
 
 func (p *KiwiApifyProvider) Name() string { return "kiwi" }
+
+// ActorID returns the configured Apify actor id (user~actor).
+func (p *KiwiApifyProvider) ActorID() string {
+	if p == nil {
+		return ""
+	}
+	return p.actorID
+}
+
+// TokenStatus returns the last known Apify auth check result ("ok", "unauthorized", …).
+func (p *KiwiApifyProvider) TokenStatus() string {
+	if p == nil {
+		return ""
+	}
+	p.tokenStatusMu.RLock()
+	defer p.tokenStatusMu.RUnlock()
+	return p.tokenStatus
+}
+
+func (p *KiwiApifyProvider) setTokenStatus(s string) {
+	p.tokenStatusMu.Lock()
+	p.tokenStatus = s
+	p.tokenStatusMu.Unlock()
+}
+
+func (p *KiwiApifyProvider) pingToken() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	u := fmt.Sprintf("%s/users/me", p.baseURL)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		p.setTokenStatus("error")
+		return
+	}
+	p.setAuth(httpReq)
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		log.Printf("[KIWI] Apify token check failed (network): %v", err)
+		p.setTokenStatus("error")
+		return
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		log.Printf("[KIWI] Apify token OK actor=%s", p.actorID)
+		p.setTokenStatus("ok")
+	case resp.StatusCode == http.StatusUnauthorized:
+		log.Printf("[KIWI] APIFY_API_TOKEN rejected (401). Token is set but invalid/revoked. body=%s", truncateStr(string(raw), 200))
+		p.setTokenStatus("unauthorized")
+	case resp.StatusCode == http.StatusForbidden:
+		log.Printf("[KIWI] APIFY_API_TOKEN forbidden (403). Check Apify plan/permissions. body=%s", truncateStr(string(raw), 200))
+		p.setTokenStatus("forbidden")
+	default:
+		log.Printf("[KIWI] Apify token check status=%d body=%s", resp.StatusCode, truncateStr(string(raw), 200))
+		p.setTokenStatus("error")
+	}
+}
+
+func (p *KiwiApifyProvider) setAuth(req *http.Request) {
+	// Prefer Authorization header; also keep ?token= for older Apify proxies.
+	req.Header.Set("Authorization", "Bearer "+p.token)
+	q := req.URL.Query()
+	if q.Get("token") == "" {
+		q.Set("token", p.token)
+		req.URL.RawQuery = q.Encode()
+	}
+}
 
 func (c *kiwiCache) get(key string) ([]ProviderResult, bool) {
 	c.mu.RLock()
@@ -147,8 +222,11 @@ func (p *KiwiApifyProvider) Search(ctx context.Context, req SearchRequest) ([]Pr
 		return nil, err
 	}
 	results := parseKiwiApifyItems(items, req)
-	log.Printf("[KIWI] cacheHit=false results=%d datasetId=%s", len(results), datasetID)
-	p.cache.set(key, results)
+	log.Printf("[KIWI] cacheHit=false results=%d rawItems=%d datasetId=%s", len(results), len(items), datasetID)
+	// Only cache non-empty results — empty parses are often transient actor/schema issues.
+	if len(results) > 0 {
+		p.cache.set(key, results)
+	}
 	return results, nil
 }
 
@@ -168,8 +246,8 @@ func (p *KiwiApifyProvider) buildActorInput(req SearchRequest) map[string]interf
 	if req.IncludeCheckedBag {
 		checked = "1"
 	}
+	// solidcode/kiwi-scraper schema only — do not mix alternate actor keys.
 	input := map[string]interface{}{
-		// solidcode/kiwi-scraper schema
 		"origin":        strings.ToUpper(req.Origin),
 		"destination":   strings.ToUpper(req.Destination),
 		"departureDate": req.DepartureDate,
@@ -179,37 +257,43 @@ func (p *KiwiApifyProvider) buildActorInput(req SearchRequest) map[string]interf
 		"checkedBags":   checked,
 		"cabinBags":     "0",
 		"maxStops":      "any",
-		// kazadoiyul/kiwi-scraper alternate keys (ignored by solidcode if unused)
-		"from":      strings.ToUpper(req.Origin),
-		"to":        strings.ToUpper(req.Destination),
-		"departure": req.DepartureDate,
-		"oneway":    req.ReturnDate == "",
 	}
 	if req.ReturnDate != "" {
 		input["returnDate"] = req.ReturnDate
-		input["returning"] = req.ReturnDate
+	} else {
+		input["returnDate"] = ""
 	}
 	return input
 }
 
 func (p *KiwiApifyProvider) startActorRun(ctx context.Context, input map[string]interface{}) (runID, datasetID string, err error) {
-	u := fmt.Sprintf("%s/acts/%s/runs?token=%s&waitForFinish=0",
-		p.baseURL, url.PathEscape(p.actorID), url.QueryEscape(p.token))
+	u := fmt.Sprintf("%s/acts/%s/runs?waitForFinish=0",
+		p.baseURL, url.PathEscape(p.actorID))
 	body, _ := json.Marshal(input)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return "", "", err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.setAuth(httpReq)
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return "", "", fmt.Errorf("apify start run: %w", err)
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("[KIWI] start run status=%d body=%s", resp.StatusCode, truncateStr(string(raw), 300))
-		return "", "", fmt.Errorf("apify start run status %d", resp.StatusCode)
+		msg := apifyErrorMessage(raw)
+		log.Printf("[KIWI] start run status=%d body=%s", resp.StatusCode, truncateStr(string(raw), 400))
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			p.setTokenStatus("unauthorized")
+			return "", "", fmt.Errorf("apify start run: unauthorized (check APIFY_API_TOKEN) %s", msg)
+		case http.StatusPaymentRequired: // 402 — Apify pay-per-event actors need account credits
+			return "", "", fmt.Errorf("apify start run: payment required (add Apify credits for solidcode/kiwi-scraper) %s", msg)
+		default:
+			return "", "", fmt.Errorf("apify start run status %d %s", resp.StatusCode, msg)
+		}
 	}
 	var envelope map[string]interface{}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -239,19 +323,20 @@ func (p *KiwiApifyProvider) waitForRun(ctx context.Context, runID, datasetID str
 		if time.Now().After(deadline) {
 			return "", fmt.Errorf("kiwi apify run timed out")
 		}
-		u := fmt.Sprintf("%s/actor-runs/%s?token=%s", p.baseURL, url.PathEscape(runID), url.QueryEscape(p.token))
+		u := fmt.Sprintf("%s/actor-runs/%s", p.baseURL, url.PathEscape(runID))
 		httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		if err != nil {
 			return "", err
 		}
+		p.setAuth(httpReq)
 		resp, err := p.client.Do(httpReq)
 		if err != nil {
 			return "", fmt.Errorf("apify poll run: %w", err)
 		}
-		raw, _ := io.ReadAll(resp.Body)
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return "", fmt.Errorf("apify poll status %d", resp.StatusCode)
+			return "", fmt.Errorf("apify poll status %d %s", resp.StatusCode, apifyErrorMessage(raw))
 		}
 		var envelope map[string]interface{}
 		if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -272,7 +357,11 @@ func (p *KiwiApifyProvider) waitForRun(ctx context.Context, runID, datasetID str
 			}
 			return datasetID, nil
 		case "FAILED", "ABORTED", "TIMED-OUT", "TIMED_OUT":
-			return "", fmt.Errorf("kiwi apify run %s", strings.ToLower(status))
+			statusMsg := firstString(data, "statusMessage", "status_message")
+			if statusMsg == "" {
+				statusMsg = apifyErrorMessage(raw)
+			}
+			return "", fmt.Errorf("kiwi apify run %s: %s", strings.ToLower(status), truncateStr(statusMsg, 200))
 		}
 		select {
 		case <-ctx.Done():
@@ -283,12 +372,13 @@ func (p *KiwiApifyProvider) waitForRun(ctx context.Context, runID, datasetID str
 }
 
 func (p *KiwiApifyProvider) fetchDatasetItems(ctx context.Context, datasetID string) ([]map[string]interface{}, error) {
-	u := fmt.Sprintf("%s/datasets/%s/items?token=%s&clean=true&format=json",
-		p.baseURL, url.PathEscape(datasetID), url.QueryEscape(p.token))
+	u := fmt.Sprintf("%s/datasets/%s/items?clean=true&format=json",
+		p.baseURL, url.PathEscape(datasetID))
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
+	p.setAuth(httpReq)
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("apify dataset: %w", err)
@@ -297,7 +387,7 @@ func (p *KiwiApifyProvider) fetchDatasetItems(ctx context.Context, datasetID str
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Printf("[KIWI] dataset status=%d body=%s", resp.StatusCode, truncateStr(string(raw), 300))
-		return nil, fmt.Errorf("apify dataset status %d", resp.StatusCode)
+		return nil, fmt.Errorf("apify dataset status %d %s", resp.StatusCode, apifyErrorMessage(raw))
 	}
 	var items []map[string]interface{}
 	if err := json.Unmarshal(raw, &items); err == nil {
@@ -309,6 +399,24 @@ func (p *KiwiApifyProvider) fetchDatasetItems(ctx context.Context, datasetID str
 		return nil, fmt.Errorf("apify dataset parse: %w", err)
 	}
 	return flattenKiwiItems(wrap), nil
+}
+
+func apifyErrorMessage(raw []byte) string {
+	var envelope map[string]interface{}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return truncateStr(string(raw), 160)
+	}
+	if errObj, ok := envelope["error"].(map[string]interface{}); ok {
+		typ := firstString(errObj, "type")
+		msg := firstString(errObj, "message")
+		if typ != "" || msg != "" {
+			return strings.TrimSpace(typ + ": " + msg)
+		}
+	}
+	if msg := firstString(envelope, "message", "error"); msg != "" {
+		return msg
+	}
+	return truncateStr(string(raw), 160)
 }
 
 func flattenKiwiItems(v interface{}) []map[string]interface{} {

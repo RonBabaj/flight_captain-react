@@ -79,13 +79,25 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = apiUrl(path);
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+  } catch (e) {
+    // WebKit/Brave often surfaces cross-origin/network aborts as "Load failed (host)".
+    const raw = e instanceof Error ? e.message : String(e);
+    if (/load failed|failed to fetch|networkerror|network request failed/i.test(raw)) {
+      throw new Error(
+        'Could not reach the flight API. Please check your connection and try again.'
+      );
+    }
+    throw e instanceof Error ? e : new Error(raw);
+  }
   if (!res.ok) {
     const text = await res.text();
     // Gateway proxies often return HTML for timeouts; keep the message short for UI.

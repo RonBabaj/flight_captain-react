@@ -70,9 +70,16 @@ APIFY_API_TOKEN=…
 FLIGHT_PROVIDERS=googleflights2,kiwi
 ```
 
+Put these in **`backend/.env` on the API host** (VPS/Docker), then restart the backend.
+Editing `.env.example` alone does nothing. `GET /health` shows `kiwi: enabled` when the
+token is loaded; create-session responses include `providerStats` with per-provider errors
+(e.g. invalid token, Apify payment required). The solidcode/kiwi-scraper actor is
+**pay-per-event** — a valid token still fails without Apify account credits.
+
 **Behavior**
 - Frontend always calls Fly-Fix APIs only (never Apify/RapidAPI directly).
 - Providers run in parallel; results are fingerprint-deduped (keep cheapest fare per itinerary).
+- Optional providers (Kiwi) soft-timeout so a slow Apify run cannot block GF2 / cause browser "Load failed".
 - Kiwi self-transfer / virtual-interlining flags surface as `selfTransfer` + a clear UI warning.
 - Monthly deals / Explore continue to use Google Flights2 when that provider is configured.
 - Each provider keeps its own short TTL cache where applicable.

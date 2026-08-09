@@ -220,9 +220,10 @@ type FlightOption struct {
 }
 
 type SearchSessionResultsResponse struct {
-	Session SearchSession  `json:"session"`
-	Version int64          `json:"version"`
-	Results []FlightOption `json:"results"`
+	Session       SearchSession                `json:"session"`
+	Version       int64                        `json:"version"`
+	Results       []FlightOption               `json:"results"`
+	ProviderStats []search.ProviderSearchStats `json:"providerStats,omitempty"`
 }
 
 const searchSessionTTL = 25 * time.Minute
@@ -842,16 +843,27 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := SearchSessionResultsResponse{
-		Session: session,
-		Version: 1,
-		Results: options,
+		Session:       session,
+		Version:       1,
+		Results:       options,
+		ProviderStats: multi.Stats,
 	}
 
 	sessionsMu.Lock()
 	sessions[id] = resp
 	sessionsMu.Unlock()
 
-	writeJSON(w, http.StatusOK, session)
+	// Include providerStats on create so operators can see why Kiwi/Apify returned 0
+	// without a follow-up GET (stats are also stored on the session for GET).
+	// Keep the historical SearchSession shape (id/status/…) and attach providerStats
+	// so operators can see Kiwi/Apify failures without SSH’ing into the VPS.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":            session.ID,
+		"status":        session.Status,
+		"createdAt":     session.CreatedAt,
+		"params":        session.Params,
+		"providerStats": multi.Stats,
+	})
 }
 
 func handleGetSession(w http.ResponseWriter, r *http.Request) {
@@ -2389,11 +2401,21 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	gf2 := "disabled"
 	kiwi := "disabled"
+	kiwiDetail := map[string]any{}
 	if googleFlights2Provider != nil {
 		gf2 = "enabled"
 	}
 	if flightProviderRegistry != nil && flightProviderRegistry.Get("kiwi") != nil {
 		kiwi = "enabled"
+		if kp, ok := flightProviderRegistry.Get("kiwi").(*search.KiwiApifyProvider); ok && kp != nil {
+			kiwiDetail["actor"] = kp.ActorID()
+			if st := kp.TokenStatus(); st != "" {
+				kiwiDetail["tokenStatus"] = st
+				if st != "ok" {
+					kiwi = st
+				}
+			}
+		}
 	}
 	providers := []string{}
 	if flightProviderRegistry != nil {
@@ -2403,23 +2425,28 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if ver == "" {
 		ver = "dev"
 	}
+	services := map[string]any{
+		"googleFlights2": gf2,
+		"kiwi":           kiwi,
+		"providers":      providers,
+	}
+	for k, v := range kiwiDetail {
+		services["kiwi_"+k] = v
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"version":   ver,
-		"services": map[string]any{
-			"googleFlights2": gf2,
-			"kiwi":           kiwi,
-			"providers":      providers,
-		},
+		"services":  services,
 	})
 }
 
 // allowedCORSOrigins are origins allowed for CORS (production + dev).
 var allowedCORSOrigins = map[string]bool{
-	"https://fly-fix.com":    true,
-	"http://localhost:19006": true, // Expo web/dev
-	"http://localhost:8081":  true, // local web/dev
+	"https://fly-fix.com":     true,
+	"https://www.fly-fix.com": true,
+	"http://localhost:19006":  true, // Expo web/dev
+	"http://localhost:8081":   true, // local web/dev
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
