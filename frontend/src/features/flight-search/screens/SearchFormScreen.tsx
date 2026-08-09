@@ -155,8 +155,13 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
       // This removes the user-visible delay of waiting for POST /api/search/sessions.
       searchActions.setSession(null, null, 'PENDING');
       searchActions.setResults([], 0);
+      // Clear any previous sessionId from the URL so Results does not poll a stale id.
       updateUrl(payload);
-      navigation.navigate('Results', { sessionId: '' });
+      navigation.navigate({
+        name: 'Results',
+        params: { sessionId: '', searchNonce: Date.now() },
+        merge: false,
+      } as any);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('search_failed'));
     } finally {

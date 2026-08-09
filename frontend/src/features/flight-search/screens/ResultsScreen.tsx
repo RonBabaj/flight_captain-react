@@ -254,17 +254,31 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
-  /** Route params from navigation; fall back to ?sessionId= in URL for deep links / refresh on /search/results */
-  const sessionId =
-    (route.params?.sessionId as string | undefined) ?? paramsFromUrl.sessionId ?? '';
   const {
     params: storeParams,
+    sessionId: storeSessionId,
     results,
     status,
+    error: storeError,
     sortField,
     sortOrder,
     filters,
   } = useSearchStore();
+
+  /**
+   * Resolve the active session id.
+   * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
+   * sessionId="". React Navigation can keep a *stale* route param from the previous
+   * results visit — if we poll that id it 404s and (#21) marks the search FAILED.
+   * While an optimistic create is pending, ignore route/URL ids and bootstrap a new session.
+   */
+  const optimisticNewSearch = status === 'PENDING' && !storeSessionId;
+  const routeSessionId = typeof route.params?.sessionId === 'string' ? route.params.sessionId.trim() : '';
+  const urlSessionId = typeof paramsFromUrl.sessionId === 'string' ? paramsFromUrl.sessionId.trim() : '';
+  const sessionId = optimisticNewSearch
+    ? ''
+    : (storeSessionId || routeSessionId || urlSessionId || '');
+  const searchNonce = (route.params as any)?.searchNonce ?? 0;
   const versionRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
@@ -429,6 +443,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     setBootstrappingSession(true);
 
     // Ensure UI goes into loading mode even before we have a sessionId.
+    searchActions.setError(null);
     searchActions.setSession(null, null, 'PENDING');
     searchActions.setResults([], 0);
 
@@ -460,6 +475,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
         if (!cancelled) {
+          searchActions.setError(e instanceof Error ? e.message : 'Search failed');
           searchActions.setSession(null, null, 'FAILED');
         }
       } finally {
@@ -473,17 +489,20 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, storeParams, paramsFromUrl, navigation, currency, locale]);
+  }, [sessionId, searchNonce, storeParams, paramsFromUrl, navigation, currency, locale]);
 
   useEffect(() => {
     if (!sessionId) return;
 
     let cancelled = false;
-    let consecutiveFailures = 0;
-    const MAX_POLL_FAILURES = 8;
+    let consecutiveNotFound = 0;
+    const MAX_NOT_FOUND = 3;
 
     const poll = async () => {
       if (cancelled) return;
+      const currentStatus = statusRef.current;
+      // Create path already set COMPLETE before replace; don't keep hammering.
+      if (currentStatus === 'COMPLETE' || currentStatus === 'FAILED') return;
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const res = await getSearchSessionResults(
@@ -492,16 +511,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           storeParamsRef.current ?? undefined
         );
         if (cancelled) return;
-        consecutiveFailures = 0;
+        consecutiveNotFound = 0;
         versionRef.current = res.version;
         searchActions.setSession(sessionId, res.session, res.session.status);
         searchActions.appendResults(res.results, res.version);
-      } catch (_) {
-        consecutiveFailures += 1;
-        // Expired/missing sessions (e.g. backend restart) otherwise spin forever.
-        if (consecutiveFailures >= MAX_POLL_FAILURES && statusRef.current !== 'COMPLETE') {
-          searchActions.setSession(sessionId, null, 'FAILED');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const notFound = /\b404\b|not found|expired/i.test(msg);
+        if (notFound) {
+          consecutiveNotFound += 1;
+          const stAfter = statusRef.current;
+          if (consecutiveNotFound >= MAX_NOT_FOUND && stAfter !== 'COMPLETE' && stAfter !== 'FAILED') {
+            searchActions.setError('Search session expired. Please search again.');
+            searchActions.setSession(sessionId, null, 'FAILED');
+          }
         }
+        // Transient 5xx/network: keep polling briefly while still PENDING.
       }
     };
 
@@ -734,11 +759,27 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim]);
 
   if (status === 'FAILED') {
+    const retrySearch = () => {
+      searchActions.setError(null);
+      searchActions.setSession(null, null, 'PENDING');
+      searchActions.setResults([], 0);
+      versionRef.current = 0;
+      creatingSessionRef.current = false;
+      setBootstrappingSession(false);
+      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+    };
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
         <Text style={[styles.error, { color: theme.error }]}>
-          {t('search_failed_expired')}
+          {storeError || t('search_failed_expired')}
         </Text>
+        <TouchableOpacity
+          style={[styles.retryBtn, { borderColor: theme.primary, marginTop: 16 }]}
+          onPress={retrySearch}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.retryBtnText, { color: theme.primary }]}>{t('try_again')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -1304,6 +1345,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
   emptyText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 24, lineHeight: 20 },
+  retryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  retryBtnText: { fontSize: 15, fontWeight: '600' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   error: { fontSize: 18 },
 

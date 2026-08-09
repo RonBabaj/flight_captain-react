@@ -312,6 +312,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   },
   explore_from: { en: 'From', he: 'מ', ru: 'От' },
   explore_error: { en: 'Could not load destinations. Please try again.', he: 'לא ניתן לטעון יעדים. נסה שוב.', ru: 'Не удалось загрузить направления. Попробуйте снова.' },
+  try_again: { en: 'Try again', he: 'נסה שוב', ru: 'Попробовать снова' },
   explore_pick_destination: { en: 'Pick a destination', he: 'בחר יעד', ru: 'Выберите направление' },
   explore_live_updating: {
     en: 'Finding more destinations…',
