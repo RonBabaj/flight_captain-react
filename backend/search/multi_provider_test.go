@@ -171,3 +171,28 @@ func (s *stubProvider) Name() string { return s.name }
 func (s *stubProvider) Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
 	return s.results, s.err
 }
+
+func TestApifyErrorMessage(t *testing.T) {
+	msg := apifyErrorMessage([]byte(`{"error":{"type":"token-not-provided","message":"Authentication token was not provided"}}`))
+	if !strings.Contains(msg, "token-not-provided") {
+		t.Fatalf("msg=%q", msg)
+	}
+}
+
+func TestBuildActorInputSolidcodeOnly(t *testing.T) {
+	p := &KiwiApifyProvider{}
+	in := p.buildActorInput(SearchRequest{
+		Origin: "tlv", Destination: "bcn",
+		DepartureDate: "2026-09-15", ReturnDate: "2026-09-22",
+		CabinClass: "ECONOMY", Currency: "USD",
+	})
+	if in["origin"] != "TLV" || in["destination"] != "BCN" {
+		t.Fatalf("iata=%v", in)
+	}
+	if _, ok := in["from"]; ok {
+		t.Fatal("should not send kazadoiyul 'from' key")
+	}
+	if in["returnDate"] != "2026-09-22" {
+		t.Fatalf("returnDate=%v", in["returnDate"])
+	}
+}

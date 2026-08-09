@@ -79,11 +79,11 @@ type Provider interface {
 
 // ProviderSearchStats is diagnostic info for one provider within a multi search.
 type ProviderSearchStats struct {
-	Provider   string
-	DurationMs int64
-	Results    int
-	Err        string // empty on success
-	CacheHit   bool
+	Provider   string `json:"provider"`
+	DurationMs int64  `json:"durationMs"`
+	Results    int    `json:"results"`
+	Err        string `json:"error,omitempty"` // empty on success
+	CacheHit   bool   `json:"cacheHit,omitempty"`
 }
 
 // MultiSearchResult aggregates results from one or more providers.
