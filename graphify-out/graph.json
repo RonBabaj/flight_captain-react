@@ -5958,8 +5958,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "frontend_src_components_appicon",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "appicon.tsx"
     },
     {
@@ -5971,8 +5971,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_components_appicon_appiconlibrary",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "appiconlibrary"
     },
     {
@@ -5984,8 +5984,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_components_appicon_appiconprops",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "appiconprops"
     },
     {
@@ -5996,8 +5996,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_components_appicon_appicon",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "appicon()"
     },
     {
@@ -6007,8 +6007,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "frontend_src_components_appicon_styles",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "styles"
     },
     {
@@ -6209,8 +6209,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "searchloadingoverlay.tsx"
     },
     {
@@ -6220,8 +6220,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_en",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "phrases_en"
     },
     {
@@ -6231,8 +6231,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_he",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "phrases_he"
     },
     {
@@ -6242,8 +6242,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_ru",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "phrases_ru"
     },
     {
@@ -6255,8 +6255,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_props",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "props"
     },
     {
@@ -6267,8 +6267,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_searchloadingoverlay",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "searchloadingoverlay()"
     },
     {
@@ -6278,8 +6278,8 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_s",
-      "community": 19,
-      "community_name": "useLocale",
+      "community": 11,
+      "community_name": "SearchLoadingOverlay.tsx",
       "norm_label": "s"
     },
     {
@@ -6289,8 +6289,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "frontend_src_components_webiconsvg",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "webiconsvg.tsx"
     },
     {
@@ -6301,8 +6301,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_components_webiconsvg_getwebiconsvgdatauri",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "getwebiconsvgdatauri()"
     },
     {
@@ -6313,8 +6313,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_components_webiconsvg_getsvgmarkup",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "getsvgmarkup()"
     },
     {
@@ -6324,8 +6324,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "frontend_src_components_webiconsvg_local_icon_names",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "local_icon_names"
     },
     {
@@ -6336,8 +6336,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_components_webiconsvg_haswebsvgfallback",
-      "community": 11,
-      "community_name": "AppIcon.tsx",
+      "community": 19,
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "haswebsvgfallback()"
     },
     {
@@ -6454,7 +6454,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_context_localecontext_uselocale",
-      "community": 19,
+      "community": 38,
       "community_name": "useLocale",
       "norm_label": "uselocale()"
     },
@@ -6717,7 +6717,7 @@
       "label": "getTranslation()",
       "file_type": "code",
       "source_file": "frontend/src/data/translations.ts",
-      "source_location": "L338",
+      "source_location": "L339",
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_data_translations_gettranslation",
@@ -7133,7 +7133,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_filterspanel",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "filterspanel.tsx"
     },
     {
@@ -7146,7 +7146,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_filterspanel_filterspanelprops",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "filterspanelprops"
     },
     {
@@ -7158,7 +7158,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_filterspanel_filterspanel",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "filterspanel()"
     },
     {
@@ -7169,7 +7169,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_filterspanel_f",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "f"
     },
     {
@@ -7277,7 +7277,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodalprops",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "flightdetailsmodalprops"
     },
     {
@@ -7408,7 +7408,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_flightresultcard_flightresultcardprops",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "flightresultcardprops"
     },
     {
@@ -7442,7 +7442,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_passengercabinpicker",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "passengercabinpicker.tsx"
     },
     {
@@ -7453,7 +7453,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_passengercabinpicker_cabin_options",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "cabin_options"
     },
     {
@@ -7466,7 +7466,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpickerprops",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "passengercabinpickerprops"
     },
     {
@@ -7478,7 +7478,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpicker",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "passengercabinpicker()"
     },
     {
@@ -7489,7 +7489,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_passengercabinpicker_styles",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "styles"
     },
     {
@@ -7500,7 +7500,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "searchformcontent.tsx"
     },
     {
@@ -7513,7 +7513,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontentprops",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "searchformcontentprops"
     },
     {
@@ -7524,7 +7524,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent_search_phrases",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "search_phrases"
     },
     {
@@ -7536,7 +7536,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontent",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "searchformcontent()"
     },
     {
@@ -7548,7 +7548,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent_makethemedstyles",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "makethemedstyles()"
     },
     {
@@ -7559,7 +7559,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_searchformcontent_s",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "s"
     },
     {
@@ -7570,7 +7570,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbar.tsx"
     },
     {
@@ -7583,7 +7583,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortoption",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortoption"
     },
     {
@@ -7594,7 +7594,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_icons",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "icons"
     },
     {
@@ -7605,7 +7605,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_keys",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "keys"
     },
     {
@@ -7618,7 +7618,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortbarprops",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbarprops"
     },
     {
@@ -7630,7 +7630,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortbar",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbar()"
     },
     {
@@ -7641,7 +7641,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_s",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "s"
     },
     {
@@ -8034,7 +8034,7 @@
       "label": "styles",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1185",
+      "source_location": "L1225",
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_screens_resultsscreen_styles",
       "community": 12,
@@ -8079,7 +8079,7 @@
       "label": "styles",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/SearchFormScreen.tsx",
-      "source_location": "L193",
+      "source_location": "L198",
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_screens_searchformscreen_styles",
       "community": 22,
@@ -9030,7 +9030,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_index",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "store/index.ts"
     },
     {
@@ -9041,7 +9041,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "searchstore.ts"
     },
     {
@@ -9054,7 +9054,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_sortfield",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortfield"
     },
     {
@@ -9067,7 +9067,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_sortorder",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "sortorder"
     },
     {
@@ -9080,7 +9080,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_searchfilters",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "searchfilters"
     },
     {
@@ -9104,7 +9104,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_defaultfilters",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "defaultfilters"
     },
     {
@@ -9115,7 +9115,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_usesearchstore",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "usesearchstore"
     },
     {
@@ -9126,7 +9126,7 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_searchactions",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "searchactions"
     },
     {
@@ -9396,7 +9396,7 @@
       "_origin": "ast",
       "id": "frontend_src_types_api_flightoption",
       "community": 38,
-      "community_name": "store/index.ts",
+      "community_name": "useLocale",
       "norm_label": "flightoption"
     },
     {
@@ -9422,7 +9422,7 @@
       "_origin": "ast",
       "id": "frontend_src_types_api_createsearchsessionrequest",
       "community": 19,
-      "community_name": "useLocale",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "createsearchsessionrequest"
     },
     {
@@ -23265,7 +23265,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L285",
+      "source_location": "L299",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -24262,7 +24262,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L284",
+      "source_location": "L298",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -25523,7 +25523,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L381",
+      "source_location": "L395",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -25607,7 +25607,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L489",
+      "source_location": "L507",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -28181,7 +28181,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/data/translations.ts",
-      "source_location": "L338",
+      "source_location": "L339",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_data_translations",
@@ -31536,7 +31536,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1185",
+      "source_location": "L1225",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen",
@@ -31800,7 +31800,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L580",
+      "source_location": "L604",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31824,7 +31824,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L679",
+      "source_location": "L703",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31836,7 +31836,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L597",
+      "source_location": "L621",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31885,7 +31885,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L267",
+      "source_location": "L266",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31909,7 +31909,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L337",
+      "source_location": "L351",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31921,7 +31921,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L379",
+      "source_location": "L393",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -31977,7 +31977,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/SearchFormScreen.tsx",
-      "source_location": "L193",
+      "source_location": "L198",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_searchformscreen",
@@ -38858,5 +38858,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "9fcb55a0209106ab5300ac00c464911f26f2dbf9"
+  "built_at_commit": "22cc31cb7296022cc461cca2a3f05e9b7a72f3f5"
 }
