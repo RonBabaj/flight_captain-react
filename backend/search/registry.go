@@ -112,6 +112,9 @@ func (r *Registry) GoogleFlights2() *GoogleFlights2Provider {
 
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
+//
+// Optional providers (anything other than googleflights2) get a soft deadline so a slow Kiwi/Apify
+// run cannot hold the HTTP response until nginx/browsers abort with "Load failed".
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
@@ -129,7 +132,14 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			defer wg.Done()
 			start := time.Now()
 			st := ProviderSearchStats{Provider: p.Name()}
-			results, err := p.Search(ctx, req)
+			pctx := ctx
+			var cancel context.CancelFunc
+			if !strings.EqualFold(p.Name(), "googleflights2") {
+				// Soft cap for secondary scrapers; primary GF2 keeps the full request deadline.
+				pctx, cancel = context.WithTimeout(ctx, 20*time.Second)
+				defer cancel()
+			}
+			results, err := p.Search(pctx, req)
 			st.DurationMs = time.Since(start).Milliseconds()
 			st.Results = len(results)
 			if err != nil {

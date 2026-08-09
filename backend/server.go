@@ -2417,9 +2417,10 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // allowedCORSOrigins are origins allowed for CORS (production + dev).
 var allowedCORSOrigins = map[string]bool{
-	"https://fly-fix.com":    true,
-	"http://localhost:19006": true, // Expo web/dev
-	"http://localhost:8081":  true, // local web/dev
+	"https://fly-fix.com":     true,
+	"https://www.fly-fix.com": true,
+	"http://localhost:19006":  true, // Expo web/dev
+	"http://localhost:8081":   true, // local web/dev
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

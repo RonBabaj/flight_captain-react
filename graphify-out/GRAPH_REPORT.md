@@ -1,7 +1,7 @@
 # Graph Report - workspace  (2026-08-09)
 
 ## Corpus Check
-- 128 files · ~144,506 words
+- 128 files · ~144,636 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `22cc31cb`
+- Built from commit: `fd4aacaf`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -26,7 +26,7 @@
 - Features
 - affiliate.go
 - ProviderResult
-- SearchLoadingOverlay.tsx
+- AppIcon.tsx
 - ResultsScreen.tsx
 - compilerOptions
 - LocaleContext.tsx
@@ -34,7 +34,7 @@
 - canonical.go
 - explore.ts
 - handleCreateSession
-- SearchFormContent.tsx
+- useLocale
 - qa_runner.py
 - ApiClient
 - SearchFormScreen.tsx
@@ -53,7 +53,7 @@
 - ValidationIssue
 - Backend QA Automation Tool
 - Registry
-- useLocale
+- store/index.ts
 - TestApplySoftStrictBaggage
 - CalendarModal.tsx
 - models.py
@@ -151,9 +151,9 @@ Nodes (33): BuildRedirectURL(), getAffiliateID(), GetClicksSummary(), getOTAProv
 Cohesion: 0.20
 Nodes (11): Context, truncateGF2(), Context, MultiSearchResult, Layover, Monetary, Provider, ProviderResult (+3 more)
 
-### Community 11 - "SearchLoadingOverlay.tsx"
-Cohesion: 0.29
-Nodes (6): PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, SearchLoadingOverlay()
+### Community 11 - "AppIcon.tsx"
+Cohesion: 0.33
+Nodes (8): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES
 
 ### Community 12 - "ResultsScreen.tsx"
 Cohesion: 0.12
@@ -183,9 +183,9 @@ Nodes (4): ExploreResponse, GetExploreDestinationsParams, DestCardProps, Explore
 Cohesion: 0.25
 Nodes (6): CreateSearchSessionRequest, baggageOrderString(), convertOptionsToCurrency(), convertPrice(), handleCreateSession(), randomID()
 
-### Community 19 - "SearchFormContent.tsx"
+### Community 19 - "useLocale"
 Cohesion: 0.15
-Nodes (18): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES (+10 more)
+Nodes (17): PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, SearchLoadingOverlay(), useLocale(), CABIN_OPTIONS (+9 more)
 
 ### Community 20 - "qa_runner.py"
 Cohesion: 0.14
@@ -259,17 +259,17 @@ Nodes (10): Backend QA Automation Tool, Features, If the run feels slow or “st
 Cohesion: 0.23
 Nodes (6): Context, NewRegistryFromEnv(), parseProviderNames(), MultiSearchResult, Provider, Registry
 
-### Community 38 - "useLocale"
+### Community 38 - "store/index.ts"
 Cohesion: 0.14
-Nodes (19): useLocale(), f, FiltersPanel(), FiltersPanelProps, FlightDetailsModalProps, FlightResultCardProps, ICONS, KEYS (+11 more)
+Nodes (18): f, FiltersPanel(), FiltersPanelProps, FlightDetailsModalProps, FlightResultCardProps, ICONS, KEYS, s (+10 more)
 
 ### Community 39 - "TestApplySoftStrictBaggage"
 Cohesion: 0.46
 Nodes (7): applySoftStrictBaggage(), T, makeOfferWithBags(), makeOfferWithMissingBags(), TestApplySoftStrictBaggage(), TestClassifyOfferBaggage(), classifyOfferBaggage()
 
 ### Community 40 - "CalendarModal.tsx"
-Cohesion: 0.38
-Nodes (6): buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS
+Cohesion: 0.28
+Nodes (8): react, buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS, react
 
 ### Community 41 - "models.py"
 Cohesion: 0.25
@@ -328,8 +328,8 @@ Cohesion: 0.33
 Nodes (8): getDealsRange(), DatePickerCalendar(), DatePickerCalendarProps, getNext14Dates(), getRangeStartEnd(), styles, WEEKDAYS, DayDeal
 
 ### Community 64 - "DateRangePicker.tsx"
-Cohesion: 0.28
-Nodes (8): react, buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthStart(), styles, WEEKDAYS, react
+Cohesion: 0.38
+Nodes (6): buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthStart(), styles, WEEKDAYS
 
 ## Knowledge Gaps
 - **238 isolated node(s):** `ClicksByProvider`, `exploreLiveCandidate`, `flightcaptainweb`, `Provider`, `MultiSearchResult` (+233 more)
@@ -339,11 +339,11 @@ Nodes (8): react, buildMonthDays(), DateRangePicker(), DateRangePickerProps, get
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `DateRangePicker.tsx` to `CalendarModal.tsx`, `dependencies`?**
+- **Why does `react` connect `CalendarModal.tsx` to `DateRangePicker.tsx`, `dependencies`?**
   _High betweenness centrality (0.049) - this node is a cross-community bridge._
-- **Why does `DateRangePicker()` connect `DateRangePicker.tsx` to `SearchFormContent.tsx`, `ExploreScreen.tsx`?**
+- **Why does `DateRangePicker()` connect `DateRangePicker.tsx` to `CalendarModal.tsx`, `useLocale`, `ExploreScreen.tsx`?**
   _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `dependencies` to `DateRangePicker.tsx`, `react-native-safe-area-context`, `@react-navigation/native`, `package.json`?**
+- **Why does `dependencies` connect `dependencies` to `CalendarModal.tsx`, `react-native-safe-area-context`, `@react-navigation/native`, `package.json`?**
   _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `TestResult` (e.g. with `ResponseAnalyzer` and `ApiClient`) actually correct?**
   _`TestResult` has 4 INFERRED edges - model-reasoned connections that need verification._
