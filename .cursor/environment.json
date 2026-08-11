@@ -1,0 +1,4 @@
+{
+  "name": "fly-fix",
+  "install": "export PATH=\"$HOME/.local/bin:$PATH\"\npip install --user graphifyy\n(cd frontend && npm install)\n(cd backend && go mod download)\ngraphify cursor install || true\ngraphify update . || true"
+}

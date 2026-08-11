@@ -24,12 +24,14 @@ This repo includes a [Graphify](https://github.com/safishamsi/graphify) knowledg
 
 **One-time local setup**
 ```bash
-pip install graphifyy
-export PATH="$HOME/.local/bin:$PATH"   # if needed
+pip install graphifyy                  # package name is graphifyy; CLI is `graphify`
+export PATH="$HOME/.local/bin:$PATH"   # required on many Linux/Cloud Agent images
 graphify cursor install                # writes/refreshes .cursor/rules/graphify.mdc
 graphify hook install                  # optional: rebuild graph after commits
 graphify update .                      # AST rebuild (no API cost)
 ```
+
+Cloud Agents install Graphify via `.cursor/environment.json` (`pip install --user graphifyy` + PATH). If `graphify: command not found`, put `$HOME/.local/bin` on `PATH` and reinstall.
 
 **Day-to-day**
 ```bash

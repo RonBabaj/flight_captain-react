@@ -153,11 +153,15 @@ func gf2OneRoundTrip(ctx context.Context, p *search.GoogleFlights2Provider, orig
 }
 
 // ensureRoundTripLegs appends a return leg when GF2 only returned outbound segment data.
+// Price is left unchanged: Search() with a return date already returns the round-trip total
+// (combined OW+OW in searchRoundTrip, or a native RT fare). Adding the return one-way fare
+// here double-counted (month-deals card showed the true RT total, e.g. ₪592, while flight
+// details inflated it to ₪1356 after attaching the return leg).
 func ensureRoundTripLegs(ctx context.Context, p *search.GoogleFlights2Provider, opt *FlightOption, origin, destination, returnDate, currency string, adults, children int, cabinPref string, includeBag bool) *FlightOption {
 	if opt == nil || len(opt.Legs) >= 2 || returnDate == "" || p == nil {
 		return opt
 	}
-	log.Printf("[GF2_RT] option %s has %d leg(s); fetching return one-way %s→%s on %s", opt.ID, len(opt.Legs), destination, origin, returnDate)
+	log.Printf("[GF2_RT] option %s has %d leg(s); fetching return one-way %s→%s on %s (display only, price kept at %.2f)", opt.ID, len(opt.Legs), destination, origin, returnDate, opt.Price.Amount)
 	returnReq := search.SearchRequest{
 		Origin:            destination,
 		Destination:       origin,
@@ -178,10 +182,16 @@ func ensureRoundTripLegs(ctx context.Context, p *search.GoogleFlights2Provider, 
 	if retOpt == nil || len(retOpt.Legs) == 0 {
 		return opt
 	}
-	outboundCost := opt.Price.Amount
-	opt.Legs = append(opt.Legs, retOpt.Legs[0])
-	opt.Price.Amount = outboundCost + retOpt.Price.Amount
+	attachReturnLegKeepPrice(opt, retOpt.Legs[0])
 	return opt
+}
+
+// attachReturnLegKeepPrice adds return segment data for the details UI without changing fare.
+func attachReturnLegKeepPrice(opt *FlightOption, retLeg FlightLeg) {
+	if opt == nil {
+		return
+	}
+	opt.Legs = append(opt.Legs, retLeg)
 }
 
 func gf2SearchDealsRange(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination string, startDate, endDate time.Time, durationDays int, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool) ([]FullRoundTrip, error) {
