@@ -218,33 +218,42 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 
 // searchRoundTrip performs two one-way GF2 searches (outbound + return) and combines their legs,
 // mirroring the Amadeus mixed round-trip approach so every result has both legs with full route data.
+// Open-jaw: when ReturnOrigin/ReturnDestination are set, return leg uses those airports instead of
+// classic Destination→Origin (e.g. TLV→CDG outbound, LHR→TLV return).
 func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
 	// Outbound: origin → dest on departureDate (one-way)
 	outboundReq := req
 	outboundReq.ReturnDate = ""
+	outboundReq.ReturnOrigin = ""
+	outboundReq.ReturnDestination = ""
 	outboundResults, err := p.doSearch(ctx, outboundReq)
 	if err != nil || len(outboundResults) == 0 {
-		// Fall back to the combined search if outbound fails
+		// Fall back to the combined search if outbound fails (classic RT only)
+		if IsOpenJaw(req) {
+			return nil, fmt.Errorf("outbound search failed for open-jaw trip")
+		}
 		return p.doSearch(ctx, req)
 	}
 
-	// Return: dest → origin on returnDate (one-way)
+	retOrig, retDest := ResolveReturnAirports(req)
+	// Return: returnOrigin → returnDestination on returnDate (one-way)
 	returnReq := req
-	returnReq.Origin = req.Destination
-	returnReq.Destination = req.Origin
+	returnReq.Origin = retOrig
+	returnReq.Destination = retDest
 	returnReq.DepartureDate = req.ReturnDate
 	returnReq.ReturnDate = ""
+	returnReq.ReturnOrigin = ""
+	returnReq.ReturnDestination = ""
 	returnResults, err := p.doSearch(ctx, returnReq)
 	if err != nil || len(returnResults) == 0 {
 		log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(returnResults))
 		return outboundResults, nil
 	}
 
-	log.Printf("[GF2_RT] outbound=%d return=%d; combining into round-trip results", len(outboundResults), len(returnResults))
+	log.Printf("[GF2_RT] outbound=%s→%s (%d) return=%s→%s (%d); combining",
+		req.Origin, req.Destination, len(outboundResults), retOrig, retDest, len(returnResults))
 
-	// Combine: pair each outbound result with the cheapest matching return leg.
-	// Use the first (cheapest) return result's legs as the return leg for all outbound results.
-	// This mirrors what Amadeus does with buildCombinedOffer.
+	// Combine: pair each outbound result with return legs.
 	const maxCombinations = 30
 	var combined []ProviderResult
 	for i, ob := range outboundResults {
@@ -255,12 +264,15 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 			if j >= maxCombinations {
 				break
 			}
-			// Build a new combined result: outbound leg(s) + return leg(s)
 			var legs []Leg
 			legs = append(legs, ob.Legs...)
 			legs = append(legs, ret.Legs...)
+			idPrefix := "gf2rt"
+			if IsOpenJaw(req) {
+				idPrefix = "gf2oj"
+			}
 			combinedResult := ProviderResult{
-				ID:                    fmt.Sprintf("gf2rt_%d_%d", i, j),
+				ID:                    fmt.Sprintf("%s_%d_%d", idPrefix, i, j),
 				Price:                 Monetary{Currency: ob.Price.Currency, Amount: ob.Price.Amount + ret.Price.Amount},
 				DurationMinutes:       ob.DurationMinutes + ret.DurationMinutes,
 				Legs:                  legs,
@@ -297,8 +309,10 @@ func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
 	if cabin == "" {
 		cabin = "ECONOMY"
 	}
-	return fmt.Sprintf("%s|%s|%s|%s|%d|%s|%d",
+	retOrig, retDest := ResolveReturnAirports(req)
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s|%d",
 		req.Origin, req.Destination, req.DepartureDate, req.ReturnDate,
+		retOrig, retDest,
 		req.Adults, cabin, bags)
 }
 

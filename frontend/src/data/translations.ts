@@ -26,6 +26,60 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   nav_home: { en: 'Home', he: 'בית', ru: 'Главная' },
   nav_sections: { en: 'Navigation', he: 'ניווט', ru: 'Навигация' },
   nav_monthly_deals: { en: 'Monthly Deals', he: 'דילים חודשיים', ru: 'Предложения месяца' },
+  nav_dynamic_destinations: {
+    en: 'Dynamic Destinations',
+    he: 'יעדים דינמיים',
+    ru: 'Динамические направления',
+  },
+  dd_title: {
+    en: 'Dynamic Destinations',
+    he: 'יעדים דינמיים',
+    ru: 'Динамические направления',
+  },
+  dd_subtitle: {
+    en: 'Fly into one city and fly home from another — great for multi-country trips.',
+    he: 'טוסו ליעד אחד וחזרו מעיר אחרת — מושלם לטיולים במספר מדינות.',
+    ru: 'Прилетайте в один город и улетайте домой из другого — удобно для поездок по нескольким странам.',
+  },
+  dd_outbound_section: { en: 'Outbound', he: 'הלוך', ru: 'Туда' },
+  dd_return_section: { en: 'Return', he: 'חזור', ru: 'Обратно' },
+  dd_return_from: { en: 'Return from', he: 'חזרה מ', ru: 'Обратный вылет из' },
+  dd_return_to: { en: 'Return to', he: 'חזרה אל', ru: 'Обратный прилёт в' },
+  dd_need_return_origin: {
+    en: 'Choose where your return flight departs from.',
+    he: 'בחרו מאיפה יוצאת טיסת החזרה.',
+    ru: 'Укажите город обратного вылета.',
+  },
+  dd_return_must_differ: {
+    en: 'Return airport must differ from your outbound destination.',
+    he: 'שדה החזרה חייב להיות שונה מיעד ההלוך.',
+    ru: 'Аэропорт обратного вылета должен отличаться от пункта прилёта.',
+  },
+  dd_outbound_same: {
+    en: 'Outbound origin and destination must be different.',
+    he: 'מוצא ויעד בהלוך חייבים להיות שונים.',
+    ru: 'Пункты вылета и прилёта туда должны различаться.',
+  },
+  dd_example_hint: {
+    en: 'Example: Tel Aviv → Paris, then London → Tel Aviv.',
+    he: 'לדוגמה: תל אביב → פריז, ואז לונדון → תל אביב.',
+    ru: 'Пример: Тель-Авив → Париж, затем Лондон → Тель-Авив.',
+  },
+  landing_cta_dynamic: {
+    en: 'Try dynamic destinations',
+    he: 'נסו יעדים דינמיים',
+    ru: 'Динамические направления',
+  },
+  landing_feature_dd_title: {
+    en: 'Open-jaw trips',
+    he: 'טיסות פתוחות',
+    ru: 'Стыковка городов',
+  },
+  landing_feature_dd_body: {
+    en: 'Land in one city and return from another without booking two separate trips yourself.',
+    he: 'נחיתו בעיר אחת וחזרו מאחרת — בלי להזמין שתי נסיעות בנפרד.',
+    ru: 'Прилетайте в один город и возвращайтесь из другого — без двух отдельных бронирований.',
+  },
   landing_hero_title: {
     en: 'Find cheaper flights smarter',
     he: 'מצא טיסות זולות יותר — בחכמה',

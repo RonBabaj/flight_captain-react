@@ -7,7 +7,7 @@ A Skyscanner-style flight metasearch app: **Go backend** (Google Flights via Rap
 ## Overview
 
 - **Backend (`backend/`)** – Go HTTP API with a **multi-provider flight search** layer. Default provider: **Google Flights2** (RapidAPI). Optional: **Kiwi** via a configurable Apify Actor. REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
-- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`. Top navbar (**Home | Search | Monthly Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
+- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`, **dynamic destinations** (open-jaw) at `/dynamic-destinations`. Top navbar (**Home | Search | Monthly Deals | Dynamic Destinations**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
 Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
 

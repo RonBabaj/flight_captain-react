@@ -20,6 +20,8 @@ const TITLE_KEYS: Record<string, string> = {
   Results: 'nav_results',
   Search: 'nav_flight_search',
   MonthDeals: 'nav_monthly_deals',
+  DynamicDestinations: 'nav_dynamic_destinations',
+  DynamicDestinationsForm: 'nav_dynamic_destinations',
   FlyFixRefine: 'flyfix_refine_nav_title',
 };
 
@@ -34,15 +36,17 @@ export function TopNavMenu() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isMobile = useIsMobile();
 
-  const nestedName = currentRoot === 'Search'
-    ? getFocusedRouteNameFromRoute(route) ?? 'SearchForm'
-    : null;
-  const titleKey = nestedName ? TITLE_KEYS[nestedName] ?? TITLE_KEYS.Search : TITLE_KEYS[currentRoot];
+  const nestedName =
+    currentRoot === 'Search' || currentRoot === 'DynamicDestinations'
+      ? getFocusedRouteNameFromRoute(route) ?? (currentRoot === 'Search' ? 'SearchForm' : 'DynamicDestinationsForm')
+      : null;
+  const titleKey = nestedName ? TITLE_KEYS[nestedName] ?? TITLE_KEYS[currentRoot] ?? TITLE_KEYS.Search : TITLE_KEYS[currentRoot];
   const title = t(titleKey);
 
   const isHome = currentRoot === 'Home';
   const isSearch = currentRoot === 'Search';
   const isDeals = currentRoot === 'MonthDeals';
+  const isDynamic = currentRoot === 'DynamicDestinations';
 
   const handleGoToHome = () => {
     if (!isHome) {
@@ -67,6 +71,13 @@ export function TopNavMenu() {
   const handleGoToDeals = () => {
     if (!isDeals) {
       navigation.navigate('MonthDeals' as never);
+    }
+    setShowMobileMenu(false);
+  };
+
+  const handleGoToDynamic = () => {
+    if (!isDynamic) {
+      navigation.navigate('DynamicDestinations' as never);
     }
     setShowMobileMenu(false);
   };
@@ -183,6 +194,21 @@ export function TopNavMenu() {
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tab}
+                onPress={handleGoToDynamic}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: theme.tabInactive },
+                    isDynamic && { color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_dynamic_destinations')}
+                </Text>
+              </TouchableOpacity>
             </View>
           </>
         ) : (
@@ -236,6 +262,21 @@ export function TopNavMenu() {
                   ]}
                 >
                   {t('nav_monthly_deals')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tab}
+                onPress={handleGoToDynamic}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: theme.tabInactive },
+                    isDynamic && { color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -371,6 +412,21 @@ export function TopNavMenu() {
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.mobileMenuItem}
+                onPress={handleGoToDynamic}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.mobileMenuItemText,
+                    { color: theme.text },
+                    isDynamic && { fontWeight: '700', color: theme.tabActive },
+                  ]}
+                >
+                  {t('nav_dynamic_destinations')}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Pressable>
@@ -405,7 +461,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
+    gap: 12,
     pointerEvents: 'box-none',
   },
   tab: {
@@ -413,7 +469,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   rightActions: {

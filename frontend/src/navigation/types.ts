@@ -39,6 +39,7 @@ export type RootStackParamList = {
   Home: undefined;
   Search: undefined;
   MonthDeals: undefined;
+  DynamicDestinations: undefined;
   FlyFixRefine: undefined;
 };
 
@@ -49,4 +50,9 @@ export type MonthDealsStackParamList = {
   MonthDealsForm: undefined;
   MonthDealsResults: undefined;
   Explore: ExploreScreenParams;
+};
+
+export type DynamicDestinationsStackParamList = {
+  DynamicDestinationsForm: undefined;
+  Results: { sessionId: string };
 };

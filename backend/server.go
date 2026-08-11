@@ -90,6 +90,9 @@ type CreateSearchSessionRequest struct {
 	Destination       string `json:"destination"`
 	DepartureDate     string `json:"departureDate"`
 	ReturnDate        string `json:"returnDate,omitempty"`
+	// ReturnOrigin / ReturnDestination: open-jaw (dynamic destinations). Empty = classic RT reverse.
+	ReturnOrigin      string `json:"returnOrigin,omitempty"`
+	ReturnDestination string `json:"returnDestination,omitempty"`
 	CabinClass        string `json:"cabinClass"`
 	CabinPreference   string `json:"cabinPreference,omitempty"`
 	IncludeCheckedBag bool   `json:"includeCheckedBag,omitempty"`
@@ -669,6 +672,22 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		req.Adults = 1
 	}
 	req.Infants = req.InfantsOrDefault()
+	req.Origin = strings.ToUpper(strings.TrimSpace(req.Origin))
+	req.Destination = strings.ToUpper(strings.TrimSpace(req.Destination))
+	req.ReturnOrigin = strings.ToUpper(strings.TrimSpace(req.ReturnOrigin))
+	req.ReturnDestination = strings.ToUpper(strings.TrimSpace(req.ReturnDestination))
+	if (req.ReturnOrigin != "" || req.ReturnDestination != "") && strings.TrimSpace(req.ReturnDate) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "returnDate is required for open-jaw (dynamic destination) searches",
+		})
+		return
+	}
+	if req.ReturnOrigin != "" && req.ReturnOrigin == req.Destination {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "returnOrigin must differ from destination for open-jaw searches",
+		})
+		return
+	}
 
 	if flightProviderRegistry == nil || !flightProviderRegistry.HasAny() {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "flight search backend not configured"})
@@ -681,10 +700,12 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	sreq := search.SearchRequest{
-		Origin:            strings.ToUpper(req.Origin),
-		Destination:       strings.ToUpper(req.Destination),
+		Origin:            req.Origin,
+		Destination:       req.Destination,
 		DepartureDate:     req.DepartureDate,
 		ReturnDate:        req.ReturnDate,
+		ReturnOrigin:      req.ReturnOrigin,
+		ReturnDestination: req.ReturnDestination,
 		CabinClass:        req.CabinClass,
 		CabinPreference:   cabinPref,
 		IncludeCheckedBag: includeBag,

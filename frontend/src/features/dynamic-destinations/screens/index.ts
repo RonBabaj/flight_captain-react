@@ -1,0 +1,1 @@
+export { DynamicDestinationsScreen } from './DynamicDestinationsScreen';

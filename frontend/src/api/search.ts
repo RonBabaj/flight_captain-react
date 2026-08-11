@@ -68,7 +68,9 @@ function paramsMatch(
 ): boolean {
   if (!expected || !cached) return true;
   const keys: (keyof CreateSearchSessionRequest)[] = [
-    'origin', 'destination', 'departureDate', 'returnDate', 'adults', 'children', 'infants',
+    'origin', 'destination', 'departureDate', 'returnDate',
+    'returnOrigin', 'returnDestination',
+    'adults', 'children', 'infants',
   ];
   for (const k of keys) {
     const c = cached[k];
