@@ -30,6 +30,13 @@ const linking = {
           Explore: 'explore',
         },
       },
+      DynamicDestinations: {
+        path: 'dynamic-destinations',
+        screens: {
+          DynamicDestinationsForm: '',
+          Results: 'results',
+        },
+      },
     },
   },
 };

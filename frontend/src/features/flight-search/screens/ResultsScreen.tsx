@@ -786,8 +786,17 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   const params = storeParams;
   const summaryParts: string[] = [];
-  if (params?.origin) summaryParts.push(params.origin);
-  if (params?.destination) summaryParts.push(params.destination);
+  const isOpenJaw =
+    !!(params?.returnOrigin && params.returnOrigin.toUpperCase() !== (params.destination || '').toUpperCase());
+  if (isOpenJaw && params?.origin && params?.destination) {
+    const retFrom = params.returnOrigin!.toUpperCase();
+    const retTo = (params.returnDestination || params.origin).toUpperCase();
+    summaryParts.push(`${params.origin}→${params.destination}`);
+    summaryParts.push(`${retFrom}→${retTo}`);
+  } else {
+    if (params?.origin) summaryParts.push(params.origin);
+    if (params?.destination) summaryParts.push(params.destination);
+  }
   if (params?.departureDate) summaryParts.push(params.departureDate);
   if (params?.returnDate) summaryParts.push(params.returnDate);
   const pax = [params?.adults, (params?.children ?? 0), (params?.infants ?? 0)].filter(

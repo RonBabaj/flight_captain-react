@@ -27,6 +27,7 @@ export function LandingScreen() {
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
+  const goDynamic = () => navigation.navigate('DynamicDestinations');
 
   const dir = isRTL ? 'rtl' : 'ltr';
   const textAlign = isRTL ? 'right' : 'left';
@@ -93,6 +94,15 @@ export function LandingScreen() {
                 {t('landing_cta_deals')}
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnSecondary, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}
+              onPress={goDynamic}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.btnSecondaryText, { color: theme.text }]}>
+                {t('landing_cta_dynamic')}
+              </Text>
+            </TouchableOpacity>
           </View>
           <View style={[styles.heroVisual, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <View style={[styles.routeLine, { backgroundColor: theme.cardBorder }]} />
@@ -113,6 +123,7 @@ export function LandingScreen() {
             { icon: 'globe-outline' as const, titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc' },
             { icon: 'calendar-outline' as const, titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc' },
             { icon: 'options-outline' as const, titleKey: 'landing_feature_4_title', descKey: 'landing_feature_4_desc' },
+            { icon: 'airplane-outline' as const, titleKey: 'landing_feature_dd_title', descKey: 'landing_feature_dd_body' },
           ].map((f) => (
             <View
               key={f.titleKey}

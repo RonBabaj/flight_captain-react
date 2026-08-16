@@ -115,13 +115,17 @@ export interface CreateSearchSessionRequest {
   destination: string;
   departureDate: string; // YYYY-MM-DD
   returnDate?: string;   // omit for one-way
+  /** Open-jaw: return leg departs from this airport (defaults to destination). */
+  returnOrigin?: string;
+  /** Open-jaw: return leg arrives here (defaults to origin). */
+  returnDestination?: string;
   cabinClass: string;    // ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST
   cabinPreference?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
   includeCheckedBag?: boolean;
   adults: number;
   children?: number;
   infants?: number;
-currency?: string;
+  currency?: string;
   locale?: string;
 }
 

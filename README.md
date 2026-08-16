@@ -7,7 +7,7 @@ A Skyscanner-style flight metasearch app: **Go backend** (Google Flights via Rap
 ## Overview
 
 - **Backend (`backend/`)** – Go HTTP API with a **multi-provider flight search** layer. Default provider: **Google Flights2** (RapidAPI). Optional: **Kiwi** via a configurable Apify Actor. REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
-- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`. Top navbar (**Home | Search | Monthly Deals**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
+- **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`, **dynamic destinations** (open-jaw) at `/dynamic-destinations`. Top navbar (**Home | Search | Monthly Deals | Dynamic Destinations**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
 Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
 
@@ -24,12 +24,14 @@ This repo includes a [Graphify](https://github.com/safishamsi/graphify) knowledg
 
 **One-time local setup**
 ```bash
-pip install graphifyy
-export PATH="$HOME/.local/bin:$PATH"   # if needed
+pip install graphifyy                  # package name is graphifyy; CLI is `graphify`
+export PATH="$HOME/.local/bin:$PATH"   # required on many Linux/Cloud Agent images
 graphify cursor install                # writes/refreshes .cursor/rules/graphify.mdc
 graphify hook install                  # optional: rebuild graph after commits
 graphify update .                      # AST rebuild (no API cost)
 ```
+
+Cloud Agents install Graphify via `.cursor/environment.json` (`pip install --user graphifyy` + PATH). If `graphify: command not found`, put `$HOME/.local/bin` on `PATH` and reinstall.
 
 **Day-to-day**
 ```bash

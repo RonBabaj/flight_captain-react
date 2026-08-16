@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -11,6 +12,11 @@ type SearchRequest struct {
 	Destination       string
 	DepartureDate     string
 	ReturnDate        string
+	// ReturnOrigin / ReturnDestination enable open-jaw (dynamic destination) round-trips:
+	// outbound Origin→Destination, return ReturnOrigin→ReturnDestination.
+	// Empty values default to classic RT (Destination→Origin).
+	ReturnOrigin      string
+	ReturnDestination string
 	CabinClass        string
 	CabinPreference   string
 	IncludeCheckedBag bool
@@ -18,6 +24,31 @@ type SearchRequest struct {
 	Children          int
 	Infants           int
 	Currency          string
+}
+
+// ResolveReturnAirports returns the return-leg endpoints for a round-trip search.
+// Classic RT: destination → origin. Open-jaw: explicit return origin/destination when set.
+func ResolveReturnAirports(req SearchRequest) (returnOrigin, returnDestination string) {
+	returnOrigin = strings.ToUpper(strings.TrimSpace(req.ReturnOrigin))
+	returnDestination = strings.ToUpper(strings.TrimSpace(req.ReturnDestination))
+	if returnOrigin == "" {
+		returnOrigin = strings.ToUpper(strings.TrimSpace(req.Destination))
+	}
+	if returnDestination == "" {
+		returnDestination = strings.ToUpper(strings.TrimSpace(req.Origin))
+	}
+	return returnOrigin, returnDestination
+}
+
+// IsOpenJaw reports whether the return leg differs from a classic destination→origin reverse.
+func IsOpenJaw(req SearchRequest) bool {
+	if strings.TrimSpace(req.ReturnDate) == "" {
+		return false
+	}
+	retOrig, retDest := ResolveReturnAirports(req)
+	outOrig := strings.ToUpper(strings.TrimSpace(req.Origin))
+	outDest := strings.ToUpper(strings.TrimSpace(req.Destination))
+	return retOrig != outDest || retDest != outOrig
 }
 
 // Monetary holds currency and amount.
