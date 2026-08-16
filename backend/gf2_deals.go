@@ -187,11 +187,13 @@ func ensureRoundTripLegs(ctx context.Context, p *search.GoogleFlights2Provider, 
 }
 
 // attachReturnLegKeepPrice adds return segment data for the details UI without changing fare.
+// Clears BookingToken because one-way tokens are invalid once a separate return leg is stitched.
 func attachReturnLegKeepPrice(opt *FlightOption, retLeg FlightLeg) {
 	if opt == nil {
 		return
 	}
 	opt.Legs = append(opt.Legs, retLeg)
+	opt.BookingToken = ""
 }
 
 func gf2SearchDealsRange(ctx context.Context, p *search.GoogleFlights2Provider, origin, destination string, startDate, endDate time.Time, durationDays int, currency string, adults, children int, nonStop bool, cabinPref string, includeBag bool) ([]FullRoundTrip, error) {

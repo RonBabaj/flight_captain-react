@@ -43,7 +43,7 @@ export function AirportInput({ label, value, onChange, placeholder }: Props) {
 
   const handleSelect = (item: AirportCityResult) => {
     const code = (item.airportCode || item.cityCode || item.id).toUpperCase();
-    onChange(code); // backend/Amadeus only ever gets codes (TLV, NAP, etc.)
+    onChange(code); // backend only ever gets IATA codes (TLV, NAP, etc.)
     setQuery(`${item.cityName || item.name} (${code})`);
     setShowList(false);
   };

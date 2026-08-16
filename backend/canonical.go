@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-// BOOKING_LINK_MODE: "skyscanner_prefill" | "google_prefill" | "direct_provider"
-// - direct_provider: use option.DeepLink when set, else prefill
-// - skyscanner_prefill: default; Skyscanner URL with route/dates from the clicked option
-// - google_prefill: Google Flights prefill (legacy)
+// BOOKING_LINK_MODE: "google_prefill" | "skyscanner_prefill" | "direct_provider"
+// - direct_provider: use option deep link / partner URL when set, else Google Flights prefill
+// - google_prefill: default; Google Flights search prefilled with the clicked route/dates
+// - skyscanner_prefill: Skyscanner search prefilled with route/dates (legacy fallback)
 const (
 	BookingModeDirectProvider    = "direct_provider"
 	BookingModeGooglePrefill     = "google_prefill"
@@ -29,40 +29,67 @@ func normalizeProviderBookingURL(raw string) string {
 	return ""
 }
 
-// BuildUniformBookingLink returns a URL the user can use to book. Never returns empty if session/option are valid.
-// The URL is always populated from the selected option (route + dates) so it correlates to the flight the user clicked.
-func BuildUniformBookingLink(session *SearchSession, option *FlightOption) string {
+func bookingLinkMode() string {
 	mode := strings.TrimSpace(strings.ToLower(os.Getenv("BOOKING_LINK_MODE")))
-	if mode == "" {
-		mode = BookingModeSkyscannerPrefill
+	switch mode {
+	case BookingModeDirectProvider, BookingModeGooglePrefill, BookingModeSkyscannerPrefill:
+		return mode
+	case "skyscanner", "sky":
+		return BookingModeSkyscannerPrefill
+	case "direct", "provider":
+		return BookingModeDirectProvider
+	case "google", "":
+		return BookingModeGooglePrefill
+	default:
+		return BookingModeGooglePrefill
 	}
+}
 
-	// Preferred: provider deep link when valid (e.g. Duffel, OTA)
+// BuildUniformBookingLink returns a URL the user can use to book. Never returns empty if session/option are valid.
+// Prefer an already-resolved partner/deep link on the option; otherwise prefill Google Flights (default) or Skyscanner.
+// Partner checkout resolution (GF2 booking_token → getBookingURL) happens in resolveBookingRedirectURL on Book click.
+func BuildUniformBookingLink(session *SearchSession, option *FlightOption) string {
+	mode := bookingLinkMode()
+
 	if option != nil {
 		providerURL := normalizeProviderBookingURL(option.BookingURL)
 		if providerURL == "" {
 			providerURL = normalizeProviderBookingURL(option.DeepLink)
 		}
 		if providerURL != "" {
-			if mode == BookingModeDirectProvider {
-				return providerURL
-			}
 			return providerURL
 		}
 	}
 
-	// Fallback: prefilled search URL populated from the clicked option so the link matches that flight
-	origin := ""
-	dest := ""
-	dep := ""
-	ret := ""
+	origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
+
+	switch mode {
+	case BookingModeSkyscannerPrefill:
+		cabin := ""
+		adults := 1
+		if session != nil {
+			cabin = session.Params.CabinClass
+			if session.Params.Adults > 0 {
+				adults = session.Params.Adults
+			}
+		}
+		return buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin, adults)
+	default:
+		u := buildGoogleFlightsPrefillURL(origin, dest, dep, ret)
+		if u == "" {
+			u = "https://www.google.com/travel/flights"
+		}
+		return u
+	}
+}
+
+func bookingRouteFromSessionOption(session *SearchSession, option *FlightOption) (origin, dest, dep, ret string) {
 	if session != nil {
 		origin = strings.ToUpper(session.Params.Origin)
 		dest = strings.ToUpper(session.Params.Destination)
 		dep = session.Params.DepartureDate
 		ret = session.Params.ReturnDate
 	}
-	// Always prefer the selected option's route and dates so Skyscanner opens with that flight's itinerary
 	if option != nil && len(option.Legs) > 0 {
 		if len(option.Legs[0].Segments) > 0 {
 			origin = option.Legs[0].Segments[0].From.Code
@@ -73,41 +100,24 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 			}
 		}
 		if len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
-			lastSeg := option.Legs[1].Segments[len(option.Legs[1].Segments)-1]
-			arrAt := lastSeg.ArrivalTime
-			if !arrAt.IsZero() {
-				ret = arrAt.Format("2006-01-02")
+			firstRet := option.Legs[1].Segments[0]
+			if !firstRet.DepartureTime.IsZero() {
+				ret = firstRet.DepartureTime.Format("2006-01-02")
+			} else {
+				lastSeg := option.Legs[1].Segments[len(option.Legs[1].Segments)-1]
+				if !lastSeg.ArrivalTime.IsZero() {
+					ret = lastSeg.ArrivalTime.Format("2006-01-02")
+				}
 			}
 		}
 	}
 	if dep == "" && session != nil {
 		dep = session.Params.DepartureDate
 	}
-
-	switch mode {
-	case BookingModeGooglePrefill:
-		u := buildGoogleFlightsPrefillURL(origin, dest, dep, ret)
-		if u == "" {
-			u = "https://www.google.com/travel/flights?q=Flights"
-		}
-		return u
-	default:
-		// Skyscanner: prefill with this option's route and dates. When provider DeepLink exists we use it above (specific offer).
-		// Skyscanner has no public URL for a single flight, so we open a search for that route/dates so the user's flight is in the results.
-		cabin := ""
-		adults := 1
-		if session != nil {
-			cabin = session.Params.CabinClass
-			if session.Params.Adults > 0 {
-				adults = session.Params.Adults
-			}
-		}
-		return buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin, adults)
-	}
+	return origin, dest, dep, ret
 }
 
 func buildGoogleFlightsPrefillURL(origin, dest, dep, ret string) string {
-	// Google Flights: q=Flights to DEST from ORIGIN, or use structured params
 	q := fmt.Sprintf("Flights to %s from %s", dest, origin)
 	if dep != "" {
 		q += " " + dep
@@ -119,8 +129,6 @@ func buildGoogleFlightsPrefillURL(origin, dest, dep, ret string) string {
 }
 
 func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int) string {
-	// Skyscanner: route and dates from the clicked option. Query params narrow the search (cabin, adults).
-	// Format: /transport/flights/{origin}/{dest}/{outboundYYMMDD}/{inboundYYMMDD}/?cabinclass=economy&adultsv2=1
 	origin = strings.ToLower(strings.TrimSpace(origin))
 	dest = strings.ToLower(strings.TrimSpace(dest))
 	if origin == "" {
@@ -135,7 +143,7 @@ func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int)
 		outbound = "any"
 	}
 	if inbound == "" {
-		inbound = outbound // one-way: same date or "any"
+		inbound = outbound
 	}
 	u := fmt.Sprintf("https://www.skyscanner.net/transport/flights/%s/%s/%s/%s/", origin, dest, outbound, inbound)
 	params := url.Values{}
@@ -157,14 +165,21 @@ func depToYYMMDD(iso string) string {
 	if len(iso) < 10 {
 		return ""
 	}
-	// 2025-03-06 -> 250306
 	return iso[2:4] + iso[5:7] + iso[8:10]
 }
 
-// BuildSkyscannerFallbackFromParams builds a Skyscanner search URL from query params (e.g. when session/option not found).
-// Used so the user always gets a redirect instead of JSON error.
+// BuildSkyscannerFallbackFromParams builds a Skyscanner search URL from query params.
 func BuildSkyscannerFallbackFromParams(origin, destination, departureDate, returnDate string) string {
 	return buildSkyscannerPrefillURL(origin, destination, departureDate, returnDate, "", 1)
+}
+
+// BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.
+func BuildGoogleFlightsFallbackFromParams(origin, destination, departureDate, returnDate string) string {
+	u := buildGoogleFlightsPrefillURL(origin, destination, departureDate, returnDate)
+	if u == "" {
+		return "https://www.google.com/travel/flights"
+	}
+	return u
 }
 
 // CanonicalFingerprint returns a stable hash for dedupe: origin, dest, departAt, arriveAt, carrierCodes, flightNumbers, stopsCount, totalDuration. Does not include price so same flight from different providers dedupes to cheapest.
