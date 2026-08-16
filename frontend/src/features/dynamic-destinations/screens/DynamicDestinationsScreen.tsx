@@ -20,7 +20,7 @@ import { DateRangePicker } from '../../flight-search/components/DateRangePicker'
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { AppIcon } from '../../../components/AppIcon';
-import { createSearchSession } from '../../../api';
+import { createSearchSession, getSearchSessionResults } from '../../../api';
 import { searchActions } from '../../../store';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { DynamicDestinationsStackParamList } from '../../../navigation/types';
@@ -127,9 +127,12 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
     searchActions.setError(null);
     try {
       searchActions.setParams(payload);
-      const session = await createSearchSession(payload);
-      searchActions.setSession(session.id, session, session.status);
+      searchActions.setSession(null, null, 'PENDING');
       searchActions.setResults([], 0);
+      const session = await createSearchSession(payload);
+      const res = await getSearchSessionResults(session.id, undefined, payload);
+      searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
+      searchActions.setResults(res.results ?? [], res.version ?? 1);
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
       const msg = e instanceof Error ? e.message : t('search_failed');

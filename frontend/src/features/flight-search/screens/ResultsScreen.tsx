@@ -392,9 +392,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       };
       setCachedSearch(payload);
       searchActions.setParams(payload);
-      const session = await createSearchSession(payload);
-      searchActions.setSession(session.id, session, session.status);
+      // Keep PENDING until results are hydrated — create returns COMPLETE with no
+      // offers in the POST body, and the poll effect skips COMPLETE sessions.
+      searchActions.setSession(null, null, 'PENDING');
       searchActions.setResults([], 0);
+      const session = await createSearchSession(payload);
+      const res = await getSearchSessionResults(session.id, undefined, payload);
+      searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
+      searchActions.setResults(res.results ?? [], res.version ?? 1);
+      versionRef.current = res.version ?? 1;
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
@@ -471,7 +477,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         const session = await createSearchSession(payload);
         if (cancelled) return;
 
-        searchActions.setSession(session.id, session, session.status);
+        // POST /sessions returns COMPLETE but does not include offers. Hydrate
+        // results here — the poll effect skips COMPLETE and would otherwise leave
+        // the list empty ("No flights found") even when the API has offers.
+        const res = await getSearchSessionResults(session.id, undefined, payload);
+        if (cancelled) return;
+
+        versionRef.current = res.version ?? 1;
+        searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
+        searchActions.setResults(res.results ?? [], res.version ?? 1);
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
         if (!cancelled) {
@@ -501,8 +515,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const poll = async () => {
       if (cancelled) return;
       const currentStatus = statusRef.current;
-      // Create path already set COMPLETE before replace; don't keep hammering.
-      if (currentStatus === 'COMPLETE' || currentStatus === 'FAILED') return;
+      // Failed: stop. Completed: only skip once results are hydrated (version > 0).
+      // Otherwise a COMPLETE create with an empty store never GETs offers and the UI
+      // falsely shows "No flights found".
+      if (currentStatus === 'FAILED') return;
+      if (currentStatus === 'COMPLETE' && versionRef.current > 0) return;
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const res = await getSearchSessionResults(
@@ -512,9 +529,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         );
         if (cancelled) return;
         consecutiveNotFound = 0;
-        versionRef.current = res.version;
+        const nextVersion = res.version ?? 0;
+        versionRef.current = nextVersion;
         searchActions.setSession(sessionId, res.session, res.session.status);
-        searchActions.appendResults(res.results, res.version);
+        // First hydrate must use setResults so version 0 → N always applies.
+        if (sinceVersion == null) {
+          searchActions.setResults(res.results ?? [], nextVersion);
+        } else {
+          searchActions.appendResults(res.results, nextVersion);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const notFound = /\b404\b|not found|expired/i.test(msg);
@@ -532,7 +555,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
     const id = setInterval(() => {
       const st = statusRef.current;
-      if (st === 'COMPLETE' || st === 'FAILED') {
+      if (st === 'FAILED') {
+        clearInterval(id);
+        return;
+      }
+      if (st === 'COMPLETE' && versionRef.current > 0) {
         clearInterval(id);
         return;
       }
