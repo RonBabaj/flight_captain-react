@@ -21,7 +21,7 @@ import { PassengerCabinPicker } from '../../flight-search/components/PassengerCa
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { AppIcon } from '../../../components/AppIcon';
 import { createSearchSession, getSearchSessionResults } from '../../../api';
-import { searchActions } from '../../../store';
+import { searchActions, isCurrentSearchGeneration } from '../../../store';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { DynamicDestinationsStackParamList } from '../../../navigation/types';
 
@@ -126,13 +126,21 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
     searchActions.setLoading(true);
     searchActions.setError(null);
     try {
-      searchActions.setParams(payload);
-      searchActions.setSession(null, null, 'PENDING');
-      searchActions.setResults([], 0);
+      const generation = searchActions.beginSearch(payload);
       const session = await createSearchSession(payload);
+      if (!isCurrentSearchGeneration(generation)) return;
       const res = await getSearchSessionResults(session.id, undefined, payload);
-      searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
-      searchActions.setResults(res.results ?? [], res.version ?? 1);
+      if (!isCurrentSearchGeneration(generation)) return;
+      const applied = searchActions.applySessionResults({
+        generation,
+        sessionId: session.id,
+        session: res.session ?? session,
+        status: res.session?.status ?? session.status,
+        results: res.results ?? [],
+        version: res.version ?? 1,
+        mode: 'replace',
+      });
+      if (!applied) return;
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
       const msg = e instanceof Error ? e.message : t('search_failed');
