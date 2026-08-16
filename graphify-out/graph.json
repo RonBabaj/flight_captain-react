@@ -173,32 +173,6 @@
       "norm_label": "explorescreenparams"
     },
     {
-      "label": "CheaperCitiesOption",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
-      "source_location": "L8",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_cheapercitiessection_cheapercitiesoption",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "cheapercitiesoption"
-    },
-    {
-      "label": "Props",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
-      "source_location": "L20",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_cheapercitiessection_props",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "props"
-    },
-    {
       "label": "CheapestOption",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
@@ -223,19 +197,6 @@
       "community": 12,
       "community_name": "ResultsScreen.tsx",
       "norm_label": "positioningoption"
-    },
-    {
-      "label": "MonetaryAmount",
-      "file_type": "code",
-      "source_file": "frontend/src/types/api.ts",
-      "source_location": "L8",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_types_api_monetaryamount",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "monetaryamount"
     },
     {
       "label": "LocaleContextValue",
@@ -299,7 +260,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportautocomplete_airportautocompleteprops",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airportautocompleteprops"
     },
     {
@@ -312,7 +273,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportinput_props",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "props"
     },
     {
@@ -325,7 +286,7 @@
       "_origin": "ast",
       "id": "frontend_src_types_api_airportcityresult",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airportcityresult"
     },
     {
@@ -420,17 +381,95 @@
       "norm_label": "appiconprops"
     },
     {
-      "label": "DateRangePickerProps",
+      "label": "Props",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L23",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L5",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_daterangepickerprops",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_props",
       "community": 19,
       "community_name": "AppIcon.tsx",
-      "norm_label": "daterangepickerprops"
+      "norm_label": "props"
+    },
+    {
+      "label": "FiltersPanelProps",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
+      "source_location": "L17",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_filterspanel_filterspanelprops",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "filterspanelprops"
+    },
+    {
+      "label": "FlightDetailsModalProps",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
+      "source_location": "L87",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodalprops",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "flightdetailsmodalprops"
+    },
+    {
+      "label": "FlightResultCardProps",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FlightResultCard.tsx",
+      "source_location": "L105",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_flightresultcard_flightresultcardprops",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "flightresultcardprops"
+    },
+    {
+      "label": "PositioningLegResult",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L38",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_positioninglegresult",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "positioninglegresult"
+    },
+    {
+      "label": "SearchFilters",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L12",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_searchfilters",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "searchfilters"
+    },
+    {
+      "label": "FlightOption",
+      "file_type": "code",
+      "source_file": "frontend/src/types/api.ts",
+      "source_location": "L76",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_types_api_flightoption",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "flightoption"
     },
     {
       "label": "ReportWriter",
@@ -481,7 +520,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_props",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "props"
     },
     {
@@ -494,112 +533,8 @@
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_nav",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "nav"
-    },
-    {
-      "label": "FiltersPanelProps",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
-      "source_location": "L17",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_filterspanel_filterspanelprops",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "filterspanelprops"
-    },
-    {
-      "label": "PassengerCabinPickerProps",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
-      "source_location": "L22",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpickerprops",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "passengercabinpickerprops"
-    },
-    {
-      "label": "SearchFormContentProps",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L11",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontentprops",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "searchformcontentprops"
-    },
-    {
-      "label": "SearchFilters",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L12",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_searchfilters",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "searchfilters"
-    },
-    {
-      "label": "Theme",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L5",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_theme",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "theme"
-    },
-    {
-      "label": "ThemeContextValue",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L86",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_themecontextvalue",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "themecontextvalue"
-    },
-    {
-      "label": "ThemeMode",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L3",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_thememode",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "thememode"
-    },
-    {
-      "label": "CreateSearchSessionRequest",
-      "file_type": "code",
-      "source_file": "frontend/src/types/api.ts",
-      "source_location": "L113",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_types_api_createsearchsessionrequest",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "createsearchsessionrequest"
     },
     {
       "label": "ResponseAnalyzer",
@@ -715,7 +650,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortbarprops",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbarprops"
     },
     {
@@ -728,21 +663,8 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortoption",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "sortoption"
-    },
-    {
-      "label": "SearchState",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L20",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_searchstate",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "searchstate"
     },
     {
       "label": "SortField",
@@ -754,99 +676,8 @@
       "_origin": "ast",
       "id": "frontend_src_store_searchstore_sortfield",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "sortfield"
-    },
-    {
-      "label": "SortOrder",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L10",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_sortorder",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "sortorder"
-    },
-    {
-      "label": "SearchSession",
-      "file_type": "code",
-      "source_file": "frontend/src/types/api.ts",
-      "source_location": "L132",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_types_api_searchsession",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "searchsession"
-    },
-    {
-      "label": "SearchSessionStatus",
-      "file_type": "code",
-      "source_file": "frontend/src/types/api.ts",
-      "source_location": "L111",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_types_api_searchsessionstatus",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "searchsessionstatus"
-    },
-    {
-      "label": "FlightDetailsModalProps",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L87",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodalprops",
-      "community": 33,
-      "community_name": "FlightDetailsModal.tsx",
-      "norm_label": "flightdetailsmodalprops"
-    },
-    {
-      "label": "FlightResultCardProps",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FlightResultCard.tsx",
-      "source_location": "L105",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_flightresultcard_flightresultcardprops",
-      "community": 33,
-      "community_name": "FlightDetailsModal.tsx",
-      "norm_label": "flightresultcardprops"
-    },
-    {
-      "label": "PositioningLegResult",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L38",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_positioninglegresult",
-      "community": 33,
-      "community_name": "FlightDetailsModal.tsx",
-      "norm_label": "positioninglegresult"
-    },
-    {
-      "label": "FlightOption",
-      "file_type": "code",
-      "source_file": "frontend/src/types/api.ts",
-      "source_location": "L76",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_types_api_flightoption",
-      "community": 33,
-      "community_name": "FlightDetailsModal.tsx",
-      "norm_label": "flightoption"
     },
     {
       "label": "AirportCityType",
@@ -1096,19 +927,6 @@
       "norm_label": "outboundlinkresponse"
     },
     {
-      "label": "DealsParams",
-      "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
-      "source_location": "L7",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "frontend_src_utils_dealscache_dealsparams",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "dealsparams"
-    },
-    {
       "label": "DisplayPriceProps",
       "file_type": "code",
       "source_file": "frontend/src/components/DisplayPrice.tsx",
@@ -1120,6 +938,45 @@
       "community": 39,
       "community_name": "exchangeRates.ts",
       "norm_label": "displaypriceprops"
+    },
+    {
+      "label": "CheaperCitiesOption",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
+      "source_location": "L8",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_cheapercitiessection_cheapercitiesoption",
+      "community": 39,
+      "community_name": "exchangeRates.ts",
+      "norm_label": "cheapercitiesoption"
+    },
+    {
+      "label": "Props",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
+      "source_location": "L20",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_cheapercitiessection_props",
+      "community": 39,
+      "community_name": "exchangeRates.ts",
+      "norm_label": "props"
+    },
+    {
+      "label": "MonetaryAmount",
+      "file_type": "code",
+      "source_file": "frontend/src/types/api.ts",
+      "source_location": "L8",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_types_api_monetaryamount",
+      "community": 39,
+      "community_name": "exchangeRates.ts",
+      "norm_label": "monetaryamount"
     },
     {
       "label": "CurrencyCode",
@@ -1169,8 +1026,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_store_dealsstore_dealssortfield",
-      "community": 53,
-      "community_name": "store/index.ts",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
       "norm_label": "dealssortfield"
     },
     {
@@ -1182,8 +1039,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_store_dealsstore_dealsstate",
-      "community": 53,
-      "community_name": "store/index.ts",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
       "norm_label": "dealsstate"
     },
     {
@@ -1195,9 +1052,22 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "frontend_src_types_api_monthdealsresponse",
-      "community": 53,
-      "community_name": "store/index.ts",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
       "norm_label": "monthdealsresponse"
+    },
+    {
+      "label": "DealsParams",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L7",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_utils_dealscache_dealsparams",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "dealsparams"
     },
     {
       "label": "DatePickerCalendarProps",
@@ -1226,17 +1096,43 @@
       "norm_label": "daydeal"
     },
     {
-      "label": "Props",
+      "label": "PassengerCabinPickerProps",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
-      "source_location": "L5",
+      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
+      "source_location": "L22",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_props",
+      "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpickerprops",
       "community": 56,
-      "community_name": "CalendarModal.tsx",
-      "norm_label": "props"
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "passengercabinpickerprops"
+    },
+    {
+      "label": "SearchFormContentProps",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L11",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontentprops",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "searchformcontentprops"
+    },
+    {
+      "label": "CreateSearchSessionRequest",
+      "file_type": "code",
+      "source_file": "frontend/src/types/api.ts",
+      "source_location": "L113",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_types_api_createsearchsessionrequest",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "createsearchsessionrequest"
     },
     {
       "label": "ExploreResponse",
@@ -1289,6 +1185,110 @@
       "community": 57,
       "community_name": "explore.ts",
       "norm_label": "exploredestination"
+    },
+    {
+      "label": "Theme",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L5",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_theme",
+      "community": 59,
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "theme"
+    },
+    {
+      "label": "ThemeContextValue",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L86",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_themecontextvalue",
+      "community": 59,
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "themecontextvalue"
+    },
+    {
+      "label": "ThemeMode",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L3",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_thememode",
+      "community": 59,
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "thememode"
+    },
+    {
+      "label": "SearchState",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L20",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_searchstate",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "searchstate"
+    },
+    {
+      "label": "SortOrder",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L10",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_sortorder",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "sortorder"
+    },
+    {
+      "label": "SearchSession",
+      "file_type": "code",
+      "source_file": "frontend/src/types/api.ts",
+      "source_location": "L132",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_types_api_searchsession",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "searchsession"
+    },
+    {
+      "label": "SearchSessionStatus",
+      "file_type": "code",
+      "source_file": "frontend/src/types/api.ts",
+      "source_location": "L111",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_types_api_searchsessionstatus",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "searchsessionstatus"
+    },
+    {
+      "label": "DateRangePickerProps",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L23",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_daterangepicker_daterangepickerprops",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
+      "norm_label": "daterangepickerprops"
     },
     {
       "label": ".componentDidCatch()",
@@ -1675,18 +1675,6 @@
       "norm_label": "paramsmatch()"
     },
     {
-      "label": "CheaperCitiesSection()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
-      "source_location": "L35",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_cheapercitiessection_cheapercitiessection",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "cheapercitiessection()"
-    },
-    {
       "label": "bestScore()",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
@@ -1783,6 +1771,30 @@
       "norm_label": "findcheapestflightfordate()"
     },
     {
+      "label": "useIsMobile()",
+      "file_type": "code",
+      "source_file": "frontend/src/hooks/useResponsive.ts",
+      "source_location": "L6",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_hooks_useresponsive_useismobile",
+      "community": 12,
+      "community_name": "ResultsScreen.tsx",
+      "norm_label": "useismobile()"
+    },
+    {
+      "label": "TopNavMenu()",
+      "file_type": "code",
+      "source_file": "frontend/src/navigation/TopNavMenu.tsx",
+      "source_location": "L28",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_navigation_topnavmenu_topnavmenu",
+      "community": 12,
+      "community_name": "ResultsScreen.tsx",
+      "norm_label": "topnavmenu()"
+    },
+    {
       "label": "getStorage()",
       "file_type": "code",
       "source_file": "frontend/src/context/LocaleContext.tsx",
@@ -1855,30 +1867,6 @@
       "norm_label": "gettranslation()"
     },
     {
-      "label": "useIsMobile()",
-      "file_type": "code",
-      "source_file": "frontend/src/hooks/useResponsive.ts",
-      "source_location": "L6",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_hooks_useresponsive_useismobile",
-      "community": 14,
-      "community_name": "LocaleContext.tsx",
-      "norm_label": "useismobile()"
-    },
-    {
-      "label": "TopNavMenu()",
-      "file_type": "code",
-      "source_file": "frontend/src/navigation/TopNavMenu.tsx",
-      "source_location": "L28",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_navigation_topnavmenu_topnavmenu",
-      "community": 14,
-      "community_name": "LocaleContext.tsx",
-      "norm_label": "topnavmenu()"
-    },
-    {
       "label": "getAirportDisplayName()",
       "file_type": "code",
       "source_file": "frontend/src/data/airports.ts",
@@ -1887,7 +1875,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_getairportdisplayname",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "getairportdisplayname()"
     },
     {
@@ -1899,7 +1887,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_getairportnamebycode",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "getairportnamebycode()"
     },
     {
@@ -1911,7 +1899,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_lower",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "lower()"
     },
     {
@@ -1923,7 +1911,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_matchesquery",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "matchesquery()"
     },
     {
@@ -1935,7 +1923,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_rankresult",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "rankresult()"
     },
     {
@@ -1947,7 +1935,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_searchairportslocal",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "searchairportslocal()"
     },
     {
@@ -1959,8 +1947,20 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportinput_airportinput",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airportinput()"
+    },
+    {
+      "label": "useTheme()",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L116",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_usetheme",
+      "community": 15,
+      "community_name": "useTheme",
+      "norm_label": "usetheme()"
     },
     {
       "label": "searchAirports()",
@@ -1985,6 +1985,18 @@
       "community": 17,
       "community_name": "types/index.ts",
       "norm_label": "apiget()"
+    },
+    {
+      "label": "getDealsRange()",
+      "file_type": "code",
+      "source_file": "frontend/src/api/deals.ts",
+      "source_location": "L60",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_api_deals_getdealsrange",
+      "community": 17,
+      "community_name": "types/index.ts",
+      "norm_label": "getdealsrange()"
     },
     {
       "label": "getMonthDeals()",
@@ -2061,35 +2073,35 @@
     {
       "label": "buildMonthDays()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L10",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L21",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_buildmonthdays",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_buildmonthdays",
       "community": 19,
       "community_name": "AppIcon.tsx",
       "norm_label": "buildmonthdays()"
     },
     {
-      "label": "DateRangePicker()",
+      "label": "CalendarModal()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L33",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L35",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_daterangepicker",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_calendarmodal",
       "community": 19,
       "community_name": "AppIcon.tsx",
-      "norm_label": "daterangepicker()"
+      "norm_label": "calendarmodal()"
     },
     {
       "label": "getMonthStart()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L6",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L17",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_getmonthstart",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_getmonthstart",
       "community": 19,
       "community_name": "AppIcon.tsx",
       "norm_label": "getmonthstart()"
@@ -2105,6 +2117,18 @@
       "community": 2,
       "community_name": "FlightResultCard.tsx",
       "norm_label": "getairlinename()"
+    },
+    {
+      "label": "FiltersPanel()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
+      "source_location": "L30",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_filterspanel_filterspanel",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "filterspanel()"
     },
     {
       "label": "airlineName()",
@@ -2383,18 +2407,6 @@
       "norm_label": "._sleep_backoff()"
     },
     {
-      "label": "RTLWrapper()",
-      "file_type": "code",
-      "source_file": "frontend/App.tsx",
-      "source_location": "L44",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_app_rtlwrapper",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "rtlwrapper()"
-    },
-    {
       "label": "SearchLoadingOverlay()",
       "file_type": "code",
       "source_file": "frontend/src/components/SearchLoadingOverlay.tsx",
@@ -2403,20 +2415,8 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_searchloadingoverlay",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "searchloadingoverlay()"
-    },
-    {
-      "label": "useLocale()",
-      "file_type": "code",
-      "source_file": "frontend/src/context/LocaleContext.tsx",
-      "source_location": "L98",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_context_localecontext_uselocale",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "uselocale()"
     },
     {
       "label": "DynamicDestinationsScreen()",
@@ -2427,80 +2427,8 @@
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_dynamicdestinationsscreen",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "dynamicdestinationsscreen()"
-    },
-    {
-      "label": "FiltersPanel()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
-      "source_location": "L30",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_filterspanel_filterspanel",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "filterspanel()"
-    },
-    {
-      "label": "PassengerCabinPicker()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
-      "source_location": "L36",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpicker",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "passengercabinpicker()"
-    },
-    {
-      "label": "makeThemedStyles()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L185",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent_makethemedstyles",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "makethemedstyles()"
-    },
-    {
-      "label": "SearchFormContent()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L48",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontent",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "searchformcontent()"
-    },
-    {
-      "label": "ThemeProvider()",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L94",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_themeprovider",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "themeprovider()"
-    },
-    {
-      "label": "useTheme()",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L116",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_usetheme",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "usetheme()"
     },
     {
       "label": ".analyze()",
@@ -2827,6 +2755,42 @@
       "norm_label": "cancelsearchsession()"
     },
     {
+      "label": "App()",
+      "file_type": "code",
+      "source_file": "frontend/App.tsx",
+      "source_location": "L53",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_app_app",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "app()"
+    },
+    {
+      "label": "RTLWrapper()",
+      "file_type": "code",
+      "source_file": "frontend/App.tsx",
+      "source_location": "L44",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_app_rtlwrapper",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "rtlwrapper()"
+    },
+    {
+      "label": "useLocale()",
+      "file_type": "code",
+      "source_file": "frontend/src/context/LocaleContext.tsx",
+      "source_location": "L98",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_context_localecontext_uselocale",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "uselocale()"
+    },
+    {
       "label": "SortBar()",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/components/SortBar.tsx",
@@ -2835,8 +2799,20 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_sortbar",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbar()"
+    },
+    {
+      "label": "useExchangeRates()",
+      "file_type": "code",
+      "source_file": "frontend/src/hooks/useExchangeRates.ts",
+      "source_location": "L5",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_hooks_useexchangerates_useexchangerates",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "useexchangerates()"
     },
     {
       "label": "_as_str()",
@@ -3163,126 +3139,6 @@
       "norm_label": "getapibase()"
     },
     {
-      "label": "buildDealsPositioningSignature()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L227",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_builddealspositioningsignature",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "builddealspositioningsignature()"
-    },
-    {
-      "label": "formatDealDate()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L203",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_formatdealdate",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "formatdealdate()"
-    },
-    {
-      "label": "MonthDealsScreen()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L325",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_monthdealsscreen",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "monthdealsscreen()"
-    },
-    {
-      "label": "parseDealYmdToUTCDate()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L212",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_parsedealymdtoutcdate",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "parsedealymdtoutcdate()"
-    },
-    {
-      "label": "toYmdUTC()",
-      "file_type": "code",
-      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
-      "source_location": "L218",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_toymdutc",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "toymdutc()"
-    },
-    {
-      "label": "clearPendingDealsParams()",
-      "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
-      "source_location": "L47",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_utils_dealscache_clearpendingdealsparams",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "clearpendingdealsparams()"
-    },
-    {
-      "label": "getPendingDealsParams()",
-      "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
-      "source_location": "L26",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_utils_dealscache_getpendingdealsparams",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "getpendingdealsparams()"
-    },
-    {
-      "label": "getStorage()",
-      "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
-      "source_location": "L18",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_utils_dealscache_getstorage",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "getstorage()"
-    },
-    {
-      "label": "setPendingDealsParams()",
-      "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
-      "source_location": "L39",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_src_utils_dealscache_setpendingdealsparams",
-      "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "setpendingdealsparams()"
-    },
-    {
-      "label": "App()",
-      "file_type": "code",
-      "source_file": "frontend/App.tsx",
-      "source_location": "L53",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "frontend_app_app",
-      "community": 39,
-      "community_name": "exchangeRates.ts",
-      "norm_label": "app()"
-    },
-    {
       "label": "DisplayPrice()",
       "file_type": "code",
       "source_file": "frontend/src/components/DisplayPrice.tsx",
@@ -3295,16 +3151,16 @@
       "norm_label": "displayprice()"
     },
     {
-      "label": "useExchangeRates()",
+      "label": "CheaperCitiesSection()",
       "file_type": "code",
-      "source_file": "frontend/src/hooks/useExchangeRates.ts",
-      "source_location": "L5",
+      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
+      "source_location": "L35",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_hooks_useexchangerates_useexchangerates",
+      "id": "frontend_src_features_flight_search_components_cheapercitiessection_cheapercitiessection",
       "community": 39,
       "community_name": "exchangeRates.ts",
-      "norm_label": "useexchangerates()"
+      "norm_label": "cheapercitiessection()"
     },
     {
       "label": "convertPrice()",
@@ -3451,6 +3307,18 @@
       "norm_label": "main()"
     },
     {
+      "label": "buildDealsPositioningSignature()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L227",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_builddealspositioningsignature",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "builddealspositioningsignature()"
+    },
+    {
       "label": "dealBestScore()",
       "file_type": "code",
       "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
@@ -3487,6 +3355,18 @@
       "norm_label": "fmtdur()"
     },
     {
+      "label": "formatDealDate()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L203",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_formatdealdate",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "formatdealdate()"
+    },
+    {
       "label": "layoverBetween()",
       "file_type": "code",
       "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
@@ -3509,6 +3389,30 @@
       "community": 5,
       "community_name": "MonthDealsScreen.tsx",
       "norm_label": "legduration()"
+    },
+    {
+      "label": "MonthDealsScreen()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L325",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_monthdealsscreen",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "monthdealsscreen()"
+    },
+    {
+      "label": "parseDealYmdToUTCDate()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L212",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_parsedealymdtoutcdate",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "parsedealymdtoutcdate()"
     },
     {
       "label": "renderLeg()",
@@ -3571,6 +3475,18 @@
       "norm_label": "tovalidms()"
     },
     {
+      "label": "toYmdUTC()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
+      "source_location": "L218",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_monthly_deals_screens_monthdealsscreen_toymdutc",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "toymdutc()"
+    },
+    {
       "label": "clampDealsMonth()",
       "file_type": "code",
       "source_file": "frontend/src/store/dealsStore.ts",
@@ -3578,8 +3494,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_store_dealsstore_clampdealsmonth",
-      "community": 53,
-      "community_name": "store/index.ts",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
       "norm_label": "clampdealsmonth()"
     },
     {
@@ -3590,21 +3506,57 @@
       "_callable": true,
       "_origin": "ast",
       "id": "frontend_src_store_dealsstore_getminimumalloweddealsyearmonth",
-      "community": 53,
-      "community_name": "store/index.ts",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
       "norm_label": "getminimumalloweddealsyearmonth()"
     },
     {
-      "label": "getDealsRange()",
+      "label": "clearPendingDealsParams()",
       "file_type": "code",
-      "source_file": "frontend/src/api/deals.ts",
-      "source_location": "L60",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L47",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_api_deals_getdealsrange",
-      "community": 54,
-      "community_name": "DatePickerCalendar.tsx",
-      "norm_label": "getdealsrange()"
+      "id": "frontend_src_utils_dealscache_clearpendingdealsparams",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "clearpendingdealsparams()"
+    },
+    {
+      "label": "getPendingDealsParams()",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L26",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_utils_dealscache_getpendingdealsparams",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "getpendingdealsparams()"
+    },
+    {
+      "label": "getStorage()",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L18",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_utils_dealscache_getstorage",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "getstorage()"
+    },
+    {
+      "label": "setPendingDealsParams()",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L39",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_utils_dealscache_setpendingdealsparams",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "setpendingdealsparams()"
     },
     {
       "label": "DatePickerCalendar()",
@@ -3775,39 +3727,87 @@
       "norm_label": "setcachedsearch()"
     },
     {
-      "label": "buildMonthDays()",
+      "label": "PassengerCabinPicker()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
-      "source_location": "L21",
+      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
+      "source_location": "L36",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_buildmonthdays",
+      "id": "frontend_src_features_flight_search_components_passengercabinpicker_passengercabinpicker",
       "community": 56,
-      "community_name": "CalendarModal.tsx",
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "passengercabinpicker()"
+    },
+    {
+      "label": "makeThemedStyles()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L185",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_searchformcontent_makethemedstyles",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "makethemedstyles()"
+    },
+    {
+      "label": "SearchFormContent()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L48",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_searchformcontent_searchformcontent",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "searchformcontent()"
+    },
+    {
+      "label": "ThemeProvider()",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L94",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_themeprovider",
+      "community": 59,
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "themeprovider()"
+    },
+    {
+      "label": "buildMonthDays()",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L10",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_daterangepicker_buildmonthdays",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
       "norm_label": "buildmonthdays()"
     },
     {
-      "label": "CalendarModal()",
+      "label": "DateRangePicker()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
-      "source_location": "L35",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L33",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_calendarmodal",
-      "community": 56,
-      "community_name": "CalendarModal.tsx",
-      "norm_label": "calendarmodal()"
+      "id": "frontend_src_features_flight_search_components_daterangepicker_daterangepicker",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
+      "norm_label": "daterangepicker()"
     },
     {
       "label": "getMonthStart()",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
-      "source_location": "L17",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L6",
       "_callable": true,
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_getmonthstart",
-      "community": 56,
-      "community_name": "CalendarModal.tsx",
+      "id": "frontend_src_features_flight_search_components_daterangepicker_getmonthstart",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
       "norm_label": "getmonthstart()"
     },
     {
@@ -4020,6 +4020,17 @@
       "norm_label": "gf2airportcode()"
     },
     {
+      "label": "newGF2Cache()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L76",
+      "_origin": "ast",
+      "id": "backend_search_googleflights2_provider_newgf2cache",
+      "community": 0,
+      "community_name": "googleflights2_provider.go",
+      "norm_label": "newgf2cache()"
+    },
+    {
       "label": "newGF2RateLimiter()",
       "file_type": "code",
       "source_file": "backend/search/googleflights2_provider.go",
@@ -4108,15 +4119,59 @@
       "norm_label": "tofloat64()"
     },
     {
-      "label": "truncateGF2()",
+      "label": "gf2Cache",
       "file_type": "code",
       "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L1421",
+      "source_location": "L36",
       "_origin": "ast",
-      "id": "backend_search_googleflights2_provider_truncategf2",
+      "id": "search_gf2cache",
       "community": 0,
       "community_name": "googleflights2_provider.go",
-      "norm_label": "truncategf2()"
+      "norm_label": "gf2cache"
+    },
+    {
+      "label": ".evict()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L104",
+      "_origin": "ast",
+      "id": "search_gf2cache_evict",
+      "community": 0,
+      "community_name": "googleflights2_provider.go",
+      "norm_label": ".evict()"
+    },
+    {
+      "label": ".get()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L88",
+      "_origin": "ast",
+      "id": "search_gf2cache_get",
+      "community": 0,
+      "community_name": "googleflights2_provider.go",
+      "norm_label": ".get()"
+    },
+    {
+      "label": ".set()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L98",
+      "_origin": "ast",
+      "id": "search_gf2cache_set",
+      "community": 0,
+      "community_name": "googleflights2_provider.go",
+      "norm_label": ".set()"
+    },
+    {
+      "label": "gf2CacheEntry",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L41",
+      "_origin": "ast",
+      "id": "search_gf2cacheentry",
+      "community": 0,
+      "community_name": "googleflights2_provider.go",
+      "norm_label": "gf2cacheentry"
     },
     {
       "label": "ErrorBoundary.tsx",
@@ -4581,28 +4636,6 @@
       "norm_label": "net/http.responsewriter"
     },
     {
-      "label": "CheaperCitiesSection.tsx",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_cheapercitiessection",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "cheapercitiessection.tsx"
-    },
-    {
-      "label": "s",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
-      "source_location": "L126",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_cheapercitiessection_s",
-      "community": 12,
-      "community_name": "ResultsScreen.tsx",
-      "norm_label": "s"
-    },
-    {
       "label": "ResultsScreen.tsx",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
@@ -4672,12 +4705,34 @@
       "label": "styles",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1235",
+      "source_location": "L1262",
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_screens_resultsscreen_styles",
       "community": 12,
       "community_name": "ResultsScreen.tsx",
       "norm_label": "styles"
+    },
+    {
+      "label": "useResponsive.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/hooks/useResponsive.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_hooks_useresponsive",
+      "community": 12,
+      "community_name": "ResultsScreen.tsx",
+      "norm_label": "useresponsive.ts"
+    },
+    {
+      "label": "useSearchStore",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L44",
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_usesearchstore",
+      "community": 12,
+      "community_name": "ResultsScreen.tsx",
+      "norm_label": "usesearchstore"
     },
     {
       "label": "tsconfig.json",
@@ -5021,17 +5076,6 @@
       "norm_label": "translations"
     },
     {
-      "label": "useResponsive.ts",
-      "file_type": "code",
-      "source_file": "frontend/src/hooks/useResponsive.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_hooks_useresponsive",
-      "community": 14,
-      "community_name": "LocaleContext.tsx",
-      "norm_label": "useresponsive.ts"
-    },
-    {
       "label": "TopNavMenu.tsx",
       "file_type": "code",
       "source_file": "frontend/src/navigation/TopNavMenu.tsx",
@@ -5065,17 +5109,6 @@
       "norm_label": "title_keys"
     },
     {
-      "label": "useSearchStore",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L44",
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_usesearchstore",
-      "community": 14,
-      "community_name": "LocaleContext.tsx",
-      "norm_label": "usesearchstore"
-    },
-    {
       "label": "data/airports.ts",
       "file_type": "code",
       "source_file": "frontend/src/data/airports.ts",
@@ -5083,7 +5116,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "data/airports.ts"
     },
     {
@@ -5094,7 +5127,7 @@
       "_origin": "ast",
       "id": "frontend_src_data_airports_airport_dictionary",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airport_dictionary"
     },
     {
@@ -5105,7 +5138,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportautocomplete",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airportautocomplete.tsx"
     },
     {
@@ -5116,7 +5149,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportautocomplete_styles",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "styles"
     },
     {
@@ -5127,7 +5160,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportinput",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "airportinput.tsx"
     },
     {
@@ -5138,7 +5171,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_airportinput_styles",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "styles"
     },
     {
@@ -5149,7 +5182,7 @@
       "_origin": "ast",
       "id": "frontend_src_types_api_anywhere_code",
       "community": 15,
-      "community_name": "AirportAutocomplete.tsx",
+      "community_name": "useTheme",
       "norm_label": "anywhere_code"
     },
     {
@@ -5349,17 +5382,6 @@
       "community": 17,
       "community_name": "types/index.ts",
       "norm_label": "api/index.ts"
-    },
-    {
-      "label": "types/index.ts",
-      "file_type": "code",
-      "source_file": "frontend/src/types/index.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_types_index",
-      "community": 17,
-      "community_name": "types/index.ts",
-      "norm_label": "types/index.ts"
     },
     {
       "label": "CreateSearchSessionRequest",
@@ -5670,23 +5692,23 @@
       "norm_label": "local_icon_names"
     },
     {
-      "label": "DateRangePicker.tsx",
+      "label": "CalendarModal.tsx",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker",
+      "id": "frontend_src_features_flight_search_components_calendarmodal",
       "community": 19,
       "community_name": "AppIcon.tsx",
-      "norm_label": "daterangepicker.tsx"
+      "norm_label": "calendarmodal.tsx"
     },
     {
       "label": "styles",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L182",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L169",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_styles",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_styles",
       "community": 19,
       "community_name": "AppIcon.tsx",
       "norm_label": "styles"
@@ -5694,13 +5716,79 @@
     {
       "label": "WEEKDAYS",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
-      "source_location": "L21",
+      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_location": "L33",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_daterangepicker_weekdays",
+      "id": "frontend_src_features_flight_search_components_calendarmodal_weekdays",
       "community": 19,
       "community_name": "AppIcon.tsx",
       "norm_label": "weekdays"
+    },
+    {
+      "label": "airlines.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/data/airlines.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_data_airlines",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "airlines.ts"
+    },
+    {
+      "label": "AIRLINE_NAMES",
+      "file_type": "code",
+      "source_file": "frontend/src/data/airlines.ts",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "frontend_src_data_airlines_airline_names",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "airline_names"
+    },
+    {
+      "label": "airlinesFull.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/data/airlinesFull.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_data_airlinesfull",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "airlinesfull.ts"
+    },
+    {
+      "label": "AIRLINE_FULL_NAMES",
+      "file_type": "code",
+      "source_file": "frontend/src/data/airlinesFull.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_data_airlinesfull_airline_full_names",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "airline_full_names"
+    },
+    {
+      "label": "FiltersPanel.tsx",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_filterspanel",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "filterspanel.tsx"
+    },
+    {
+      "label": "f",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
+      "source_location": "L162",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_filterspanel_f",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "f"
     },
     {
       "label": "FlightResultCard.tsx",
@@ -5723,6 +5811,17 @@
       "community": 2,
       "community_name": "FlightResultCard.tsx",
       "norm_label": "c"
+    },
+    {
+      "label": "NOTE: This is a starter subset of IATA airlines.",
+      "file_type": "rationale",
+      "source_file": "frontend/src/data/airlinesFull.ts",
+      "source_location": "L2",
+      "_origin": "ast",
+      "id": "frontend_src_data_airlinesfull_rationale_2",
+      "community": 2,
+      "community_name": "FlightResultCard.tsx",
+      "norm_label": "note: this is a starter subset of iata airlines."
     },
     {
       "label": "Namespace",
@@ -5967,39 +6066,6 @@
       "norm_label": "defines one api test scenario loaded from yaml config."
     },
     {
-      "label": "linking",
-      "file_type": "code",
-      "source_file": "frontend/App.tsx",
-      "source_location": "L12",
-      "_origin": "ast",
-      "id": "frontend_app_linking",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "linking"
-    },
-    {
-      "label": "App.tsx",
-      "file_type": "code",
-      "source_file": "frontend/App.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_app_tsx_frontend_app",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "app.tsx"
-    },
-    {
-      "label": "API_BASE",
-      "file_type": "code",
-      "source_file": "frontend/src/api/client.ts",
-      "source_location": "L60",
-      "_origin": "ast",
-      "id": "frontend_src_api_client_api_base",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "api_base"
-    },
-    {
       "label": "SearchLoadingOverlay.tsx",
       "file_type": "code",
       "source_file": "frontend/src/components/SearchLoadingOverlay.tsx",
@@ -6007,7 +6073,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "searchloadingoverlay.tsx"
     },
     {
@@ -6018,7 +6084,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_en",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "phrases_en"
     },
     {
@@ -6029,7 +6095,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_he",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "phrases_he"
     },
     {
@@ -6040,7 +6106,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_phrases_ru",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "phrases_ru"
     },
     {
@@ -6051,7 +6117,7 @@
       "_origin": "ast",
       "id": "frontend_src_components_searchloadingoverlay_s",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "s"
     },
     {
@@ -6062,7 +6128,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "dynamicdestinationsscreen.tsx"
     },
     {
@@ -6073,18 +6139,18 @@
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_defaultparams",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "defaultparams"
     },
     {
       "label": "styles",
       "file_type": "code",
       "source_file": "frontend/src/features/dynamic-destinations/screens/DynamicDestinationsScreen.tsx",
-      "source_location": "L272",
+      "source_location": "L275",
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_styles",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "styles"
     },
     {
@@ -6095,162 +6161,8 @@
       "_origin": "ast",
       "id": "frontend_src_features_dynamic_destinations_screens_index",
       "community": 22,
-      "community_name": "useLocale",
+      "community_name": "DynamicDestinationsScreen.tsx",
       "norm_label": "dynamic-destinations/screens/index.ts"
-    },
-    {
-      "label": "FiltersPanel.tsx",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_filterspanel",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "filterspanel.tsx"
-    },
-    {
-      "label": "f",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/FiltersPanel.tsx",
-      "source_location": "L162",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_filterspanel_f",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "f"
-    },
-    {
-      "label": "PassengerCabinPicker.tsx",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_passengercabinpicker",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "passengercabinpicker.tsx"
-    },
-    {
-      "label": "CABIN_OPTIONS",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
-      "source_location": "L15",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_passengercabinpicker_cabin_options",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "cabin_options"
-    },
-    {
-      "label": "styles",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
-      "source_location": "L169",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_passengercabinpicker_styles",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "styles"
-    },
-    {
-      "label": "SearchFormContent.tsx",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "searchformcontent.tsx"
-    },
-    {
-      "label": "s",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L206",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent_s",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "s"
-    },
-    {
-      "label": "SEARCH_PHRASES",
-      "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
-      "source_location": "L24",
-      "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_searchformcontent_search_phrases",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "search_phrases"
-    },
-    {
-      "label": "ThemeContext.tsx",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "themecontext.tsx"
-    },
-    {
-      "label": "ACCENT",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L30",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_accent",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "accent"
-    },
-    {
-      "label": "darkTheme",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L39",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_darktheme",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "darktheme"
-    },
-    {
-      "label": "lightTheme",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L63",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_lighttheme",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "lighttheme"
-    },
-    {
-      "label": "RADIUS",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L36",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_radius",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "radius"
-    },
-    {
-      "label": "ThemeContext",
-      "file_type": "code",
-      "source_file": "frontend/src/theme/ThemeContext.tsx",
-      "source_location": "L92",
-      "_origin": "ast",
-      "id": "frontend_src_theme_themecontext_themecontext",
-      "community": 22,
-      "community_name": "useLocale",
-      "norm_label": "themecontext"
     },
     {
       "label": "analyzer.py",
@@ -6407,6 +6319,39 @@
       "norm_label": "important: expo/metro statically inlines expo_public_* only when accessed via"
     },
     {
+      "label": "linking",
+      "file_type": "code",
+      "source_file": "frontend/App.tsx",
+      "source_location": "L12",
+      "_origin": "ast",
+      "id": "frontend_app_linking",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "linking"
+    },
+    {
+      "label": "App.tsx",
+      "file_type": "code",
+      "source_file": "frontend/App.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_app_tsx_frontend_app",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "app.tsx"
+    },
+    {
+      "label": "API_BASE",
+      "file_type": "code",
+      "source_file": "frontend/src/api/client.ts",
+      "source_location": "L60",
+      "_origin": "ast",
+      "id": "frontend_src_api_client_api_base",
+      "community": 26,
+      "community_name": "useLocale",
+      "norm_label": "api_base"
+    },
+    {
       "label": "SortBar.tsx",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/components/SortBar.tsx",
@@ -6414,7 +6359,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "sortbar.tsx"
     },
     {
@@ -6425,7 +6370,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_icons",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "icons"
     },
     {
@@ -6436,7 +6381,7 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_keys",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "keys"
     },
     {
@@ -6447,41 +6392,19 @@
       "_origin": "ast",
       "id": "frontend_src_features_flight_search_components_sortbar_s",
       "community": 26,
-      "community_name": "searchStore.ts",
+      "community_name": "useLocale",
       "norm_label": "s"
     },
     {
-      "label": "searchStore.ts",
+      "label": "useExchangeRates.ts",
       "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
+      "source_file": "frontend/src/hooks/useExchangeRates.ts",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_store_searchstore",
+      "id": "frontend_src_hooks_useexchangerates",
       "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "searchstore.ts"
-    },
-    {
-      "label": "defaultFilters",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L39",
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_defaultfilters",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "defaultfilters"
-    },
-    {
-      "label": "searchActions",
-      "file_type": "code",
-      "source_file": "frontend/src/store/searchStore.ts",
-      "source_location": "L59",
-      "_origin": "ast",
-      "id": "frontend_src_store_searchstore_searchactions",
-      "community": 26,
-      "community_name": "searchStore.ts",
-      "norm_label": "searchactions"
+      "community_name": "useLocale",
+      "norm_label": "useexchangerates.ts"
     },
     {
       "label": "expo",
@@ -6704,17 +6627,6 @@
       "norm_label": "apifyerrormessage()"
     },
     {
-      "label": "flattenKiwiItems()",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L428",
-      "_origin": "ast",
-      "id": "backend_search_kiwi_apify_provider_flattenkiwiitems",
-      "community": 29,
-      "community_name": "KiwiApifyProvider",
-      "norm_label": "flattenkiwiitems()"
-    },
-    {
       "label": "NewKiwiApifyProvider()",
       "file_type": "code",
       "source_file": "backend/search/kiwi_apify_provider.go",
@@ -6759,17 +6671,6 @@
       "norm_label": "testapifyerrormessage()"
     },
     {
-      "label": "net/http.Client",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_net_http_client",
-      "community": 29,
-      "community_name": "KiwiApifyProvider",
-      "norm_label": "net/http.client"
-    },
-    {
       "label": "KiwiApifyProvider",
       "file_type": "code",
       "source_file": "backend/search/kiwi_apify_provider.go",
@@ -6790,6 +6691,28 @@
       "community": 29,
       "community_name": "KiwiApifyProvider",
       "norm_label": ".actorid()"
+    },
+    {
+      "label": ".buildActorInput()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L239",
+      "_origin": "ast",
+      "id": "search_kiwiapifyprovider_buildactorinput",
+      "community": 29,
+      "community_name": "KiwiApifyProvider",
+      "norm_label": ".buildactorinput()"
+    },
+    {
+      "label": ".cacheKey()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L185",
+      "_origin": "ast",
+      "id": "search_kiwiapifyprovider_cachekey",
+      "community": 29,
+      "community_name": "KiwiApifyProvider",
+      "norm_label": ".cachekey()"
     },
     {
       "label": ".fetchDatasetItems()",
@@ -6823,6 +6746,17 @@
       "community": 29,
       "community_name": "KiwiApifyProvider",
       "norm_label": ".pingtoken()"
+    },
+    {
+      "label": ".Search()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L199",
+      "_origin": "ast",
+      "id": "search_kiwiapifyprovider_search",
+      "community": 29,
+      "community_name": "KiwiApifyProvider",
+      "norm_label": ".search()"
     },
     {
       "label": ".setAuth()",
@@ -7294,7 +7228,7 @@
       "_origin": "ast",
       "id": "backend_airportcoord",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "airportcoord"
     },
     {
@@ -7305,7 +7239,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_cache.go"
     },
     {
@@ -7316,7 +7250,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_exploreestimateincurrency",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "exploreestimateincurrency()"
     },
     {
@@ -7327,7 +7261,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_exploreestimatertpriceusd",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "exploreestimatertpriceusd()"
     },
     {
@@ -7338,7 +7272,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_explorepricecacheget",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepricecacheget()"
     },
     {
@@ -7349,7 +7283,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_explorepricecacheisfresh",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepricecacheisfresh()"
     },
     {
@@ -7360,7 +7294,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_explorepricecachekey",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepricecachekey()"
     },
     {
@@ -7371,7 +7305,7 @@
       "_origin": "ast",
       "id": "backend_explore_cache_explorepricecacheput",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepricecacheput()"
     },
     {
@@ -7382,7 +7316,7 @@
       "_origin": "ast",
       "id": "backend_explore_coords",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_coords.go"
     },
     {
@@ -7393,7 +7327,7 @@
       "_origin": "ast",
       "id": "backend_explore_coords_getairportcoord",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "getairportcoord()"
     },
     {
@@ -7404,7 +7338,7 @@
       "_origin": "ast",
       "id": "backend_explore_coords_haversinekm",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "haversinekm()"
     },
     {
@@ -7415,7 +7349,7 @@
       "_origin": "ast",
       "id": "backend_explore_coords_initexplorecoordsmap",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "initexplorecoordsmap()"
     },
     {
@@ -7426,7 +7360,7 @@
       "_origin": "ast",
       "id": "backend_explore_metro",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_metro.go"
     },
     {
@@ -7437,7 +7371,7 @@
       "_origin": "ast",
       "id": "backend_explore_metro_exploremetrokey",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "exploremetrokey()"
     },
     {
@@ -7448,7 +7382,7 @@
       "_origin": "ast",
       "id": "backend_explore_pool",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_pool.go"
     },
     {
@@ -7459,7 +7393,7 @@
       "_origin": "ast",
       "id": "backend_explore_pool_explorepoolorderedfororigin",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepoolorderedfororigin()"
     },
     {
@@ -7470,7 +7404,7 @@
       "_origin": "ast",
       "id": "backend_explore_pool_test",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_pool_test.go"
     },
     {
@@ -7481,19 +7415,8 @@
       "_origin": "ast",
       "id": "backend_explore_pool_test_testexplorepoolorderedfororigin_excludessamemetro",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "testexplorepoolorderedfororigin_excludessamemetro()"
-    },
-    {
-      "label": "explore_session.go",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_explore_session",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "explore_session.go"
     },
     {
       "label": "explore_session_build.go",
@@ -7503,7 +7426,7 @@
       "_origin": "ast",
       "id": "backend_explore_session_build",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_session_build.go"
     },
     {
@@ -7514,19 +7437,8 @@
       "_origin": "ast",
       "id": "backend_explore_session_build_explorebuildrowsandqueue",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorebuildrowsandqueue()"
-    },
-    {
-      "label": "mergeExplorePriceRows()",
-      "file_type": "code",
-      "source_file": "backend/explore_session_build.go",
-      "source_location": "L77",
-      "_origin": "ast",
-      "id": "backend_explore_session_build_mergeexplorepricerows",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "mergeexplorepricerows()"
     },
     {
       "label": "explore_session_build_test.go",
@@ -7536,7 +7448,7 @@
       "_origin": "ast",
       "id": "backend_explore_session_build_test",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explore_session_build_test.go"
     },
     {
@@ -7547,7 +7459,7 @@
       "_origin": "ast",
       "id": "backend_explore_session_build_test_testexplorebuildrowsandqueue_coldcachequeueswithoutestimaterows",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "testexplorebuildrowsandqueue_coldcachequeueswithoutestimaterows()"
     },
     {
@@ -7558,63 +7470,8 @@
       "_origin": "ast",
       "id": "backend_explore_session_build_test_testexplorebuildrowsandqueue_freshcachenotqueued",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "testexplorebuildrowsandqueue_freshcachenotqueued()"
-    },
-    {
-      "label": "exploreSessionKey()",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L76",
-      "_origin": "ast",
-      "id": "backend_explore_session_exploresessionkey",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "exploresessionkey()"
-    },
-    {
-      "label": "getExploreSession()",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L62",
-      "_origin": "ast",
-      "id": "backend_explore_session_getexploresession",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "getexploresession()"
-    },
-    {
-      "label": "newExploreSessionID()",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L49",
-      "_origin": "ast",
-      "id": "backend_explore_session_newexploresessionid",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "newexploresessionid()"
-    },
-    {
-      "label": "putExploreSession()",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L55",
-      "_origin": "ast",
-      "id": "backend_explore_session_putexploresession",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "putexploresession()"
-    },
-    {
-      "label": "exploreDestRow",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L290",
-      "_origin": "ast",
-      "id": "backend_exploredestrow",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "exploredestrow"
     },
     {
       "label": "exploreLiveCandidate",
@@ -7624,7 +7481,7 @@
       "_origin": "ast",
       "id": "backend_explorelivecandidate",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorelivecandidate"
     },
     {
@@ -7635,470 +7492,8 @@
       "_origin": "ast",
       "id": "backend_explorepricecacheentry",
       "community": 30,
-      "community_name": "time.Time",
+      "community_name": "exploreBuildRowsAndQueue",
       "norm_label": "explorepricecacheentry"
-    },
-    {
-      "label": "exploreSession",
-      "file_type": "code",
-      "source_file": "backend/explore_session.go",
-      "source_location": "L14",
-      "_origin": "ast",
-      "id": "backend_exploresession",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "exploresession"
-    },
-    {
-      "label": "FullRoundTrip",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L17",
-      "_origin": "ast",
-      "id": "backend_fullroundtrip",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "fullroundtrip"
-    },
-    {
-      "label": "gf2_deals.go",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_gf2_deals",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2_deals.go"
-    },
-    {
-      "label": "attachReturnLegKeepPrice()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L190",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_attachreturnlegkeepprice",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "attachreturnlegkeepprice()"
-    },
-    {
-      "label": "ensureRoundTripLegs()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L160",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_ensureroundtriplegs",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "ensureroundtriplegs()"
-    },
-    {
-      "label": "exploreDestRowsToMaps()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L326",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_exploredestrowstomaps",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "exploredestrowstomaps()"
-    },
-    {
-      "label": "exploreRunLiveBatch()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L394",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_explorerunlivebatch",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "explorerunlivebatch()"
-    },
-    {
-      "label": "gf2ExploreResolveDeps()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2exploreresolvedeps",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2exploreresolvedeps()"
-    },
-    {
-      "label": "gf2ExploreSearchOneDestination()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L342",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2exploresearchonedestination",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2exploresearchonedestination()"
-    },
-    {
-      "label": "gf2OneRoundTrip()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L113",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2oneroundtrip",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2oneroundtrip()"
-    },
-    {
-      "label": "gf2SearchDealsOnDates()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L234",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2searchdealsondates",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2searchdealsondates()"
-    },
-    {
-      "label": "gf2SearchDealsRange()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L197",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2searchdealsrange",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2searchdealsrange()"
-    },
-    {
-      "label": "gf2SearchMonthDeals()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L206",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_gf2searchmonthdeals",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2searchmonthdeals()"
-    },
-    {
-      "label": "FlightOption",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_go_flightoption",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "flightoption"
-    },
-    {
-      "label": "isGF2RateLimitErr()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L297",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_isgf2ratelimiterr",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "isgf2ratelimiterr()"
-    },
-    {
-      "label": "outboundDatesForMonthBookable()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L40",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_outbounddatesformonthbookable",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "outbounddatesformonthbookable()"
-    },
-    {
-      "label": "pickCheapestGF2Option()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L98",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_pickcheapestgf2option",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "pickcheapestgf2option()"
-    },
-    {
-      "label": "subsampleDatesEvenly()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L55",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_subsampledatesevenly",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "subsampledatesevenly()"
-    },
-    {
-      "label": "totalStopsInOption()",
-      "file_type": "code",
-      "source_file": "backend/gf2_deals.go",
-      "source_location": "L85",
-      "_origin": "ast",
-      "id": "backend_gf2_deals_totalstopsinoption",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "totalstopsinoption()"
-    },
-    {
-      "label": "main.go",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "backend_main",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "main.go"
-    },
-    {
-      "label": "buildDealMessage()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L174",
-      "_origin": "ast",
-      "id": "backend_main_builddealmessage",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "builddealmessage()"
-    },
-    {
-      "label": "buildDetailedItinerary()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L115",
-      "_origin": "ast",
-      "id": "backend_main_builddetaileditinerary",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "builddetaileditinerary()"
-    },
-    {
-      "label": "displayFlightPage()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L212",
-      "_origin": "ast",
-      "id": "backend_main_displayflightpage",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "displayflightpage()"
-    },
-    {
-      "label": "formatDateAndTime()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L57",
-      "_origin": "ast",
-      "id": "backend_main_formatdateandtime",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "formatdateandtime()"
-    },
-    {
-      "label": "formatDuration()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L28",
-      "_origin": "ast",
-      "id": "backend_main_formatduration",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "formatduration()"
-    },
-    {
-      "label": "getItinerarySummary()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L71",
-      "_origin": "ast",
-      "id": "backend_main_getitinerarysummary",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "getitinerarysummary()"
-    },
-    {
-      "label": "getItinerarySummaryAt()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L77",
-      "_origin": "ast",
-      "id": "backend_main_getitinerarysummaryat",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "getitinerarysummaryat()"
-    },
-    {
-      "label": "handleCallback()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L373",
-      "_origin": "ast",
-      "id": "backend_main_handlecallback",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "handlecallback()"
-    },
-    {
-      "label": "handleCommands()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L491",
-      "_origin": "ast",
-      "id": "backend_main_handlecommands",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "handlecommands()"
-    },
-    {
-      "label": "main()",
-      "file_type": "code",
-      "source_file": "backend/main.go",
-      "source_location": "L638",
-      "_origin": "ast",
-      "id": "backend_main_main",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "main()"
-    },
-    {
-      "label": "GoogleFlights2Provider",
-      "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L27",
-      "_origin": "ast",
-      "id": "backend_search_googleflights2_provider_go_search_googleflights2provider",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "googleflights2provider"
-    },
-    {
-      "label": "handleExplore()",
-      "file_type": "code",
-      "source_file": "backend/server.go",
-      "source_location": "L1781",
-      "_origin": "ast",
-      "id": "backend_server_handleexplore",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "handleexplore()"
-    },
-    {
-      "label": "FlightLeg",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "flightleg",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "flightleg"
-    },
-    {
-      "label": "context.Context",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_context_context",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "context.context"
-    },
-    {
-      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.BotAPI",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_botapi",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.botapi"
-    },
-    {
-      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.InlineKeyboardMarkup",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_inlinekeyboardmarkup",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.inlinekeyboardmarkup"
-    },
-    {
-      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.Update",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_update",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.update"
-    },
-    {
-      "label": "sync.Mutex",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_sync_mutex",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "sync.mutex"
-    },
-    {
-      "label": "time.Time",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "go_type_time_time",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "time.time"
-    },
-    {
-      "label": "gf2RateLimiter",
-      "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "search_gf2ratelimiter",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": "gf2ratelimiter"
-    },
-    {
-      "label": ".allow()",
-      "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L60",
-      "_origin": "ast",
-      "id": "search_gf2ratelimiter_allow",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": ".allow()"
-    },
-    {
-      "label": ".Name()",
-      "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L152",
-      "_origin": "ast",
-      "id": "search_googleflights2provider_name",
-      "community": 30,
-      "community_name": "time.Time",
-      "norm_label": ".name()"
     },
     {
       "label": "backend_api_contracts.md",
@@ -8343,17 +7738,6 @@
       "norm_label": "testitineraryfingerprintstable()"
     },
     {
-      "label": "TestKiwiApifyTimeout()",
-      "file_type": "code",
-      "source_file": "backend/search/multi_provider_test.go",
-      "source_location": "L134",
-      "_origin": "ast",
-      "id": "backend_search_multi_provider_test_testkiwiapifytimeout",
-      "community": 32,
-      "community_name": "testing.T",
-      "norm_label": "testkiwiapifytimeout()"
-    },
-    {
       "label": "TestParseKiwiApifyItemsSolidcodeShape()",
       "file_type": "code",
       "source_file": "backend/search/multi_provider_test.go",
@@ -8385,6 +7769,50 @@
       "community": 32,
       "community_name": "testing.T",
       "norm_label": "testregistrysearchallpartialfailure()"
+    },
+    {
+      "label": "openjaw_test.go",
+      "file_type": "code",
+      "source_file": "backend/search/openjaw_test.go",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "backend_search_openjaw_test",
+      "community": 32,
+      "community_name": "testing.T",
+      "norm_label": "openjaw_test.go"
+    },
+    {
+      "label": "TestIsOpenJaw()",
+      "file_type": "code",
+      "source_file": "backend/search/openjaw_test.go",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "backend_search_openjaw_test_testisopenjaw",
+      "community": 32,
+      "community_name": "testing.T",
+      "norm_label": "testisopenjaw()"
+    },
+    {
+      "label": "TestResolveReturnAirports_classic()",
+      "file_type": "code",
+      "source_file": "backend/search/openjaw_test.go",
+      "source_location": "L5",
+      "_origin": "ast",
+      "id": "backend_search_openjaw_test_testresolvereturnairports_classic",
+      "community": 32,
+      "community_name": "testing.T",
+      "norm_label": "testresolvereturnairports_classic()"
+    },
+    {
+      "label": "TestResolveReturnAirports_openJaw()",
+      "file_type": "code",
+      "source_file": "backend/search/openjaw_test.go",
+      "source_location": "L12",
+      "_origin": "ast",
+      "id": "backend_search_openjaw_test_testresolvereturnairports_openjaw",
+      "community": 32,
+      "community_name": "testing.T",
+      "norm_label": "testresolvereturnairports_openjaw()"
     },
     {
       "label": "applySoftStrictBaggage()",
@@ -8706,39 +8134,6 @@
       "norm_label": "testing.t"
     },
     {
-      "label": "stubProvider",
-      "file_type": "code",
-      "source_file": "backend/search/multi_provider_test.go",
-      "source_location": "L164",
-      "_origin": "ast",
-      "id": "search_stubprovider",
-      "community": 32,
-      "community_name": "testing.T",
-      "norm_label": "stubprovider"
-    },
-    {
-      "label": ".Name()",
-      "file_type": "code",
-      "source_file": "backend/search/multi_provider_test.go",
-      "source_location": "L170",
-      "_origin": "ast",
-      "id": "search_stubprovider_name",
-      "community": 32,
-      "community_name": "testing.T",
-      "norm_label": ".name()"
-    },
-    {
-      "label": ".Search()",
-      "file_type": "code",
-      "source_file": "backend/search/multi_provider_test.go",
-      "source_location": "L171",
-      "_origin": "ast",
-      "id": "search_stubprovider_search",
-      "community": 32,
-      "community_name": "testing.T",
-      "norm_label": ".search()"
-    },
-    {
       "label": "FlightDetailsModal.tsx",
       "file_type": "code",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
@@ -8970,15 +8365,158 @@
       "norm_label": "affiliate.ts"
     },
     {
-      "label": "dealsCache.ts",
+      "label": "main.go",
       "file_type": "code",
-      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_file": "backend/main.go",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_utils_dealscache",
+      "id": "backend_main",
       "community": 38,
-      "community_name": "MonthDealsScreen",
-      "norm_label": "dealscache.ts"
+      "community_name": "main.go",
+      "norm_label": "main.go"
+    },
+    {
+      "label": "buildDealMessage()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L174",
+      "_origin": "ast",
+      "id": "backend_main_builddealmessage",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "builddealmessage()"
+    },
+    {
+      "label": "buildDetailedItinerary()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L115",
+      "_origin": "ast",
+      "id": "backend_main_builddetaileditinerary",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "builddetaileditinerary()"
+    },
+    {
+      "label": "displayFlightPage()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L212",
+      "_origin": "ast",
+      "id": "backend_main_displayflightpage",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "displayflightpage()"
+    },
+    {
+      "label": "formatDateAndTime()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L57",
+      "_origin": "ast",
+      "id": "backend_main_formatdateandtime",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "formatdateandtime()"
+    },
+    {
+      "label": "formatDuration()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L28",
+      "_origin": "ast",
+      "id": "backend_main_formatduration",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "formatduration()"
+    },
+    {
+      "label": "getItinerarySummary()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L71",
+      "_origin": "ast",
+      "id": "backend_main_getitinerarysummary",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "getitinerarysummary()"
+    },
+    {
+      "label": "getItinerarySummaryAt()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L77",
+      "_origin": "ast",
+      "id": "backend_main_getitinerarysummaryat",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "getitinerarysummaryat()"
+    },
+    {
+      "label": "handleCallback()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L373",
+      "_origin": "ast",
+      "id": "backend_main_handlecallback",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "handlecallback()"
+    },
+    {
+      "label": "handleCommands()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L491",
+      "_origin": "ast",
+      "id": "backend_main_handlecommands",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "handlecommands()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "backend/main.go",
+      "source_location": "L638",
+      "_origin": "ast",
+      "id": "backend_main_main",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "main()"
+    },
+    {
+      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.BotAPI",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_botapi",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.botapi"
+    },
+    {
+      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.InlineKeyboardMarkup",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_inlinekeyboardmarkup",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.inlinekeyboardmarkup"
+    },
+    {
+      "label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.Update",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_github_com_go_telegram_bot_api_telegram_bot_api_v5_update",
+      "community": 38,
+      "community_name": "main.go",
+      "norm_label": "github.com/go-telegram-bot-api/telegram-bot-api/v5.update"
     },
     {
       "label": "DisplayPrice.tsx",
@@ -8992,15 +8530,26 @@
       "norm_label": "displayprice.tsx"
     },
     {
-      "label": "useExchangeRates.ts",
+      "label": "CheaperCitiesSection.tsx",
       "file_type": "code",
-      "source_file": "frontend/src/hooks/useExchangeRates.ts",
+      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_hooks_useexchangerates",
+      "id": "frontend_src_features_flight_search_components_cheapercitiessection",
       "community": 39,
       "community_name": "exchangeRates.ts",
-      "norm_label": "useexchangerates.ts"
+      "norm_label": "cheapercitiessection.tsx"
+    },
+    {
+      "label": "s",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx",
+      "source_location": "L126",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_cheapercitiessection_s",
+      "community": 39,
+      "community_name": "exchangeRates.ts",
+      "norm_label": "s"
     },
     {
       "label": "exchangeRates.ts",
@@ -9036,213 +8585,257 @@
       "norm_label": "ratestousd"
     },
     {
-      "label": "newGF2Cache()",
+      "label": "FullRoundTrip",
       "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L76",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L17",
       "_origin": "ast",
-      "id": "backend_search_googleflights2_provider_newgf2cache",
+      "id": "backend_fullroundtrip",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "newgf2cache()"
+      "community_name": "time.Time",
+      "norm_label": "fullroundtrip"
     },
     {
-      "label": "providers.go",
+      "label": "gf2_deals.go",
       "file_type": "code",
-      "source_file": "backend/search/providers.go",
+      "source_file": "backend/gf2_deals.go",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "backend_search_providers",
+      "id": "backend_gf2_deals",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "providers.go"
+      "community_name": "time.Time",
+      "norm_label": "gf2_deals.go"
     },
     {
-      "label": "MultiSearchResult",
+      "label": "attachReturnLegKeepPrice()",
       "file_type": "code",
-      "source_file": "backend/search/providers.go",
-      "source_location": "L121",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L190",
       "_origin": "ast",
-      "id": "backend_search_providers_go_search_multisearchresult",
+      "id": "backend_gf2_deals_attachreturnlegkeepprice",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "multisearchresult"
+      "community_name": "time.Time",
+      "norm_label": "attachreturnlegkeepprice()"
     },
     {
-      "label": "ProviderResult",
+      "label": "ensureRoundTripLegs()",
       "file_type": "code",
-      "source_file": "backend/search/providers.go",
-      "source_location": "L68",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L160",
       "_origin": "ast",
-      "id": "backend_search_providers_go_search_providerresult",
+      "id": "backend_gf2_deals_ensureroundtriplegs",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "providerresult"
+      "community_name": "time.Time",
+      "norm_label": "ensureroundtriplegs()"
     },
     {
-      "label": "ProviderSearchStats",
+      "label": "exploreRunLiveBatch()",
       "file_type": "code",
-      "source_file": "backend/search/providers.go",
-      "source_location": "L112",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L394",
       "_origin": "ast",
-      "id": "backend_search_providers_go_search_providersearchstats",
+      "id": "backend_gf2_deals_explorerunlivebatch",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "providersearchstats"
+      "community_name": "time.Time",
+      "norm_label": "explorerunlivebatch()"
     },
     {
-      "label": "sync.RWMutex",
+      "label": "gf2ExploreResolveDeps()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L305",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2exploreresolvedeps",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2exploreresolvedeps()"
+    },
+    {
+      "label": "gf2ExploreSearchOneDestination()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L342",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2exploresearchonedestination",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2exploresearchonedestination()"
+    },
+    {
+      "label": "gf2OneRoundTrip()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L113",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2oneroundtrip",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2oneroundtrip()"
+    },
+    {
+      "label": "gf2SearchDealsOnDates()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L234",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2searchdealsondates",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2searchdealsondates()"
+    },
+    {
+      "label": "gf2SearchDealsRange()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L197",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2searchdealsrange",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2searchdealsrange()"
+    },
+    {
+      "label": "gf2SearchMonthDeals()",
+      "file_type": "code",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L206",
+      "_origin": "ast",
+      "id": "backend_gf2_deals_gf2searchmonthdeals",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "gf2searchmonthdeals()"
+    },
+    {
+      "label": "FlightOption",
       "file_type": "code",
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "go_type_sync_rwmutex",
+      "id": "backend_gf2_deals_go_flightoption",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "sync.rwmutex"
+      "community_name": "time.Time",
+      "norm_label": "flightoption"
     },
     {
-      "label": "gf2Cache",
+      "label": "isGF2RateLimitErr()",
       "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L36",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L297",
       "_origin": "ast",
-      "id": "search_gf2cache",
+      "id": "backend_gf2_deals_isgf2ratelimiterr",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "gf2cache"
+      "community_name": "time.Time",
+      "norm_label": "isgf2ratelimiterr()"
     },
     {
-      "label": ".evict()",
+      "label": "outboundDatesForMonthBookable()",
       "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L104",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L40",
       "_origin": "ast",
-      "id": "search_gf2cache_evict",
+      "id": "backend_gf2_deals_outbounddatesformonthbookable",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".evict()"
+      "community_name": "time.Time",
+      "norm_label": "outbounddatesformonthbookable()"
     },
     {
-      "label": ".get()",
+      "label": "pickCheapestGF2Option()",
       "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L88",
-      "_origin": "ast",
-      "id": "search_gf2cache_get",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".get()"
-    },
-    {
-      "label": ".set()",
-      "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
+      "source_file": "backend/gf2_deals.go",
       "source_location": "L98",
       "_origin": "ast",
-      "id": "search_gf2cache_set",
+      "id": "backend_gf2_deals_pickcheapestgf2option",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".set()"
+      "community_name": "time.Time",
+      "norm_label": "pickcheapestgf2option()"
     },
     {
-      "label": "gf2CacheEntry",
+      "label": "subsampleDatesEvenly()",
       "file_type": "code",
-      "source_file": "backend/search/googleflights2_provider.go",
-      "source_location": "L41",
-      "_origin": "ast",
-      "id": "search_gf2cacheentry",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "gf2cacheentry"
-    },
-    {
-      "label": "kiwiCache",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L39",
-      "_origin": "ast",
-      "id": "search_kiwicache",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "kiwicache"
-    },
-    {
-      "label": ".evict()",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L174",
-      "_origin": "ast",
-      "id": "search_kiwicache_evict",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".evict()"
-    },
-    {
-      "label": ".get()",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L158",
-      "_origin": "ast",
-      "id": "search_kiwicache_get",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".get()"
-    },
-    {
-      "label": ".set()",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L168",
-      "_origin": "ast",
-      "id": "search_kiwicache_set",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": ".set()"
-    },
-    {
-      "label": "kiwiCacheEntry",
-      "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L44",
-      "_origin": "ast",
-      "id": "search_kiwicacheentry",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "kiwicacheentry"
-    },
-    {
-      "label": "Layover",
-      "file_type": "code",
-      "source_file": "backend/search/providers.go",
-      "source_location": "L61",
-      "_origin": "ast",
-      "id": "search_layover",
-      "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "layover"
-    },
-    {
-      "label": "Monetary",
-      "file_type": "code",
-      "source_file": "backend/search/providers.go",
+      "source_file": "backend/gf2_deals.go",
       "source_location": "L55",
       "_origin": "ast",
-      "id": "search_monetary",
+      "id": "backend_gf2_deals_subsampledatesevenly",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "monetary"
+      "community_name": "time.Time",
+      "norm_label": "subsampledatesevenly()"
     },
     {
-      "label": "Provider",
+      "label": "totalStopsInOption()",
       "file_type": "code",
-      "source_file": "backend/search/providers.go",
-      "source_location": "L106",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L85",
       "_origin": "ast",
-      "id": "search_provider",
+      "id": "backend_gf2_deals_totalstopsinoption",
       "community": 4,
-      "community_name": "ProviderResult",
-      "norm_label": "provider"
+      "community_name": "time.Time",
+      "norm_label": "totalstopsinoption()"
+    },
+    {
+      "label": "GoogleFlights2Provider",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L27",
+      "_origin": "ast",
+      "id": "backend_search_googleflights2_provider_go_search_googleflights2provider",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "googleflights2provider"
+    },
+    {
+      "label": "FlightLeg",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "flightleg",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "flightleg"
+    },
+    {
+      "label": "context.Context",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_context_context",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "context.context"
+    },
+    {
+      "label": "net/http.Client",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_net_http_client",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "net/http.client"
+    },
+    {
+      "label": "time.Time",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_time_time",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": "time.time"
+    },
+    {
+      "label": ".Name()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L152",
+      "_origin": "ast",
+      "id": "search_googleflights2provider_name",
+      "community": 4,
+      "community_name": "time.Time",
+      "norm_label": ".name()"
     },
     {
       "label": "startExploreSessionCleanup()",
@@ -9872,6 +9465,72 @@
       "norm_label": "sb"
     },
     {
+      "label": "dealsStore.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_store_dealsstore",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "dealsstore.ts"
+    },
+    {
+      "label": "dealsActions",
+      "file_type": "code",
+      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_location": "L55",
+      "_origin": "ast",
+      "id": "frontend_src_store_dealsstore_dealsactions",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "dealsactions"
+    },
+    {
+      "label": "now",
+      "file_type": "code",
+      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_location": "L23",
+      "_origin": "ast",
+      "id": "frontend_src_store_dealsstore_now",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "now"
+    },
+    {
+      "label": "useDealsStore",
+      "file_type": "code",
+      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_location": "L39",
+      "_origin": "ast",
+      "id": "frontend_src_store_dealsstore_usedealsstore",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "usedealsstore"
+    },
+    {
+      "label": "store/index.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/store/index.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_store_index",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "store/index.ts"
+    },
+    {
+      "label": "dealsCache.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/dealsCache.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_utils_dealscache",
+      "community": 5,
+      "community_name": "MonthDealsScreen.tsx",
+      "norm_label": "dealscache.ts"
+    },
+    {
       "label": "NOTE: `data` is intentionally NOT in deps \u2014 already captured by\u2026",
       "file_type": "rationale",
       "source_file": "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx",
@@ -9918,59 +9577,147 @@
       "norm_label": "flightcaptainweb"
     },
     {
-      "label": "dealsStore.ts",
+      "label": "explore_session.go",
       "file_type": "code",
-      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_file": "backend/explore_session.go",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_store_dealsstore",
+      "id": "backend_explore_session",
       "community": 53,
-      "community_name": "store/index.ts",
-      "norm_label": "dealsstore.ts"
+      "community_name": "handleExplore",
+      "norm_label": "explore_session.go"
     },
     {
-      "label": "dealsActions",
+      "label": "mergeExplorePriceRows()",
       "file_type": "code",
-      "source_file": "frontend/src/store/dealsStore.ts",
+      "source_file": "backend/explore_session_build.go",
+      "source_location": "L77",
+      "_origin": "ast",
+      "id": "backend_explore_session_build_mergeexplorepricerows",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "mergeexplorepricerows()"
+    },
+    {
+      "label": "exploreSessionKey()",
+      "file_type": "code",
+      "source_file": "backend/explore_session.go",
+      "source_location": "L76",
+      "_origin": "ast",
+      "id": "backend_explore_session_exploresessionkey",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "exploresessionkey()"
+    },
+    {
+      "label": "getExploreSession()",
+      "file_type": "code",
+      "source_file": "backend/explore_session.go",
+      "source_location": "L62",
+      "_origin": "ast",
+      "id": "backend_explore_session_getexploresession",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "getexploresession()"
+    },
+    {
+      "label": "newExploreSessionID()",
+      "file_type": "code",
+      "source_file": "backend/explore_session.go",
+      "source_location": "L49",
+      "_origin": "ast",
+      "id": "backend_explore_session_newexploresessionid",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "newexploresessionid()"
+    },
+    {
+      "label": "putExploreSession()",
+      "file_type": "code",
+      "source_file": "backend/explore_session.go",
       "source_location": "L55",
       "_origin": "ast",
-      "id": "frontend_src_store_dealsstore_dealsactions",
+      "id": "backend_explore_session_putexploresession",
       "community": 53,
-      "community_name": "store/index.ts",
-      "norm_label": "dealsactions"
+      "community_name": "handleExplore",
+      "norm_label": "putexploresession()"
     },
     {
-      "label": "now",
+      "label": "exploreDestRow",
       "file_type": "code",
-      "source_file": "frontend/src/store/dealsStore.ts",
-      "source_location": "L23",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L290",
       "_origin": "ast",
-      "id": "frontend_src_store_dealsstore_now",
+      "id": "backend_exploredestrow",
       "community": 53,
-      "community_name": "store/index.ts",
-      "norm_label": "now"
+      "community_name": "handleExplore",
+      "norm_label": "exploredestrow"
     },
     {
-      "label": "useDealsStore",
+      "label": "exploreSession",
       "file_type": "code",
-      "source_file": "frontend/src/store/dealsStore.ts",
-      "source_location": "L39",
+      "source_file": "backend/explore_session.go",
+      "source_location": "L14",
       "_origin": "ast",
-      "id": "frontend_src_store_dealsstore_usedealsstore",
+      "id": "backend_exploresession",
       "community": 53,
-      "community_name": "store/index.ts",
-      "norm_label": "usedealsstore"
+      "community_name": "handleExplore",
+      "norm_label": "exploresession"
     },
     {
-      "label": "store/index.ts",
+      "label": "exploreDestRowsToMaps()",
       "file_type": "code",
-      "source_file": "frontend/src/store/index.ts",
-      "source_location": "L1",
+      "source_file": "backend/gf2_deals.go",
+      "source_location": "L326",
       "_origin": "ast",
-      "id": "frontend_src_store_index",
+      "id": "backend_gf2_deals_exploredestrowstomaps",
       "community": 53,
-      "community_name": "store/index.ts",
-      "norm_label": "store/index.ts"
+      "community_name": "handleExplore",
+      "norm_label": "exploredestrowstomaps()"
+    },
+    {
+      "label": "handleExplore()",
+      "file_type": "code",
+      "source_file": "backend/server.go",
+      "source_location": "L1781",
+      "_origin": "ast",
+      "id": "backend_server_handleexplore",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "handleexplore()"
+    },
+    {
+      "label": "sync.Mutex",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "go_type_sync_mutex",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "sync.mutex"
+    },
+    {
+      "label": "gf2RateLimiter",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L46",
+      "_origin": "ast",
+      "id": "search_gf2ratelimiter",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": "gf2ratelimiter"
+    },
+    {
+      "label": ".allow()",
+      "file_type": "code",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L60",
+      "_origin": "ast",
+      "id": "search_gf2ratelimiter_allow",
+      "community": 53,
+      "community_name": "handleExplore",
+      "norm_label": ".allow()"
     },
     {
       "label": "DatePickerCalendar.tsx",
@@ -10061,37 +9808,70 @@
       "norm_label": "searchcache.ts"
     },
     {
-      "label": "CalendarModal.tsx",
+      "label": "PassengerCabinPicker.tsx",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal",
+      "id": "frontend_src_features_flight_search_components_passengercabinpicker",
       "community": 56,
-      "community_name": "CalendarModal.tsx",
-      "norm_label": "calendarmodal.tsx"
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "passengercabinpicker.tsx"
+    },
+    {
+      "label": "CABIN_OPTIONS",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_passengercabinpicker_cabin_options",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "cabin_options"
     },
     {
       "label": "styles",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
+      "source_file": "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx",
       "source_location": "L169",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_styles",
+      "id": "frontend_src_features_flight_search_components_passengercabinpicker_styles",
       "community": 56,
-      "community_name": "CalendarModal.tsx",
+      "community_name": "SearchFormContent.tsx",
       "norm_label": "styles"
     },
     {
-      "label": "WEEKDAYS",
+      "label": "SearchFormContent.tsx",
       "file_type": "code",
-      "source_file": "frontend/src/features/flight-search/components/CalendarModal.tsx",
-      "source_location": "L33",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_features_flight_search_components_calendarmodal_weekdays",
+      "id": "frontend_src_features_flight_search_components_searchformcontent",
       "community": 56,
-      "community_name": "CalendarModal.tsx",
-      "norm_label": "weekdays"
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "searchformcontent.tsx"
+    },
+    {
+      "label": "s",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L206",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_searchformcontent_s",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "s"
+    },
+    {
+      "label": "SEARCH_PHRASES",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/SearchFormContent.tsx",
+      "source_location": "L24",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_searchformcontent_search_phrases",
+      "community": 56,
+      "community_name": "SearchFormContent.tsx",
+      "norm_label": "search_phrases"
     },
     {
       "label": "explore.ts",
@@ -10182,6 +9962,17 @@
       "norm_label": "firststring()"
     },
     {
+      "label": "flattenKiwiItems()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L428",
+      "_origin": "ast",
+      "id": "backend_search_kiwi_apify_provider_flattenkiwiitems",
+      "community": 58,
+      "community_name": "kiwi_apify_provider.go",
+      "norm_label": "flattenkiwiitems()"
+    },
+    {
       "label": "kiwiSegmentFromMap()",
       "file_type": "code",
       "source_file": "backend/search/kiwi_apify_provider.go",
@@ -10270,59 +10061,70 @@
       "norm_label": "segment"
     },
     {
-      "label": "airlines.ts",
+      "label": "ThemeContext.tsx",
       "file_type": "code",
-      "source_file": "frontend/src/data/airlines.ts",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "frontend_src_data_airlines",
+      "id": "frontend_src_theme_themecontext",
       "community": 59,
-      "community_name": "airlines.ts",
-      "norm_label": "airlines.ts"
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "themecontext.tsx"
     },
     {
-      "label": "AIRLINE_NAMES",
+      "label": "ACCENT",
       "file_type": "code",
-      "source_file": "frontend/src/data/airlines.ts",
-      "source_location": "L3",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L30",
       "_origin": "ast",
-      "id": "frontend_src_data_airlines_airline_names",
+      "id": "frontend_src_theme_themecontext_accent",
       "community": 59,
-      "community_name": "airlines.ts",
-      "norm_label": "airline_names"
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "accent"
     },
     {
-      "label": "airlinesFull.ts",
+      "label": "darkTheme",
       "file_type": "code",
-      "source_file": "frontend/src/data/airlinesFull.ts",
-      "source_location": "L1",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L39",
       "_origin": "ast",
-      "id": "frontend_src_data_airlinesfull",
+      "id": "frontend_src_theme_themecontext_darktheme",
       "community": 59,
-      "community_name": "airlines.ts",
-      "norm_label": "airlinesfull.ts"
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "darktheme"
     },
     {
-      "label": "AIRLINE_FULL_NAMES",
+      "label": "lightTheme",
       "file_type": "code",
-      "source_file": "frontend/src/data/airlinesFull.ts",
-      "source_location": "L1",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L63",
       "_origin": "ast",
-      "id": "frontend_src_data_airlinesfull_airline_full_names",
+      "id": "frontend_src_theme_themecontext_lighttheme",
       "community": 59,
-      "community_name": "airlines.ts",
-      "norm_label": "airline_full_names"
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "lighttheme"
     },
     {
-      "label": "NOTE: This is a starter subset of IATA airlines.",
-      "file_type": "rationale",
-      "source_file": "frontend/src/data/airlinesFull.ts",
-      "source_location": "L2",
+      "label": "RADIUS",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L36",
       "_origin": "ast",
-      "id": "frontend_src_data_airlinesfull_rationale_2",
+      "id": "frontend_src_theme_themecontext_radius",
       "community": 59,
-      "community_name": "airlines.ts",
-      "norm_label": "note: this is a starter subset of iata airlines."
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "radius"
+    },
+    {
+      "label": "ThemeContext",
+      "file_type": "code",
+      "source_file": "frontend/src/theme/ThemeContext.tsx",
+      "source_location": "L92",
+      "_origin": "ast",
+      "id": "frontend_src_theme_themecontext_themecontext",
+      "community": 59,
+      "community_name": "ThemeContext.tsx",
+      "norm_label": "themecontext"
     },
     {
       "label": "package.json",
@@ -10886,48 +10688,48 @@
       "norm_label": "loadsearchsession()"
     },
     {
-      "label": "openjaw_test.go",
+      "label": "truncateGF2()",
       "file_type": "code",
-      "source_file": "backend/search/openjaw_test.go",
+      "source_file": "backend/search/googleflights2_provider.go",
+      "source_location": "L1421",
+      "_origin": "ast",
+      "id": "backend_search_googleflights2_provider_truncategf2",
+      "community": 62,
+      "community_name": "SearchRequest",
+      "norm_label": "truncategf2()"
+    },
+    {
+      "label": "providers.go",
+      "file_type": "code",
+      "source_file": "backend/search/providers.go",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "backend_search_openjaw_test",
+      "id": "backend_search_providers",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": "openjaw_test.go"
+      "norm_label": "providers.go"
     },
     {
-      "label": "TestIsOpenJaw()",
+      "label": "MultiSearchResult",
       "file_type": "code",
-      "source_file": "backend/search/openjaw_test.go",
-      "source_location": "L22",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L121",
       "_origin": "ast",
-      "id": "backend_search_openjaw_test_testisopenjaw",
+      "id": "backend_search_providers_go_search_multisearchresult",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": "testisopenjaw()"
+      "norm_label": "multisearchresult"
     },
     {
-      "label": "TestResolveReturnAirports_classic()",
+      "label": "ProviderSearchStats",
       "file_type": "code",
-      "source_file": "backend/search/openjaw_test.go",
-      "source_location": "L5",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L112",
       "_origin": "ast",
-      "id": "backend_search_openjaw_test_testresolvereturnairports_classic",
+      "id": "backend_search_providers_go_search_providersearchstats",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": "testresolvereturnairports_classic()"
-    },
-    {
-      "label": "TestResolveReturnAirports_openJaw()",
-      "file_type": "code",
-      "source_file": "backend/search/openjaw_test.go",
-      "source_location": "L12",
-      "_origin": "ast",
-      "id": "backend_search_openjaw_test_testresolvereturnairports_openjaw",
-      "community": 62,
-      "community_name": "SearchRequest",
-      "norm_label": "testresolvereturnairports_openjaw()"
+      "norm_label": "providersearchstats"
     },
     {
       "label": "IsOpenJaw()",
@@ -10950,6 +10752,17 @@
       "community": 62,
       "community_name": "SearchRequest",
       "norm_label": "resolvereturnairports()"
+    },
+    {
+      "label": "MultiSearchResult",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "multisearchresult",
+      "community": 62,
+      "community_name": "SearchRequest",
+      "norm_label": "multisearchresult"
     },
     {
       "label": ".buildCacheKey()",
@@ -10996,37 +10809,48 @@
       "norm_label": ".searchroundtrip()"
     },
     {
-      "label": ".buildActorInput()",
+      "label": "Layover",
       "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L239",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L61",
       "_origin": "ast",
-      "id": "search_kiwiapifyprovider_buildactorinput",
+      "id": "search_layover",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": ".buildactorinput()"
+      "norm_label": "layover"
     },
     {
-      "label": ".cacheKey()",
+      "label": "Monetary",
       "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L185",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L55",
       "_origin": "ast",
-      "id": "search_kiwiapifyprovider_cachekey",
+      "id": "search_monetary",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": ".cachekey()"
+      "norm_label": "monetary"
     },
     {
-      "label": ".Search()",
+      "label": "Provider",
       "file_type": "code",
-      "source_file": "backend/search/kiwi_apify_provider.go",
-      "source_location": "L199",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L106",
       "_origin": "ast",
-      "id": "search_kiwiapifyprovider_search",
+      "id": "search_provider",
       "community": 62,
       "community_name": "SearchRequest",
-      "norm_label": ".search()"
+      "norm_label": "provider"
+    },
+    {
+      "label": ".SearchAll()",
+      "file_type": "code",
+      "source_file": "backend/search/registry.go",
+      "source_location": "L118",
+      "_origin": "ast",
+      "id": "search_registry_searchall",
+      "community": 62,
+      "community_name": "SearchRequest",
+      "norm_label": ".searchall()"
     },
     {
       "label": "SearchRequest",
@@ -11047,7 +10871,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "dedupe.go"
     },
     {
@@ -11058,7 +10882,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_dedupeproviderresults",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "dedupeproviderresults()"
     },
     {
@@ -11069,7 +10893,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_itineraryfingerprint",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "itineraryfingerprint()"
     },
     {
@@ -11080,7 +10904,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_maxint",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "maxint()"
     },
     {
@@ -11091,7 +10915,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_mergeselftransfer",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "mergeselftransfer()"
     },
     {
@@ -11102,7 +10926,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_normalizeflightnumber",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "normalizeflightnumber()"
     },
     {
@@ -11113,7 +10937,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_roundtimekey",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "roundtimekey()"
     },
     {
@@ -11124,7 +10948,7 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_totalstops",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "totalstops()"
     },
     {
@@ -11135,30 +10959,206 @@
       "_origin": "ast",
       "id": "backend_search_dedupe_uniquestrings",
       "community": 63,
-      "community_name": "dedupe.go",
+      "community_name": "ProviderResult",
       "norm_label": "uniquestrings()"
     },
     {
-      "label": "MultiSearchResult",
+      "label": "TestKiwiApifyTimeout()",
+      "file_type": "code",
+      "source_file": "backend/search/multi_provider_test.go",
+      "source_location": "L134",
+      "_origin": "ast",
+      "id": "backend_search_multi_provider_test_testkiwiapifytimeout",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": "testkiwiapifytimeout()"
+    },
+    {
+      "label": "ProviderResult",
+      "file_type": "code",
+      "source_file": "backend/search/providers.go",
+      "source_location": "L68",
+      "_origin": "ast",
+      "id": "backend_search_providers_go_search_providerresult",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": "providerresult"
+    },
+    {
+      "label": "sync.RWMutex",
       "file_type": "code",
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "multisearchresult",
+      "id": "go_type_sync_rwmutex",
       "community": 63,
-      "community_name": "dedupe.go",
-      "norm_label": "multisearchresult"
+      "community_name": "ProviderResult",
+      "norm_label": "sync.rwmutex"
     },
     {
-      "label": ".SearchAll()",
+      "label": "kiwiCache",
       "file_type": "code",
-      "source_file": "backend/search/registry.go",
-      "source_location": "L118",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L39",
       "_origin": "ast",
-      "id": "search_registry_searchall",
+      "id": "search_kiwicache",
       "community": 63,
-      "community_name": "dedupe.go",
-      "norm_label": ".searchall()"
+      "community_name": "ProviderResult",
+      "norm_label": "kiwicache"
+    },
+    {
+      "label": ".evict()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L174",
+      "_origin": "ast",
+      "id": "search_kiwicache_evict",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": ".evict()"
+    },
+    {
+      "label": ".get()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L158",
+      "_origin": "ast",
+      "id": "search_kiwicache_get",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": ".get()"
+    },
+    {
+      "label": ".set()",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L168",
+      "_origin": "ast",
+      "id": "search_kiwicache_set",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": ".set()"
+    },
+    {
+      "label": "kiwiCacheEntry",
+      "file_type": "code",
+      "source_file": "backend/search/kiwi_apify_provider.go",
+      "source_location": "L44",
+      "_origin": "ast",
+      "id": "search_kiwicacheentry",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": "kiwicacheentry"
+    },
+    {
+      "label": "stubProvider",
+      "file_type": "code",
+      "source_file": "backend/search/multi_provider_test.go",
+      "source_location": "L164",
+      "_origin": "ast",
+      "id": "search_stubprovider",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": "stubprovider"
+    },
+    {
+      "label": ".Name()",
+      "file_type": "code",
+      "source_file": "backend/search/multi_provider_test.go",
+      "source_location": "L170",
+      "_origin": "ast",
+      "id": "search_stubprovider_name",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": ".name()"
+    },
+    {
+      "label": ".Search()",
+      "file_type": "code",
+      "source_file": "backend/search/multi_provider_test.go",
+      "source_location": "L171",
+      "_origin": "ast",
+      "id": "search_stubprovider_search",
+      "community": 63,
+      "community_name": "ProviderResult",
+      "norm_label": ".search()"
+    },
+    {
+      "label": "searchStore.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "searchstore.ts"
+    },
+    {
+      "label": "defaultFilters",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L39",
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_defaultfilters",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "defaultfilters"
+    },
+    {
+      "label": "searchActions",
+      "file_type": "code",
+      "source_file": "frontend/src/store/searchStore.ts",
+      "source_location": "L59",
+      "_origin": "ast",
+      "id": "frontend_src_store_searchstore_searchactions",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "searchactions"
+    },
+    {
+      "label": "types/index.ts",
+      "file_type": "code",
+      "source_file": "frontend/src/types/index.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_types_index",
+      "community": 64,
+      "community_name": "types/index.ts",
+      "norm_label": "types/index.ts"
+    },
+    {
+      "label": "DateRangePicker.tsx",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_daterangepicker",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
+      "norm_label": "daterangepicker.tsx"
+    },
+    {
+      "label": "styles",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L182",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_daterangepicker_styles",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
+      "norm_label": "styles"
+    },
+    {
+      "label": "WEEKDAYS",
+      "file_type": "code",
+      "source_file": "frontend/src/features/flight-search/components/DateRangePicker.tsx",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "frontend_src_features_flight_search_components_daterangepicker_weekdays",
+      "community": 65,
+      "community_name": "DateRangePicker.tsx",
+      "norm_label": "weekdays"
     },
     {
       "label": "AirportCityResult",
@@ -14968,11 +14968,23 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/dynamic-destinations/screens/DynamicDestinationsScreen.tsx",
-      "source_location": "L130",
+      "source_location": "L132",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_dynamicdestinationsscreen",
       "target": "frontend_src_api_search_createsearchsession"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "frontend/src/features/dynamic-destinations/screens/DynamicDestinationsScreen.tsx",
+      "source_location": "L133",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen_dynamicdestinationsscreen",
+      "target": "frontend_src_api_search_getsearchsessionresults"
     },
     {
       "relation": "calls",
@@ -16180,7 +16192,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L395",
+      "source_location": "L399",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -16192,7 +16204,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L508",
+      "source_location": "L400",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -16203,7 +16215,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L605",
+      "source_location": "L632",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -16215,7 +16227,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L622",
+      "source_location": "L649",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -16227,7 +16239,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L704",
+      "source_location": "L731",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
@@ -17576,54 +17588,6 @@
       "_origin": "ast",
       "source": "qa_qa_runner_main",
       "target": "qa_core_config_loader_load_test_cases",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "qa/qa_runner.py",
-      "source_location": "L149",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_qa_runner_main",
-      "target": "qa_core_client_apiclient",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "qa/qa_runner.py",
-      "source_location": "L154",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_qa_runner_main",
-      "target": "qa_core_validator_responsevalidator",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "qa/qa_runner.py",
-      "source_location": "L155",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_qa_runner_main",
-      "target": "qa_core_analyzer_responseanalyzer",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "qa/qa_runner.py",
-      "source_location": "L161",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_qa_runner_main",
-      "target": "qa_core_reporter_reportwriter",
       "confidence_score": 1.0
     },
     {
@@ -19359,18 +19323,6 @@
       "context": "generic_arg",
       "confidence": "EXTRACTED",
       "source_file": "qa/core/config_loader.py",
-      "source_location": "L13",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_core_config_loader_load_test_cases",
-      "target": "qa_core_models_testcase",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "references",
-      "context": "generic_arg",
-      "confidence": "EXTRACTED",
-      "source_file": "qa/core/config_loader.py",
       "source_location": "L125",
       "weight": 1.0,
       "_origin": "ast",
@@ -20264,6 +20216,18 @@
       "_origin": "ast",
       "source": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen",
       "target": "frontend_src_api_search_createsearchsession",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend/src/features/dynamic-destinations/screens/DynamicDestinationsScreen.tsx",
+      "source_location": "L23",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen",
+      "target": "frontend_src_api_search_getsearchsessionresults",
       "confidence_score": 1.0
     },
     {
@@ -28478,18 +28442,6 @@
       "relation": "references",
       "context": "return_type",
       "confidence": "EXTRACTED",
-      "source_file": "qa/core/config_loader.py",
-      "source_location": "L39",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "qa_core_config_loader_to_test_case",
-      "target": "qa_core_models_testcase",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "references",
-      "context": "return_type",
-      "confidence": "EXTRACTED",
       "source_file": "qa/core/reporter.py",
       "source_location": "L94",
       "weight": 1.0,
@@ -33663,7 +33615,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/dynamic-destinations/screens/DynamicDestinationsScreen.tsx",
-      "source_location": "L272",
+      "source_location": "L275",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_dynamic_destinations_screens_dynamicdestinationsscreen",
@@ -34642,7 +34594,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1235",
+      "source_location": "L1262",
       "weight": 1.0,
       "_origin": "ast",
       "source": "frontend_src_features_flight_search_screens_resultsscreen",
@@ -38468,9 +38420,81 @@
     },
     {
       "relation": "uses",
+      "context": "call",
+      "confidence": "INFERRED",
+      "source_file": "qa/qa_runner.py",
+      "source_location": "L149",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_qa_runner_main",
+      "target": "qa_core_client_apiclient",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "context": "call",
+      "confidence": "INFERRED",
+      "source_file": "qa/qa_runner.py",
+      "source_location": "L154",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_qa_runner_main",
+      "target": "qa_core_validator_responsevalidator",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "context": "call",
+      "confidence": "INFERRED",
+      "source_file": "qa/qa_runner.py",
+      "source_location": "L155",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_qa_runner_main",
+      "target": "qa_core_analyzer_responseanalyzer",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "context": "call",
+      "confidence": "INFERRED",
+      "source_file": "qa/qa_runner.py",
+      "source_location": "L161",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_qa_runner_main",
+      "target": "qa_core_reporter_reportwriter",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "context": "generic_arg",
+      "confidence": "INFERRED",
+      "source_file": "qa/core/config_loader.py",
+      "source_location": "L13",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_core_config_loader_load_test_cases",
+      "target": "qa_core_models_testcase",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "context": "return_type",
+      "confidence": "INFERRED",
+      "source_file": "qa/core/config_loader.py",
+      "source_location": "L39",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "qa_core_config_loader_to_test_case",
+      "target": "qa_core_models_testcase",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "qa/core/analyzer.py",
-      "source_location": "L11",
+      "source_location": "L39",
       "weight": 0.8,
       "_origin": "ast",
       "source": "qa_core_analyzer_responseanalyzer",
@@ -38481,7 +38505,7 @@
       "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "qa/core/client.py",
-      "source_location": "L12",
+      "source_location": "L39",
       "weight": 0.8,
       "_origin": "ast",
       "source": "qa_core_client_apiclient",
@@ -38492,7 +38516,7 @@
       "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "qa/core/client.py",
-      "source_location": "L12",
+      "source_location": "L39",
       "weight": 0.8,
       "_origin": "ast",
       "source": "qa_core_client_apiclient",
@@ -38503,7 +38527,7 @@
       "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "qa/core/reporter.py",
-      "source_location": "L13",
+      "source_location": "L25",
       "weight": 0.8,
       "_origin": "ast",
       "source": "qa_core_reporter_reportwriter",
@@ -38514,7 +38538,7 @@
       "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "qa/core/validator.py",
-      "source_location": "L7",
+      "source_location": "L16",
       "weight": 0.8,
       "_origin": "ast",
       "source": "qa_core_validator_responsevalidator",
@@ -39855,5 +39879,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "b8e697105eab997c8cd84867c69754ca6bc06b30"
+  "built_at_commit": "dbde198f8e6b27ec105da6ef54efc6966ef224c5"
 }
