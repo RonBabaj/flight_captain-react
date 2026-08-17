@@ -150,11 +150,10 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         locale: locale || 'en-US',
       };
       setCachedSearch(payload);
-      searchActions.setParams(payload);
       // Optimistic navigation: create the session after the Results screen mounts.
-      // This removes the user-visible delay of waiting for POST /api/search/sessions.
-      searchActions.setSession(null, null, 'PENDING');
-      searchActions.setResults([], 0);
+      // beginSearch bumps generation + clears prior results so a late poll cannot
+      // paint the previous route under the new summary header.
+      searchActions.beginSearch(payload);
       // Clear any previous sessionId from the URL so Results does not poll a stale id.
       updateUrl(payload);
       navigation.navigate({

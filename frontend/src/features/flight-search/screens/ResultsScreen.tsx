@@ -20,8 +20,7 @@ import type { CreateSearchSessionRequest } from '../../../types';
 import { ANYWHERE_CODE } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { useSearchStore, searchActions } from '../../../store';
-import type { LocaleContextValue } from '../../../context/LocaleContext';
+import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
 import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -31,12 +30,16 @@ import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
-import { getCurrencySymbol } from '../../../utils/exchangeRates';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
 const POLL_INTERVAL_MS = 1500;
+
+/** Snapshot generation for async work that must not clobber a newer search. */
+function currentGeneration(): number {
+  return useSearchStore.getState().searchGeneration;
+}
 
 // ─── Positioning flight optimizer (MVP) ────────────────────────────────────────
 
@@ -373,6 +376,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       console.log('[EDIT_SEARCH_LOADING] modalClosed before session');
     }
     setSidebarSearchLoading(true);
+    // Block the empty-session bootstrap from also POSTing while we create here.
+    creatingSessionRef.current = true;
     try {
       const cabin: CreateSearchSessionRequest['cabinClass'] =
         p.cabinClass === 'ECONOMY' || p.cabinClass === 'PREMIUM_ECONOMY' ||
@@ -391,21 +396,33 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         locale: locale || 'en-US',
       };
       setCachedSearch(payload);
-      searchActions.setParams(payload);
-      // Keep PENDING until results are hydrated — create returns COMPLETE with no
-      // offers in the POST body, and the poll effect skips COMPLETE sessions.
-      searchActions.setSession(null, null, 'PENDING');
-      searchActions.setResults([], 0);
+      // Atomic clear + generation bump so in-flight polls cannot restore prior offers
+      // under the new summary header (e.g. BER header with leftover BKK cards).
+      const generation = searchActions.beginSearch(payload);
+      // Drop stale sessionId from the URL immediately (params already BER/…).
+      updateUrl(payload);
+      versionRef.current = 0;
       const session = await createSearchSession(payload);
+      if (!isCurrentSearchGeneration(generation)) return;
       const res = await getSearchSessionResults(session.id, undefined, payload);
-      searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
-      searchActions.setResults(res.results ?? [], res.version ?? 1);
+      if (!isCurrentSearchGeneration(generation)) return;
+      const applied = searchActions.applySessionResults({
+        generation,
+        sessionId: session.id,
+        session: res.session ?? session,
+        status: res.session?.status ?? session.status,
+        results: res.results ?? [],
+        version: res.version ?? 1,
+        mode: 'replace',
+      });
+      if (!applied) return;
       versionRef.current = res.version ?? 1;
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
       setSidebarSearchError(e instanceof Error ? e.message : 'Search failed');
     } finally {
+      creatingSessionRef.current = false;
       setSidebarSearchLoading(false);
     }
   };
@@ -434,10 +451,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (sessionId) return;
     if (creatingSessionRef.current) return;
 
+    // Prefer in-memory store params over the URL. After "Edit search", storeParams
+    // already reflect the new route while the URL can still hold the previous
+    // destination — merging URL last would re-search the old route (BKK vs BER).
     const base = {
       ...defaultFormParams,
-      ...(storeParams ?? {}),
       ...(paramsFromUrl ?? {}),
+      ...(storeParams ?? {}),
     } as Partial<CreateSearchSessionRequest>;
 
     const origin = (base.origin ?? '').trim();
@@ -448,10 +468,29 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
 
+    const generation =
+      useSearchStore.getState().status === 'PENDING' && !useSearchStore.getState().sessionId
+        ? currentGeneration()
+        : searchActions.beginSearch({
+            ...defaultFormParams,
+            ...base,
+            origin: origin.toUpperCase(),
+            destination: destination.toUpperCase(),
+            departureDate,
+            returnDate: base.returnDate ? String(base.returnDate) : undefined,
+            cabinClass: String(base.cabinClass ?? 'ECONOMY'),
+            cabinPreference: (base.cabinPreference ?? base.cabinClass ?? 'ECONOMY') as any,
+            includeCheckedBag: base.includeCheckedBag ?? false,
+            adults: base.adults ?? 1,
+            children: base.children ?? 0,
+            infants: base.infants ?? 0,
+            currency: (base.currency ?? currency ?? 'USD') as any,
+            locale: (base.locale ?? locale ?? 'en-US') as any,
+          });
+
     // Ensure UI goes into loading mode even before we have a sessionId.
     searchActions.setError(null);
-    searchActions.setSession(null, null, 'PENDING');
-    searchActions.setResults([], 0);
+    versionRef.current = 0;
 
     let cancelled = false;
     (async () => {
@@ -475,20 +514,28 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         };
 
         const session = await createSearchSession(payload);
-        if (cancelled) return;
+        if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
         // POST /sessions returns COMPLETE but does not include offers. Hydrate
         // results here — the poll effect skips COMPLETE and would otherwise leave
         // the list empty ("No flights found") even when the API has offers.
         const res = await getSearchSessionResults(session.id, undefined, payload);
-        if (cancelled) return;
+        if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
+        const applied = searchActions.applySessionResults({
+          generation,
+          sessionId: session.id,
+          session: res.session ?? session,
+          status: res.session?.status ?? session.status,
+          results: res.results ?? [],
+          version: res.version ?? 1,
+          mode: 'replace',
+        });
+        if (!applied) return;
         versionRef.current = res.version ?? 1;
-        searchActions.setSession(session.id, res.session ?? session, res.session?.status ?? session.status);
-        searchActions.setResults(res.results ?? [], res.version ?? 1);
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
-        if (!cancelled) {
+        if (!cancelled && isCurrentSearchGeneration(generation)) {
           searchActions.setError(e instanceof Error ? e.message : 'Search failed');
           searchActions.setSession(null, null, 'FAILED');
         }
@@ -511,9 +558,17 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     let cancelled = false;
     let consecutiveNotFound = 0;
     const MAX_NOT_FOUND = 3;
+    const polledSessionId = sessionId;
+    const generation = currentGeneration();
 
     const poll = async () => {
       if (cancelled) return;
+      if (!isCurrentSearchGeneration(generation)) return;
+      // Store may have moved on (new search) before React re-ran this effect.
+      const storeSid = useSearchStore.getState().sessionId;
+      if (storeSid != null && storeSid !== polledSessionId) return;
+      if (storeSid == null && useSearchStore.getState().status === 'PENDING') return;
+
       const currentStatus = statusRef.current;
       // Failed: stop. Completed: only skip once results are hydrated (version > 0).
       // Otherwise a COMPLETE create with an empty store never GETs offers and the UI
@@ -523,20 +578,28 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const res = await getSearchSessionResults(
-          sessionId,
+          polledSessionId,
           sinceVersion,
           storeParamsRef.current ?? undefined
         );
-        if (cancelled) return;
+        if (cancelled || !isCurrentSearchGeneration(generation)) return;
+        const latestSid = useSearchStore.getState().sessionId;
+        if (latestSid != null && latestSid !== polledSessionId) return;
+        if (latestSid == null && useSearchStore.getState().status === 'PENDING') return;
+
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
-        versionRef.current = nextVersion;
-        searchActions.setSession(sessionId, res.session, res.session.status);
-        // First hydrate must use setResults so version 0 → N always applies.
-        if (sinceVersion == null) {
-          searchActions.setResults(res.results ?? [], nextVersion);
-        } else {
-          searchActions.appendResults(res.results, nextVersion);
+        const applied = searchActions.applySessionResults({
+          generation,
+          sessionId: polledSessionId,
+          session: res.session,
+          status: res.session.status,
+          results: res.results ?? [],
+          version: nextVersion,
+          mode: sinceVersion == null ? 'replace' : 'append',
+        });
+        if (applied) {
+          versionRef.current = nextVersion;
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -544,9 +607,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         if (notFound) {
           consecutiveNotFound += 1;
           const stAfter = statusRef.current;
-          if (consecutiveNotFound >= MAX_NOT_FOUND && stAfter !== 'COMPLETE' && stAfter !== 'FAILED') {
+          if (
+            consecutiveNotFound >= MAX_NOT_FOUND &&
+            stAfter !== 'COMPLETE' &&
+            stAfter !== 'FAILED' &&
+            isCurrentSearchGeneration(generation) &&
+            useSearchStore.getState().sessionId === polledSessionId
+          ) {
             searchActions.setError('Search session expired. Please search again.');
-            searchActions.setSession(sessionId, null, 'FAILED');
+            searchActions.setSession(polledSessionId, null, 'FAILED');
           }
         }
         // Transient 5xx/network: keep polling briefly while still PENDING.
@@ -787,9 +856,14 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   if (status === 'FAILED') {
     const retrySearch = () => {
-      searchActions.setError(null);
-      searchActions.setSession(null, null, 'PENDING');
-      searchActions.setResults([], 0);
+      const p = useSearchStore.getState().params;
+      if (p) {
+        searchActions.beginSearch(p);
+      } else {
+        searchActions.setError(null);
+        searchActions.setSession(null, null, 'PENDING');
+        searchActions.setResults([], 0);
+      }
       versionRef.current = 0;
       creatingSessionRef.current = false;
       setBootstrappingSession(false);

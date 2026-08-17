@@ -16,7 +16,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { getExploreDestinations } from '../../../api';
 import { createSearchSession } from '../../../api';
 import { getMonthDeals } from '../../../api/deals';
-import { searchActions, dealsActions } from '../../../store';
+import { searchActions, dealsActions, isCurrentSearchGeneration } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -509,8 +509,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         locale: locale || 'en-US',
       };
       setCachedSearch(payload);
-      searchActions.setParams(payload);
+      const generation = searchActions.beginSearch(payload, { clearSession: false });
       const session = await createSearchSession(payload);
+      if (!isCurrentSearchGeneration(generation)) return;
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);
       updateSearchUrl({ ...payload, sessionId: session.id });
@@ -613,8 +614,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       setReturnDate(newRet);
       setFormParams((p) => ({ ...p, ...payload }));
       setCachedSearch(payload);
-      searchActions.setParams(payload);
+      const generation = searchActions.beginSearch(payload, { clearSession: false });
       const session = await createSearchSession(payload);
+      if (!isCurrentSearchGeneration(generation)) return;
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);
       updateSearchUrl({ ...payload, sessionId: session.id });
