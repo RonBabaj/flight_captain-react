@@ -65,6 +65,34 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'לדוגמה: תל אביב → פריז, ואז לונדון → תל אביב.',
     ru: 'Пример: Тель-Авив → Париж, затем Лондон → Тель-Авив.',
   },
+  dd_add_destination: {
+    en: 'Add another dynamic destination',
+    he: 'הוסיפו יעד דינמי נוסף',
+    ru: 'Добавить ещё одно направление',
+  },
+  dd_extra_section: { en: 'Destination', he: 'יעד', ru: 'Направление' },
+  dd_extra_date: { en: 'Date', he: 'תאריך', ru: 'Дата' },
+  dd_remove: { en: 'Remove', he: 'הסרה', ru: 'Удалить' },
+  dd_need_extra_fields: {
+    en: 'Each extra destination needs from, to, and a date.',
+    he: 'לכל יעד נוסף צריך מוצא, יעד ותאריך.',
+    ru: 'Для каждого дополнительного направления укажите откуда, куда и дату.',
+  },
+  dd_extra_same: {
+    en: 'Each extra destination needs different from and to airports.',
+    he: 'בכל יעד נוסף המוצא והיעד חייבים להיות שונים.',
+    ru: 'В каждом дополнительном направлении пункты вылета и прилёта должны отличаться.',
+  },
+  dd_extra_date_order: {
+    en: 'Extra destination dates must fall between your outbound and return dates.',
+    he: 'תאריכי היעדים הנוספים חייבים להיות בין ההלוך לחזור.',
+    ru: 'Даты дополнительных направлений должны быть между вылетом и возвращением.',
+  },
+  dd_max_extras: {
+    en: 'You can add up to 3 extra destinations.',
+    he: 'ניתן להוסיף עד 3 יעדים נוספים.',
+    ru: 'Можно добавить до 3 дополнительных направлений.',
+  },
   landing_cta_dynamic: {
     en: 'Try dynamic destinations',
     he: 'נסו יעדים דינמיים',

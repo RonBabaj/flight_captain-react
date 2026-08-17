@@ -32,6 +32,9 @@ export function parseSearchParamsFromUrl(): Partial<CreateSearchSessionRequest> 
   const currency = getParam(p, 'currency');
   const cabinClass = getParam(p, 'cabinClass');
   const sessionId = getParam(p, 'sessionId');
+  const returnOrigin = getParam(p, 'returnOrigin');
+  const returnDestination = getParam(p, 'returnDestination');
+  const extra = getParam(p, 'extra');
 
   const params: Partial<CreateSearchSessionRequest> & { sessionId?: string } = {};
   if (sessionId) (params as any).sessionId = sessionId;
@@ -53,6 +56,19 @@ export function parseSearchParamsFromUrl(): Partial<CreateSearchSessionRequest> 
   if (cabinClass && ['ECONOMY', 'PREMIUM_ECONOMY', 'BUSINESS', 'FIRST'].includes(cabinClass.toUpperCase())) {
     params.cabinClass = cabinClass.toUpperCase() as CreateSearchSessionRequest['cabinClass'];
   }
+  if (returnOrigin) params.returnOrigin = returnOrigin.toUpperCase();
+  if (returnDestination) params.returnDestination = returnDestination.toUpperCase();
+  if (extra) {
+    const legs = extra.split('|').map((part) => {
+      const [o, d, date] = part.split(':');
+      return {
+        origin: (o || '').toUpperCase(),
+        destination: (d || '').toUpperCase(),
+        date: date || '',
+      };
+    }).filter((l) => l.origin || l.destination || l.date);
+    if (legs.length) params.extraLegs = legs;
+  }
   return params;
 }
 
@@ -68,6 +84,16 @@ function buildSearchString(params: Partial<CreateSearchSessionRequest> & { sessi
   if (params.children != null) p.set('children', String(params.children));
   if (params.currency) p.set('currency', params.currency);
   if (params.cabinClass) p.set('cabinClass', params.cabinClass);
+  if (params.returnOrigin) p.set('returnOrigin', params.returnOrigin);
+  if (params.returnDestination) p.set('returnDestination', params.returnDestination);
+  if (params.extraLegs?.length) {
+    p.set(
+      'extra',
+      params.extraLegs
+        .map((l) => `${(l.origin || '').toUpperCase()}:${(l.destination || '').toUpperCase()}:${l.date || ''}`)
+        .join('|'),
+    );
+  }
   return p.toString();
 }
 

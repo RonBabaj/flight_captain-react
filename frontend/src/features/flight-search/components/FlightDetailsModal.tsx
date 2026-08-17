@@ -287,9 +287,14 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
             {option.legs.map((leg, legIdx) => {
               const segs = leg.segments ?? [];
               if (!segs.length) return null;
+              const lastIdx = option.legs.length - 1;
               const legLabel =
                 option.legs.length > 1
-                  ? legIdx === 0 ? t('outbound') : t('return_leg')
+                  ? legIdx === 0
+                    ? t('outbound')
+                    : legIdx === lastIdx
+                      ? t('return_leg')
+                      : `${t('dd_extra_section')} ${legIdx + 1}`
                   : t('flight_leg');
               const dateStr = safeDate(segs[0].departureTime);
               const legStops = Math.max(0, segs.length - 1);

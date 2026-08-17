@@ -1,6 +1,6 @@
 /**
- * Dynamic Destinations — open-jaw round trips.
- * Fly outbound A→B, return from a different airport C→D (usually D=A).
+ * Dynamic Destinations — open-jaw and multi-city trips.
+ * Fly outbound A→B, optional extra hops, then return C→D (usually D=A).
  */
 
 import React, { useState } from 'react';
@@ -22,10 +22,18 @@ import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { AppIcon } from '../../../components/AppIcon';
 import { createSearchSession, getSearchSessionResults } from '../../../api';
 import { searchActions, isCurrentSearchGeneration } from '../../../store';
-import type { CreateSearchSessionRequest } from '../../../types';
+import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import type { DynamicDestinationsStackParamList } from '../../../navigation/types';
 
 type Nav = NativeStackNavigationProp<DynamicDestinationsStackParamList, 'DynamicDestinationsForm'>;
+
+const MAX_EXTRA_DESTINATIONS = 3;
+
+const emptyExtra = (origin = ''): ExtraSearchLeg => ({
+  origin,
+  destination: '',
+  date: '',
+});
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -34,6 +42,7 @@ const defaultParams: CreateSearchSessionRequest = {
   returnDate: '',
   returnOrigin: '',
   returnDestination: '',
+  extraLegs: [],
   cabinClass: 'ECONOMY',
   cabinPreference: 'ECONOMY',
   includeCheckedBag: false,
@@ -53,8 +62,11 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
     locale,
   });
   const [showCalendar, setShowCalendar] = useState(false);
+  const [extraDateIndex, setExtraDateIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const extras = params.extraLegs ?? [];
 
   const update = <K extends keyof CreateSearchSessionRequest>(
     key: K,
@@ -71,8 +83,59 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
           next.returnDestination = home;
         }
       }
+      // Chain the first extra "from" to outbound destination when it still matches the previous dest.
+      if (key === 'destination' && typeof value === 'string') {
+        const dest = value.trim().toUpperCase();
+        const prevDest = (prev.destination || '').trim().toUpperCase();
+        const list = [...(prev.extraLegs ?? [])];
+        if (list[0] && (!list[0].origin || list[0].origin.toUpperCase() === prevDest)) {
+          list[0] = { ...list[0], origin: dest };
+          next.extraLegs = list;
+        }
+      }
       return next;
     });
+  };
+
+  const updateExtra = (index: number, patch: Partial<ExtraSearchLeg>) => {
+    setParams((prev) => {
+      const list = [...(prev.extraLegs ?? [])];
+      const old = list[index] ?? emptyExtra();
+      const nextLeg = { ...old, ...patch };
+      list[index] = nextLeg;
+      if (patch.destination !== undefined && list[index + 1]) {
+        const prevDest = (old.destination || '').trim().toUpperCase();
+        const chained = (list[index + 1].origin || '').trim().toUpperCase();
+        if (!chained || chained === prevDest) {
+          list[index + 1] = { ...list[index + 1], origin: String(patch.destination).trim().toUpperCase() };
+        }
+      }
+      return { ...prev, extraLegs: list };
+    });
+  };
+
+  const addExtraDestination = () => {
+    if (extras.length >= MAX_EXTRA_DESTINATIONS) {
+      setError(t('dd_max_extras'));
+      return;
+    }
+    const prevTo = extras.length > 0
+      ? extras[extras.length - 1].destination
+      : params.destination;
+    setError(null);
+    setParams((prev) => ({
+      ...prev,
+      extraLegs: [...(prev.extraLegs ?? []), emptyExtra((prevTo || '').trim().toUpperCase())],
+    }));
+  };
+
+  const removeExtraDestination = (index: number) => {
+    setParams((prev) => ({
+      ...prev,
+      extraLegs: (prev.extraLegs ?? []).filter((_, i) => i !== index),
+    }));
+    if (extraDateIndex === index) setExtraDateIndex(null);
+    else if (extraDateIndex != null && extraDateIndex > index) setExtraDateIndex(extraDateIndex - 1);
   };
 
   const dateLabel =
@@ -100,12 +163,34 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
       setError(t('dd_need_return_origin'));
       return;
     }
-    if (returnOrigin === destination) {
-      setError(t('dd_return_must_differ'));
-      return;
-    }
     if (origin === destination) {
       setError(t('dd_outbound_same'));
+      return;
+    }
+
+    const extraLegs: ExtraSearchLeg[] = [];
+    for (const raw of extras) {
+      const eo = (raw.origin || '').trim().toUpperCase();
+      const ed = (raw.destination || '').trim().toUpperCase();
+      const date = (raw.date || '').trim();
+      if (!eo && !ed && !date) continue;
+      if (!eo || !ed || !date) {
+        setError(t('dd_need_extra_fields'));
+        return;
+      }
+      if (eo === ed) {
+        setError(t('dd_extra_same'));
+        return;
+      }
+      if (date < params.departureDate || date > params.returnDate) {
+        setError(t('dd_extra_date_order'));
+        return;
+      }
+      extraLegs.push({ origin: eo, destination: ed, date });
+    }
+
+    if (extraLegs.length === 0 && returnOrigin === destination) {
+      setError(t('dd_return_must_differ'));
       return;
     }
 
@@ -115,6 +200,7 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
       destination,
       returnOrigin,
       returnDestination,
+      extraLegs,
       returnDate: params.returnDate,
       currency,
       locale,
@@ -186,6 +272,61 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
             placeholder={t('city_or_airport')}
           />
 
+          {extras.map((leg, index) => (
+            <View key={`extra-${index}`} style={styles.extraBlock}>
+              <View style={[styles.extraHeader, isRTL && { flexDirection: 'row-reverse' }]}>
+                <Text style={[styles.sectionLabel, { color: theme.primary, marginBottom: 0 }, isRTL && { textAlign: 'right' }]}>
+                  {t('dd_extra_section')} {index + 2}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => removeExtraDestination(index)}
+                  hitSlop={8}
+                  accessibilityLabel={t('dd_remove')}
+                  style={styles.extraRemove}
+                >
+                  <AppIcon name="close" size={18} color={theme.textMuted} fallbackText={t('dd_remove')} />
+                </TouchableOpacity>
+              </View>
+              <AirportAutocomplete
+                label={t('from')}
+                value={leg.origin}
+                onChange={(c) => updateExtra(index, { origin: c })}
+                placeholder={t('city_or_airport')}
+              />
+              <AirportAutocomplete
+                label={t('to')}
+                value={leg.destination}
+                onChange={(c) => updateExtra(index, { destination: c })}
+                placeholder={t('city_or_airport')}
+              />
+              <Text style={[styles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dd_extra_date')}</Text>
+              <TouchableOpacity
+                style={[styles.dateBtn, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
+                onPress={() => setExtraDateIndex(index)}
+                activeOpacity={0.7}
+              >
+                <Text style={[{ color: theme.text, fontSize: 15 }, isRTL && { textAlign: 'right' }]}>
+                  {leg.date || t('select_dates')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            style={[
+              styles.addBtn,
+              { borderColor: theme.primary },
+              extras.length >= MAX_EXTRA_DESTINATIONS && { opacity: 0.45 },
+              isRTL && { flexDirection: 'row-reverse' },
+            ]}
+            onPress={addExtraDestination}
+            disabled={extras.length >= MAX_EXTRA_DESTINATIONS}
+            activeOpacity={0.75}
+          >
+            <AppIcon name="add-outline" size={18} color={theme.primary} fallbackText="+" />
+            <Text style={[styles.addBtnText, { color: theme.primary }]}>{t('dd_add_destination')}</Text>
+          </TouchableOpacity>
+
           <Text style={[styles.sectionLabel, { color: theme.primary, marginTop: 8 }, isRTL && { textAlign: 'right' }]}>
             {t('dd_return_section')}
           </Text>
@@ -224,6 +365,19 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
             onSelectRange={(start, end) => {
               update('departureDate', start);
               update('returnDate', end);
+            }}
+          />
+
+          <DateRangePicker
+            visible={extraDateIndex != null}
+            onClose={() => setExtraDateIndex(null)}
+            mode="single"
+            initialDate={(extraDateIndex != null ? extras[extraDateIndex]?.date : '') || params.departureDate || undefined}
+            onSelect={(date) => {
+              if (extraDateIndex != null) {
+                updateExtra(extraDateIndex, { date });
+              }
+              setExtraDateIndex(null);
             }}
           />
 
@@ -290,6 +444,28 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.4, marginBottom: 8, textTransform: 'uppercase' },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 4 },
   dateBtn: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, marginBottom: 8 },
+  extraBlock: { marginTop: 4, marginBottom: 4 },
+  extraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  extraRemove: { padding: 4 },
+  addBtn: {
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  addBtnText: { fontSize: 15, fontWeight: '600' },
   error: { marginTop: 10, fontSize: 14 },
   searchBtn: {
     marginTop: 20,

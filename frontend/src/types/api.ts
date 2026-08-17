@@ -110,6 +110,12 @@ export interface FlightOption {
 
 export type SearchSessionStatus = 'PENDING' | 'PARTIAL' | 'COMPLETE' | 'FAILED';
 
+export interface ExtraSearchLeg {
+  origin: string;
+  destination: string;
+  date: string; // YYYY-MM-DD
+}
+
 export interface CreateSearchSessionRequest {
   origin: string;
   destination: string;
@@ -119,6 +125,8 @@ export interface CreateSearchSessionRequest {
   returnOrigin?: string;
   /** Open-jaw: return leg arrives here (defaults to origin). */
   returnDestination?: string;
+  /** Extra one-way hops between outbound and return (dynamic destinations). */
+  extraLegs?: ExtraSearchLeg[];
   cabinClass: string;    // ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST
   cabinPreference?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
   includeCheckedBag?: boolean;

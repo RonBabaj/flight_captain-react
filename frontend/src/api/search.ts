@@ -78,6 +78,11 @@ function paramsMatch(
     if (e === undefined) continue;
     if (String(c ?? '') !== String(e ?? '')) return false;
   }
+  if (expected.extraLegs !== undefined) {
+    const extraKey = (legs?: { origin?: string; destination?: string; date?: string }[]) =>
+      (legs ?? []).map((l) => `${l.origin ?? ''}|${l.destination ?? ''}|${l.date ?? ''}`).join(';');
+    if (extraKey(cached.extraLegs) !== extraKey(expected.extraLegs)) return false;
+  }
   return true;
 }
 
