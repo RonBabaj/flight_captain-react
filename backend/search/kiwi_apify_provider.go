@@ -200,10 +200,10 @@ func (p *KiwiApifyProvider) Search(ctx context.Context, req SearchRequest) ([]Pr
 	if p == nil {
 		return nil, fmt.Errorf("kiwi provider not configured")
 	}
-	// Open-jaw / dynamic destinations need asymmetric return airports; Kiwi actor input is classic RT only.
-	if IsOpenJaw(req) {
+	// Open-jaw / extra hops need asymmetric or multi-city itineraries; Kiwi actor input is classic RT only.
+	if IsOpenJaw(req) || HasExtraLegs(req) {
 		retO, retD := ResolveReturnAirports(req)
-		log.Printf("[KIWI] skipping open-jaw search (return %s→%s); use Google Flights provider", retO, retD)
+		log.Printf("[KIWI] skipping dynamic-destination search (return %s→%s extra=%s); use Google Flights provider", retO, retD, ExtraLegsFingerprint(req.ExtraLegs))
 		return nil, nil
 	}
 	key := p.cacheKey(req)

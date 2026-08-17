@@ -130,14 +130,17 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
 
   // Full route paths including all layover airports
   const sep = isRTL ? ' ← ' : ' → ';
-  const outboundPath = buildRoutePath(segments);
-  const outboundRouteStr = outboundPath.join(sep);
-  const returnSegs = option.legs?.[1]?.segments ?? [];
-  const returnPath = buildRoutePath(returnSegs);
-  const returnRouteStr = returnPath.join(sep);
+  const legRoutes = (option.legs ?? [])
+    .map((leg) => buildRoutePath(leg.segments ?? []).join(sep))
+    .filter(Boolean);
+  const outboundRouteStr = legRoutes[0] || '';
+  const extraRouteStrs = legRoutes.slice(1, Math.max(1, legRoutes.length - 1));
+  const returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
 
   // Dates: outbound departure + return departure (if round-trip)
   const outboundDate = fmtShortDate(segments[0]?.departureTime);
+  const lastLegSegs = option.legs?.[option.legs.length - 1]?.segments ?? [];
+  const returnSegs = (option.legs?.length ?? 0) > 1 ? lastLegSegs : [];
   const returnDate = fmtShortDate(returnSegs[0]?.departureTime) || (tripType === 'round-trip' ? fmtShortDate(searchReturnDate) : '');
   const isRoundTrip = !!(returnDate || returnRouteStr);
   const airline = airlineName(option);
@@ -216,6 +219,15 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           </View>
           {/* Outbound route: origin → layover(s) → destination */}
           <Text style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>{outboundRouteStr}</Text>
+          {extraRouteStrs.map((routeStr, i) => (
+            <Text
+              key={`extra-route-${i}`}
+              style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}
+              numberOfLines={1}
+            >
+              {routeStr}
+            </Text>
+          ))}
           {/* Return route (round-trip only): destination → layover(s) → origin */}
           {isRoundTrip && returnRouteStr ? (
             <Text style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>{returnRouteStr}</Text>

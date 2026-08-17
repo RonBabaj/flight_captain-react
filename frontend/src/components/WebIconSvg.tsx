@@ -48,6 +48,8 @@ function getSvgMarkup(name: string, color: string): string {
       return `<svg ${common}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>`;
     case 'chevron-forward':
       return `<svg ${common}><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+    case 'add-outline':
+      return `<svg ${common}><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>`;
     default:
       return '';
   }
@@ -58,6 +60,7 @@ export const LOCAL_ICON_NAMES = new Set([
   'airplane-outline', 'globe-outline', 'sunny-outline', 'moon-outline', 'menu-outline',
   'search', 'filter-outline', 'options-outline', 'calendar-outline', 'close',
   'create-outline', 'time-outline', 'chevron-down', 'chevron-up', 'chevron-back', 'chevron-forward',
+  'add-outline',
 ]);
 
 export function hasWebSvgFallback(name: string): boolean {

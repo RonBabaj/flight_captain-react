@@ -85,22 +85,30 @@ const (
 	StatusFailed   SearchSessionStatus = "FAILED"
 )
 
+type ExtraSearchLeg struct {
+	Origin      string `json:"origin"`
+	Destination string `json:"destination"`
+	Date        string `json:"date"`
+}
+
 type CreateSearchSessionRequest struct {
-	Origin            string `json:"origin"`
-	Destination       string `json:"destination"`
-	DepartureDate     string `json:"departureDate"`
-	ReturnDate        string `json:"returnDate,omitempty"`
+	Origin        string `json:"origin"`
+	Destination   string `json:"destination"`
+	DepartureDate string `json:"departureDate"`
+	ReturnDate    string `json:"returnDate,omitempty"`
 	// ReturnOrigin / ReturnDestination: open-jaw (dynamic destinations). Empty = classic RT reverse.
 	ReturnOrigin      string `json:"returnOrigin,omitempty"`
 	ReturnDestination string `json:"returnDestination,omitempty"`
-	CabinClass        string `json:"cabinClass"`
-	CabinPreference   string `json:"cabinPreference,omitempty"`
-	IncludeCheckedBag bool   `json:"includeCheckedBag,omitempty"`
-	Adults            int    `json:"adults"`
-	Children          int    `json:"children,omitempty"`
-	Infants           int    `json:"infants,omitempty"`
-	Currency          string `json:"currency,omitempty"`
-	Locale            string `json:"locale,omitempty"`
+	// ExtraLegs: additional one-way hops between outbound and return (max search.MaxExtraLegs).
+	ExtraLegs         []ExtraSearchLeg `json:"extraLegs,omitempty"`
+	CabinClass        string           `json:"cabinClass"`
+	CabinPreference   string           `json:"cabinPreference,omitempty"`
+	IncludeCheckedBag bool             `json:"includeCheckedBag,omitempty"`
+	Adults            int              `json:"adults"`
+	Children          int              `json:"children,omitempty"`
+	Infants           int              `json:"infants,omitempty"`
+	Currency          string           `json:"currency,omitempty"`
+	Locale            string           `json:"locale,omitempty"`
 }
 
 type SearchSession struct {
@@ -677,13 +685,59 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	req.Destination = strings.ToUpper(strings.TrimSpace(req.Destination))
 	req.ReturnOrigin = strings.ToUpper(strings.TrimSpace(req.ReturnOrigin))
 	req.ReturnDestination = strings.ToUpper(strings.TrimSpace(req.ReturnDestination))
-	if (req.ReturnOrigin != "" || req.ReturnDestination != "") && strings.TrimSpace(req.ReturnDate) == "" {
+	if len(req.ExtraLegs) > search.MaxExtraLegs {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("at most %d extra destinations are allowed", search.MaxExtraLegs),
+		})
+		return
+	}
+	extraLegs := make([]search.ExtraLeg, 0, len(req.ExtraLegs))
+	for _, raw := range req.ExtraLegs {
+		leg := search.ExtraLeg{
+			Origin:      strings.ToUpper(strings.TrimSpace(raw.Origin)),
+			Destination: strings.ToUpper(strings.TrimSpace(raw.Destination)),
+			Date:        strings.TrimSpace(raw.Date),
+		}
+		if leg.Origin == "" && leg.Destination == "" && leg.Date == "" {
+			continue
+		}
+		if leg.Origin == "" || leg.Destination == "" || leg.Date == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "each extra destination needs origin, destination, and date",
+			})
+			return
+		}
+		if leg.Origin == leg.Destination {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "extra destination origin and destination must differ",
+			})
+			return
+		}
+		if req.DepartureDate != "" && leg.Date < req.DepartureDate {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "extra destination dates must be on or after departureDate",
+			})
+			return
+		}
+		if req.ReturnDate != "" && leg.Date > req.ReturnDate {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "extra destination dates must be on or before returnDate",
+			})
+			return
+		}
+		extraLegs = append(extraLegs, leg)
+	}
+	req.ExtraLegs = make([]ExtraSearchLeg, len(extraLegs))
+	for i, l := range extraLegs {
+		req.ExtraLegs[i] = ExtraSearchLeg{Origin: l.Origin, Destination: l.Destination, Date: l.Date}
+	}
+	if (req.ReturnOrigin != "" || req.ReturnDestination != "" || len(extraLegs) > 0) && strings.TrimSpace(req.ReturnDate) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "returnDate is required for open-jaw (dynamic destination) searches",
 		})
 		return
 	}
-	if req.ReturnOrigin != "" && req.ReturnOrigin == req.Destination {
+	if req.ReturnOrigin != "" && req.ReturnOrigin == req.Destination && len(extraLegs) == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "returnOrigin must differ from destination for open-jaw searches",
 		})
@@ -707,6 +761,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		ReturnDate:        req.ReturnDate,
 		ReturnOrigin:      req.ReturnOrigin,
 		ReturnDestination: req.ReturnDestination,
+		ExtraLegs:         extraLegs,
 		CabinClass:        req.CabinClass,
 		CabinPreference:   cabinPref,
 		IncludeCheckedBag: includeBag,
@@ -1720,7 +1775,6 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 			children = v
 		}
 	}
-
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()

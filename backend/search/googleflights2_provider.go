@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	gf2Timeout = 15 * time.Second
+	gf2Timeout  = 15 * time.Second
 	gf2CacheTTL = 10 * time.Minute
 	// Default max calls to Search() per rolling minute (in-process). Explore uses up to 10 per request;
 	// the old default of 5 caused the follow-up "real" search after Anywhere to always hit rate limit.
@@ -216,88 +216,70 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	return results, nil
 }
 
-// searchRoundTrip performs two one-way GF2 searches (outbound + return) and combines their legs,
-// mirroring the Amadeus mixed round-trip approach so every result has both legs with full route data.
+// searchRoundTrip performs one-way GF2 searches (outbound + optional extra hops + return)
+// and combines their legs so every result has the full itinerary.
 // Open-jaw: when ReturnOrigin/ReturnDestination are set, return leg uses those airports instead of
 // classic Destination→Origin (e.g. TLV→CDG outbound, LHR→TLV return).
 func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
-	// Outbound: origin → dest on departureDate (one-way)
-	outboundReq := req
-	outboundReq.ReturnDate = ""
-	outboundReq.ReturnOrigin = ""
-	outboundReq.ReturnDestination = ""
-	outboundResults, err := p.doSearch(ctx, outboundReq)
-	if err != nil || len(outboundResults) == 0 {
-		// Fall back to the combined search if outbound fails (classic RT only)
-		if IsOpenJaw(req) {
-			return nil, fmt.Errorf("outbound search failed for open-jaw trip")
-		}
-		return p.doSearch(ctx, req)
+	oneWay := func(origin, dest, date string) SearchRequest {
+		r := req
+		r.Origin = origin
+		r.Destination = dest
+		r.DepartureDate = date
+		r.ReturnDate = ""
+		r.ReturnOrigin = ""
+		r.ReturnDestination = ""
+		r.ExtraLegs = nil
+		return r
 	}
 
+	type namedBatch struct {
+		label string
+		req   SearchRequest
+	}
+
+	extras := CompleteExtraLegs(req.ExtraLegs)
+	steps := []namedBatch{{
+		label: fmt.Sprintf("outbound %s→%s", req.Origin, req.Destination),
+		req:   oneWay(req.Origin, req.Destination, req.DepartureDate),
+	}}
+	for i, e := range extras {
+		steps = append(steps, namedBatch{
+			label: fmt.Sprintf("extra%d %s→%s", i+1, e.Origin, e.Destination),
+			req:   oneWay(e.Origin, e.Destination, e.Date),
+		})
+	}
 	retOrig, retDest := ResolveReturnAirports(req)
-	// Return: returnOrigin → returnDestination on returnDate (one-way)
-	returnReq := req
-	returnReq.Origin = retOrig
-	returnReq.Destination = retDest
-	returnReq.DepartureDate = req.ReturnDate
-	returnReq.ReturnDate = ""
-	returnReq.ReturnOrigin = ""
-	returnReq.ReturnDestination = ""
-	returnResults, err := p.doSearch(ctx, returnReq)
-	if err != nil || len(returnResults) == 0 {
-		log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(returnResults))
-		return outboundResults, nil
+	steps = append(steps, namedBatch{
+		label: fmt.Sprintf("return %s→%s", retOrig, retDest),
+		req:   oneWay(retOrig, retDest, req.ReturnDate),
+	})
+
+	batches := make([][]ProviderResult, 0, len(steps))
+	for i, step := range steps {
+		res, err := p.doSearch(ctx, step.req)
+		if err != nil || len(res) == 0 {
+			if i == 0 {
+				if IsOpenJaw(req) || len(extras) > 0 {
+					return nil, fmt.Errorf("outbound search failed for dynamic destination trip")
+				}
+				return p.doSearch(ctx, req)
+			}
+			if i == len(steps)-1 && len(extras) == 0 {
+				log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(res))
+				return batches[0], nil
+			}
+			return nil, fmt.Errorf("no flights found for %s", step.label)
+		}
+		log.Printf("[GF2_RT] %s: %d results", step.label, len(res))
+		batches = append(batches, res)
 	}
 
-	log.Printf("[GF2_RT] outbound=%s→%s (%d) return=%s→%s (%d); combining",
-		req.Origin, req.Destination, len(outboundResults), retOrig, retDest, len(returnResults))
-
-	// Combine: pair each outbound result with return legs.
-	const maxCombinations = 30
-	var combined []ProviderResult
-	for i, ob := range outboundResults {
-		if i >= maxCombinations {
-			break
-		}
-		for j, ret := range returnResults {
-			if j >= maxCombinations {
-				break
-			}
-			var legs []Leg
-			legs = append(legs, ob.Legs...)
-			legs = append(legs, ret.Legs...)
-			idPrefix := "gf2rt"
-			if IsOpenJaw(req) {
-				idPrefix = "gf2oj"
-			}
-			combinedResult := ProviderResult{
-				ID:                    fmt.Sprintf("%s_%d_%d", idPrefix, i, j),
-				Price:                 Monetary{Currency: ob.Price.Currency, Amount: ob.Price.Amount + ret.Price.Amount},
-				DurationMinutes:       ob.DurationMinutes + ret.DurationMinutes,
-				Legs:                  legs,
-				Source:                "googleflights2",
-				DeepLink:              firstNonEmpty(ob.DeepLink, ret.DeepLink),
-				// One-way booking tokens are not valid for combined round-trip partner checkout.
-				// Book now resolves a native round-trip token via ResolvePartnerBookingForRoute.
-				BookingToken:          "",
-				PrimaryDisplayCarrier: ob.PrimaryDisplayCarrier,
-				BaggageClass:          ob.BaggageClass,
-			}
-			combined = append(combined, combinedResult)
-		}
+	idPrefix := "gf2rt"
+	if IsOpenJaw(req) || len(extras) > 0 {
+		idPrefix = "gf2oj"
 	}
-
-	// Sort by total price ascending
-	for i := 0; i < len(combined); i++ {
-		for j := i + 1; j < len(combined); j++ {
-			if combined[j].Price.Amount < combined[i].Price.Amount {
-				combined[i], combined[j] = combined[j], combined[i]
-			}
-		}
-	}
-
-	return combined, nil
+	return CombineOneWayBatches(batches, idPrefix), nil
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
@@ -313,9 +295,9 @@ func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
 		cabin = "ECONOMY"
 	}
 	retOrig, retDest := ResolveReturnAirports(req)
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s|%d",
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%d|%s|%d",
 		req.Origin, req.Destination, req.DepartureDate, req.ReturnDate,
-		retOrig, retDest,
+		retOrig, retDest, ExtraLegsFingerprint(req.ExtraLegs),
 		req.Adults, cabin, bags)
 }
 

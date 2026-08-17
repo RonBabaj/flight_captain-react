@@ -887,12 +887,16 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   const params = storeParams;
   const summaryParts: string[] = [];
+  const extraLegs = (params?.extraLegs ?? []).filter((l) => (l.origin || '').trim() && (l.destination || '').trim());
   const isOpenJaw =
     !!(params?.returnOrigin && params.returnOrigin.toUpperCase() !== (params.destination || '').toUpperCase());
-  if (isOpenJaw && params?.origin && params?.destination) {
-    const retFrom = params.returnOrigin!.toUpperCase();
+  if ((isOpenJaw || extraLegs.length > 0) && params?.origin && params?.destination) {
+    const retFrom = (params.returnOrigin || params.destination).toUpperCase();
     const retTo = (params.returnDestination || params.origin).toUpperCase();
     summaryParts.push(`${params.origin}→${params.destination}`);
+    extraLegs.forEach((l) => {
+      summaryParts.push(`${l.origin.toUpperCase()}→${l.destination.toUpperCase()}`);
+    });
     summaryParts.push(`${retFrom}→${retTo}`);
   } else {
     if (params?.origin) summaryParts.push(params.origin);
