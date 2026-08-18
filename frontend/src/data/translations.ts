@@ -332,6 +332,29 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   loading_more_results: { en: 'Loading more results…', he: 'טוען תוצאות…', ru: 'Загрузка результатов…' },
   book: { en: 'Book', he: 'הזמן', ru: 'Забронировать' },
   book_now: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
+  copy_link: { en: 'Copy link', he: 'העתק קישור', ru: 'Копировать ссылку' },
+  link_copied: { en: 'Link copied', he: 'הקישור הועתק', ru: 'Ссылка скопирована' },
+  book_on_skyscanner: { en: 'Book on Skyscanner', he: 'הזמן ב־Skyscanner', ru: 'Забронировать на Skyscanner' },
+  book_outbound_skyscanner: {
+    en: 'Book outbound on Skyscanner',
+    he: 'הזמן הלוך ב־Skyscanner',
+    ru: 'Туда на Skyscanner',
+  },
+  book_return_skyscanner: {
+    en: 'Book return on Skyscanner',
+    he: 'הזמן חזור ב־Skyscanner',
+    ru: 'Обратно на Skyscanner',
+  },
+  book_leg_skyscanner: {
+    en: 'Book {from} → {to} on Skyscanner',
+    he: 'הזמן {from} → {to} ב־Skyscanner',
+    ru: 'Забронировать {from} → {to} на Skyscanner',
+  },
+  split_booking_hint: {
+    en: 'This trip uses separate one-way tickets. Book each flight on Skyscanner.',
+    he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. הזמינו כל טיסה ב־Skyscanner.',
+    ru: 'Этот маршрут — отдельные билеты в одну сторону. Бронируйте каждый рейс на Skyscanner.',
+  },
   self_transfer_warning: {
     en: 'Self-transfer — separate tickets may be required',
     he: 'החלפה עצמאית — ייתכן שיידרשו כרטיסים נפרדים',

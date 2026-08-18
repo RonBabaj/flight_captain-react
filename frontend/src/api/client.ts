@@ -74,21 +74,36 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+/** Abort hung fetches so the UI cannot sit on a spinner forever (e.g. Explore / Anywhere). */
+const DEFAULT_API_TIMEOUT_MS = 90_000;
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = apiUrl(path);
+  const controller = new AbortController();
+  const timeoutMs = DEFAULT_API_TIMEOUT_MS;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const userSignal = options.signal;
+  if (userSignal) {
+    if (userSignal.aborted) controller.abort();
+    else userSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
   let res: Response;
   try {
     res = await fetch(url, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
     });
   } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Search timed out. Please try again in a moment.');
+    }
     // WebKit/Brave often surfaces cross-origin/network aborts as "Load failed (host)".
     const raw = e instanceof Error ? e.message : String(e);
     if (/load failed|failed to fetch|networkerror|network request failed/i.test(raw)) {
@@ -97,6 +112,8 @@ export async function apiRequest<T>(
       );
     }
     throw e instanceof Error ? e : new Error(raw);
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) {
     const text = await res.text();

@@ -1,10 +1,16 @@
 /**
  * URL search params for shareable links. Web only (uses window).
- * Params: origin, destination, departureDate, returnDate, adults, children, currency, cabinClass
+ * Params: origin, destination, departureDate, returnDate, adults, children, currency, cabinClass,
+ * sessionId, optionId (opened flight on results).
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import type { CreateSearchSessionRequest } from '../types';
+
+export type SearchUrlState = Partial<CreateSearchSessionRequest> & {
+  sessionId?: string;
+  optionId?: string;
+};
 
 function isWeb(): boolean {
   return typeof window !== 'undefined' && typeof window.location !== 'undefined';
@@ -20,8 +26,8 @@ function getParam(p: URLSearchParams, key: string): string | null {
   return v && v.trim() ? v.trim() : null;
 }
 
-/** Parse URL params into partial CreateSearchSessionRequest */
-export function parseSearchParamsFromUrl(): Partial<CreateSearchSessionRequest> {
+/** Parse URL params into shareable search state */
+export function parseSearchParamsFromUrl(): SearchUrlState {
   const p = getParams();
   const origin = getParam(p, 'origin');
   const destination = getParam(p, 'destination');
@@ -32,12 +38,14 @@ export function parseSearchParamsFromUrl(): Partial<CreateSearchSessionRequest> 
   const currency = getParam(p, 'currency');
   const cabinClass = getParam(p, 'cabinClass');
   const sessionId = getParam(p, 'sessionId');
+  const optionId = getParam(p, 'optionId');
   const returnOrigin = getParam(p, 'returnOrigin');
   const returnDestination = getParam(p, 'returnDestination');
   const extra = getParam(p, 'extra');
 
-  const params: Partial<CreateSearchSessionRequest> & { sessionId?: string } = {};
-  if (sessionId) (params as any).sessionId = sessionId;
+  const params: SearchUrlState = {};
+  if (sessionId) params.sessionId = sessionId;
+  if (optionId) params.optionId = optionId;
   if (origin) params.origin = origin.toUpperCase();
   if (destination) params.destination = destination.toUpperCase();
   if (departureDate) params.departureDate = departureDate;
@@ -73,9 +81,10 @@ export function parseSearchParamsFromUrl(): Partial<CreateSearchSessionRequest> 
 }
 
 /** Build URL search string from params */
-function buildSearchString(params: Partial<CreateSearchSessionRequest> & { sessionId?: string }): string {
+export function buildSearchString(params: SearchUrlState): string {
   const p = new URLSearchParams();
-  if ((params as any).sessionId) p.set('sessionId', (params as any).sessionId);
+  if (params.sessionId) p.set('sessionId', params.sessionId);
+  if (params.optionId) p.set('optionId', params.optionId);
   if (params.origin) p.set('origin', params.origin);
   if (params.destination) p.set('destination', params.destination);
   if (params.departureDate) p.set('departureDate', params.departureDate);
@@ -98,7 +107,7 @@ function buildSearchString(params: Partial<CreateSearchSessionRequest> & { sessi
 }
 
 /** Update browser URL without reload */
-export function updateSearchUrl(params: Partial<CreateSearchSessionRequest> & { sessionId?: string }): void {
+export function updateSearchUrl(params: SearchUrlState): void {
   if (!isWeb()) return;
   const q = buildSearchString(params);
   const url = q ? `${window.location.pathname}?${q}` : window.location.pathname;
@@ -107,10 +116,10 @@ export function updateSearchUrl(params: Partial<CreateSearchSessionRequest> & { 
 
 /** Hook: read URL params on mount, provide updater */
 export function useSearchParams(): {
-  paramsFromUrl: Partial<CreateSearchSessionRequest> & { sessionId?: string };
-  updateUrl: (params: Partial<CreateSearchSessionRequest> & { sessionId?: string }) => void;
+  paramsFromUrl: SearchUrlState;
+  updateUrl: (params: SearchUrlState) => void;
 } {
-  const [paramsFromUrl, setParamsFromUrl] = useState<Partial<CreateSearchSessionRequest> & { sessionId?: string }>(() =>
+  const [paramsFromUrl, setParamsFromUrl] = useState<SearchUrlState>(() =>
     parseSearchParamsFromUrl()
   );
 
@@ -121,7 +130,7 @@ export function useSearchParams(): {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const updateUrl = useCallback((params: Partial<CreateSearchSessionRequest> & { sessionId?: string }) => {
+  const updateUrl = useCallback((params: SearchUrlState) => {
     updateSearchUrl(params);
     setParamsFromUrl(parseSearchParamsFromUrl());
   }, []);

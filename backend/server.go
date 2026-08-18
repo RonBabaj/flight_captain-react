@@ -2293,7 +2293,8 @@ func handleMonthDeals(w http.ResponseWriter, r *http.Request) {
 
 // resolveBookingRedirectURL prefers: deep link → GF2 partner checkout (booking_token / live route search) → Google Flights prefill.
 func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, option *FlightOption) string {
-	if option != nil {
+	split := itineraryIsSplit(session, option)
+	if option != nil && !split {
 		if u := normalizeProviderBookingURL(option.BookingURL); u != "" {
 			return u
 		}
@@ -2315,7 +2316,7 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 		currency = option.Price.Currency
 	}
 
-	if googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
+	if !split && googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
 		u, err := googleFlights2Provider.ResolvePartnerBookingURL(ctx, option.BookingToken, currency)
 		if err == nil && normalizeProviderBookingURL(u) != "" {
 			log.Printf("[BOOKING] resolved partner URL from booking_token")
@@ -2326,7 +2327,7 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 		}
 	}
 
-	if googleFlights2Provider != nil {
+	if !split && googleFlights2Provider != nil {
 		origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
 		if origin != "" && dest != "" && dep != "" {
 			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults)
@@ -2470,6 +2471,12 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	destination := strings.TrimSpace(q.Get("destination"))
 	departureDate := strings.TrimSpace(q.Get("departureDate"))
 	returnDate := strings.TrimSpace(q.Get("returnDate"))
+	legIdx := -1
+	if raw := strings.TrimSpace(q.Get("leg")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil {
+			legIdx = n
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
@@ -2477,7 +2484,13 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 	if sessionID != "" && optionID != "" {
 		resp, option := GetSessionAndOption(sessionID, optionID)
 		if resp != nil && option != nil {
-			redirectURL := resolveBookingRedirectURL(ctx, &resp.Session, option)
+			var redirectURL string
+			if legIdx >= 0 {
+				redirectURL = BuildOneWayLegBookingURL(&resp.Session, option, legIdx)
+			}
+			if redirectURL == "" {
+				redirectURL = resolveBookingRedirectURL(ctx, &resp.Session, option)
+			}
 			if redirectURL != "" {
 				provider := ResolveProvider(option)
 				_ = RecordClick(sessionID, optionID, provider, redirectURL)
