@@ -538,6 +538,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           durationDays,
           children,
           nonStop,
+          searchNonce: Date.now(),
         });
       } catch {}
       return;

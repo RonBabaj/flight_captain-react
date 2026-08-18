@@ -38,6 +38,9 @@ import {
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+const EXPLORE_PREFETCH_TIMEOUT_MS = 15_000;
+const EXPLORE_LIVE_TIMEOUT_MS = 35_000;
+
 function initialDatesFromRouteParams(p: ExploreScreenParams): {
   departureDate: string;
   returnDate: string;
@@ -339,9 +342,22 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           };
 
     const pageSize = 64;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const clearWatchdog = () => {
+      if (watchdog) {
+        clearTimeout(watchdog);
+        watchdog = undefined;
+      }
+    };
+    watchdog = setTimeout(() => {
+      if (!isCurrent()) return;
+      setLoading(false);
+      setLiveRefreshing(false);
+    }, EXPLORE_PREFETCH_TIMEOUT_MS + EXPLORE_LIVE_TIMEOUT_MS);
+
     // Prefetch returns cached real prices only (no estimate placeholders). Live batches
     // then grow the list as confirmed destinations arrive.
-    getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true })
+    getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true }, EXPLORE_PREFETCH_TIMEOUT_MS)
       .then(async (res) => {
         if (!isCurrent()) return;
         const confirmed = (res.destinations ?? []).filter(
@@ -352,7 +368,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         setExploreHasMore(res.hasMore);
         setExploreNextOffset(res.offset + res.destinations.length);
 
-        // Keep the centered search UI until we have at least one real card (or live finishes).
+        // Cached hits: show the list immediately. Cold cache: wait for the first live round.
         if (confirmed.length > 0) {
           setLoading(false);
         }
@@ -378,7 +394,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
                 offset: 0,
                 limit: pageSize,
                 live: true,
-              });
+              }, EXPLORE_LIVE_TIMEOUT_MS);
               if (!isCurrent()) return;
               const next = (r2.destinations ?? []).filter(
                 (d) => d.priceSource !== 'estimated',
@@ -393,12 +409,18 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
               avail = !!r2.liveRefreshAvailable;
             } catch {
               liveFailed = true;
-              // Keep whatever confirmed cards we already have.
               break;
             }
             rounds += 1;
+            // Never keep the full-screen loader for more than one live round.
+            // Extra rounds only refine the list in the background.
+            setLoading(false);
+            if (lastConfirmed.length === 0) {
+              break;
+            }
           }
         } finally {
+          clearWatchdog();
           if (!isCurrent()) return;
           setLiveRefreshing(false);
           setLoading(false);
@@ -409,6 +431,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         }
       })
       .catch(() => {
+        clearWatchdog();
         if (!isCurrent()) return;
         setError(t('explore_error'));
         setLoading(false);
@@ -445,12 +468,34 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   };
 
   useEffect(() => {
-    doFetch();
+    const org = (params.origin || '').trim();
+    const dr = initialDatesFromRouteParams(params);
+    setOrigin(org);
+    setDepartureDate(dr.departureDate);
+    setReturnDate(dr.returnDate);
+    setTripType(dr.tripType);
+    setFormParams((p) => ({
+      ...p,
+      origin: org,
+      departureDate: dr.departureDate,
+      returnDate: dr.tripType === 'one-way' ? (undefined as any) : dr.returnDate,
+    }));
+    doFetch({ origin: org, departureDate: dr.departureDate, returnDate: dr.returnDate });
     return () => {
       exploreFetchGenRef.current += 1;
     };
+    // Refetch when Search Form (or deals) navigates here again — the screen often stays mounted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    params.origin,
+    isDealsMode && params.mode === 'deals' ? params.year : params.departureDate,
+    isDealsMode && params.mode === 'deals' ? params.month : params.returnDate,
+    isDealsMode && params.mode === 'deals' ? params.durationDays : '',
+    params.adults,
+    params.currency,
+    isDealsMode,
+    params.searchNonce,
+  ]);
 
   // If the region pill no longer applies to any row (e.g. stale selection), show all again.
   useEffect(() => {
