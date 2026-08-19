@@ -52,10 +52,11 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     const sid = paramsFromUrl.sessionId;
-    // Don't navigate if we also have search params — the Results screen will handle
-    // session expiry and re-bootstrap from URL params on fresh/shared-link loads.
     if (sid && typeof window !== 'undefined') {
-      navigation.navigate('Results', { sessionId: sid });
+      // Pass sessionId='' so Results resolves it from the URL, not from a fixed route
+      // param. That lets the expired-session recovery clear the URL sessionId and have
+      // routeSessionId fall to '' so the bootstrap effect can re-run the search.
+      navigation.navigate('Results', { sessionId: '' });
     }
   }, [paramsFromUrl.sessionId, navigation]);
 
