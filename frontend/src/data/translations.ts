@@ -332,8 +332,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   loading_more_results: { en: 'Loading more results…', he: 'טוען תוצאות…', ru: 'Загрузка результатов…' },
   book: { en: 'Book', he: 'הזמן', ru: 'Забронировать' },
   book_now: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
+  share: { en: 'Share', he: 'שתף', ru: 'Поделиться' },
   copy_link: { en: 'Copy link', he: 'העתק קישור', ru: 'Копировать ссылку' },
-  link_copied: { en: 'Link copied', he: 'הקישור הועתק', ru: 'Ссылка скопирована' },
+  link_copied: { en: 'Copied!', he: 'הועתק!', ru: 'Скопировано!' },
   book_on_skyscanner: { en: 'Book on Skyscanner', he: 'הזמן ב־Skyscanner', ru: 'Забронировать на Skyscanner' },
   book_outbound_skyscanner: {
     en: 'Book outbound on Skyscanner',
