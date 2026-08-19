@@ -52,6 +52,8 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     const sid = paramsFromUrl.sessionId;
+    // Don't navigate if we also have search params — the Results screen will handle
+    // session expiry and re-bootstrap from URL params on fresh/shared-link loads.
     if (sid && typeof window !== 'undefined') {
       navigation.navigate('Results', { sessionId: sid });
     }

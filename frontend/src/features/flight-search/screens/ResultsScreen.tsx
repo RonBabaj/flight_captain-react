@@ -24,7 +24,7 @@ import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../
 import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import { useSearchParams } from '../../../hooks/useSearchParams';
+import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -275,13 +275,34 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
    * sessionId="". React Navigation can keep a *stale* route param from the previous
    * results visit — if we poll that id it 404s and (#21) marks the search FAILED.
    * While an optimistic create is pending, ignore route/URL ids and bootstrap a new session.
+   *
+   * Shared links: when the sessionId comes only from the URL (not from the store or an
+   * in-app navigation) and the URL also contains search params (origin + dates), the
+   * session may have expired on a different device. In that case, drop the URL sessionId
+   * so the bootstrap effect re-creates the search from the URL params. The optionId is
+   * preserved in pendingOptionIdRef and will auto-open once results load.
    */
   const optimisticNewSearch = status === 'PENDING' && !storeSessionId;
   const routeSessionId = typeof route.params?.sessionId === 'string' ? route.params.sessionId.trim() : '';
   const urlSessionId = typeof paramsFromUrl.sessionId === 'string' ? paramsFromUrl.sessionId.trim() : '';
+
+  // A session from a shared link may be expired on the recipient's device. If the URL
+  // supplies both a sessionId AND the search params needed to recreate it, clear the
+  // sessionId so the bootstrap effect fires. The poll will then use the freshly created id.
+  const urlOnlySessionId =
+    !storeSessionId && !routeSessionId && !!urlSessionId
+      ? urlSessionId
+      : '';
+  const urlHasSearchParams = !!(
+    paramsFromUrl.origin && paramsFromUrl.destination && paramsFromUrl.departureDate
+  );
+  const urlSessionLikelyExpired = !!urlOnlySessionId && urlHasSearchParams && !storeSessionId;
+
   const sessionId = optimisticNewSearch
     ? ''
-    : (storeSessionId || routeSessionId || urlSessionId || '');
+    : urlSessionLikelyExpired
+      ? ''
+      : (storeSessionId || routeSessionId || urlSessionId || '');
   const searchNonce = (route.params as any)?.searchNonce ?? 0;
   const versionRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
@@ -638,8 +659,16 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             isCurrentSearchGeneration(generation) &&
             useSearchStore.getState().sessionId === polledSessionId
           ) {
-            searchActions.setError('Search session expired. Please search again.');
-            searchActions.setSession(polledSessionId, null, 'FAILED');
+            // If the URL contains enough params to rebuild the search (shared link to an
+            // expired session), silently re-bootstrap instead of showing an error.
+            const urlP = parseSearchParamsFromUrl();
+            if (urlP.origin && urlP.destination && urlP.departureDate) {
+              searchActions.setSession(null, null, 'PENDING');
+              // pendingOptionIdRef is already set; bootstrap effect fires when sessionId → ''.
+            } else {
+              searchActions.setError('Search session expired. Please search again.');
+              searchActions.setSession(polledSessionId, null, 'FAILED');
+            }
           }
         }
         // Transient 5xx/network: keep polling briefly while still PENDING.
