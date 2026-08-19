@@ -142,19 +142,20 @@ export function FlightDetailsModal({
       : '';
     const titleParts = [fromCode && toCode ? `${fromCode} → ${toCode}` : '', depDate].filter(Boolean);
     const title = titleParts.length ? titleParts.join(' · ') : t('flight_details');
-    const message = `${title}\n${href}`;
 
     try {
-      // Native share sheet (mobile + modern browsers via Web Share API)
+      // Native share sheet (mobile + modern browsers via Web Share API).
+      // Pass only url — not text:title — so Telegram/WhatsApp don't glue the title
+      // onto the URL ("Jan 7https://fly-fix.com/...") and break the deep link.
       const g = typeof globalThis !== 'undefined' ? (globalThis as { navigator?: { share?: (d: object) => Promise<void>; canShare?: (d: object) => boolean } }) : undefined;
       if (g?.navigator?.share) {
-        await g.navigator.share({ title, url: href, text: title });
+        await g.navigator.share({ title, url: href });
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         return;
       }
-      // React Native Share fallback (works on iOS/Android)
-      const result = await Share.share({ message, url: href, title });
+      // React Native Share fallback (works on iOS/Android) — message is URL-only.
+      const result = await Share.share({ message: href, url: href, title });
       if (result.action === Share.sharedAction) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);

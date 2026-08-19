@@ -1,16 +1,16 @@
 # Graph Report - workspace  (2026-08-19)
 
 ## Corpus Check
-- 139 files · ~156,083 words
+- 139 files · ~156,146 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1150 nodes · 2654 edges · 65 communities (60 shown, 5 thin omitted)
+- 1150 nodes · 2654 edges · 64 communities (59 shown, 5 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 171 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a65310fb`
+- Built from commit: `331a2f74`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,7 +37,6 @@
 - time.Time
 - qa_runner.py
 - ApiClient
-- AppIcon.tsx
 - TestResult
 - ResponseValidator
 - Registry
@@ -104,7 +103,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (65 total, 5 thin omitted)
+## Communities (64 total, 5 thin omitted)
 
 ### Community 0 - "googleflights2_provider.go"
 Cohesion: 0.12
@@ -148,7 +147,7 @@ Nodes (18): BuildRedirectURL(), getAffiliateID(), GetClicksSummary(), getOTAProv
 
 ### Community 10 - "ExploreScreen.tsx"
 Cohesion: 0.12
-Nodes (28): GetDealsRangeParams, getMonthDeals(), GetMonthDealsParams, getExploreDestinations(), getAirportEntry(), c, countryFlag(), d (+20 more)
+Nodes (29): GetDealsRangeParams, getMonthDeals(), GetMonthDealsParams, getExploreDestinations(), getAirportEntry(), getCityDisplayName(), c, countryFlag() (+21 more)
 
 ### Community 11 - "net/http.ResponseWriter"
 Cohesion: 0.42
@@ -167,8 +166,8 @@ Cohesion: 0.14
 Nodes (30): FlightOption, openJawOption(), TestBookingLinkModeDefaultsToGoogle(), TestBookingRouteFromSessionOption_splitOmitsReturn(), TestBuildGoogleFlightsFallbackFromParams(), TestBuildOneWayLegBookingURL(), TestBuildSkyscannerPrefillURL_oneWay(), TestBuildSkyscannerPrefillURL_roundTrip() (+22 more)
 
 ### Community 15 - "AirportAutocomplete.tsx"
-Cohesion: 0.20
-Nodes (15): AIRPORT_DICTIONARY, getAirportDisplayName(), getCityDisplayName(), lower(), matchesQuery(), rankResult(), searchAirportsLocal(), AirportAutocomplete() (+7 more)
+Cohesion: 0.13
+Nodes (21): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES (+13 more)
 
 ### Community 16 - "LocaleContext.tsx"
 Cohesion: 0.17
@@ -193,10 +192,6 @@ Nodes (13): Namespace, Path, Any, Reporting helpers for test execution results.,
 ### Community 21 - "ApiClient"
 Cohesion: 0.14
 Nodes (12): ApiClient, Any, HTTP client utilities for executing API test cases., Parse JSON response when possible without raising., Sleep using exponential backoff., Executes HTTP requests with retry and timing support., Close the underlying requests session., Execute one test case and return a populated result. (+4 more)
-
-### Community 22 - "AppIcon.tsx"
-Cohesion: 0.18
-Nodes (14): AppIcon(), AppIconLibrary, AppIconProps, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES (+6 more)
 
 ### Community 23 - "TestResult"
 Cohesion: 0.18
@@ -223,8 +218,8 @@ Cohesion: 0.32
 Nodes (13): _as_str(), load_test_cases(), _normalize_bool(), _normalize_dict(), _normalize_optional_int(), _normalize_status_codes(), _normalize_string_list(), _normalize_string_map() (+5 more)
 
 ### Community 29 - "ThemeContext.tsx"
-Cohesion: 0.15
-Nodes (12): CheaperCitiesOption, Props, s, ACCENT, darkTheme, lightTheme, RADIUS, Theme (+4 more)
+Cohesion: 0.10
+Nodes (18): ExtraLeg, PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, CheaperCitiesOption, Props (+10 more)
 
 ### Community 30 - "exploreBuildRowsAndQueue"
 Cohesion: 0.13
@@ -239,8 +234,8 @@ Cohesion: 0.06
 Nodes (59): TestAttachReturnLegKeepPrice(), TestEnsureRoundTripLegs_nilSafe(), TestEnsureRoundTripLegs_noOpWhenTwoLegs(), TestCombineOneWayBatches_emptyBatch(), TestCompleteExtraLegs(), TestExtraLegsFingerprint(), TestHasExtraLegs(), TestApifyErrorMessage() (+51 more)
 
 ### Community 33 - "store/index.ts"
-Cohesion: 0.17
-Nodes (14): f, FiltersPanelProps, ICONS, KEYS, s, SortBarProps, SortOption, dealsActions (+6 more)
+Cohesion: 0.16
+Nodes (15): f, FiltersPanelProps, ICONS, KEYS, s, SortBarProps, SortOption, dealsActions (+7 more)
 
 ### Community 34 - "api.ts"
 Cohesion: 0.13
@@ -267,8 +262,8 @@ Cohesion: 0.31
 Nodes (10): CachedResult, fetchFresh(), getFromStorage(), getSearchSessionResults(), getStorage(), paramsMatch(), resultsCache, setToStorage() (+2 more)
 
 ### Community 40 - "useLocale"
-Cohesion: 0.11
-Nodes (29): ExtraLeg, PHRASES_EN, PHRASES_HE, PHRASES_RU, Props, s, SearchLoadingOverlay(), useLocale() (+21 more)
+Cohesion: 0.12
+Nodes (29): SearchLoadingOverlay(), useLocale(), defaultParams, DynamicDestinationsScreen(), emptyExtra(), Nav, styles, AirportAutocomplete() (+21 more)
 
 ### Community 41 - "models.py"
 Cohesion: 0.25

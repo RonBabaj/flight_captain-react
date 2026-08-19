@@ -276,16 +276,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const deepLinkParams = mergeDeepLinkParams(route.params);
   const mergedSearchParams = { ...paramsFromUrl, ...deepLinkParams };
 
-  /**
-   * Resolve the active session id.
-   * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
-   * sessionId="". React Navigation can keep a *stale* route param from the previous
-   * results visit — if we poll that id it 404s and (#21) marks the search FAILED.
-   * While an optimistic create is pending, ignore route/URL ids and bootstrap a new session.
-   */
-  const optimisticNewSearch = status === 'PENDING' && !storeSessionId;
   const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
   const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
+  const hasSharedSessionInLink = !!(routeSessionId || urlSessionId);
+
+  /**
+   * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
+   * sessionId="". Ignore route/URL ids only when starting a fresh in-app search — never
+   * when the link itself carries a sessionId (shared deep link opened from Telegram etc.).
+   */
+  const optimisticNewSearch = status === 'PENDING' && !storeSessionId && !hasSharedSessionInLink;
 
   const sessionId = optimisticNewSearch
     ? ''
@@ -527,6 +527,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   useEffect(() => {
     if (sessionId) return;
     if (creatingSessionRef.current) return;
+
+    // Shared links carry sessionId + search params. Never POST a new search when the
+    // URL/route already names a session — that was the iPhone Chrome bug: bootstrap
+    // fired on frame 1 (sessionId not resolved yet) and replaced the shared session.
+    const linkParams = mergeDeepLinkParams(route.params as Record<string, unknown>);
+    if (linkParams.sessionId?.trim()) return;
 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
