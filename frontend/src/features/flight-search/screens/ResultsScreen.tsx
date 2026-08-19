@@ -25,6 +25,7 @@ import { getSearchSessionResults, createSearchSession, getUniformBookingRedirect
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
+import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -252,7 +253,7 @@ async function findCheapestOptionForParams(
   return { sessionId: session.id, option: best };
 }
 
-export function ResultsScreen({ route }: { route: { params: { sessionId: string } } }) {
+export function ResultsScreen({ route }: { route: { params: Record<string, unknown> } }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language } = useLocale();
   const { updateUrl, paramsFromUrl } = useSearchParams();
@@ -269,6 +270,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     filters,
   } = useSearchStore();
 
+  // Portable deep links: merge live URL + React Navigation route params. On iOS
+  // WebKit the address bar can lose query params after history sync while
+  // route.params still holds sessionId/optionId from the original shared URL.
+  const deepLinkParams = mergeDeepLinkParams(route.params);
+  const mergedSearchParams = { ...paramsFromUrl, ...deepLinkParams };
+
   /**
    * Resolve the active session id.
    * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
@@ -277,8 +284,8 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
    * While an optimistic create is pending, ignore route/URL ids and bootstrap a new session.
    */
   const optimisticNewSearch = status === 'PENDING' && !storeSessionId;
-  const routeSessionId = typeof route.params?.sessionId === 'string' ? route.params.sessionId.trim() : '';
-  const urlSessionId = typeof paramsFromUrl.sessionId === 'string' ? paramsFromUrl.sessionId.trim() : '';
+  const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
+  const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
 
   const sessionId = optimisticNewSearch
     ? ''
@@ -288,17 +295,43 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
   const pendingOptionIdRef = useRef<string | undefined>(
-    typeof paramsFromUrl.optionId === 'string' ? paramsFromUrl.optionId : undefined
+    typeof mergedSearchParams.optionId === 'string' ? mergedSearchParams.optionId : undefined
   );
   // flightId is the canonical fingerprint — survives session re-creation for shared links
   const pendingFlightIdRef = useRef<string | undefined>(
-    typeof paramsFromUrl.flightId === 'string' ? paramsFromUrl.flightId : undefined
+    typeof mergedSearchParams.flightId === 'string' ? mergedSearchParams.flightId : undefined
   );
+  // Skip paramsMatch cache guard while hydrating a shared link — partial/stale URL
+  // search fields must not block loading the server-side session snapshot.
+  const sharedLinkHydrationRef = useRef(!!(routeSessionId || urlSessionId) && !storeSessionId);
+  const deepLinkLoggedRef = useRef(false);
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Keep pending flight refs aligned when iOS WebKit delivers params via route.params
+  // after remount, or when pageshow refreshes the URL query string.
+  useEffect(() => {
+    if (mergedSearchParams.optionId) pendingOptionIdRef.current = mergedSearchParams.optionId;
+    if (mergedSearchParams.flightId) pendingFlightIdRef.current = mergedSearchParams.flightId;
+  }, [mergedSearchParams.optionId, mergedSearchParams.flightId]);
+
+  useEffect(() => {
+    if (deepLinkLoggedRef.current) return;
+    if (!routeSessionId && !urlSessionId) return;
+    deepLinkLoggedRef.current = true;
+    logDeepLinkDiagnostics('mount', {
+      routeParams: route.params,
+      merged: mergedSearchParams,
+      resolvedSessionId: sessionId,
+      storeSessionId,
+      storeStatus: status,
+      resultsCount: results.length,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openDetails = useCallback((option: FlightOption) => {
     pendingOptionIdRef.current = option.id;
@@ -504,9 +537,12 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     // silently discarded the in-flight create. The UI then hung on the loading
     // screen forever (hit by param-only shared links and the expired-link re-run).
     const { sessionId: _urlSession, optionId: _urlOption, flightId: _urlFlightId, ...urlSearch } = paramsFromUrlRef.current ?? {};
+    const { sessionId: _routeSession, optionId: _routeOption, flightId: _routeFlight, ...routeSearch } =
+      mergeDeepLinkParams(route.params as Record<string, unknown>);
     const base = {
       ...defaultFormParams,
       ...urlSearch,
+      ...routeSearch,
       ...(storeParamsRef.current ?? {}),
     } as Partial<CreateSearchSessionRequest>;
 
@@ -631,10 +667,14 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       if (currentStatus === 'COMPLETE' && versionRef.current > 0) return;
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
+        const matchParams =
+          sharedLinkHydrationRef.current || !storeParamsRef.current
+            ? undefined
+            : storeParamsRef.current;
         const res = await getSearchSessionResults(
           polledSessionId,
           sinceVersion,
-          storeParamsRef.current ?? undefined
+          matchParams
         );
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
         const latestSid = useSearchStore.getState().sessionId;
@@ -654,10 +694,28 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         });
         if (applied) {
           versionRef.current = nextVersion;
+          sharedLinkHydrationRef.current = false;
+          logDeepLinkDiagnostics('poll-ok', {
+            routeParams: route.params as Record<string, unknown>,
+            resolvedSessionId: polledSessionId,
+            storeSessionId: useSearchStore.getState().sessionId,
+            storeStatus: res.session?.status,
+            resultsCount: res.results?.length ?? 0,
+            apiStatus: 200,
+          });
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const notFound = /\b404\b|not found|expired/i.test(msg);
+        logDeepLinkDiagnostics(notFound ? 'poll-404' : 'poll-error', {
+          routeParams: route.params as Record<string, unknown>,
+          resolvedSessionId: polledSessionId,
+          storeSessionId: useSearchStore.getState().sessionId,
+          storeStatus: statusRef.current,
+          resultsCount: useSearchStore.getState().results.length,
+          apiStatus: notFound ? 404 : 'error',
+          apiError: msg.slice(0, 200),
+        });
         if (notFound) {
           consecutiveNotFound += 1;
           const stAfter = statusRef.current;

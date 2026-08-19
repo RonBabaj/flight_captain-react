@@ -968,11 +968,19 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 	id := parts[0]
 	resp, ok := loadSearchSession(id)
 	if !ok {
+		log.Printf("[SESSION_GET] id=%s status=404 results=0 ua=%q", id, truncateUA(r.UserAgent(), 80))
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
-
+	log.Printf("[SESSION_GET] id=%s status=%s results=%d ua=%q", id, resp.Session.Status, len(resp.Results), truncateUA(r.UserAgent(), 80))
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func truncateUA(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max]
 }
 
 func randomID(prefix string) string {
