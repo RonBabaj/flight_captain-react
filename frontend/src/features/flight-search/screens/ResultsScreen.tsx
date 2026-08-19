@@ -275,40 +275,24 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
    * sessionId="". React Navigation can keep a *stale* route param from the previous
    * results visit — if we poll that id it 404s and (#21) marks the search FAILED.
    * While an optimistic create is pending, ignore route/URL ids and bootstrap a new session.
-   *
-   * Shared links: when the sessionId comes only from the URL (not from the store or an
-   * in-app navigation) and the URL also contains search params (origin + dates), the
-   * session may have expired on a different device. In that case, drop the URL sessionId
-   * so the bootstrap effect re-creates the search from the URL params. The optionId is
-   * preserved in pendingOptionIdRef and will auto-open once results load.
    */
   const optimisticNewSearch = status === 'PENDING' && !storeSessionId;
   const routeSessionId = typeof route.params?.sessionId === 'string' ? route.params.sessionId.trim() : '';
   const urlSessionId = typeof paramsFromUrl.sessionId === 'string' ? paramsFromUrl.sessionId.trim() : '';
 
-  // A session from a shared link may be expired on the recipient's device. If the URL
-  // supplies both a sessionId AND the search params needed to recreate it, clear the
-  // sessionId so the bootstrap effect fires. The poll will then use the freshly created id.
-  const urlOnlySessionId =
-    !storeSessionId && !routeSessionId && !!urlSessionId
-      ? urlSessionId
-      : '';
-  const urlHasSearchParams = !!(
-    paramsFromUrl.origin && paramsFromUrl.destination && paramsFromUrl.departureDate
-  );
-  const urlSessionLikelyExpired = !!urlOnlySessionId && urlHasSearchParams && !storeSessionId;
-
   const sessionId = optimisticNewSearch
     ? ''
-    : urlSessionLikelyExpired
-      ? ''
-      : (storeSessionId || routeSessionId || urlSessionId || '');
+    : (storeSessionId || routeSessionId || urlSessionId || '');
   const searchNonce = (route.params as any)?.searchNonce ?? 0;
   const versionRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
   const pendingOptionIdRef = useRef<string | undefined>(
     typeof paramsFromUrl.optionId === 'string' ? paramsFromUrl.optionId : undefined
+  );
+  // flightId is the canonical fingerprint — survives session re-creation for shared links
+  const pendingFlightIdRef = useRef<string | undefined>(
+    typeof paramsFromUrl.flightId === 'string' ? paramsFromUrl.flightId : undefined
   );
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
@@ -318,11 +302,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   const openDetails = useCallback((option: FlightOption) => {
     pendingOptionIdRef.current = option.id;
+    pendingFlightIdRef.current = (option as any).canonicalFingerprint || undefined;
     setDetailsOption(option);
   }, []);
 
   const closeDetails = useCallback(() => {
     pendingOptionIdRef.current = undefined;
+    pendingFlightIdRef.current = undefined;
     setDetailsOption(null);
   }, []);
 
@@ -661,10 +647,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
           ) {
             // If the URL contains enough params to rebuild the search (shared link to an
             // expired session), silently re-bootstrap instead of showing an error.
+            // pendingOptionIdRef + pendingFlightIdRef are already set; bootstrap effect
+            // fires when sessionId → '' and fingerprint matching opens the right flight.
             const urlP = parseSearchParamsFromUrl();
             if (urlP.origin && urlP.destination && urlP.departureDate) {
+              // Preserve flightId for fingerprint matching across the new session
+              if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
               searchActions.setSession(null, null, 'PENDING');
-              // pendingOptionIdRef is already set; bootstrap effect fires when sessionId → ''.
             } else {
               searchActions.setError('Search session expired. Please search again.');
               searchActions.setSession(polledSessionId, null, 'FAILED');
@@ -697,27 +686,51 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   useEffect(() => {
     if (sessionId && storeParams) {
+      const openOption = detailsOption || results.find((r) => r.id === pendingOptionIdRef.current);
       updateUrl({
         ...storeParams,
         sessionId,
-        optionId: detailsOption?.id || pendingOptionIdRef.current,
+        optionId: openOption?.id || pendingOptionIdRef.current,
+        flightId: (openOption as any)?.canonicalFingerprint || pendingFlightIdRef.current,
       });
     }
-  }, [sessionId, storeParams, updateUrl, detailsOption?.id]);
+  }, [sessionId, storeParams, updateUrl, detailsOption?.id, results]);
 
+  // Auto-open the flight from a shared link. Prefer optionId match (same session), then
+  // fall back to canonicalFingerprint match (re-created session after expiry).
   useEffect(() => {
-    const want = pendingOptionIdRef.current;
-    if (!want) return;
-    if (detailsOption?.id === want) return;
-    const match = results.find((r) => r.id === want);
-    if (match) {
-      setDetailsOption(match);
-      return;
+    const wantId = pendingOptionIdRef.current;
+    const wantFingerprint = pendingFlightIdRef.current;
+    if (!wantId && !wantFingerprint) return;
+    if (detailsOption) return;
+
+    // Try exact optionId first
+    if (wantId) {
+      const match = results.find((r) => r.id === wantId);
+      if (match) {
+        setDetailsOption(match);
+        pendingFlightIdRef.current = undefined;
+        return;
+      }
     }
+    // Fall back to fingerprint match (session was re-created; option IDs differ)
+    if (wantFingerprint) {
+      const match = results.find(
+        (r) => (r as any).canonicalFingerprint === wantFingerprint
+      );
+      if (match) {
+        pendingOptionIdRef.current = match.id;
+        setDetailsOption(match);
+        pendingFlightIdRef.current = undefined;
+        return;
+      }
+    }
+    // If results are final and no match found, clear the pending refs
     if (status === 'COMPLETE' && results.length > 0) {
       pendingOptionIdRef.current = undefined;
+      pendingFlightIdRef.current = undefined;
     }
-  }, [results, status, detailsOption?.id]);
+  }, [results, status, detailsOption]);
 
   // Only reset positioning when sessionId actually changes (not on every mount). Prevents "Cheaper departure cities" disappearing on Chrome iOS when component re-mounts or effect re-runs with same sessionId.
   const positioningSessionIdRef = useRef<string | null>(null);

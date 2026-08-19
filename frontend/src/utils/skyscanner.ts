@@ -114,7 +114,7 @@ export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
   return hops;
 }
 
-export function buildShareUrlWithOptionId(optionId: string): string {
+export function buildShareUrlWithOptionId(optionId: string, flightId?: string): string {
   try {
     const g = typeof globalThis !== 'undefined' ? (globalThis as { window?: { location?: { href?: string } } }) : undefined;
     const href = g?.window?.location?.href;
@@ -122,6 +122,8 @@ export function buildShareUrlWithOptionId(optionId: string): string {
     const u = new URL(href);
     if (optionId) u.searchParams.set('optionId', optionId);
     else u.searchParams.delete('optionId');
+    if (flightId) u.searchParams.set('flightId', flightId);
+    else u.searchParams.delete('flightId');
     return u.toString();
   } catch {
     return '';

@@ -10,6 +10,8 @@ import type { CreateSearchSessionRequest } from '../types';
 export type SearchUrlState = Partial<CreateSearchSessionRequest> & {
   sessionId?: string;
   optionId?: string;
+  /** Stable canonical fingerprint of the shared flight — survives session re-creation */
+  flightId?: string;
 };
 
 function isWeb(): boolean {
@@ -39,6 +41,7 @@ export function parseSearchParamsFromUrl(): SearchUrlState {
   const cabinClass = getParam(p, 'cabinClass');
   const sessionId = getParam(p, 'sessionId');
   const optionId = getParam(p, 'optionId');
+  const flightId = getParam(p, 'flightId');
   const returnOrigin = getParam(p, 'returnOrigin');
   const returnDestination = getParam(p, 'returnDestination');
   const extra = getParam(p, 'extra');
@@ -46,6 +49,7 @@ export function parseSearchParamsFromUrl(): SearchUrlState {
   const params: SearchUrlState = {};
   if (sessionId) params.sessionId = sessionId;
   if (optionId) params.optionId = optionId;
+  if (flightId) params.flightId = flightId;
   if (origin) params.origin = origin.toUpperCase();
   if (destination) params.destination = destination.toUpperCase();
   if (departureDate) params.departureDate = departureDate;
@@ -85,6 +89,7 @@ export function buildSearchString(params: SearchUrlState): string {
   const p = new URLSearchParams();
   if (params.sessionId) p.set('sessionId', params.sessionId);
   if (params.optionId) p.set('optionId', params.optionId);
+  if (params.flightId) p.set('flightId', params.flightId);
   if (params.origin) p.set('origin', params.origin);
   if (params.destination) p.set('destination', params.destination);
   if (params.departureDate) p.set('departureDate', params.departureDate);
