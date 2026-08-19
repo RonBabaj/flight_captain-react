@@ -362,6 +362,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
         adults: p.adults ?? 1,
         currency: currency || 'USD',
+        searchNonce: Date.now(),
       });
       return;
     }

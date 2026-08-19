@@ -9,6 +9,8 @@ export type ExploreScreenParams =
       returnDate?: string;
       adults: number;
       currency: string;
+      /** Bumps on each navigation so a kept-alive Explore screen refetches. */
+      searchNonce?: number;
     }
   | {
       mode: 'deals';
@@ -22,6 +24,7 @@ export type ExploreScreenParams =
       durationDays: number;
       children: number;
       nonStop: boolean;
+      searchNonce?: number;
     };
 
 export type SearchStackParamList = {

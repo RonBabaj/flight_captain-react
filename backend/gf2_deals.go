@@ -35,6 +35,9 @@ const (
 	exploreMaxLiveFetchesPerSession = 36 // hard cap per explore session (~3 refresh rounds)
 	exploreRateLimitRetries         = 8  // per destination: wait for GF2 token bucket
 	exploreRateLimitBackoff         = 14 * time.Second
+	// Keep each ?live= HTTP request well under typical reverse-proxy limits (~60s)
+	// so the Explore UI is not stuck on a spinner while 12 GF2 searches finish.
+	exploreLiveBatchTimeout = 20 * time.Second
 )
 
 func outboundDatesForMonthBookable(year, month int) []string {
@@ -431,28 +434,33 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 		sess.mu.Unlock()
 	}()
 
+	batchCtx, cancel := context.WithTimeout(ctx, exploreLiveBatchTimeout)
+	defer cancel()
+
 	var incoming []exploreDestRow
 	var incomingMu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, exploreLiveConcurrency)
+	launched := 0
 	for _, dest := range batch {
-		if ctx.Err() != nil {
+		if batchCtx.Err() != nil {
 			break
 		}
 		dest := dest
+		launched++
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
-			case <-ctx.Done():
+			case <-batchCtx.Done():
 				return
 			}
-			if ctx.Err() != nil {
+			if batchCtx.Err() != nil {
 				return
 			}
-			row := gf2ExploreSearchOneDestination(ctx, p, sess, dest)
+			row := gf2ExploreSearchOneDestination(batchCtx, p, sess, dest)
 			sess.mu.Lock()
 			sess.LiveFetchAttempts++
 			sess.mu.Unlock()
@@ -469,11 +477,14 @@ func exploreRunLiveBatch(ctx context.Context, p *search.GoogleFlights2Provider, 
 	wg.Wait()
 
 	sess.mu.Lock()
-	// Advance past this batch only after work completes (even if some dests returned nil).
-	sess.LiveQueueCursor = end
+	// Advance only past destinations we actually dispatched so a short batch
+	// timeout does not skip the rest of the live queue.
+	sess.LiveQueueCursor = start + launched
 	sess.Rows = mergeExplorePriceRows(sess.Rows, incoming)
 	attempts := sess.LiveFetchAttempts
+	timedOut := batchCtx.Err() != nil
 	sess.mu.Unlock()
-	log.Printf("[EXPLORE_LIVE] batchDests=%d mergedLive=%d totalAttempts=%d", len(batch), len(incoming), attempts)
+	log.Printf("[EXPLORE_LIVE] batchDests=%d launched=%d mergedLive=%d totalAttempts=%d timedOut=%v",
+		len(batch), launched, len(incoming), attempts, timedOut)
 	return nil
 }

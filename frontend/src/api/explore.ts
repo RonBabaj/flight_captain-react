@@ -41,14 +41,15 @@ export interface ExploreResponse {
 }
 
 export async function getExploreDestinations(
-  params: GetExploreDestinationsParams
+  params: GetExploreDestinationsParams,
+  timeoutMs?: number
 ): Promise<ExploreResponse> {
   if (params.sessionId) {
     const q = new URLSearchParams({ sessionId: params.sessionId });
     q.set('offset', String(params.offset ?? 0));
     q.set('limit', String(params.limit ?? 10));
     if (params.live) q.set('live', 'true');
-    const res = await apiGet<ExploreResponse>(`${EXPLORE_PATH}?${q.toString()}`);
+    const res = await apiGet<ExploreResponse>(`${EXPLORE_PATH}?${q.toString()}`, timeoutMs);
     return {
       destinations: res.destinations ?? [],
       sessionId: res.sessionId ?? params.sessionId,
@@ -96,7 +97,7 @@ export async function getExploreDestinations(
   q.set('limit', String(params.limit ?? 10));
   if (params.prefetch) q.set('prefetch', 'true');
 
-  const res = await apiGet<ExploreResponse>(`${EXPLORE_PATH}?${q.toString()}`);
+  const res = await apiGet<ExploreResponse>(`${EXPLORE_PATH}?${q.toString()}`, timeoutMs);
   return {
     destinations: res.destinations ?? [],
     sessionId: res.sessionId ?? '',
