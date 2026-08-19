@@ -12,10 +12,13 @@ import {
   Alert,
   Share,
   useWindowDimensions,
+  Animated,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
+import { SheetDragHandle, useDraggableSheetHeight } from '../../../components/DraggableBottomSheet';
 import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
@@ -114,8 +117,13 @@ export function FlightDetailsModal({
   const [bookLoading, setBookLoading] = useState(false);
   const [bookLoadingLeg, setBookLoadingLeg] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const isNarrow = width < 600;
+  const { heightAnim, panHandlers } = useDraggableSheetHeight(
+    windowHeight,
+    isNarrow && visible,
+    option?.id,
+  );
 
   const splitBooking = isSplitBookingItinerary(option, searchParams);
   const hops = option ? bookingHopsFromOption(option) : [];
@@ -290,15 +298,25 @@ export function FlightDetailsModal({
   const cabinStr = cabinLabel(firstSegCabin, t);
 
   const containerStyle = isNarrow
-    ? [s.card, s.cardSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]
+    ? [s.card, s.cardSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, height: heightAnim }]
     : [s.card, s.cardCentered, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }];
+
+  const CardContainer = isNarrow ? Animated.View : View;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={[s.overlay, isNarrow && s.overlaySheet]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View style={containerStyle}>
+        <CardContainer style={containerStyle}>
+          {isNarrow ? (
+            <View
+              {...panHandlers}
+              style={[s.dragZone, Platform.OS === 'web' && s.dragZoneWeb]}
+            >
+              <SheetDragHandle color={theme.textMuted} />
+            </View>
+          ) : null}
           {/* ── Header ── */}
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
@@ -322,7 +340,12 @@ export function FlightDetailsModal({
             </View>
           </View>
 
-          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} bounces={false}>
+          <ScrollView
+            style={isNarrow ? s.scrollSheet : s.scroll}
+            contentContainerStyle={s.scrollContent}
+            bounces={false}
+            showsVerticalScrollIndicator
+          >
             {/* ── Summary row (price + meta; RTL swaps sides) ── */}
             <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View>
@@ -573,7 +596,7 @@ export function FlightDetailsModal({
             )}
             <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
           </View>
-        </View>
+        </CardContainer>
       </View>
     </Modal>
   );
@@ -599,11 +622,11 @@ const s = StyleSheet.create({
   card: {
     borderWidth: 1,
     overflow: 'hidden',
+    flexDirection: 'column',
   },
   cardSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
     width: '100%',
     alignSelf: 'stretch',
   },
@@ -613,6 +636,14 @@ const s = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
   },
+
+  dragZone: {
+    alignItems: 'stretch',
+  },
+  dragZoneWeb: {
+    cursor: 'grab',
+    touchAction: 'none',
+  } as object,
 
   header: {
     flexDirection: 'row',
@@ -629,6 +660,7 @@ const s = StyleSheet.create({
   sharedText: { fontSize: 13, fontWeight: '600' },
 
   scroll: {},
+  scrollSheet: { flex: 1, minHeight: 0 },
   scrollContent: { padding: 20, paddingBottom: 8 },
 
   summaryRow: {
