@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Share,
   useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -118,17 +119,52 @@ export function FlightDetailsModal({
   const splitBooking = isSplitBookingItinerary(option, searchParams);
   const hops = option ? bookingHopsFromOption(option) : [];
 
-  const handleCopyLink = async () => {
+  const handleShare = async () => {
     if (!option) return;
     const href = buildShareUrlWithOptionId(option.id);
     if (!href) return;
+
+    // Build a short title: "TLV → VIE · Oct 7" if we have enough segment info
+    const first = option.legs?.[0]?.segments?.[0];
+    const fromCode = first?.from?.code || '';
+    const toCode = option.legs?.[0]?.segments?.slice(-1)?.[0]?.to?.code || '';
+    const depDate = first?.departureTime
+      ? (() => {
+          const d = new Date(first.departureTime);
+          return Number.isFinite(d.getTime())
+            ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '';
+        })()
+      : '';
+    const titleParts = [fromCode && toCode ? `${fromCode} → ${toCode}` : '', depDate].filter(Boolean);
+    const title = titleParts.length ? titleParts.join(' · ') : t('flight_details');
+    const message = `${title}\n${href}`;
+
     try {
-      const g = typeof globalThis !== 'undefined' ? (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }) : undefined;
-      await g?.navigator?.clipboard?.writeText?.(href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // Native share sheet (mobile + modern browsers via Web Share API)
+      const g = typeof globalThis !== 'undefined' ? (globalThis as { navigator?: { share?: (d: object) => Promise<void>; canShare?: (d: object) => boolean } }) : undefined;
+      if (g?.navigator?.share) {
+        await g.navigator.share({ title, url: href, text: title });
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      }
+      // React Native Share fallback (works on iOS/Android)
+      const result = await Share.share({ message, url: href, title });
+      if (result.action === Share.sharedAction) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     } catch {
-      // ignore
+      // Last resort: clipboard copy
+      try {
+        const nav = typeof globalThis !== 'undefined' ? (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }) : undefined;
+        await nav?.navigator?.clipboard?.writeText?.(href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -262,10 +298,18 @@ export function FlightDetailsModal({
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
             <View style={s.headerActions}>
-              <TouchableOpacity onPress={handleCopyLink} hitSlop={8} accessibilityRole="button">
-                <Text style={[s.copyLink, { color: theme.primary }]}>
-                  {copied ? t('link_copied') : t('copy_link')}
-                </Text>
+              <TouchableOpacity
+                onPress={handleShare}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={copied ? t('link_copied') : t('share')}
+                style={s.shareBtn}
+              >
+                {copied ? (
+                  <Text style={[s.sharedText, { color: theme.primary }]}>{t('link_copied')}</Text>
+                ) : (
+                  <AppIcon name="share-outline" size={22} color={theme.primary} fallbackText={t('share')} />
+                )}
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose} hitSlop={8}>
                 <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
@@ -573,10 +617,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 20, fontWeight: '700', flexShrink: 1, marginRight: 12 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerTitle: { fontSize: 20, fontWeight: '700', flexShrink: 1, marginRight: 8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerClose: { fontSize: 22, fontWeight: '400', lineHeight: 24 },
-  copyLink: { fontSize: 14, fontWeight: '600' },
+  shareBtn: { padding: 4 },
+  sharedText: { fontSize: 13, fontWeight: '600' },
 
   scroll: {},
   scrollContent: { padding: 20, paddingBottom: 8 },

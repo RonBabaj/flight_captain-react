@@ -50,6 +50,10 @@ function getSvgMarkup(name: string, color: string): string {
       return `<svg ${common}><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
     case 'add-outline':
       return `<svg ${common}><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>`;
+    case 'share-outline':
+      return `<svg ${common}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>`;
+    case 'link-outline':
+      return `<svg ${common}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
     default:
       return '';
   }
@@ -60,7 +64,7 @@ export const LOCAL_ICON_NAMES = new Set([
   'airplane-outline', 'globe-outline', 'sunny-outline', 'moon-outline', 'menu-outline',
   'search', 'filter-outline', 'options-outline', 'calendar-outline', 'close',
   'create-outline', 'time-outline', 'chevron-down', 'chevron-up', 'chevron-back', 'chevron-forward',
-  'add-outline',
+  'add-outline', 'share-outline', 'link-outline',
 ]);
 
 export function hasWebSvgFallback(name: string): boolean {
