@@ -32,7 +32,8 @@ import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
-import { isSplitBookingItinerary } from '../../../utils/skyscanner';
+import { isSplitBookingItinerary, buildSkyscannerPrefillURL } from '../../../utils/skyscanner';
+import { openUrlInNewTab } from '../../../utils/openUrl';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
@@ -1503,37 +1504,77 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                   {positioningDetails.hubFlightPrice.amount.toFixed(0)})
                 </Text>
 
+                <Text style={{ color: theme.text, fontSize: 13, marginBottom: 12 }}>
+                  {t('split_booking_hint')}
+                </Text>
+
                 <TouchableOpacity
                   style={[
                     styles.positioningPrimaryBtn,
                     { backgroundColor: theme.primary },
                   ]}
                   onPress={async () => {
+                    const dep = storeParams?.departureDate;
+                    const origin = storeParams?.origin;
+                    if (!dep || !origin) {
+                      Alert.alert('', 'Missing search details for Skyscanner.');
+                      return;
+                    }
                     try {
-                      const url1 = getUniformBookingRedirectUrl(
-                        positioningDetails.positioningSessionId,
-                        positioningDetails.positioningOptionId,
-                        results.find((r) => r.id === positioningDetails.positioningOptionId) ||
-                          results[0]
-                      );
-                      const url2 = getUniformBookingRedirectUrl(
-                        positioningDetails.hubSessionId,
-                        positioningDetails.hubOptionId,
-                        results.find((r) => r.id === positioningDetails.hubOptionId) ||
-                          results[0]
-                      );
-                      const canOpen1 = await Linking.canOpenURL(url1);
-                      if (canOpen1) await Linking.openURL(url1);
-                      const canOpen2 = await Linking.canOpenURL(url2);
-                      if (canOpen2) await Linking.openURL(url2);
+                      const url = buildSkyscannerPrefillURL({
+                        origin,
+                        destination: positioningDetails.hubAirport,
+                        departureDate: dep,
+                        cabinClass: storeParams?.cabinClass,
+                        adults: storeParams?.adults,
+                        children: storeParams?.children,
+                      });
+                      const ok = await openUrlInNewTab(url);
+                      if (!ok) Alert.alert('', 'Cannot open Skyscanner for leg 1.');
                     } catch {
-                      Alert.alert('', 'Cannot open booking links for this combination.');
+                      Alert.alert('', 'Cannot open Skyscanner for leg 1.');
                     }
                   }}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
-                    Book both legs on partner sites
+                    {t('book_outbound_skyscanner')}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.positioningPrimaryBtn,
+                    { backgroundColor: theme.primary, marginTop: 10 },
+                  ]}
+                  onPress={async () => {
+                    const dep = storeParams?.departureDate;
+                    const destination = storeParams?.destination;
+                    if (!dep || !destination) {
+                      Alert.alert('', 'Missing search details for Skyscanner.');
+                      return;
+                    }
+                    try {
+                      const url = buildSkyscannerPrefillURL({
+                        origin: positioningDetails.hubAirport,
+                        destination,
+                        departureDate: dep,
+                        cabinClass: storeParams?.cabinClass,
+                        adults: storeParams?.adults,
+                        children: storeParams?.children,
+                      });
+                      const ok = await openUrlInNewTab(url);
+                      if (!ok) Alert.alert('', 'Cannot open Skyscanner for leg 2.');
+                    } catch {
+                      Alert.alert('', 'Cannot open Skyscanner for leg 2.');
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
+                    {t('book_leg_skyscanner')
+                      .replace('{from}', positioningDetails.hubAirport)
+                      .replace('{to}', storeParams?.destination || '')}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>

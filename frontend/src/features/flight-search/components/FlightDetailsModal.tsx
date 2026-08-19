@@ -19,6 +19,7 @@ import { AppIcon } from '../../../components/AppIcon';
 import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
+import { openUrlInNewTab, openUrlSameTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import {
   bookingHopsFromOption,
@@ -173,20 +174,14 @@ export function FlightDetailsModal({
     }
   };
 
-  const openUrl = async (url: string) => {
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) {
-      await Linking.openURL(url);
-    } else {
-      Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
-    }
-  };
-
   const handleBook = async () => {
     if (!option) return;
     setBookLoading(true);
     try {
-      await openUrl(getUniformBookingRedirectUrl(sessionId, option.id, option));
+      const ok = await openUrlSameTab(getUniformBookingRedirectUrl(sessionId, option.id, option));
+      if (!ok) {
+        Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
+      }
     } catch {
       Alert.alert('Error', 'Could not open booking link.');
     } finally {
@@ -197,19 +192,24 @@ export function FlightDetailsModal({
   const handleBookHop = async (legIndex: number) => {
     if (!option) return;
     const hop = hops.find((h) => h.legIndex === legIndex);
+    if (!hop) {
+      Alert.alert('Error', 'Could not build Skyscanner link for this leg.');
+      return;
+    }
     setBookLoadingLeg(legIndex);
     try {
-      const sky = hop
-        ? buildSkyscannerPrefillURL({
-            origin: hop.origin,
-            destination: hop.destination,
-            departureDate: hop.date,
-            cabinClass: searchParams?.cabinClass,
-            adults: searchParams?.adults,
-            children: searchParams?.children,
-          })
-        : getUniformBookingRedirectUrl(sessionId, option.id, { ...option, bookingLeg: legIndex });
-      await openUrl(sky);
+      const sky = buildSkyscannerPrefillURL({
+        origin: hop.origin,
+        destination: hop.destination,
+        departureDate: hop.date,
+        cabinClass: searchParams?.cabinClass,
+        adults: searchParams?.adults,
+        children: searchParams?.children,
+      });
+      const ok = await openUrlInNewTab(sky);
+      if (!ok) {
+        Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
+      }
     } catch {
       Alert.alert('Error', 'Could not open booking link.');
     } finally {
