@@ -24,7 +24,7 @@ import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../
 import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
+import { useSearchParams, parseSearchParamsFromUrl, updateSearchUrl } from '../../../hooks/useSearchParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -653,6 +653,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             if (urlP.origin && urlP.destination && urlP.departureDate) {
               // Preserve flightId for fingerprint matching across the new session
               if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
+              // Clear sessionId from the URL and route so routeSessionId resolves to ''
+              // and the bootstrap effect fires. Without this, routeSessionId keeps the
+              // expired id and sessionId never becomes '' even after setSession(null).
+              updateSearchUrl({ ...urlP, sessionId: undefined });
+              navigation.setParams({ sessionId: '' });
               searchActions.setSession(null, null, 'PENDING');
             } else {
               searchActions.setError('Search session expired. Please search again.');
