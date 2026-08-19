@@ -464,62 +464,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [sessionId]);
 
-  // ─── Shared-link: validate URL-only session on mount ──────────────────────
-  // When a shared URL arrives on a fresh device, sessionId comes only from the URL
-  // (no store, no in-app navigation). The session may be expired. Rather than waiting
-  // for the poll to fail 3× (~4-5s) and then struggling to clear routeSessionId, we do
-  // a single upfront validation: if the session 404s, immediately clear the URL
-  // sessionId and trigger a re-bootstrap from the URL search params.
-  // ─── Shared-link: validate URL-only session on mount ──────────────────────
-  // On a fresh device (no store, no in-app nav), the sessionId comes from the URL.
-  // We fetch the session once to get its params. If alive, params get written to the
-  // URL so any re-share includes them. If expired, we re-bootstrap from those params.
-  const urlValidatedRef = useRef(false);
-  useEffect(() => {
-    if (urlValidatedRef.current) return;
-    // Only on fresh page loads where sessionId comes from URL only.
-    if (storeSessionId || routeSessionId || !urlSessionId || storeParams != null) return;
-    urlValidatedRef.current = true;
-
-    getSearchSessionResults(urlSessionId, undefined, undefined).then((res) => {
-      // Session is alive. Write its search params into the URL so re-shares work.
-      const p = res.session?.params;
-      if (p) {
-        updateUrl({
-          ...paramsFromUrl,
-          sessionId: urlSessionId,
-          origin: p.origin,
-          destination: p.destination,
-          departureDate: p.departureDate,
-          returnDate: p.returnDate,
-          returnOrigin: p.returnOrigin,
-          returnDestination: p.returnDestination,
-          adults: p.adults,
-          children: p.children,
-          currency: p.currency,
-          cabinClass: p.cabinClass,
-          extraLegs: p.extraLegs,
-        });
-      }
-    }).catch((e) => {
-      const expired = /\b404\b|not found|expired/i.test(e instanceof Error ? e.message : String(e));
-      if (!expired) return;
-      // Session expired. Get search params from URL (if present) or give up.
-      const urlP = parseSearchParamsFromUrl();
-      const origin = urlP.origin || '';
-      const destination = urlP.destination || '';
-      const departureDate = urlP.departureDate || '';
-      if (!origin || !destination || !departureDate) {
-        // No params anywhere — can't re-bootstrap. Show error.
-        searchActions.setError('This link has expired. Please run a new search.');
-        searchActions.setSession(urlSessionId, null, 'FAILED');
-        return;
-      }
-      // Clear sessionId so bootstrap fires from URL params.
-      updateUrl({ ...urlP, sessionId: undefined });
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
+  // ─── Shared-link expiry ─────────────────────────────────────────────────────
+  // Sessions are now durable on the backend (disk store, ~7-day retention), so a
+  // shared sessionId normally resolves on any device. When it is genuinely gone
+  // (past retention), the poll's 404 handler flips this flag and we render a
+  // dedicated "shared link expired" state with a button to re-run the search from
+  // the params baked into the URL. NOTE: on a deep link, React Navigation parses
+  // the query string into route.params, so routeSessionId is ALWAYS set — never
+  // use it to distinguish in-app navigation from a shared link.
+  const [sharedLinkExpired, setSharedLinkExpired] = useState(false);
 
   // ─── Optimistic session bootstrap ──────────────────────────────────────────
   // If we navigated here with `sessionId=""`, we create the session after the
@@ -695,24 +648,26 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         if (notFound) {
           consecutiveNotFound += 1;
           const stAfter = statusRef.current;
+          const storeSidNow = useSearchStore.getState().sessionId;
           if (
             consecutiveNotFound >= MAX_NOT_FOUND &&
             stAfter !== 'COMPLETE' &&
             stAfter !== 'FAILED' &&
             isCurrentSearchGeneration(generation) &&
-            useSearchStore.getState().sessionId === polledSessionId
+            // On a shared link opened on a fresh device the store sessionId is
+            // still null (no poll ever succeeded) — that case must recover too.
+            (storeSidNow === polledSessionId || storeSidNow == null)
           ) {
-            // Session expired. The mount-time validator (urlValidatedRef) handles
-            // the shared-link case by clearing the URL sessionId early. If we still
-            // reach here, fall through to the error state.
+            // The session is gone even from the backend's durable store (past
+            // retention, or an invalid id). Show a distinct expired-link state —
+            // never the generic "No flights found".
             const urlP = parseSearchParamsFromUrl();
-            if (urlP.origin && urlP.destination && urlP.departureDate) {
-              if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
-              updateUrl({ ...urlP, sessionId: undefined });
-            } else {
-              searchActions.setError('Search session expired. Please search again.');
-              searchActions.setSession(polledSessionId, null, 'FAILED');
-            }
+            const canReRun = !!(urlP.origin && urlP.destination && urlP.departureDate);
+            setSharedLinkExpired(canReRun);
+            searchActions.setError(
+              canReRun ? t('shared_link_expired_body') : t('link_expired_invalid')
+            );
+            searchActions.setSession(null, null, 'FAILED');
           }
         }
         // Transient 5xx/network: keep polling briefly while still PENDING.
@@ -994,6 +949,52 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim]);
 
   if (status === 'FAILED') {
+    // Re-running must clear the dead sessionId from EVERY source the resolver
+    // reads: the store (setSession above), the URL, and route.params (React
+    // Navigation keeps the deep-link sessionId there — the historic cause of
+    // shared links never recovering). Only then does the bootstrap effect fire.
+    const clearDeadSessionEverywhere = () => {
+      const urlP = parseSearchParamsFromUrl();
+      updateUrl({ ...urlP, sessionId: undefined, optionId: undefined });
+      navigation.setParams({ sessionId: '', searchNonce: Date.now() });
+    };
+
+    if (sharedLinkExpired) {
+      const rerunSharedSearch = () => {
+        const urlP = parseSearchParamsFromUrl();
+        // Keep the canonical fingerprint so the shared flight re-opens after the
+        // fresh search finds the same itinerary.
+        if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
+        pendingOptionIdRef.current = undefined;
+        setSharedLinkExpired(false);
+        searchActions.setError(null);
+        searchActions.setSession(null, null, null);
+        versionRef.current = 0;
+        creatingSessionRef.current = false;
+        clearDeadSessionEverywhere();
+      };
+      return (
+        <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
+          <View style={{ marginBottom: 12 }}>
+            <AppIcon name="time-outline" size={48} color={theme.textMuted} fallbackText="⏱" />
+          </View>
+          <Text style={[styles.emptyTitle, { color: theme.text, textAlign: 'center' }]}>
+            {t('shared_link_expired_title')}
+          </Text>
+          <Text style={[styles.emptyText, { color: theme.textMuted, textAlign: 'center', maxWidth: 420 }]}>
+            {t('shared_link_expired_body')}
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryBtn, { borderColor: theme.primary, marginTop: 16 }]}
+            onPress={rerunSharedSearch}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.retryBtnText, { color: theme.primary }]}>{t('run_search_again')}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     const retrySearch = () => {
       const p = useSearchStore.getState().params;
       if (p) {
@@ -1006,6 +1007,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       versionRef.current = 0;
       creatingSessionRef.current = false;
       setBootstrappingSession(false);
+      clearDeadSessionEverywhere();
       navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
     };
     return (
