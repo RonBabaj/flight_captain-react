@@ -473,8 +473,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const urlValidatedRef = useRef(false);
   useEffect(() => {
     if (urlValidatedRef.current) return;
-    // Only applies when the sessionId comes purely from the URL (not from in-app nav or store).
-    const isUrlOnlySession = !storeSessionId && !routeSessionId && !!urlSessionId;
+    // Only applies on a fresh device where the sessionId comes purely from the URL.
+    // If store params already exist, we're in a normal in-app search flow and
+    // should not touch session state.
+    const isUrlOnlySession = !storeSessionId && !routeSessionId && !!urlSessionId && storeParams == null;
     if (!isUrlOnlySession) return;
     const hasRebuildParams = !!(paramsFromUrl.origin && paramsFromUrl.destination && paramsFromUrl.departureDate);
     if (!hasRebuildParams) return;
