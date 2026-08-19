@@ -24,7 +24,7 @@ import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../
 import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
-import { useSearchParams, parseSearchParamsFromUrl, updateSearchUrl } from '../../../hooks/useSearchParams';
+import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -464,6 +464,35 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }
   }, [sessionId]);
 
+  // ─── Shared-link: validate URL-only session on mount ──────────────────────
+  // When a shared URL arrives on a fresh device, sessionId comes only from the URL
+  // (no store, no in-app navigation). The session may be expired. Rather than waiting
+  // for the poll to fail 3× (~4-5s) and then struggling to clear routeSessionId, we do
+  // a single upfront validation: if the session 404s, immediately clear the URL
+  // sessionId and trigger a re-bootstrap from the URL search params.
+  const urlValidatedRef = useRef(false);
+  useEffect(() => {
+    if (urlValidatedRef.current) return;
+    // Only applies when the sessionId comes purely from the URL (not from in-app nav or store).
+    const isUrlOnlySession = !storeSessionId && !routeSessionId && !!urlSessionId;
+    if (!isUrlOnlySession) return;
+    const hasRebuildParams = !!(paramsFromUrl.origin && paramsFromUrl.destination && paramsFromUrl.departureDate);
+    if (!hasRebuildParams) return;
+    urlValidatedRef.current = true;
+
+    getSearchSessionResults(urlSessionId, undefined, undefined).catch((e) => {
+      const expired = /\b404\b|not found|expired/i.test(e instanceof Error ? e.message : String(e));
+      if (!expired) return;
+      // Session is gone on this device. Clear it from the URL (replaceState) and from
+      // paramsFromUrl state so urlSessionId becomes '' and bootstrap fires.
+      updateUrl({
+        ...paramsFromUrl,
+        sessionId: undefined,
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount only
+
   // ─── Optimistic session bootstrap ──────────────────────────────────────────
   // If we navigated here with `sessionId=""`, we create the session after the
   // Results screen is mounted (so the user sees the UI immediately).
@@ -645,20 +674,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             isCurrentSearchGeneration(generation) &&
             useSearchStore.getState().sessionId === polledSessionId
           ) {
-            // If the URL contains enough params to rebuild the search (shared link to an
-            // expired session), silently re-bootstrap instead of showing an error.
-            // pendingOptionIdRef + pendingFlightIdRef are already set; bootstrap effect
-            // fires when sessionId → '' and fingerprint matching opens the right flight.
+            // Session expired. The mount-time validator (urlValidatedRef) handles
+            // the shared-link case by clearing the URL sessionId early. If we still
+            // reach here, fall through to the error state.
             const urlP = parseSearchParamsFromUrl();
             if (urlP.origin && urlP.destination && urlP.departureDate) {
-              // Preserve flightId for fingerprint matching across the new session
               if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
-              // Clear sessionId from the URL and route so routeSessionId resolves to ''
-              // and the bootstrap effect fires. Without this, routeSessionId keeps the
-              // expired id and sessionId never becomes '' even after setSession(null).
-              updateSearchUrl({ ...urlP, sessionId: undefined });
-              navigation.setParams({ sessionId: '' });
-              searchActions.setSession(null, null, 'PENDING');
+              updateUrl({ ...urlP, sessionId: undefined });
             } else {
               searchActions.setError('Search session expired. Please search again.');
               searchActions.setSession(polledSessionId, null, 'FAILED');
