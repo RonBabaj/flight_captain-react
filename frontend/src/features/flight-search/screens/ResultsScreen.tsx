@@ -484,7 +484,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
     // destination — merging URL last would re-search the old route (BKK vs BER).
-    const { sessionId: _urlSession, optionId: _urlOption, ...urlSearch } = paramsFromUrl ?? {};
+    const { sessionId: _urlSession, optionId: _urlOption, flightId: _urlFlightId, ...urlSearch } = paramsFromUrl ?? {};
     const base = {
       ...defaultFormParams,
       ...urlSearch,
@@ -1076,7 +1076,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
             onDetails={() => openDetails(item)}
             onBook={() => handleBookFromCard(item)}
             bookLoading={bookLoadingId === item.id}
-            bookLabel={t('book_now')}
+            bookLabel={isSplitBookingItinerary(item, storeParams) ? t('view_booking_options') : t('book_now')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
             passengerCount={
