@@ -116,9 +116,19 @@ export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
   return hops;
 }
 
-export function buildShareUrlWithOptionId(optionId: string, flightId?: string): string {
+/**
+ * Build a shareable URL for a specific flight. Always includes the search params
+ * (origin, destination, dates, cabin, pax) so a recipient on a fresh device can
+ * re-run the search if the session has expired. Falls back to window.location for
+ * params not explicitly provided.
+ */
+export function buildShareUrlWithOptionId(
+  optionId: string,
+  flightId?: string,
+  searchParams?: Partial<CreateSearchSessionRequest> & { sessionId?: string },
+): string {
   try {
-    const g = typeof globalThis !== 'undefined' ? (globalThis as { window?: { location?: { href?: string } } }) : undefined;
+    const g = typeof globalThis !== 'undefined' ? (globalThis as { window?: { location?: { href?: string; origin?: string; pathname?: string } } }) : undefined;
     const href = g?.window?.location?.href;
     if (!href) return '';
     const u = new URL(href);
@@ -126,6 +136,28 @@ export function buildShareUrlWithOptionId(optionId: string, flightId?: string): 
     else u.searchParams.delete('optionId');
     if (flightId) u.searchParams.set('flightId', flightId);
     else u.searchParams.delete('flightId');
+    // Bake search params into the URL so the recipient can always reconstruct the search.
+    if (searchParams) {
+      if (searchParams.sessionId) u.searchParams.set('sessionId', searchParams.sessionId);
+      if (searchParams.origin) u.searchParams.set('origin', searchParams.origin);
+      if (searchParams.destination) u.searchParams.set('destination', searchParams.destination);
+      if (searchParams.departureDate) u.searchParams.set('departureDate', searchParams.departureDate);
+      if (searchParams.returnDate) u.searchParams.set('returnDate', searchParams.returnDate);
+      if (searchParams.returnOrigin) u.searchParams.set('returnOrigin', searchParams.returnOrigin);
+      if (searchParams.returnDestination) u.searchParams.set('returnDestination', searchParams.returnDestination);
+      if (searchParams.adults != null) u.searchParams.set('adults', String(searchParams.adults));
+      if (searchParams.children != null) u.searchParams.set('children', String(searchParams.children));
+      if (searchParams.currency) u.searchParams.set('currency', searchParams.currency);
+      if (searchParams.cabinClass) u.searchParams.set('cabinClass', searchParams.cabinClass);
+      if (searchParams.extraLegs?.length) {
+        u.searchParams.set(
+          'extra',
+          searchParams.extraLegs
+            .map((l) => `${(l.origin || '').toUpperCase()}:${(l.destination || '').toUpperCase()}:${l.date || ''}`)
+            .join('|'),
+        );
+      }
+    }
     return u.toString();
   } catch {
     return '';

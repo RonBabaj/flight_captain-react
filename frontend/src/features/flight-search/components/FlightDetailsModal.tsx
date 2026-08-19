@@ -122,7 +122,10 @@ export function FlightDetailsModal({
   const handleShare = async () => {
     if (!option) return;
     const fingerprint = (option as any).canonicalFingerprint as string | undefined;
-    const href = buildShareUrlWithOptionId(option.id, fingerprint);
+    const href = buildShareUrlWithOptionId(option.id, fingerprint, {
+      ...(searchParams ?? {}),
+      sessionId,
+    } as Parameters<typeof buildShareUrlWithOptionId>[2]);
     if (!href) return;
 
     // Build a short title: "TLV → VIE · Oct 7" if we have enough segment info
