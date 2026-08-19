@@ -305,11 +305,26 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // search fields must not block loading the server-side session snapshot.
   const sharedLinkHydrationRef = useRef(!!(routeSessionId || urlSessionId) && !storeSessionId);
   const deepLinkLoggedRef = useRef(false);
+  const creatingSessionRef = useRef(false);
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // iOS WebKit can deliver sessionId one frame late. If bootstrap already called
+  // beginSearch (PENDING, no sessionId), the poll guard would block forever —
+  // infinite "Comparing prices…" skeletons. Mark hydration and clear bootstrap residue.
+  useEffect(() => {
+    if (!sessionId || storeSessionId) return;
+    sharedLinkHydrationRef.current = true;
+    const st = useSearchStore.getState();
+    if (st.status === 'PENDING' && !st.sessionId) {
+      creatingSessionRef.current = false;
+      setBootstrappingSession(false);
+      useSearchStore.setState({ status: null, error: null });
+    }
+  }, [sessionId, storeSessionId]);
 
   // Keep pending flight refs aligned when iOS WebKit delivers params via route.params
   // after remount, or when pageshow refreshes the URL query string.
@@ -523,7 +538,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     paramsFromUrlRef.current = paramsFromUrl;
   }, [paramsFromUrl]);
 
-  const creatingSessionRef = useRef(false);
   useEffect(() => {
     if (sessionId) return;
     if (creatingSessionRef.current) return;
@@ -532,7 +546,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     // URL/route already names a session — that was the iPhone Chrome bug: bootstrap
     // fired on frame 1 (sessionId not resolved yet) and replaced the shared session.
     const linkParams = mergeDeepLinkParams(route.params as Record<string, unknown>);
-    if (linkParams.sessionId?.trim()) return;
+    if (linkParams.sessionId?.trim() || parseSearchParamsFromUrl().sessionId?.trim()) return;
 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
@@ -660,10 +674,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const poll = async () => {
       if (cancelled) return;
       if (!isCurrentSearchGeneration(generation)) return;
+      const storeState = useSearchStore.getState();
+      const storeSid = storeState.sessionId;
+      const hydratingShared = sharedLinkHydrationRef.current;
       // Store may have moved on (new search) before React re-ran this effect.
-      const storeSid = useSearchStore.getState().sessionId;
       if (storeSid != null && storeSid !== polledSessionId) return;
-      if (storeSid == null && useSearchStore.getState().status === 'PENDING') return;
+      // Block only when a *new* in-app search (PENDING) is in flight — not when
+      // bootstrap briefly poisoned the store before sessionId resolved on iOS.
+      if (storeSid == null && storeState.status === 'PENDING' && !hydratingShared) return;
 
       const currentStatus = statusRef.current;
       // Failed: stop. Completed: only skip once results are hydrated (version > 0).
@@ -683,9 +701,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           matchParams
         );
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
-        const latestSid = useSearchStore.getState().sessionId;
-        if (latestSid != null && latestSid !== polledSessionId) return;
-        if (latestSid == null && useSearchStore.getState().status === 'PENDING') return;
+        const latest = useSearchStore.getState();
+        if (latest.sessionId != null && latest.sessionId !== polledSessionId) return;
+        if (latest.sessionId == null && latest.status === 'PENDING' && !sharedLinkHydrationRef.current) return;
 
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
