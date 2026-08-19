@@ -247,19 +247,22 @@ var (
 	flightProviderRegistry *search.Registry
 )
 
-// loadSearchSession returns the stored session if present and not expired; expired entries are deleted.
+// loadSearchSession returns the stored session. The in-memory map is a hot cache
+// with a short TTL; on a miss (other device, server restart, TTL elapsed) we fall
+// back to the durable database so shared links keep resolving to the exact same
+// result set indefinitely.
 func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	sessionsMu.Lock()
-	defer sessionsMu.Unlock()
 	resp, ok := sessions[id]
-	if !ok {
-		return SearchSessionResultsResponse{}, false
-	}
-	if time.Since(resp.Session.CreatedAt) > searchSessionTTL {
+	if ok && time.Since(resp.Session.CreatedAt) > searchSessionTTL {
 		delete(sessions, id)
-		return SearchSessionResultsResponse{}, false
+		ok = false
 	}
-	return resp, true
+	sessionsMu.Unlock()
+	if ok {
+		return resp, true
+	}
+	return loadPersistedSession(id)
 }
 
 func startSearchSessionCleanup() {
@@ -275,6 +278,7 @@ func startSearchSessionCleanup() {
 				}
 			}
 			sessionsMu.Unlock()
+			cleanupPersistedSessions()
 		}
 	}()
 }
@@ -929,6 +933,9 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	sessionsMu.Lock()
 	sessions[id] = resp
 	sessionsMu.Unlock()
+	// Persist so the sessionId in shared URLs stays resolvable across devices,
+	// server restarts, and beyond the in-memory TTL.
+	go persistSearchSession(resp)
 
 	// Include providerStats on create so operators can see why Kiwi/Apify returned 0
 	// without a follow-up GET (stats are also stored on the session for GET).
@@ -1837,8 +1844,7 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	// Persist a short-lived session so Book now can resolve GF2 partner checkout URLs.
 	opt.ID = "opt_0"
 	sessID := randomID("sess_")
-	sessionsMu.Lock()
-	sessions[sessID] = SearchSessionResultsResponse{
+	exploreSessResp := SearchSessionResultsResponse{
 		Session: SearchSession{
 			ID:        sessID,
 			Status:    StatusComplete,
@@ -1857,7 +1863,10 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 		Version: 1,
 		Results: []FlightOption{*opt},
 	}
+	sessionsMu.Lock()
+	sessions[sessID] = exploreSessResp
 	sessionsMu.Unlock()
+	go persistSearchSession(exploreSessResp)
 	resp.SessionId = sessID
 	resp.OptionId = opt.ID
 
@@ -2666,6 +2675,7 @@ func main() {
 	} else {
 		log.Println("[STARTUP] no flight providers configured — set FLIGHT_PROVIDERS (default googleflights2) and provider credentials")
 	}
+	initSessionStore()
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
 	startSearchSessionCleanup()
