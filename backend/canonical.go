@@ -48,10 +48,11 @@ func bookingLinkMode() string {
 // BuildUniformBookingLink returns a URL the user can use to book. Never returns empty if session/option are valid.
 // Prefer an already-resolved partner/deep link on the option; otherwise prefill Google Flights (default) or Skyscanner.
 // Partner checkout resolution (GF2 booking_token → getBookingURL) happens in resolveBookingRedirectURL on Book click.
+// Split itineraries (open-jaw / extra hops) must not use a single-leg deep link — those are separate one-way tickets.
 func BuildUniformBookingLink(session *SearchSession, option *FlightOption) string {
 	mode := bookingLinkMode()
 
-	if option != nil {
+	if option != nil && !itineraryIsSplit(session, option) {
 		providerURL := normalizeProviderBookingURL(option.BookingURL)
 		if providerURL == "" {
 			providerURL = normalizeProviderBookingURL(option.DeepLink)
@@ -83,23 +84,82 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 	}
 }
 
+func firstAirport(leg FlightLeg) string {
+	if len(leg.Segments) == 0 {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSpace(leg.Segments[0].From.Code))
+}
+
+func lastAirport(leg FlightLeg) string {
+	if len(leg.Segments) == 0 {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSpace(leg.Segments[len(leg.Segments)-1].To.Code))
+}
+
+func routeFromFlightLeg(leg FlightLeg) (origin, dest, dep string) {
+	if len(leg.Segments) == 0 {
+		return
+	}
+	origin = firstAirport(leg)
+	dest = lastAirport(leg)
+	if !leg.Segments[0].DepartureTime.IsZero() {
+		dep = leg.Segments[0].DepartureTime.Format("2006-01-02")
+	}
+	return
+}
+
+// itineraryIsSplit is true for open-jaw / extra-hop trips that cannot be booked as one round-trip ticket.
+func itineraryIsSplit(session *SearchSession, option *FlightOption) bool {
+	if session != nil {
+		if len(session.Params.ExtraLegs) > 0 {
+			return true
+		}
+		ro := strings.ToUpper(strings.TrimSpace(session.Params.ReturnOrigin))
+		dest := strings.ToUpper(strings.TrimSpace(session.Params.Destination))
+		if ro != "" && dest != "" && ro != dest {
+			return true
+		}
+		rd := strings.ToUpper(strings.TrimSpace(session.Params.ReturnDestination))
+		orig := strings.ToUpper(strings.TrimSpace(session.Params.Origin))
+		if rd != "" && orig != "" && rd != orig {
+			return true
+		}
+	}
+	if option == nil {
+		return false
+	}
+	if len(option.Legs) > 2 {
+		return true
+	}
+	if len(option.Legs) == 2 {
+		outDest := lastAirport(option.Legs[0])
+		inOrig := firstAirport(option.Legs[1])
+		if outDest != "" && inOrig != "" && outDest != inOrig {
+			return true
+		}
+	}
+	return false
+}
+
 func bookingRouteFromSessionOption(session *SearchSession, option *FlightOption) (origin, dest, dep, ret string) {
 	if session != nil {
 		origin = strings.ToUpper(session.Params.Origin)
 		dest = strings.ToUpper(session.Params.Destination)
 		dep = session.Params.DepartureDate
-		ret = session.Params.ReturnDate
+		if !itineraryIsSplit(session, option) {
+			ret = session.Params.ReturnDate
+		}
 	}
 	if option != nil && len(option.Legs) > 0 {
-		if len(option.Legs[0].Segments) > 0 {
-			origin = option.Legs[0].Segments[0].From.Code
-			dest = option.Legs[0].Segments[len(option.Legs[0].Segments)-1].To.Code
-			depAt := option.Legs[0].Segments[0].DepartureTime
-			if !depAt.IsZero() {
-				dep = depAt.Format("2006-01-02")
+		if o, d, dep0 := routeFromFlightLeg(option.Legs[0]); o != "" {
+			origin, dest = o, d
+			if dep0 != "" {
+				dep = dep0
 			}
 		}
-		if len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
+		if !itineraryIsSplit(session, option) && len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
 			firstRet := option.Legs[1].Segments[0]
 			if !firstRet.DepartureTime.IsZero() {
 				ret = firstRet.DepartureTime.Format("2006-01-02")
@@ -142,16 +202,21 @@ func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int)
 	if outbound == "" {
 		outbound = "any"
 	}
-	if inbound == "" {
-		inbound = outbound
-	}
-	u := fmt.Sprintf("https://www.skyscanner.net/transport/flights/%s/%s/%s/%s/", origin, dest, outbound, inbound)
 	params := url.Values{}
 	if cabin != "" {
 		params.Set("cabinclass", strings.ToLower(cabin))
 	}
 	if adults >= 1 {
 		params.Set("adultsv2", fmt.Sprintf("%d", adults))
+	}
+	var u string
+	if inbound == "" {
+		// True one-way: do not invent a same-day return.
+		params.Set("rtn", "0")
+		u = fmt.Sprintf("https://www.skyscanner.net/transport/flights/%s/%s/%s/", origin, dest, outbound)
+	} else {
+		params.Set("rtn", "1")
+		u = fmt.Sprintf("https://www.skyscanner.net/transport/flights/%s/%s/%s/%s/", origin, dest, outbound, inbound)
 	}
 	if len(params) > 0 {
 		u += "?" + params.Encode()
@@ -171,6 +236,26 @@ func depToYYMMDD(iso string) string {
 // BuildSkyscannerFallbackFromParams builds a Skyscanner search URL from query params.
 func BuildSkyscannerFallbackFromParams(origin, destination, departureDate, returnDate string) string {
 	return buildSkyscannerPrefillURL(origin, destination, departureDate, returnDate, "", 1)
+}
+
+// BuildOneWayLegBookingURL is a Skyscanner one-way prefill for a single hop of a split itinerary.
+func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legIdx int) string {
+	if option == nil || legIdx < 0 || legIdx >= len(option.Legs) {
+		return ""
+	}
+	origin, dest, dep := routeFromFlightLeg(option.Legs[legIdx])
+	if origin == "" || dest == "" {
+		return ""
+	}
+	cabin := ""
+	adults := 1
+	if session != nil {
+		cabin = session.Params.CabinClass
+		if session.Params.Adults > 0 {
+			adults = session.Params.Adults
+		}
+	}
+	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
 }
 
 // BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.

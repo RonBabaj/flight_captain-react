@@ -30,6 +30,8 @@ func TestCombineOneWayBatches(t *testing.T) {
 			Price:           Monetary{Currency: "USD", Amount: price},
 			DurationMinutes: 60,
 			Legs:            []Leg{{Segments: []Segment{{From: from, To: to}}}},
+			DeepLink:        "https://example.com/" + id,
+			BookingToken:    "tok-" + id,
 		}
 	}
 	out := CombineOneWayBatches([][]ProviderResult{
@@ -45,6 +47,9 @@ func TestCombineOneWayBatches(t *testing.T) {
 	}
 	if len(out[0].Legs) != 3 {
 		t.Fatalf("want 3 legs, got %d", len(out[0].Legs))
+	}
+	if out[0].DeepLink != "" || out[0].BookingToken != "" {
+		t.Fatalf("combined itinerary must not keep a single-leg booking link, got deep=%q token=%q", out[0].DeepLink, out[0].BookingToken)
 	}
 	if out[0].Legs[1].Segments[0].From != "BER" || out[0].Legs[1].Segments[0].To != "PRG" {
 		t.Fatalf("middle leg = %+v", out[0].Legs[1])

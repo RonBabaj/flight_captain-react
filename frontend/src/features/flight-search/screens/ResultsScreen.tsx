@@ -31,6 +31,7 @@ import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
+import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
@@ -285,13 +286,30 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   const versionRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
+  const pendingOptionIdRef = useRef<string | undefined>(
+    typeof paramsFromUrl.optionId === 'string' ? paramsFromUrl.optionId : undefined
+  );
   const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const openDetails = useCallback((option: FlightOption) => {
+    pendingOptionIdRef.current = option.id;
+    setDetailsOption(option);
+  }, []);
+
+  const closeDetails = useCallback(() => {
+    pendingOptionIdRef.current = undefined;
+    setDetailsOption(null);
+  }, []);
+
   const handleBookFromCard = async (option: FlightOption) => {
+    if (isSplitBookingItinerary(option, storeParams)) {
+      openDetails(option);
+      return;
+    }
     if (!sessionId) {
       Alert.alert('', 'Session expired. Please run a new search.');
       return;
@@ -429,6 +447,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   };
 
   useEffect(() => {
+    if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
+      pendingOptionIdRef.current = undefined;
+      setDetailsOption(null);
+    }
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
       versionRef.current = 0;
@@ -455,9 +477,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
     // destination — merging URL last would re-search the old route (BKK vs BER).
+    const { sessionId: _urlSession, optionId: _urlOption, ...urlSearch } = paramsFromUrl ?? {};
     const base = {
       ...defaultFormParams,
-      ...(paramsFromUrl ?? {}),
+      ...urlSearch,
       ...(storeParams ?? {}),
     } as Partial<CreateSearchSessionRequest>;
 
@@ -645,9 +668,27 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
   useEffect(() => {
     if (sessionId && storeParams) {
-      updateUrl({ ...storeParams, sessionId });
+      updateUrl({
+        ...storeParams,
+        sessionId,
+        optionId: detailsOption?.id || pendingOptionIdRef.current,
+      });
     }
-  }, [sessionId, storeParams, updateUrl]);
+  }, [sessionId, storeParams, updateUrl, detailsOption?.id]);
+
+  useEffect(() => {
+    const want = pendingOptionIdRef.current;
+    if (!want) return;
+    if (detailsOption?.id === want) return;
+    const match = results.find((r) => r.id === want);
+    if (match) {
+      setDetailsOption(match);
+      return;
+    }
+    if (status === 'COMPLETE' && results.length > 0) {
+      pendingOptionIdRef.current = undefined;
+    }
+  }, [results, status, detailsOption?.id]);
 
   // Only reset positioning when sessionId actually changes (not on every mount). Prevents "Cheaper departure cities" disappearing on Chrome iOS when component re-mounts or effect re-runs with same sessionId.
   const positioningSessionIdRef = useRef<string | null>(null);
@@ -985,7 +1026,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
         renderItem={({ item }) => (
           <FlightResultCard
             option={item}
-            onDetails={() => setDetailsOption(item)}
+            onDetails={() => openDetails(item)}
             onBook={() => handleBookFromCard(item)}
             bookLoading={bookLoadingId === item.id}
             bookLabel={t('book_now')}
@@ -1296,9 +1337,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
 
       <FlightDetailsModal
         visible={detailsOption != null}
-        onClose={() => setDetailsOption(null)}
+        onClose={closeDetails}
         sessionId={sessionId}
         option={detailsOption}
+        searchParams={storeParams}
         passengerCount={
           (storeParams?.adults ?? 0) +
           (storeParams?.children ?? 0) +

@@ -167,15 +167,15 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 				next.Legs = cloneLegs(r.Legs)
 				next.ID = fmt.Sprintf("%s_%d", idPrefix, i)
 				next.BookingToken = ""
+				next.DeepLink = ""
 			} else {
 				next = cur
 				next.Legs = append(cloneLegs(cur.Legs), cloneLegs(r.Legs)...)
 				next.Price.Amount = cur.Price.Amount + r.Price.Amount
 				next.DurationMinutes = cur.DurationMinutes + r.DurationMinutes
 				next.ID = fmt.Sprintf("%s_%d", cur.ID, i)
-				if next.DeepLink == "" {
-					next.DeepLink = r.DeepLink
-				}
+				next.BookingToken = ""
+				next.DeepLink = ""
 			}
 			walk(idx+1, next)
 		}

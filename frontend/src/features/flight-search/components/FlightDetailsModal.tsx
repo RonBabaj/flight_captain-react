@@ -19,7 +19,13 @@ import { getUniformBookingRedirectUrl } from '../../../api';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import type { FlightOption, FlightSegment } from '../../../types';
+import {
+  bookingHopsFromOption,
+  buildShareUrlWithOptionId,
+  buildSkyscannerPrefillURL,
+  isSplitBookingItinerary,
+} from '../../../utils/skyscanner';
+import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -90,30 +96,83 @@ interface FlightDetailsModalProps {
   sessionId: string;
   option: FlightOption | null;
   passengerCount?: number;
+  searchParams?: Partial<CreateSearchSessionRequest> | null;
 }
 
-export function FlightDetailsModal({ visible, onClose, sessionId, option, passengerCount }: FlightDetailsModalProps) {
+export function FlightDetailsModal({
+  visible,
+  onClose,
+  sessionId,
+  option,
+  passengerCount,
+  searchParams,
+}: FlightDetailsModalProps) {
   const { theme } = useTheme();
   const { t, isRTL, language, currency: displayCurrency } = useLocale();
   const [bookLoading, setBookLoading] = useState(false);
+  const [bookLoadingLeg, setBookLoadingLeg] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
   const { width } = useWindowDimensions();
   const isNarrow = width < 600;
+
+  const splitBooking = isSplitBookingItinerary(option, searchParams);
+  const hops = option ? bookingHopsFromOption(option) : [];
+
+  const handleCopyLink = async () => {
+    if (!option) return;
+    const href = buildShareUrlWithOptionId(option.id);
+    if (!href) return;
+    try {
+      const g = typeof globalThis !== 'undefined' ? (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }) : undefined;
+      await g?.navigator?.clipboard?.writeText?.(href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const openUrl = async (url: string) => {
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
+    }
+  };
 
   const handleBook = async () => {
     if (!option) return;
     setBookLoading(true);
     try {
-      const url = getUniformBookingRedirectUrl(sessionId, option.id, option);
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
-      }
+      await openUrl(getUniformBookingRedirectUrl(sessionId, option.id, option));
     } catch {
       Alert.alert('Error', 'Could not open booking link.');
     } finally {
       setBookLoading(false);
+    }
+  };
+
+  const handleBookHop = async (legIndex: number) => {
+    if (!option) return;
+    const hop = hops.find((h) => h.legIndex === legIndex);
+    setBookLoadingLeg(legIndex);
+    try {
+      const sky = hop
+        ? buildSkyscannerPrefillURL({
+            origin: hop.origin,
+            destination: hop.destination,
+            departureDate: hop.date,
+            cabinClass: searchParams?.cabinClass,
+            adults: searchParams?.adults,
+            children: searchParams?.children,
+          })
+        : getUniformBookingRedirectUrl(sessionId, option.id, { ...option, bookingLeg: legIndex });
+      await openUrl(sky);
+    } catch {
+      Alert.alert('Error', 'Could not open booking link.');
+    } finally {
+      setBookLoadingLeg(null);
     }
   };
 
@@ -202,9 +261,16 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
           {/* ── Header ── */}
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
-            </TouchableOpacity>
+            <View style={s.headerActions}>
+              <TouchableOpacity onPress={handleCopyLink} hitSlop={8} accessibilityRole="button">
+                <Text style={[s.copyLink, { color: theme.primary }]}>
+                  {copied ? t('link_copied') : t('copy_link')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} bounces={false}>
@@ -413,17 +479,49 @@ export function FlightDetailsModal({ visible, onClose, sessionId, option, passen
 
           {/* ── Footer ── */}
           <View style={[s.footer, { borderTopColor: theme.cardBorder }]}>
-            <TouchableOpacity
-              style={[s.bookBtn, { backgroundColor: theme.primary }]}
-              onPress={handleBook}
-              disabled={bookLoading}
-            >
-              {bookLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={s.bookBtnText}>{t('book_now')}</Text>
-              )}
-            </TouchableOpacity>
+            {splitBooking && hops.length > 0 ? (
+              <>
+                <Text style={[s.splitHint, { color: theme.text }]}>{t('split_booking_hint')}</Text>
+                {hops.map((hop, idx) => {
+                  const lastIdx = hops.length - 1;
+                  const label =
+                    hops.length === 2 && idx === 0
+                      ? t('book_outbound_skyscanner')
+                      : hops.length === 2 && idx === lastIdx
+                        ? t('book_return_skyscanner')
+                        : t('book_leg_skyscanner')
+                            .replace('{from}', hop.origin)
+                            .replace('{to}', hop.destination);
+                  const loading = bookLoadingLeg === hop.legIndex;
+                  return (
+                    <TouchableOpacity
+                      key={hop.legIndex}
+                      style={[s.bookBtn, idx > 0 && s.bookBtnSpaced, { backgroundColor: theme.primary }]}
+                      onPress={() => handleBookHop(hop.legIndex)}
+                      disabled={bookLoadingLeg != null}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={s.bookBtnText}>{label}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            ) : (
+              <TouchableOpacity
+                style={[s.bookBtn, { backgroundColor: theme.primary }]}
+                onPress={handleBook}
+                disabled={bookLoading}
+              >
+                {bookLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={s.bookBtnText}>{t('book_now')}</Text>
+                )}
+              </TouchableOpacity>
+            )}
             <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
           </View>
         </View>
@@ -475,8 +573,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 20, fontWeight: '700' },
+  headerTitle: { fontSize: 20, fontWeight: '700', flexShrink: 1, marginRight: 12 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerClose: { fontSize: 22, fontWeight: '400', lineHeight: 24 },
+  copyLink: { fontSize: 14, fontWeight: '600' },
 
   scroll: {},
   scrollContent: { padding: 20, paddingBottom: 8 },
@@ -575,6 +675,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 52,
   },
+  bookBtnSpaced: { marginTop: 8 },
   bookBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  splitHint: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginBottom: 10, textAlign: 'center' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
 });

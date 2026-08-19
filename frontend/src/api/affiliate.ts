@@ -3,6 +3,8 @@
  */
 
 import { getApiBase } from './client';
+import { isoDatePrefix, isSplitBookingItinerary } from '../utils/skyscanner';
+import type { FlightOption } from '../types';
 
 export interface AffiliateProvider {
   code: string;
@@ -42,50 +44,58 @@ export interface BookingRedirectParams {
   destination?: string;
   departureDate?: string;
   returnDate?: string;
+  /** 0-based itinerary leg for a one-way Skyscanner/partner link (dynamic destinations). */
+  bookingLeg?: number;
 }
+
+type BookingOptionInput = {
+  legs?: FlightOption['legs'];
+  bookingLeg?: number;
+};
 
 /**
  * URL for the uniform booking redirect. Open this URL (e.g. Linking.openURL); backend will 302 to the partner checkout page (or Google Flights prefill) and record the click.
  * Pass optionOrParams so the backend can resolve a booking URL for that flight if session/option is missing.
+ * For split (open-jaw / extra-hop) itineraries, omit returnDate so the fallback is a one-way; pass bookingLeg for a specific hop.
  */
 export function getUniformBookingRedirectUrl(
   sessionId: string,
   optionId: string,
-  optionOrParams?: { legs?: Array<{ segments: Array<{ from?: { code?: string }; to?: { code?: string }; departureTime?: string; arrivalTime?: string }> }> } | BookingRedirectParams
+  optionOrParams?: BookingOptionInput | BookingRedirectParams
 ): string {
   const base = getApiBase();
   const params = new URLSearchParams({ sessionId, optionId });
 
-  if (optionOrParams?.legs?.length) {
-    const leg0 = optionOrParams.legs[0];
-    const seg0 = leg0?.segments?.[0];
-    const lastSeg0 = leg0?.segments?.length ? leg0.segments[leg0.segments.length - 1] : undefined;
+  const bookingLeg =
+    optionOrParams && 'bookingLeg' in optionOrParams && typeof optionOrParams.bookingLeg === 'number'
+      ? optionOrParams.bookingLeg
+      : undefined;
+  if (bookingLeg != null && bookingLeg >= 0) {
+    params.set('leg', String(bookingLeg));
+  }
+
+  if (optionOrParams && 'legs' in optionOrParams && optionOrParams.legs?.length) {
+    const legs = optionOrParams.legs;
+    const split = isSplitBookingItinerary({ legs });
+    const legIdx = bookingLeg != null && bookingLeg >= 0 && bookingLeg < legs.length ? bookingLeg : 0;
+    const oneWay = split || bookingLeg != null;
+    const leg = legs[oneWay ? legIdx : 0];
+    const seg0 = leg?.segments?.[0];
+    const lastSeg = leg?.segments?.length ? leg.segments[leg.segments.length - 1] : undefined;
     if (seg0?.from?.code) params.set('origin', seg0.from.code);
-    if (lastSeg0?.to?.code) params.set('destination', lastSeg0.to.code);
-    if (seg0?.departureTime) {
-      try {
-        params.set('departureDate', new Date(seg0.departureTime).toISOString().slice(0, 10));
-      } catch {
-        // ignore
-      }
-    }
-    if (optionOrParams.legs.length > 1) {
-      const leg1 = optionOrParams.legs[1];
-      const lastSeg1 = leg1?.segments?.length ? leg1.segments[leg1.segments.length - 1] : undefined;
-      if (lastSeg1?.arrivalTime) {
-        try {
-          params.set('returnDate', new Date(lastSeg1.arrivalTime).toISOString().slice(0, 10));
-        } catch {
-          // ignore
-        }
-      }
+    if (lastSeg?.to?.code) params.set('destination', lastSeg.to.code);
+    const dep = isoDatePrefix(seg0?.departureTime);
+    if (dep) params.set('departureDate', dep);
+    if (!oneWay && legs.length > 1) {
+      const retDep = isoDatePrefix(legs[1]?.segments?.[0]?.departureTime);
+      if (retDep) params.set('returnDate', retDep);
     }
   } else if (optionOrParams && 'origin' in optionOrParams) {
     const p = optionOrParams as BookingRedirectParams;
     if (p.origin) params.set('origin', p.origin);
     if (p.destination) params.set('destination', p.destination);
     if (p.departureDate) params.set('departureDate', p.departureDate);
-    if (p.returnDate) params.set('returnDate', p.returnDate);
+    if (bookingLeg == null && p.returnDate) params.set('returnDate', p.returnDate);
   }
 
   return `${base}${OUT_BOOKING_PATH}?${params.toString()}`;

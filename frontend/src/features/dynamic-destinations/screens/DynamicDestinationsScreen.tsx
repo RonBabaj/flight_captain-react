@@ -429,6 +429,9 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
         visible={loading}
         origin={params.origin}
         destination={params.destination}
+        extraLegs={params.extraLegs ?? []}
+        returnOrigin={params.returnOrigin}
+        returnDestination={params.returnDestination || params.origin}
       />
     </View>
   );

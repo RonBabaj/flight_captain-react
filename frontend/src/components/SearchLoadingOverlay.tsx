@@ -30,14 +30,33 @@ const PHRASES_RU = [
   'Почти готово…',
 ];
 
+interface ExtraLeg {
+  origin?: string;
+  destination?: string;
+  date?: string;
+}
+
 interface Props {
   visible: boolean;
   /** Origin and destination codes for the sub-title */
   origin?: string;
   destination?: string;
+  /** Extra hops (Dynamic Destinations) to show in the route string */
+  extraLegs?: ExtraLeg[];
+  /** Return-leg departure airport (open-jaw) */
+  returnOrigin?: string;
+  /** Return-leg arrival airport (open-jaw) */
+  returnDestination?: string;
 }
 
-export function SearchLoadingOverlay({ visible, origin, destination }: Props) {
+export function SearchLoadingOverlay({
+  visible,
+  origin,
+  destination,
+  extraLegs,
+  returnOrigin,
+  returnDestination,
+}: Props) {
   const { theme } = useTheme();
   const { language } = useLocale();
 
@@ -66,13 +85,36 @@ export function SearchLoadingOverlay({ visible, origin, destination }: Props) {
 
   if (!visible) return null;
 
-  const route = origin && destination ? `${origin} → ${destination}` : null;
+  const completeExtras = (extraLegs ?? []).filter(
+    (l) => (l.origin || '').trim() && (l.destination || '').trim(),
+  );
+  const isOpenJaw =
+    returnOrigin && destination
+      ? returnOrigin.trim().toUpperCase() !== destination.trim().toUpperCase()
+      : false;
+  const isSplit = completeExtras.length > 0 || isOpenJaw;
+
+  let route: string | null = null;
+  if (origin && destination) {
+    if (isSplit) {
+      const parts: string[] = [`${origin.toUpperCase()} → ${destination.toUpperCase()}`];
+      completeExtras.forEach((l) => {
+        parts.push(`${(l.origin || '').toUpperCase()} → ${(l.destination || '').toUpperCase()}`);
+      });
+      const retFrom = (returnOrigin || destination).toUpperCase();
+      const retTo = (returnDestination || origin).toUpperCase();
+      parts.push(`${retFrom} → ${retTo}`);
+      route = parts.join('  |  ');
+    } else {
+      route = `${origin} → ${destination}`;
+    }
+  }
 
   return (
     <View style={[s.overlay, { backgroundColor: theme.screenBg }]}>
       <ActivityIndicator size="large" color={theme.primary} style={s.spinner} />
       {route ? (
-        <Text style={[s.route, { color: theme.text }]}>{route}</Text>
+        <Text style={[s.route, { color: theme.text }]} numberOfLines={3}>{route}</Text>
       ) : null}
       <Animated.Text style={[s.phrase, { color: theme.textMuted, opacity: fadeAnim }]}>
         {phrases[phraseIdx]}
