@@ -40,7 +40,12 @@ export function TopNavMenu() {
     currentRoot === 'Search' || currentRoot === 'DynamicDestinations'
       ? getFocusedRouteNameFromRoute(route) ?? (currentRoot === 'Search' ? 'SearchForm' : 'DynamicDestinationsForm')
       : null;
-  const titleKey = nestedName ? TITLE_KEYS[nestedName] ?? TITLE_KEYS[currentRoot] ?? TITLE_KEYS.Search : TITLE_KEYS[currentRoot];
+  const titleKey =
+    currentRoot === 'DynamicDestinations'
+      ? TITLE_KEYS.DynamicDestinations
+      : nestedName
+        ? TITLE_KEYS[nestedName] ?? TITLE_KEYS[currentRoot] ?? TITLE_KEYS.Search
+        : TITLE_KEYS[currentRoot];
   const title = t(titleKey);
 
   const isHome = currentRoot === 'Home';

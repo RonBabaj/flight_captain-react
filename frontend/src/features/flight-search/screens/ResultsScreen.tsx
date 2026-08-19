@@ -16,7 +16,7 @@ import {
 import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
 import type { FlightOption, MonetaryAmount } from '../../../types';
-import type { CreateSearchSessionRequest } from '../../../types';
+import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import { ANYWHERE_CODE } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -31,6 +31,15 @@ import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
 import { SearchFormContent } from '../components/SearchFormContent';
+import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
+import {
+  addExtraDestinationLeg,
+  isDynamicDestinationsSearch,
+  patchDynamicDestinationsParams,
+  patchExtraLeg,
+  removeExtraDestinationLeg,
+  validateDynamicDestinationsSearch,
+} from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { isSplitBookingItinerary, buildSkyscannerPrefillURL } from '../../../utils/skyscanner';
 import { openUrlInNewTab } from '../../../utils/openUrl';
@@ -75,6 +84,9 @@ const defaultFormParams: CreateSearchSessionRequest = {
   destination: '',
   departureDate: '',
   returnDate: '',
+  returnOrigin: '',
+  returnDestination: '',
+  extraLegs: [],
   cabinClass: 'ECONOMY',
   cabinPreference: 'ECONOMY',
   includeCheckedBag: false,
@@ -270,6 +282,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     sortOrder,
     filters,
   } = useSearchStore();
+  const isDynamicDestinations = useMemo(() => {
+    const routeNames = navigation.getState()?.routeNames;
+    if (Array.isArray(routeNames) && routeNames.includes('DynamicDestinationsForm')) {
+      return true;
+    }
+    return isDynamicDestinationsSearch(storeParams);
+  }, [navigation, storeParams]);
 
   // Portable deep links: merge live URL + React Navigation route params. On iOS
   // WebKit the address bar can lose query params after history sync while
@@ -415,7 +434,77 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     value: CreateSearchSessionRequest[K]
   ) => setFormParams((prev) => ({ ...prev, [key]: value }));
 
+  const updateDynamicFormParams = <K extends keyof CreateSearchSessionRequest>(
+    key: K,
+    value: CreateSearchSessionRequest[K],
+  ) => setFormParams((prev) => patchDynamicDestinationsParams(prev, key, value));
+
+  const updateDynamicExtra = (index: number, patch: Partial<ExtraSearchLeg>) => {
+    setFormParams((prev) => patchExtraLeg(prev, index, patch));
+  };
+
+  const addDynamicExtra = () => {
+    setFormParams((prev) => addExtraDestinationLeg(prev));
+  };
+
+  const removeDynamicExtra = (index: number) => {
+    setFormParams((prev) => removeExtraDestinationLeg(prev, index));
+  };
+
+  const runEditedSearch = async (payload: CreateSearchSessionRequest) => {
+    setSidebarSearchError(null);
+    setShowEditSearchModal(false);
+    setSidebarSearchLoading(true);
+    creatingSessionRef.current = true;
+    try {
+      setCachedSearch(payload);
+      const generation = searchActions.beginSearch(payload);
+      updateUrl(payload);
+      versionRef.current = 0;
+      const session = await createSearchSession(payload);
+      if (!isCurrentSearchGeneration(generation)) return;
+      const res = await getSearchSessionResults(session.id, undefined, payload);
+      if (!isCurrentSearchGeneration(generation)) return;
+      const applied = searchActions.applySessionResults({
+        generation,
+        sessionId: session.id,
+        session: res.session ?? session,
+        status: res.session?.status ?? session.status,
+        results: res.results ?? [],
+        version: res.version ?? 1,
+        mode: 'replace',
+      });
+      if (!applied) return;
+      versionRef.current = res.version ?? 1;
+      updateUrl({ ...payload, sessionId: session.id });
+      navigation.navigate('Results', { sessionId: session.id });
+    } catch (e) {
+      setSidebarSearchError(e instanceof Error ? e.message : 'Search failed');
+    } finally {
+      creatingSessionRef.current = false;
+      setSidebarSearchLoading(false);
+    }
+  };
+
+  const handleDynamicDestinationsSearch = async () => {
+    const validated = validateDynamicDestinationsSearch(
+      formParams,
+      t,
+      currency || 'USD',
+      locale || 'en-US',
+    );
+    if (!validated.ok) {
+      setSidebarSearchError(validated.error);
+      return;
+    }
+    await runEditedSearch(validated.payload);
+  };
+
   const handleSidebarSearch = async () => {
+    if (isDynamicDestinations) {
+      await handleDynamicDestinationsSearch();
+      return;
+    }
     const p = formParams;
     if (!p.origin.trim() || !p.destination.trim() || !p.departureDate) {
       setSidebarSearchError(t('fill_origin_destination_dates'));
@@ -444,62 +533,23 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       setSidebarSearchError(t('choose_return_date'));
       return;
     }
-    setSidebarSearchError(null);
-    setShowEditSearchModal(false);
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.log('[EDIT_SEARCH_LOADING] modalClosed before session');
-    }
-    setSidebarSearchLoading(true);
-    // Block the empty-session bootstrap from also POSTing while we create here.
-    creatingSessionRef.current = true;
-    try {
-      const cabin: CreateSearchSessionRequest['cabinClass'] =
-        p.cabinClass === 'ECONOMY' || p.cabinClass === 'PREMIUM_ECONOMY' ||
-        p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
-          ? p.cabinClass
-          : 'ECONOMY';
-      const payload: CreateSearchSessionRequest = {
-        ...p,
-        origin: p.origin.trim().toUpperCase(),
-        destination: p.destination.trim().toUpperCase(),
-        returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
-        cabinClass: cabin,
-        cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
-        includeCheckedBag: false,
-        currency: currency || 'USD',
-        locale: locale || 'en-US',
-      };
-      setCachedSearch(payload);
-      // Atomic clear + generation bump so in-flight polls cannot restore prior offers
-      // under the new summary header (e.g. BER header with leftover BKK cards).
-      const generation = searchActions.beginSearch(payload);
-      // Drop stale sessionId from the URL immediately (params already BER/…).
-      updateUrl(payload);
-      versionRef.current = 0;
-      const session = await createSearchSession(payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      const res = await getSearchSessionResults(session.id, undefined, payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      const applied = searchActions.applySessionResults({
-        generation,
-        sessionId: session.id,
-        session: res.session ?? session,
-        status: res.session?.status ?? session.status,
-        results: res.results ?? [],
-        version: res.version ?? 1,
-        mode: 'replace',
-      });
-      if (!applied) return;
-      versionRef.current = res.version ?? 1;
-      updateUrl({ ...payload, sessionId: session.id });
-      navigation.navigate('Results', { sessionId: session.id });
-    } catch (e) {
-      setSidebarSearchError(e instanceof Error ? e.message : 'Search failed');
-    } finally {
-      creatingSessionRef.current = false;
-      setSidebarSearchLoading(false);
-    }
+    const cabin: CreateSearchSessionRequest['cabinClass'] =
+      p.cabinClass === 'ECONOMY' || p.cabinClass === 'PREMIUM_ECONOMY' ||
+      p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
+        ? p.cabinClass
+        : 'ECONOMY';
+    const payload: CreateSearchSessionRequest = {
+      ...p,
+      origin: p.origin.trim().toUpperCase(),
+      destination: p.destination.trim().toUpperCase(),
+      returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
+      cabinClass: cabin,
+      cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
+      includeCheckedBag: false,
+      currency: currency || 'USD',
+      locale: locale || 'en-US',
+    };
+    await runEditedSearch(payload);
   };
 
   useEffect(() => {
@@ -1276,6 +1326,35 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     )
   );
 
+  const editSearchForm = isDynamicDestinations ? (
+    <DynamicDestinationsFormContent
+      params={formParams}
+      update={updateDynamicFormParams}
+      updateExtra={updateDynamicExtra}
+      addExtraDestination={addDynamicExtra}
+      removeExtraDestination={removeDynamicExtra}
+      onSearch={handleSidebarSearch}
+      loading={sidebarSearchLoading}
+      error={sidebarSearchError}
+      compact
+    />
+  ) : (
+    <SearchFormContent
+      params={formParams}
+      update={updateFormParams}
+      tripType={tripType}
+      setTripType={setTripType}
+      onSearch={handleSidebarSearch}
+      onPassengerCabinDone={() => {
+        setShowEditSearchModal(false);
+        handleSidebarSearch();
+      }}
+      loading={sidebarSearchLoading}
+      error={sidebarSearchError}
+      compact
+    />
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       {/* Summary bar */}
@@ -1305,26 +1384,19 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
           <View style={[styles.editSearchModalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
             <View style={[styles.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
-              <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>{t('change_search')}</Text>
+              <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>
+                {isDynamicDestinations ? t('dd_title') : t('change_search')}
+              </Text>
               <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={styles.editSearchModalClose}>
                 <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.editSearchModalScroll} contentContainerStyle={styles.editSearchModalContent} keyboardShouldPersistTaps="handled">
-              <SearchFormContent
-                params={formParams}
-                update={updateFormParams}
-                tripType={tripType}
-                setTripType={setTripType}
-                onSearch={handleSidebarSearch}
-                onPassengerCabinDone={() => {
-                  setShowEditSearchModal(false);
-                  handleSidebarSearch();
-                }}
-                loading={sidebarSearchLoading}
-                error={sidebarSearchError}
-                compact
-              />
+            <ScrollView
+              style={[styles.editSearchModalScroll, isDynamicDestinations && styles.editSearchModalScrollTall]}
+              contentContainerStyle={styles.editSearchModalContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {editSearchForm}
             </ScrollView>
           </View>
         </View>
@@ -1339,9 +1411,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             {isRTL ? (
               <>
                 <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
-                  <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} onPassengerCabinDone={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
-                  </ScrollView>
+                    <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                      {editSearchForm}
+                    </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
@@ -1362,9 +1434,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             ) : (
               <>
                 <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
-                  <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                    <SearchFormContent params={formParams} update={updateFormParams} tripType={tripType} setTripType={setTripType} onSearch={handleSidebarSearch} onPassengerCabinDone={handleSidebarSearch} loading={sidebarSearchLoading} error={sidebarSearchError} compact />
-                  </ScrollView>
+                    <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                      {editSearchForm}
+                    </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
@@ -1679,6 +1751,7 @@ const styles = StyleSheet.create({
   editSearchModalClose: { padding: 6 },
   editSearchModalCloseText: { fontSize: 20 },
   editSearchModalScroll: { maxHeight: 480 },
+  editSearchModalScrollTall: { maxHeight: 640 },
   editSearchModalContent: { padding: 18, paddingBottom: 28 },
 
   searchColumn: {

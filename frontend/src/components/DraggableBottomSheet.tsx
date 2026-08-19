@@ -7,13 +7,15 @@ import {
   type ViewProps,
 } from 'react-native';
 
-const COLLAPSED_RATIO = 0.42;
-const EXPANDED_RATIO = 0.92;
+/** Comfortable default — matches the original ~80% bottom sheet. */
+const DEFAULT_RATIO = 0.8;
+/** Optional expansion when the user drags up for more room. */
+const EXPANDED_RATIO = 0.96;
 const DRAG_THRESHOLD_PX = 6;
 
 export function SheetDragHandle({ color }: { color: string }) {
   return (
-    <View style={styles.handleWrap} accessibilityRole="adjustable" accessibilityLabel="Drag to resize">
+    <View style={styles.handleWrap} accessibilityRole="adjustable" accessibilityLabel="Drag to expand">
       <View style={styles.handleDots}>
         {Array.from({ length: 6 }, (_, i) => (
           <View key={i} style={[styles.dot, { backgroundColor: color }]} />
@@ -28,18 +30,18 @@ export function useDraggableSheetHeight(
   enabled: boolean,
   resetKey?: string | number | boolean,
 ) {
-  const minH = Math.round(windowHeight * COLLAPSED_RATIO);
-  const maxH = Math.round(windowHeight * EXPANDED_RATIO);
-  const midH = (minH + maxH) / 2;
+  const defaultH = Math.round(windowHeight * DEFAULT_RATIO);
+  const expandedH = Math.round(windowHeight * EXPANDED_RATIO);
+  const midH = (defaultH + expandedH) / 2;
 
-  const heightAnim = useRef(new Animated.Value(minH)).current;
-  const dragStart = useRef(minH);
+  const heightAnim = useRef(new Animated.Value(defaultH)).current;
+  const dragStart = useRef(defaultH);
 
   useEffect(() => {
     if (!enabled) return;
-    heightAnim.setValue(minH);
-    dragStart.current = minH;
-  }, [enabled, minH, resetKey, heightAnim]);
+    heightAnim.setValue(defaultH);
+    dragStart.current = defaultH;
+  }, [enabled, defaultH, resetKey, heightAnim]);
 
   const panHandlers = useMemo(() => {
     if (!enabled) return {} as ViewProps;
@@ -54,20 +56,20 @@ export function useDraggableSheetHeight(
         });
       },
       onPanResponderMove: (_, gesture) => {
-        const next = Math.min(maxH, Math.max(minH, dragStart.current - gesture.dy));
+        const next = Math.min(expandedH, Math.max(defaultH, dragStart.current - gesture.dy));
         heightAnim.setValue(next);
       },
       onPanResponderRelease: (_, gesture) => {
         heightAnim.stopAnimation((value) => {
           const flingUp = gesture.vy < -0.45;
           const flingDown = gesture.vy > 0.45;
-          let target = minH;
+          let target = defaultH;
           if (flingUp) {
-            target = maxH;
+            target = expandedH;
           } else if (flingDown) {
-            target = minH;
+            target = defaultH;
           } else {
-            target = value >= midH ? maxH : minH;
+            target = value >= midH ? expandedH : defaultH;
           }
           dragStart.current = target;
           Animated.spring(heightAnim, {
@@ -82,9 +84,9 @@ export function useDraggableSheetHeight(
     });
 
     return pan.panHandlers;
-  }, [enabled, heightAnim, maxH, midH, minH]);
+  }, [enabled, heightAnim, expandedH, midH, defaultH]);
 
-  return { heightAnim, panHandlers, minH, maxH };
+  return { heightAnim, panHandlers, defaultH, expandedH };
 }
 
 const styles = StyleSheet.create({
