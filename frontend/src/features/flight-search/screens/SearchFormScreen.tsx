@@ -118,6 +118,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
         adults: params.adults ?? 1,
         currency: currency || 'USD',
+        searchNonce: Date.now(),
       });
       return;
     }

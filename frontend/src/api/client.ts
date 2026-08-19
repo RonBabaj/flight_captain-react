@@ -74,38 +74,37 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
-/** Abort hung fetches so the UI cannot sit on a spinner forever (e.g. Explore / Anywhere). */
-const DEFAULT_API_TIMEOUT_MS = 90_000;
-
 export async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
   const url = apiUrl(path);
+  const { timeoutMs, ...fetchOptions } = options;
+  const waitMs = timeoutMs ?? 90_000;
   const controller = new AbortController();
-  const timeoutMs = DEFAULT_API_TIMEOUT_MS;
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const userSignal = options.signal;
-  if (userSignal) {
-    if (userSignal.aborted) controller.abort();
-    else userSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  const timer = setTimeout(() => controller.abort(), waitMs);
+  if (fetchOptions.signal) {
+    const outer = fetchOptions.signal;
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener('abort', () => controller.abort(), { once: true });
   }
   let res: Response;
   try {
     res = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...fetchOptions.headers,
       },
     });
   } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') {
+    const aborted = controller.signal.aborted;
+    const raw = e instanceof Error ? e.message : String(e);
+    if (aborted && !fetchOptions.signal?.aborted) {
       throw new Error('Search timed out. Please try again in a moment.');
     }
     // WebKit/Brave often surfaces cross-origin/network aborts as "Load failed (host)".
-    const raw = e instanceof Error ? e.message : String(e);
     if (/load failed|failed to fetch|networkerror|network request failed/i.test(raw)) {
       throw new Error(
         'Could not reach the flight API. Please check your connection and try again.'
@@ -129,13 +128,14 @@ export async function apiRequest<T>(
   return res.json() as Promise<T>;
 }
 
-export function apiGet<T>(path: string): Promise<T> {
-  return apiRequest<T>(path, { method: 'GET' });
+export function apiGet<T>(path: string, timeoutMs?: number): Promise<T> {
+  return apiRequest<T>(path, { method: 'GET', timeoutMs });
 }
 
-export function apiPost<T>(path: string, body: unknown): Promise<T> {
+export function apiPost<T>(path: string, body: unknown, timeoutMs?: number): Promise<T> {
   return apiRequest<T>(path, {
     method: 'POST',
     body: JSON.stringify(body),
+    timeoutMs,
   });
 }
