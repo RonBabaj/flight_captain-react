@@ -249,8 +249,8 @@ var (
 
 // loadSearchSession returns the stored session. The in-memory map is a hot cache
 // with a short TTL; on a miss (other device, server restart, TTL elapsed) we fall
-// back to the durable disk store so shared links keep resolving to the exact same
-// result set for the full retention window.
+// back to the durable database so shared links keep resolving to the exact same
+// result set indefinitely.
 func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	sessionsMu.Lock()
 	resp, ok := sessions[id]
@@ -262,7 +262,7 @@ func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	if ok {
 		return resp, true
 	}
-	return loadSessionFromDisk(id)
+	return loadPersistedSession(id)
 }
 
 func startSearchSessionCleanup() {
@@ -278,7 +278,7 @@ func startSearchSessionCleanup() {
 				}
 			}
 			sessionsMu.Unlock()
-			cleanupSessionDisk()
+			cleanupPersistedSessions()
 		}
 	}()
 }
@@ -2675,6 +2675,7 @@ func main() {
 	} else {
 		log.Println("[STARTUP] no flight providers configured — set FLIGHT_PROVIDERS (default googleflights2) and provider credentials")
 	}
+	initSessionStore()
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
 	startSearchSessionCleanup()

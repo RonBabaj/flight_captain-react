@@ -1,124 +1,194 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
+	"strings"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
-// Durable, disk-backed store for search session snapshots.
+// Durable SQLite-backed store for search session snapshots.
 //
 // The in-memory `sessions` map is a hot cache with a short TTL (searchSessionTTL).
 // That alone made shared URLs break: a sessionId in a link opened on another
 // device, after 25 minutes, or after a server restart hit a map miss and 404ed.
 //
 // This store makes the sessionId in a shared URL a durable public identifier:
-// every session snapshot is persisted to disk when created, and loadSearchSession
-// falls back to disk on a memory miss. Any browser, device, or app context can
-// GET the exact same result set for the retention window with no client-side
-// state involved. Existing URLs keep working unchanged (same id, same endpoint).
+// every session snapshot is written to the database when created, and
+// loadSearchSession falls back to it on a memory miss. Any browser, device, or
+// app context can GET the exact same result set with no client-side state
+// involved — and, unlike the earlier JSON-file store, records are kept FOREVER
+// by default. Retention is opt-in via SESSION_RETENTION_HOURS.
+//
+// Config:
+//   SESSION_DB_PATH         — SQLite file location (default data/sessions.db)
+//   SESSION_RETENTION_HOURS — optional; when > 0, records older than this are
+//                             purged by the periodic cleanup. Unset/0 = keep all.
+//   SESSION_STORE_DIR       — legacy JSON-file store location; any records found
+//                             there are imported into the database on startup.
 
-const defaultSessionRetention = 7 * 24 * time.Hour
+var sessionDB *sql.DB
 
-// Session ids are randomID("sess_") — letters/digits/underscore. The pattern also
-// guards against path traversal since the id becomes a file name.
-var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
-
-func sessionStoreDir() string {
-	if dir := os.Getenv("SESSION_STORE_DIR"); dir != "" {
-		return dir
+func sessionDBPath() string {
+	if p := os.Getenv("SESSION_DB_PATH"); p != "" {
+		return p
 	}
-	return filepath.Join("data", "sessions")
+	return filepath.Join("data", "sessions.db")
 }
 
-// sessionDiskRetention returns how long persisted snapshots stay retrievable.
-// Configurable via SESSION_RETENTION_HOURS; defaults to 7 days.
-func sessionDiskRetention() time.Duration {
+// sessionRetention returns how long persisted snapshots are kept.
+// Zero means unlimited (the default).
+func sessionRetention() time.Duration {
 	if raw := os.Getenv("SESSION_RETENTION_HOURS"); raw != "" {
 		if h, err := strconv.Atoi(raw); err == nil && h > 0 {
 			return time.Duration(h) * time.Hour
 		}
 	}
-	return defaultSessionRetention
+	return 0
 }
 
-func sessionFilePath(id string) (string, bool) {
-	if !sessionIDPattern.MatchString(id) {
-		return "", false
+// initSessionStore opens (or creates) the session database. Failures are logged
+// and non-fatal: the API keeps working from the in-memory cache alone.
+func initSessionStore() {
+	path := sessionDBPath()
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Printf("[SESSION_DB] mkdir %s failed: %v", dir, err)
+			return
+		}
 	}
-	return filepath.Join(sessionStoreDir(), id+".json"), true
-}
-
-// persistSearchSession writes the session snapshot atomically (tmp file + rename).
-// Failures are logged and non-fatal: the API keeps serving from memory.
-func persistSearchSession(resp SearchSessionResultsResponse) {
-	path, ok := sessionFilePath(resp.Session.ID)
-	if !ok {
+	// WAL allows the HTTP handlers to read while a search persists a new row;
+	// busy_timeout avoids spurious SQLITE_BUSY under concurrent writes.
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		log.Printf("[SESSION_DB] open %s failed: %v", path, err)
 		return
 	}
-	if err := os.MkdirAll(sessionStoreDir(), 0o755); err != nil {
-		log.Printf("[SESSION_STORE] mkdir %s failed: %v", sessionStoreDir(), err)
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS search_sessions (
+		id         TEXT PRIMARY KEY,
+		created_at INTEGER NOT NULL, -- unix seconds
+		data       TEXT NOT NULL     -- SearchSessionResultsResponse JSON
+	)`); err != nil {
+		log.Printf("[SESSION_DB] create table failed: %v", err)
+		_ = db.Close()
+		return
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_search_sessions_created_at
+		ON search_sessions (created_at)`); err != nil {
+		log.Printf("[SESSION_DB] create index failed: %v", err)
+	}
+	sessionDB = db
+	importLegacyJSONSessions()
+}
+
+// importLegacyJSONSessions migrates records written by the previous JSON-file
+// store (one .json per session under SESSION_STORE_DIR) into the database, so
+// links shared while that store was live keep working. Files are removed after
+// a successful import; the whole step is a no-op when the directory is absent.
+func importLegacyJSONSessions() {
+	dir := os.Getenv("SESSION_STORE_DIR")
+	if dir == "" {
+		dir = filepath.Join("data", "sessions")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	imported := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var resp SearchSessionResultsResponse
+		if err := json.Unmarshal(data, &resp); err != nil || resp.Session.ID == "" {
+			continue
+		}
+		if _, err := sessionDB.Exec(
+			`INSERT OR IGNORE INTO search_sessions (id, created_at, data) VALUES (?, ?, ?)`,
+			resp.Session.ID, resp.Session.CreatedAt.Unix(), string(data),
+		); err != nil {
+			log.Printf("[SESSION_DB] legacy import %s failed: %v", e.Name(), err)
+			continue
+		}
+		_ = os.Remove(p)
+		imported++
+	}
+	if imported > 0 {
+		log.Printf("[SESSION_DB] imported %d legacy JSON session(s) from %s", imported, dir)
+	}
+}
+
+// persistSearchSession upserts the session snapshot. Failures are logged and
+// non-fatal: the API still serves the session from memory.
+func persistSearchSession(resp SearchSessionResultsResponse) {
+	if sessionDB == nil || resp.Session.ID == "" {
 		return
 	}
 	data, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("[SESSION_STORE] marshal %s failed: %v", resp.Session.ID, err)
+		log.Printf("[SESSION_DB] marshal %s failed: %v", resp.Session.ID, err)
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		log.Printf("[SESSION_STORE] write %s failed: %v", tmp, err)
-		return
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		log.Printf("[SESSION_STORE] rename %s failed: %v", path, err)
+	if _, err := sessionDB.Exec(
+		`INSERT OR REPLACE INTO search_sessions (id, created_at, data) VALUES (?, ?, ?)`,
+		resp.Session.ID, resp.Session.CreatedAt.Unix(), string(data),
+	); err != nil {
+		log.Printf("[SESSION_DB] persist %s failed: %v", resp.Session.ID, err)
 	}
 }
 
-// loadSessionFromDisk returns the persisted snapshot when it exists and is
-// within the retention window. Records past retention are deleted on access.
-func loadSessionFromDisk(id string) (SearchSessionResultsResponse, bool) {
-	path, ok := sessionFilePath(id)
-	if !ok {
+// loadPersistedSession returns the stored snapshot for id, if any. When a
+// retention window is configured, records past it are treated as gone.
+func loadPersistedSession(id string) (SearchSessionResultsResponse, bool) {
+	if sessionDB == nil || id == "" {
 		return SearchSessionResultsResponse{}, false
 	}
-	data, err := os.ReadFile(path)
+	var data string
+	var createdAt int64
+	err := sessionDB.QueryRow(
+		`SELECT data, created_at FROM search_sessions WHERE id = ?`, id,
+	).Scan(&data, &createdAt)
 	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("[SESSION_DB] load %s failed: %v", id, err)
+		}
+		return SearchSessionResultsResponse{}, false
+	}
+	if r := sessionRetention(); r > 0 && time.Since(time.Unix(createdAt, 0)) > r {
 		return SearchSessionResultsResponse{}, false
 	}
 	var resp SearchSessionResultsResponse
-	if err := json.Unmarshal(data, &resp); err != nil || resp.Session.ID != id {
-		return SearchSessionResultsResponse{}, false
-	}
-	if time.Since(resp.Session.CreatedAt) > sessionDiskRetention() {
-		_ = os.Remove(path)
+	if err := json.Unmarshal([]byte(data), &resp); err != nil || resp.Session.ID != id {
 		return SearchSessionResultsResponse{}, false
 	}
 	return resp, true
 }
 
-// cleanupSessionDisk removes persisted snapshots older than the retention window.
-// Snapshots are written once at creation, so file mtime ≈ session CreatedAt.
-func cleanupSessionDisk() {
-	entries, err := os.ReadDir(sessionStoreDir())
-	if err != nil {
+// cleanupPersistedSessions purges records older than the retention window.
+// With no retention configured (the default) nothing is ever deleted.
+func cleanupPersistedSessions() {
+	if sessionDB == nil {
 		return
 	}
-	cutoff := time.Now().Add(-sessionDiskRetention())
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		if info.ModTime().Before(cutoff) {
-			_ = os.Remove(filepath.Join(sessionStoreDir(), e.Name()))
-		}
+	r := sessionRetention()
+	if r <= 0 {
+		return
+	}
+	cutoff := time.Now().Add(-r).Unix()
+	if _, err := sessionDB.Exec(
+		`DELETE FROM search_sessions WHERE created_at < ?`, cutoff,
+	); err != nil {
+		log.Printf("[SESSION_DB] cleanup failed: %v", err)
 	}
 }

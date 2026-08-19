@@ -1,11 +1,32 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func initTestSessionDB(t *testing.T) {
+	t.Helper()
+	t.Setenv("SESSION_DB_PATH", filepath.Join(t.TempDir(), "sessions.db"))
+	t.Setenv("SESSION_STORE_DIR", t.TempDir()) // isolate legacy-import scan
+	if sessionDB != nil {
+		_ = sessionDB.Close()
+		sessionDB = nil
+	}
+	initSessionStore()
+	if sessionDB == nil {
+		t.Fatal("session DB failed to initialize")
+	}
+	t.Cleanup(func() {
+		if sessionDB != nil {
+			_ = sessionDB.Close()
+			sessionDB = nil
+		}
+	})
+}
 
 func makeSessionResp(id string, createdAt time.Time) SearchSessionResultsResponse {
 	return SearchSessionResultsResponse{
@@ -27,13 +48,12 @@ func makeSessionResp(id string, createdAt time.Time) SearchSessionResultsRespons
 }
 
 // A shared link opened on another device (or after a restart / memory TTL) must
-// still resolve to the exact same result set via the disk store.
-func TestLoadSearchSessionFallsBackToDisk(t *testing.T) {
-	t.Setenv("SESSION_STORE_DIR", t.TempDir())
+// still resolve to the exact same result set via the database.
+func TestLoadSearchSessionFallsBackToDB(t *testing.T) {
+	initTestSessionDB(t)
 
-	id := "sess_disk_fallback"
-	resp := makeSessionResp(id, time.Now().UTC())
-	persistSearchSession(resp)
+	id := "sess_db_fallback"
+	persistSearchSession(makeSessionResp(id, time.Now().UTC()))
 
 	// Simulate a fresh process: nothing in the in-memory map.
 	sessionsMu.Lock()
@@ -42,10 +62,10 @@ func TestLoadSearchSessionFallsBackToDisk(t *testing.T) {
 
 	got, ok := loadSearchSession(id)
 	if !ok {
-		t.Fatal("expected disk fallback to find the session")
+		t.Fatal("expected DB fallback to find the session")
 	}
 	if got.Session.ID != id || len(got.Results) != 1 || got.Results[0].ID != "opt_0" {
-		t.Fatalf("disk snapshot mismatch: %+v", got)
+		t.Fatalf("DB snapshot mismatch: %+v", got)
 	}
 	if got.Session.Params.Origin != "TLV" || got.Session.Params.ReturnDate != "2027-01-14" {
 		t.Fatalf("search params not preserved: %+v", got.Session.Params)
@@ -55,9 +75,9 @@ func TestLoadSearchSessionFallsBackToDisk(t *testing.T) {
 	}
 }
 
-// In-memory TTL expiry must no longer kill shared links: the disk record outlives it.
-func TestLoadSearchSessionMemoryExpiredButOnDisk(t *testing.T) {
-	t.Setenv("SESSION_STORE_DIR", t.TempDir())
+// In-memory TTL expiry must not kill shared links: the DB record outlives it.
+func TestLoadSearchSessionMemoryExpiredButInDB(t *testing.T) {
+	initTestSessionDB(t)
 
 	id := "sess_mem_expired"
 	old := makeSessionResp(id, time.Now().UTC().Add(-2*searchSessionTTL))
@@ -67,64 +87,112 @@ func TestLoadSearchSessionMemoryExpiredButOnDisk(t *testing.T) {
 	sessions[id] = old
 	sessionsMu.Unlock()
 
-	got, ok := loadSearchSession(id)
+	if got, ok := loadSearchSession(id); !ok || got.Session.ID != id {
+		t.Fatalf("expected session past memory TTL to load from DB, got ok=%v", ok)
+	}
+}
+
+// Default behavior: no retention limit — even very old sessions stay retrievable.
+func TestSessionsKeptForeverByDefault(t *testing.T) {
+	initTestSessionDB(t)
+	os.Unsetenv("SESSION_RETENTION_HOURS")
+
+	id := "sess_ancient"
+	persistSearchSession(makeSessionResp(id, time.Now().UTC().Add(-90*24*time.Hour)))
+
+	cleanupPersistedSessions() // must be a no-op with no retention configured
+
+	if _, ok := loadPersistedSession(id); !ok {
+		t.Fatal("expected 90-day-old session to load with unlimited retention")
+	}
+}
+
+// Opt-in retention: records past the window are rejected on load and purged by cleanup.
+func TestOptInRetention(t *testing.T) {
+	initTestSessionDB(t)
+	t.Setenv("SESSION_RETENTION_HOURS", "24")
+
+	fresh := "sess_fresh"
+	stale := "sess_stale"
+	persistSearchSession(makeSessionResp(fresh, time.Now().UTC()))
+	persistSearchSession(makeSessionResp(stale, time.Now().UTC().Add(-48*time.Hour)))
+
+	if _, ok := loadPersistedSession(stale); ok {
+		t.Fatal("expected session past retention to be rejected on load")
+	}
+	if _, ok := loadPersistedSession(fresh); !ok {
+		t.Fatal("expected fresh session to load")
+	}
+
+	cleanupPersistedSessions()
+
+	var n int
+	if err := sessionDB.QueryRow(`SELECT COUNT(*) FROM search_sessions`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("expected cleanup to leave 1 row, got %d", n)
+	}
+}
+
+// Re-persisting the same id must update the stored snapshot (upsert).
+func TestPersistSearchSessionUpserts(t *testing.T) {
+	initTestSessionDB(t)
+
+	id := "sess_upsert"
+	first := makeSessionResp(id, time.Now().UTC())
+	persistSearchSession(first)
+
+	second := first
+	second.Version = 2
+	second.Results = []FlightOption{{ID: "opt_0"}, {ID: "opt_1"}}
+	persistSearchSession(second)
+
+	got, ok := loadPersistedSession(id)
 	if !ok {
-		t.Fatal("expected session past memory TTL to load from disk")
+		t.Fatal("expected upserted session to load")
 	}
-	if got.Session.ID != id {
-		t.Fatalf("wrong session: %+v", got.Session)
-	}
-}
-
-// Records past the retention window are gone — this is the genuinely-expired case
-// the frontend surfaces as "shared link expired".
-func TestLoadSessionFromDiskRespectsRetention(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("SESSION_STORE_DIR", dir)
-
-	id := "sess_retention"
-	stale := makeSessionResp(id, time.Now().UTC().Add(-sessionDiskRetention()-time.Hour))
-	persistSearchSession(stale)
-
-	if _, ok := loadSearchSession(id); ok {
-		t.Fatal("expected session past retention to be rejected")
-	}
-	if _, err := os.Stat(filepath.Join(dir, id+".json")); !os.IsNotExist(err) {
-		t.Fatal("expected stale record to be deleted on access")
+	if got.Version != 2 || len(got.Results) != 2 {
+		t.Fatalf("expected latest snapshot, got version=%d results=%d", got.Version, len(got.Results))
 	}
 }
 
-func TestSessionFilePathRejectsUnsafeIDs(t *testing.T) {
-	for _, id := range []string{"", "../etc/passwd", "sess/../x", "sess x", "a/b"} {
-		if _, ok := sessionFilePath(id); ok {
-			t.Fatalf("expected unsafe id %q to be rejected", id)
-		}
+// Records written by the previous JSON-file store are imported on startup so
+// links shared while it was live keep working.
+func TestLegacyJSONImport(t *testing.T) {
+	legacyDir := t.TempDir()
+	id := "sess_legacy"
+	resp := makeSessionResp(id, time.Now().UTC())
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := sessionFilePath("sess_Abc123-_"); !ok {
-		t.Fatal("expected normal session id to be accepted")
-	}
-}
-
-func TestCleanupSessionDisk(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("SESSION_STORE_DIR", dir)
-
-	fresh := makeSessionResp("sess_fresh", time.Now().UTC())
-	persistSearchSession(fresh)
-	stale := makeSessionResp("sess_stale", time.Now().UTC().Add(-sessionDiskRetention()-time.Hour))
-	persistSearchSession(stale)
-	stalePath := filepath.Join(dir, "sess_stale.json")
-	oldTime := time.Now().Add(-sessionDiskRetention() - time.Hour)
-	if err := os.Chtimes(stalePath, oldTime, oldTime); err != nil {
+	if err := os.WriteFile(filepath.Join(legacyDir, id+".json"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	cleanupSessionDisk()
-
-	if _, err := os.Stat(filepath.Join(dir, "sess_fresh.json")); err != nil {
-		t.Fatalf("fresh record should survive cleanup: %v", err)
+	t.Setenv("SESSION_DB_PATH", filepath.Join(t.TempDir(), "sessions.db"))
+	t.Setenv("SESSION_STORE_DIR", legacyDir)
+	if sessionDB != nil {
+		_ = sessionDB.Close()
+		sessionDB = nil
 	}
-	if _, err := os.Stat(stalePath); !os.IsNotExist(err) {
-		t.Fatal("stale record should be removed by cleanup")
+	initSessionStore()
+	if sessionDB == nil {
+		t.Fatal("session DB failed to initialize")
+	}
+	t.Cleanup(func() {
+		if sessionDB != nil {
+			_ = sessionDB.Close()
+			sessionDB = nil
+		}
+	})
+
+	got, ok := loadPersistedSession(id)
+	if !ok || got.Session.ID != id {
+		t.Fatalf("expected legacy record to be imported, ok=%v", ok)
+	}
+	if _, err := os.Stat(filepath.Join(legacyDir, id+".json")); !os.IsNotExist(err) {
+		t.Fatal("expected legacy file to be removed after import")
 	}
 }
