@@ -132,31 +132,37 @@ export function buildShareUrlWithOptionId(
     const href = g?.window?.location?.href;
     if (!href) return '';
     const u = new URL(href);
-    if (optionId) u.searchParams.set('optionId', optionId);
-    else u.searchParams.delete('optionId');
-    if (flightId) u.searchParams.set('flightId', flightId);
-    else u.searchParams.delete('flightId');
+    // setOrClear: the shared URL must describe EXACTLY the current search. Stale
+    // address-bar leftovers (an old returnDate on a one-way, a previous session's
+    // id) must be dropped, not silently kept — they made recipients re-run a
+    // different search than the one being shared.
+    const setOrClear = (key: string, value: string | undefined | null) => {
+      if (value) u.searchParams.set(key, value);
+      else u.searchParams.delete(key);
+    };
+    setOrClear('optionId', optionId);
+    setOrClear('flightId', flightId);
     // Bake search params into the URL so the recipient can always reconstruct the search.
     if (searchParams) {
-      if (searchParams.sessionId) u.searchParams.set('sessionId', searchParams.sessionId);
-      if (searchParams.origin) u.searchParams.set('origin', searchParams.origin);
-      if (searchParams.destination) u.searchParams.set('destination', searchParams.destination);
-      if (searchParams.departureDate) u.searchParams.set('departureDate', searchParams.departureDate);
-      if (searchParams.returnDate) u.searchParams.set('returnDate', searchParams.returnDate);
-      if (searchParams.returnOrigin) u.searchParams.set('returnOrigin', searchParams.returnOrigin);
-      if (searchParams.returnDestination) u.searchParams.set('returnDestination', searchParams.returnDestination);
-      if (searchParams.adults != null) u.searchParams.set('adults', String(searchParams.adults));
-      if (searchParams.children != null) u.searchParams.set('children', String(searchParams.children));
-      if (searchParams.currency) u.searchParams.set('currency', searchParams.currency);
-      if (searchParams.cabinClass) u.searchParams.set('cabinClass', searchParams.cabinClass);
-      if (searchParams.extraLegs?.length) {
-        u.searchParams.set(
-          'extra',
-          searchParams.extraLegs
-            .map((l) => `${(l.origin || '').toUpperCase()}:${(l.destination || '').toUpperCase()}:${l.date || ''}`)
-            .join('|'),
-        );
-      }
+      setOrClear('sessionId', searchParams.sessionId);
+      setOrClear('origin', searchParams.origin);
+      setOrClear('destination', searchParams.destination);
+      setOrClear('departureDate', searchParams.departureDate);
+      setOrClear('returnDate', searchParams.returnDate);
+      setOrClear('returnOrigin', searchParams.returnOrigin);
+      setOrClear('returnDestination', searchParams.returnDestination);
+      setOrClear('adults', searchParams.adults != null ? String(searchParams.adults) : undefined);
+      setOrClear('children', searchParams.children != null ? String(searchParams.children) : undefined);
+      setOrClear('currency', searchParams.currency);
+      setOrClear('cabinClass', searchParams.cabinClass);
+      setOrClear(
+        'extra',
+        searchParams.extraLegs?.length
+          ? searchParams.extraLegs
+              .map((l) => `${(l.origin || '').toUpperCase()}:${(l.destination || '').toUpperCase()}:${l.date || ''}`)
+              .join('|')
+          : undefined,
+      );
     }
     return u.toString();
   } catch {

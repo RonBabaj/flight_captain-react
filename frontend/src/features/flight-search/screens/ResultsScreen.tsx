@@ -485,6 +485,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   useEffect(() => {
     storeParamsRef.current = storeParams;
   }, [storeParams]);
+  const paramsFromUrlRef = useRef(paramsFromUrl);
+  useEffect(() => {
+    paramsFromUrlRef.current = paramsFromUrl;
+  }, [paramsFromUrl]);
 
   const creatingSessionRef = useRef(false);
   useEffect(() => {
@@ -494,11 +498,16 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
     // destination — merging URL last would re-search the old route (BKK vs BER).
-    const { sessionId: _urlSession, optionId: _urlOption, flightId: _urlFlightId, ...urlSearch } = paramsFromUrl ?? {};
+    // NOTE: params are read through refs, NOT effect deps. When this effect calls
+    // beginSearch below it replaces storeParams — with storeParams in the deps
+    // list, that re-triggered the effect, whose cleanup set cancelled=true and
+    // silently discarded the in-flight create. The UI then hung on the loading
+    // screen forever (hit by param-only shared links and the expired-link re-run).
+    const { sessionId: _urlSession, optionId: _urlOption, flightId: _urlFlightId, ...urlSearch } = paramsFromUrlRef.current ?? {};
     const base = {
       ...defaultFormParams,
       ...urlSearch,
-      ...(storeParams ?? {}),
+      ...(storeParamsRef.current ?? {}),
     } as Partial<CreateSearchSessionRequest>;
 
     const origin = (base.origin ?? '').trim();
@@ -591,7 +600,11 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, searchNonce, storeParams, paramsFromUrl, navigation, currency, locale]);
+    // Deliberately narrow deps: params/navigation/currency/locale are read via
+    // refs or captured at execution time. Re-running on those (esp. storeParams,
+    // which this effect itself mutates via beginSearch) self-cancelled the create.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, searchNonce]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -714,10 +727,15 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (!wantId && !wantFingerprint) return;
     if (detailsOption) return;
 
-    // Try exact optionId first
+    // Try exact optionId first. opt_N ids are positional within one session, so
+    // when the link also carries a fingerprint, the id match must agree with it —
+    // otherwise a re-created session's opt_0 would open a different flight than
+    // the one that was shared.
     if (wantId) {
       const match = results.find((r) => r.id === wantId);
-      if (match) {
+      const fingerprintOk =
+        !wantFingerprint || (match as any)?.canonicalFingerprint === wantFingerprint;
+      if (match && fingerprintOk) {
         setDetailsOption(match);
         pendingFlightIdRef.current = undefined;
         return;
@@ -956,7 +974,10 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     const clearDeadSessionEverywhere = () => {
       const urlP = parseSearchParamsFromUrl();
       updateUrl({ ...urlP, sessionId: undefined, optionId: undefined });
-      navigation.setParams({ sessionId: '', searchNonce: Date.now() });
+      // optionId must be cleared from route.params too: setParams re-syncs the URL
+      // from route params, which would resurrect the stale optionId — and opt_N ids
+      // are positional, so in the re-created session it matches a DIFFERENT flight.
+      navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
     };
 
     if (sharedLinkExpired) {
@@ -1061,8 +1082,13 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   // Hide the top progress banner once we have results (or search finished).
   // bootstrappingSession used to stick true when create was cancelled mid-flight
   // (navigation.replace), which left the banner looping forever over real results.
+  // On a fresh shared-link load the store status is still null while the first
+  // poll of the URL's sessionId is in flight. That state must render as loading —
+  // it used to fall through to "No flights found" for the few seconds before the
+  // session resolved (or the expired-link screen appeared), which read as broken.
+  const awaitingFirstPoll = !!sessionId && status == null;
   const isLoading =
-    (bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') &&
+    (bootstrappingSession || awaitingFirstPoll || status === 'PENDING' || status === 'PARTIAL') &&
     results.length === 0;
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
