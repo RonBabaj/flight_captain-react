@@ -100,15 +100,16 @@ func openJawOption() *FlightOption {
 }
 
 func TestItineraryIsSplit_openJaw(t *testing.T) {
-	// Plain open-jaw (TLV→VIE out, MUC→TLV return): still one bookable ticket — NOT split.
+	// Open-jaw: return departs from a different city — needs two one-way bookings.
 	opt := openJawOption()
 	sess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE", ReturnOrigin: "MUC", ReturnDestination: "TLV",
 		DepartureDate: "2026-10-07", ReturnDate: "2026-10-14",
 	}}
-	if itineraryIsSplit(sess, opt) {
-		t.Fatal("plain open-jaw should NOT be split (still one round-trip ticket)")
+	if !itineraryIsSplit(sess, opt) {
+		t.Fatal("open-jaw should be split")
 	}
+	// Classic RT: same airports reversed — single bookable ticket.
 	classic := &FlightOption{Legs: []FlightLeg{
 		{Segments: []FlightSegment{{From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"}}}},
 		{Segments: []FlightSegment{{From: AirportLike{Code: "VIE"}, To: AirportLike{Code: "TLV"}}}},
@@ -116,7 +117,7 @@ func TestItineraryIsSplit_openJaw(t *testing.T) {
 	if itineraryIsSplit(nil, classic) {
 		t.Fatal("classic RT should not be split")
 	}
-	// Extra hops (3 legs) = separate one-way tickets = split.
+	// Extra hops = split.
 	extraSess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE",
 		ExtraLegs: []ExtraSearchLeg{{Origin: "VIE", Destination: "PRG", Date: "2026-10-10"}},
@@ -130,8 +131,8 @@ func TestItineraryIsSplit_openJaw(t *testing.T) {
 	}
 }
 
-func TestBookingRouteFromSessionOption_openJawIncludesReturn(t *testing.T) {
-	// Plain open-jaw is NOT split — return date should be included for Skyscanner RT link.
+func TestBookingRouteFromSessionOption_splitOmitsReturn(t *testing.T) {
+	// Open-jaw IS split — return date must be omitted (needs separate one-way links).
 	opt := openJawOption()
 	sess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE", ReturnOrigin: "MUC", ReturnDate: "2026-10-14",
@@ -140,21 +141,8 @@ func TestBookingRouteFromSessionOption_openJawIncludesReturn(t *testing.T) {
 	if origin != "TLV" || dest != "VIE" || dep != "2026-10-07" {
 		t.Fatalf("outbound route %s %s %s", origin, dest, dep)
 	}
-	if ret == "" {
-		t.Fatal("plain open-jaw should include return date for RT booking link")
-	}
-}
-
-func TestBookingRouteFromSessionOption_extraHopOmitsReturn(t *testing.T) {
-	// Extra-hop itinerary IS split — return date must be omitted.
-	opt := openJawOption()
-	sess := &SearchSession{Params: CreateSearchSessionRequest{
-		Origin: "TLV", Destination: "VIE", ReturnOrigin: "MUC", ReturnDate: "2026-10-14",
-		ExtraLegs: []ExtraSearchLeg{{Origin: "VIE", Destination: "PRG", Date: "2026-10-10"}},
-	}}
-	_, _, _, ret := bookingRouteFromSessionOption(sess, opt)
 	if ret != "" {
-		t.Fatalf("extra-hop itinerary must not advertise a round-trip return date, got %q", ret)
+		t.Fatalf("split itinerary must not advertise a round-trip return date, got %q", ret)
 	}
 }
 
@@ -170,28 +158,15 @@ func TestBuildOneWayLegBookingURL(t *testing.T) {
 	}
 }
 
-func TestBuildUniformBookingLink_openJawUsesDeepLink(t *testing.T) {
+func TestBuildUniformBookingLink_splitIgnoresDeepLink(t *testing.T) {
 	t.Setenv("BOOKING_LINK_MODE", "skyscanner_prefill")
+	// Open-jaw is split — must not use the single-leg deep link.
 	opt := openJawOption()
-	// Plain open-jaw is NOT split — should use the deep link if present.
 	u := BuildUniformBookingLink(nil, opt)
-	if u != opt.DeepLink {
-		t.Fatalf("plain open-jaw should use deep link, got %q", u)
-	}
-}
-
-func TestBuildUniformBookingLink_extraHopIgnoresDeepLink(t *testing.T) {
-	t.Setenv("BOOKING_LINK_MODE", "skyscanner_prefill")
-	// 3-leg option = extra hops = split = must not use single-leg deep link.
-	opt := openJawOption()
-	opt.Legs = append(opt.Legs, FlightLeg{Segments: []FlightSegment{{
-		From: AirportLike{Code: "ATH"}, To: AirportLike{Code: "TLV"},
-	}}})
-	sess := &SearchSession{Params: CreateSearchSessionRequest{
-		ExtraLegs: []ExtraSearchLeg{{Origin: "VIE", Destination: "MUC", Date: "2026-10-10"}},
-	}}
-	u := BuildUniformBookingLink(sess, opt)
 	if u == opt.DeepLink {
-		t.Fatal("extra-hop itinerary must not use the deep link")
+		t.Fatal("split itinerary must not use a single-leg deep link")
+	}
+	if !strings.Contains(u, "/transport/flights/tlv/vie/261007/") {
+		t.Fatalf("expected outbound Skyscanner one-way fallback, got %q", u)
 	}
 }
