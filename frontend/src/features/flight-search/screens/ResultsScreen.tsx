@@ -470,23 +470,21 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
   // for the poll to fail 3× (~4-5s) and then struggling to clear routeSessionId, we do
   // a single upfront validation: if the session 404s, immediately clear the URL
   // sessionId and trigger a re-bootstrap from the URL search params.
+  // ─── Shared-link: validate URL-only session on mount ──────────────────────
+  // On a fresh device (no store, no in-app nav), the sessionId comes from the URL.
+  // We fetch the session once to get its params. If alive, params get written to the
+  // URL so any re-share includes them. If expired, we re-bootstrap from those params.
   const urlValidatedRef = useRef(false);
   useEffect(() => {
     if (urlValidatedRef.current) return;
-    // Only applies on a fresh device where the sessionId comes purely from the URL.
-    // If store params already exist, we're in a normal in-app search flow and
-    // should not touch session state.
-    const isUrlOnlySession = !storeSessionId && !routeSessionId && !!urlSessionId && storeParams == null;
-    if (!isUrlOnlySession) return;
-    const hasRebuildParams = !!(paramsFromUrl.origin && paramsFromUrl.destination && paramsFromUrl.departureDate);
-    if (!hasRebuildParams) return;
+    // Only on fresh page loads where sessionId comes from URL only.
+    if (storeSessionId || routeSessionId || !urlSessionId || storeParams != null) return;
     urlValidatedRef.current = true;
 
     getSearchSessionResults(urlSessionId, undefined, undefined).then((res) => {
-      // Session alive — ensure search params are written to the URL so a future
-      // re-share (or expiry recovery) has origin/destination/dates to rebuild from.
-      if (res.session?.params && !paramsFromUrl.origin) {
-        const p = res.session.params;
+      // Session is alive. Write its search params into the URL so re-shares work.
+      const p = res.session?.params;
+      if (p) {
         updateUrl({
           ...paramsFromUrl,
           sessionId: urlSessionId,
@@ -506,32 +504,22 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     }).catch((e) => {
       const expired = /\b404\b|not found|expired/i.test(e instanceof Error ? e.message : String(e));
       if (!expired) return;
-      // Session gone. If URL has search params, clear sessionId so bootstrap runs.
-      // If URL has no params, try to recover from storeParams set by applySessionResults.
+      // Session expired. Get search params from URL (if present) or give up.
       const urlP = parseSearchParamsFromUrl();
-      const sp = storeParamsRef.current;
-      const origin = urlP.origin || sp?.origin || '';
-      const destination = urlP.destination || sp?.destination || '';
-      const departureDate = urlP.departureDate || sp?.departureDate || '';
-      if (!origin || !destination || !departureDate) return;
-      updateUrl({
-        ...urlP,
-        origin,
-        destination,
-        departureDate,
-        returnDate: urlP.returnDate || sp?.returnDate,
-        returnOrigin: urlP.returnOrigin || sp?.returnOrigin,
-        returnDestination: urlP.returnDestination || sp?.returnDestination,
-        adults: urlP.adults ?? sp?.adults,
-        children: urlP.children ?? sp?.children,
-        currency: urlP.currency || sp?.currency,
-        cabinClass: urlP.cabinClass || sp?.cabinClass,
-        extraLegs: urlP.extraLegs ?? sp?.extraLegs,
-        sessionId: undefined,
-      });
+      const origin = urlP.origin || '';
+      const destination = urlP.destination || '';
+      const departureDate = urlP.departureDate || '';
+      if (!origin || !destination || !departureDate) {
+        // No params anywhere — can't re-bootstrap. Show error.
+        searchActions.setError('This link has expired. Please run a new search.');
+        searchActions.setSession(urlSessionId, null, 'FAILED');
+        return;
+      }
+      // Clear sessionId so bootstrap fires from URL params.
+      updateUrl({ ...urlP, sessionId: undefined });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount only
+  }, []); // run once on mount
 
   // ─── Optimistic session bootstrap ──────────────────────────────────────────
   // If we navigated here with `sessionId=""`, we create the session after the
