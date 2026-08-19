@@ -160,6 +160,10 @@ export const searchActions = {
       status: opts.status,
       results,
       version: nextVersion,
+      // Populate params from the session when the store has none (e.g. shared link on a
+      // fresh device). This ensures the URL gets search params written so a re-bootstrap
+      // can reconstruct the search if the session expires.
+      ...(state.params == null && opts.session?.params ? { params: opts.session.params } : {}),
     });
     return true;
   },
