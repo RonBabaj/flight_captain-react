@@ -69,26 +69,17 @@ export function isSplitBookingItinerary(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
+  // Only itineraries with extra hops are truly split tickets (separate one-way purchases).
+  // A plain open-jaw (TLV→VIE out, SZG→TLV return) is still one bookable round-trip ticket.
   const extra = (searchParams?.extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),
   );
   if (extra.length > 0) return true;
 
-  const dest = (searchParams?.destination || '').trim().toUpperCase();
-  const retOrig = (searchParams?.returnOrigin || '').trim().toUpperCase();
-  if (retOrig && dest && retOrig !== dest) return true;
-
-  const orig = (searchParams?.origin || '').trim().toUpperCase();
-  const retDest = (searchParams?.returnDestination || '').trim().toUpperCase();
-  if (retDest && orig && retDest !== orig) return true;
-
+  // More than 2 legs in the option means extra hops were combined server-side.
   const legs = option?.legs ?? [];
   if (legs.length > 2) return true;
-  if (legs.length === 2) {
-    const outDest = (lastSeg(legs[0])?.to?.code || '').toUpperCase();
-    const inOrig = (firstSeg(legs[1])?.from?.code || '').toUpperCase();
-    if (outDest && inOrig && outDest !== inOrig) return true;
-  }
+
   return false;
 }
 
