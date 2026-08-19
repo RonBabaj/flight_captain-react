@@ -130,9 +130,19 @@ export function useSearchParams(): {
 
   useEffect(() => {
     if (!isWeb()) return;
-    const onPopState = () => setParamsFromUrl(parseSearchParamsFromUrl());
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    const refresh = () => setParamsFromUrl(parseSearchParamsFromUrl());
+    window.addEventListener('popstate', refresh);
+    // iOS WebKit (incl. Chrome on iPhone): bfcache restore and in-app browser
+    // returns may not fire popstate; re-read the query string so shared links
+    // recover sessionId/optionId after remount.
+    window.addEventListener('pageshow', refresh);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refresh();
+    });
+    return () => {
+      window.removeEventListener('popstate', refresh);
+      window.removeEventListener('pageshow', refresh);
+    };
   }, []);
 
   const updateUrl = useCallback((params: SearchUrlState) => {
