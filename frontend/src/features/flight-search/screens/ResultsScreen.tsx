@@ -480,13 +480,51 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
     if (!hasRebuildParams) return;
     urlValidatedRef.current = true;
 
-    getSearchSessionResults(urlSessionId, undefined, undefined).catch((e) => {
+    getSearchSessionResults(urlSessionId, undefined, undefined).then((res) => {
+      // Session alive — ensure search params are written to the URL so a future
+      // re-share (or expiry recovery) has origin/destination/dates to rebuild from.
+      if (res.session?.params && !paramsFromUrl.origin) {
+        const p = res.session.params;
+        updateUrl({
+          ...paramsFromUrl,
+          sessionId: urlSessionId,
+          origin: p.origin,
+          destination: p.destination,
+          departureDate: p.departureDate,
+          returnDate: p.returnDate,
+          returnOrigin: p.returnOrigin,
+          returnDestination: p.returnDestination,
+          adults: p.adults,
+          children: p.children,
+          currency: p.currency,
+          cabinClass: p.cabinClass,
+          extraLegs: p.extraLegs,
+        });
+      }
+    }).catch((e) => {
       const expired = /\b404\b|not found|expired/i.test(e instanceof Error ? e.message : String(e));
       if (!expired) return;
-      // Session is gone on this device. Clear it from the URL (replaceState) and from
-      // paramsFromUrl state so urlSessionId becomes '' and bootstrap fires.
+      // Session gone. If URL has search params, clear sessionId so bootstrap runs.
+      // If URL has no params, try to recover from storeParams set by applySessionResults.
+      const urlP = parseSearchParamsFromUrl();
+      const sp = storeParamsRef.current;
+      const origin = urlP.origin || sp?.origin || '';
+      const destination = urlP.destination || sp?.destination || '';
+      const departureDate = urlP.departureDate || sp?.departureDate || '';
+      if (!origin || !destination || !departureDate) return;
       updateUrl({
-        ...paramsFromUrl,
+        ...urlP,
+        origin,
+        destination,
+        departureDate,
+        returnDate: urlP.returnDate || sp?.returnDate,
+        returnOrigin: urlP.returnOrigin || sp?.returnOrigin,
+        returnDestination: urlP.returnDestination || sp?.returnDestination,
+        adults: urlP.adults ?? sp?.adults,
+        children: urlP.children ?? sp?.children,
+        currency: urlP.currency || sp?.currency,
+        cabinClass: urlP.cabinClass || sp?.cabinClass,
+        extraLegs: urlP.extraLegs ?? sp?.extraLegs,
         sessionId: undefined,
       });
     });
