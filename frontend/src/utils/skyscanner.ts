@@ -69,26 +69,28 @@ export function isSplitBookingItinerary(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
+  // Extra hops (3+ legs) = server-combined separate one-way tickets.
   const extra = (searchParams?.extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),
   );
   if (extra.length > 0) return true;
 
+  const legs = option?.legs ?? [];
+  if (legs.length > 2) return true;
+
+  // Open-jaw: return departs from a different city than the outbound destination.
+  // Cannot be booked as a single round-trip — needs two separate one-way searches.
   const dest = (searchParams?.destination || '').trim().toUpperCase();
   const retOrig = (searchParams?.returnOrigin || '').trim().toUpperCase();
   if (retOrig && dest && retOrig !== dest) return true;
 
-  const orig = (searchParams?.origin || '').trim().toUpperCase();
-  const retDest = (searchParams?.returnDestination || '').trim().toUpperCase();
-  if (retDest && orig && retDest !== orig) return true;
-
-  const legs = option?.legs ?? [];
-  if (legs.length > 2) return true;
+  // Detect from legs when search params not available.
   if (legs.length === 2) {
     const outDest = (lastSeg(legs[0])?.to?.code || '').toUpperCase();
     const inOrig = (firstSeg(legs[1])?.from?.code || '').toUpperCase();
     if (outDest && inOrig && outDest !== inOrig) return true;
   }
+
   return false;
 }
 

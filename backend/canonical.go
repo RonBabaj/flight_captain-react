@@ -110,20 +110,17 @@ func routeFromFlightLeg(leg FlightLeg) (origin, dest, dep string) {
 	return
 }
 
-// itineraryIsSplit is true for open-jaw / extra-hop trips that cannot be booked as one round-trip ticket.
+// itineraryIsSplit is true for open-jaw and extra-hop trips that require separate
+// one-way bookings rather than a single round-trip ticket.
 func itineraryIsSplit(session *SearchSession, option *FlightOption) bool {
 	if session != nil {
 		if len(session.Params.ExtraLegs) > 0 {
 			return true
 		}
+		// Open-jaw: return departs from a different city than outbound destination.
 		ro := strings.ToUpper(strings.TrimSpace(session.Params.ReturnOrigin))
 		dest := strings.ToUpper(strings.TrimSpace(session.Params.Destination))
 		if ro != "" && dest != "" && ro != dest {
-			return true
-		}
-		rd := strings.ToUpper(strings.TrimSpace(session.Params.ReturnDestination))
-		orig := strings.ToUpper(strings.TrimSpace(session.Params.Origin))
-		if rd != "" && orig != "" && rd != orig {
 			return true
 		}
 	}

@@ -100,6 +100,7 @@ func openJawOption() *FlightOption {
 }
 
 func TestItineraryIsSplit_openJaw(t *testing.T) {
+	// Open-jaw: return departs from a different city — needs two one-way bookings.
 	opt := openJawOption()
 	sess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE", ReturnOrigin: "MUC", ReturnDestination: "TLV",
@@ -108,6 +109,7 @@ func TestItineraryIsSplit_openJaw(t *testing.T) {
 	if !itineraryIsSplit(sess, opt) {
 		t.Fatal("open-jaw should be split")
 	}
+	// Classic RT: same airports reversed — single bookable ticket.
 	classic := &FlightOption{Legs: []FlightLeg{
 		{Segments: []FlightSegment{{From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"}}}},
 		{Segments: []FlightSegment{{From: AirportLike{Code: "VIE"}, To: AirportLike{Code: "TLV"}}}},
@@ -115,6 +117,7 @@ func TestItineraryIsSplit_openJaw(t *testing.T) {
 	if itineraryIsSplit(nil, classic) {
 		t.Fatal("classic RT should not be split")
 	}
+	// Extra hops = split.
 	extraSess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE",
 		ExtraLegs: []ExtraSearchLeg{{Origin: "VIE", Destination: "PRG", Date: "2026-10-10"}},
@@ -122,9 +125,14 @@ func TestItineraryIsSplit_openJaw(t *testing.T) {
 	if !itineraryIsSplit(extraSess, nil) {
 		t.Fatal("extra hops should be split")
 	}
+	threeLegs := &FlightOption{Legs: []FlightLeg{{}, {}, {}}}
+	if !itineraryIsSplit(nil, threeLegs) {
+		t.Fatal("3-leg option should be split")
+	}
 }
 
 func TestBookingRouteFromSessionOption_splitOmitsReturn(t *testing.T) {
+	// Open-jaw IS split — return date must be omitted (needs separate one-way links).
 	opt := openJawOption()
 	sess := &SearchSession{Params: CreateSearchSessionRequest{
 		Origin: "TLV", Destination: "VIE", ReturnOrigin: "MUC", ReturnDate: "2026-10-14",
@@ -152,6 +160,7 @@ func TestBuildOneWayLegBookingURL(t *testing.T) {
 
 func TestBuildUniformBookingLink_splitIgnoresDeepLink(t *testing.T) {
 	t.Setenv("BOOKING_LINK_MODE", "skyscanner_prefill")
+	// Open-jaw is split — must not use the single-leg deep link.
 	opt := openJawOption()
 	u := BuildUniformBookingLink(nil, opt)
 	if u == opt.DeepLink {
