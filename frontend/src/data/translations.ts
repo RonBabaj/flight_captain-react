@@ -361,6 +361,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. הזמינו כל טיסה ב־Skyscanner.',
     ru: 'Этот маршрут — отдельные билеты в одну сторону. Бронируйте каждый рейс на Skyscanner.',
   },
+  positioning_split_hint: {
+    en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',
+    he: 'כל רגל הוא חיפוש כיוון אחד נפרד. פתחו חיפוש Fly-Fix חדש לכל טיסה.',
+    ru: 'Каждый перелёт — отдельный поиск в одну сторону. Откройте новый поиск Fly-Fix для каждого рейса.',
+  },
+  search_route_leg: {
+    en: 'Search {from} → {to}',
+    he: 'חפש {from} → {to}',
+    ru: 'Искать {from} → {to}',
+  },
   self_transfer_warning: {
     en: 'Self-transfer — separate tickets may be required',
     he: 'החלפה עצמאית — ייתכן שיידרשו כרטיסים נפרדים',
