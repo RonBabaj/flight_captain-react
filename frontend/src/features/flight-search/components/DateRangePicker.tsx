@@ -1,10 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { AppIcon } from '../../../components/AppIcon';
+import { addDaysYmdUtc, tomorrowYmdUtc } from '../../../utils/bookableDates';
 
 function getMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function parseYmdUtc(ymd: string): Date | null {
+  const parsed = new Date(ymd + 'T12:00:00Z');
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthStartForYmd(ymd: string, floor: Date): Date {
+  const parsed = parseYmdUtc(ymd);
+  if (!parsed) return floor;
+  const month = getMonthStart(parsed);
+  return month < floor ? floor : month;
 }
 
 function buildMonthDays(monthStart: Date): string[] {
@@ -40,26 +53,23 @@ export function DateRangePicker({
   mode = 'single',
 }: DateRangePickerProps) {
   const { theme } = useTheme();
-  // Use tomorrow as the earliest selectable date — today's flights can't be booked via the API.
-  const todayUtc = useMemo(() => {
-    const t = new Date();
-    t.setUTCDate(t.getUTCDate() + 1);
-    return t.toISOString().slice(0, 10);
-  }, []);
-  const todayMonthStart = useMemo(() => getMonthStart(new Date()), []);
-  const initial = useMemo(() => {
-    if (!initialDate) return todayMonthStart;
-    const parsed = new Date(initialDate + 'T12:00:00Z');
-    if (Number.isNaN(parsed.getTime())) return todayMonthStart;
-    const month = getMonthStart(parsed);
-    return month < todayMonthStart ? todayMonthStart : month;
-  }, [initialDate, todayMonthStart]);
+  const todayUtc = useMemo(() => tomorrowYmdUtc(), []);
+  const todayMonthStart = useMemo(() => monthStartForYmd(todayUtc, getMonthStart(new Date())), [todayUtc]);
 
-  const [monthStart, setMonthStart] = useState<Date>(initial);
+  const viewMonth = useMemo(() => {
+    if (initialDate) {
+      return monthStartForYmd(initialDate, todayMonthStart);
+    }
+    return monthStartForYmd(todayUtc, todayMonthStart);
+  }, [initialDate, todayMonthStart, todayUtc]);
+
+  const [monthStart, setMonthStart] = useState<Date>(viewMonth);
   const [rangeStart, setRangeStart] = useState<string | null>(initialDate ?? null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(initialEndDate ?? null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    if (!visible) return;
+    setMonthStart(viewMonth);
     if (mode === 'range') {
       setRangeStart(initialDate ?? null);
       setRangeEnd(initialEndDate ?? null);
@@ -67,7 +77,7 @@ export function DateRangePicker({
       setRangeStart(initialDate ?? null);
       setRangeEnd(null);
     }
-  }, [mode, initialDate, initialEndDate]);
+  }, [visible, viewMonth, mode, initialDate, initialEndDate]);
 
   const days = useMemo(() => buildMonthDays(monthStart), [monthStart]);
   const firstWeekday = days.length ? new Date(days[0] + 'T00:00:00Z').getUTCDay() : 0;
@@ -97,6 +107,10 @@ export function DateRangePicker({
       if (end < start) {
         start = date;
         end = rangeStart;
+      }
+      // Same-day double-tap (or re-pick) used to commit start→start (e.g. 1st→1st).
+      if (end <= start) {
+        end = addDaysYmdUtc(start, 1);
       }
       setRangeStart(start);
       setRangeEnd(end);
