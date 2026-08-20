@@ -1,10 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { AppIcon } from '../../../components/AppIcon';
+import { tomorrowYmdUtc } from '../../../utils/bookableDates';
 
 function getMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function parseYmdUtc(ymd: string): Date | null {
+  const parsed = new Date(ymd + 'T12:00:00Z');
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthStartForYmd(ymd: string, floor: Date): Date {
+  const parsed = parseYmdUtc(ymd);
+  if (!parsed) return floor;
+  const month = getMonthStart(parsed);
+  return month < floor ? floor : month;
 }
 
 function buildMonthDays(monthStart: Date): string[] {
@@ -19,6 +32,8 @@ function buildMonthDays(monthStart: Date): string[] {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Ignore rapid repeat taps on the same day (accidental double-press). */
+const DUPLICATE_TAP_MS = 400;
 
 export interface DateRangePickerProps {
   visible: boolean;
@@ -40,26 +55,25 @@ export function DateRangePicker({
   mode = 'single',
 }: DateRangePickerProps) {
   const { theme } = useTheme();
-  // Use tomorrow as the earliest selectable date — today's flights can't be booked via the API.
-  const todayUtc = useMemo(() => {
-    const t = new Date();
-    t.setUTCDate(t.getUTCDate() + 1);
-    return t.toISOString().slice(0, 10);
-  }, []);
-  const todayMonthStart = useMemo(() => getMonthStart(new Date()), []);
-  const initial = useMemo(() => {
-    if (!initialDate) return todayMonthStart;
-    const parsed = new Date(initialDate + 'T12:00:00Z');
-    if (Number.isNaN(parsed.getTime())) return todayMonthStart;
-    const month = getMonthStart(parsed);
-    return month < todayMonthStart ? todayMonthStart : month;
-  }, [initialDate, todayMonthStart]);
+  const todayUtc = useMemo(() => tomorrowYmdUtc(), []);
+  const todayMonthStart = useMemo(() => monthStartForYmd(todayUtc, getMonthStart(new Date())), [todayUtc]);
 
-  const [monthStart, setMonthStart] = useState<Date>(initial);
+  const viewMonth = useMemo(() => {
+    if (initialDate) {
+      return monthStartForYmd(initialDate, todayMonthStart);
+    }
+    return monthStartForYmd(todayUtc, todayMonthStart);
+  }, [initialDate, todayMonthStart, todayUtc]);
+
+  const [monthStart, setMonthStart] = useState<Date>(viewMonth);
   const [rangeStart, setRangeStart] = useState<string | null>(initialDate ?? null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(initialEndDate ?? null);
+  const lastTapRef = useRef<{ date: string; at: number } | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    if (!visible) return;
+    setMonthStart(viewMonth);
+    lastTapRef.current = null;
     if (mode === 'range') {
       setRangeStart(initialDate ?? null);
       setRangeEnd(initialEndDate ?? null);
@@ -67,7 +81,7 @@ export function DateRangePicker({
       setRangeStart(initialDate ?? null);
       setRangeEnd(null);
     }
-  }, [mode, initialDate, initialEndDate]);
+  }, [visible, viewMonth, mode, initialDate, initialEndDate]);
 
   const days = useMemo(() => buildMonthDays(monthStart), [monthStart]);
   const firstWeekday = days.length ? new Date(days[0] + 'T00:00:00Z').getUTCDay() : 0;
@@ -86,10 +100,21 @@ export function DateRangePicker({
   };
 
   const handleDayPress = (date: string) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (last && last.date === date && now - last.at < DUPLICATE_TAP_MS) {
+      return;
+    }
+    lastTapRef.current = { date, at: now };
+
     if (mode === 'range') {
       if (!rangeStart || (rangeStart && rangeEnd)) {
         setRangeStart(date);
         setRangeEnd(null);
+        return;
+      }
+      // Waiting for return — ignore accidental second tap on the same departure day.
+      if (date === rangeStart) {
         return;
       }
       let start = rangeStart;
@@ -107,6 +132,8 @@ export function DateRangePicker({
       onClose();
     }
   };
+
+  const awaitingReturn = mode === 'range' && !!rangeStart && !rangeEnd;
 
   const isInRange = (date: string) => {
     if (!rangeStart) return false;
@@ -134,6 +161,11 @@ export function DateRangePicker({
               </Text>
             ))}
           </View>
+          {awaitingReturn ? (
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
+              Select your return date
+            </Text>
+          ) : null}
           <View style={styles.grid}>
             {pad.map((_, i) => (
               <View key={`pad-${i}`} style={styles.cell} />
@@ -204,6 +236,7 @@ const styles = StyleSheet.create({
   navText: { fontSize: 22 },
   weekRow: { flexDirection: 'row', marginBottom: 8 },
   weekday: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '600' },
+  hint: { fontSize: 13, textAlign: 'center', marginBottom: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   cell: {
     width: `${100 / 7}%`,
