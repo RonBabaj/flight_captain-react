@@ -1,8 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { AppIcon } from '../../../components/AppIcon';
-import { addDaysYmdUtc, tomorrowYmdUtc } from '../../../utils/bookableDates';
+import { tomorrowYmdUtc } from '../../../utils/bookableDates';
 
 function getMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -32,6 +32,8 @@ function buildMonthDays(monthStart: Date): string[] {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Ignore rapid repeat taps on the same day (accidental double-press). */
+const DUPLICATE_TAP_MS = 400;
 
 export interface DateRangePickerProps {
   visible: boolean;
@@ -66,10 +68,12 @@ export function DateRangePicker({
   const [monthStart, setMonthStart] = useState<Date>(viewMonth);
   const [rangeStart, setRangeStart] = useState<string | null>(initialDate ?? null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(initialEndDate ?? null);
+  const lastTapRef = useRef<{ date: string; at: number } | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     setMonthStart(viewMonth);
+    lastTapRef.current = null;
     if (mode === 'range') {
       setRangeStart(initialDate ?? null);
       setRangeEnd(initialEndDate ?? null);
@@ -96,10 +100,21 @@ export function DateRangePicker({
   };
 
   const handleDayPress = (date: string) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (last && last.date === date && now - last.at < DUPLICATE_TAP_MS) {
+      return;
+    }
+    lastTapRef.current = { date, at: now };
+
     if (mode === 'range') {
       if (!rangeStart || (rangeStart && rangeEnd)) {
         setRangeStart(date);
         setRangeEnd(null);
+        return;
+      }
+      // Waiting for return — ignore accidental second tap on the same departure day.
+      if (date === rangeStart) {
         return;
       }
       let start = rangeStart;
@@ -107,10 +122,6 @@ export function DateRangePicker({
       if (end < start) {
         start = date;
         end = rangeStart;
-      }
-      // Same-day double-tap (or re-pick) used to commit start→start (e.g. 1st→1st).
-      if (end <= start) {
-        end = addDaysYmdUtc(start, 1);
       }
       setRangeStart(start);
       setRangeEnd(end);
@@ -121,6 +132,8 @@ export function DateRangePicker({
       onClose();
     }
   };
+
+  const awaitingReturn = mode === 'range' && !!rangeStart && !rangeEnd;
 
   const isInRange = (date: string) => {
     if (!rangeStart) return false;
@@ -148,6 +161,11 @@ export function DateRangePicker({
               </Text>
             ))}
           </View>
+          {awaitingReturn ? (
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
+              Select your return date
+            </Text>
+          ) : null}
           <View style={styles.grid}>
             {pad.map((_, i) => (
               <View key={`pad-${i}`} style={styles.cell} />
@@ -218,6 +236,7 @@ const styles = StyleSheet.create({
   navText: { fontSize: 22 },
   weekRow: { flexDirection: 'row', marginBottom: 8 },
   weekday: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '600' },
+  hint: { fontSize: 13, textAlign: 'center', marginBottom: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   cell: {
     width: `${100 / 7}%`,
