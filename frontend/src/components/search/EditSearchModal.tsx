@@ -72,11 +72,12 @@ const s = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', flex: 1 },
   closeBtn: { padding: 6 },
   scroll: {
-    flexGrow: 0,
     flexShrink: 1,
+    minHeight: 240,
     maxHeight: 480,
   },
   scrollTall: {
+    minHeight: 320,
     maxHeight: 560,
   },
   content: {
