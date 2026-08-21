@@ -455,6 +455,53 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: '{{code}} · אותו מטרופולין כנקודת יציאה',
     ru: '{{code}} · тот же город, что и вылет',
   },
+  cheaper_departure_route: {
+    en: 'Cheaper departure route',
+    he: 'מסלול יציאה זול יותר',
+    ru: 'Более дешёвый маршрут вылета',
+  },
+  show_cities_count: {
+    en: 'Show {n} cities',
+    he: 'הצג {n} ערים',
+    ru: 'Показать {n} городов',
+  },
+  collapse: { en: 'Collapse', he: 'כווץ', ru: 'Свернуть' },
+  explore_no_destinations: {
+    en: 'No destinations found',
+    he: 'לא נמצאו יעדים',
+    ru: 'Направления не найдены',
+  },
+  explore_no_destinations_tip: {
+    en: 'Try a different departure date, or check that the origin is a valid airport code (e.g. TLV, JFK, LHR).',
+    he: 'נסו תאריך יציאה אחר, או ודאו שקוד המקור תקין (למשל TLV, JFK, LHR).',
+    ru: 'Попробуйте другую дату вылета или проверьте код аэропорта (например TLV, JFK, LHR).',
+  },
+  explore_no_region: {
+    en: 'No destinations in this region',
+    he: 'אין יעדים באזור זה',
+    ru: 'Нет направлений в этом регионе',
+  },
+  explore_show_all_regions: {
+    en: 'Show all regions',
+    he: 'הצג את כל האזורים',
+    ru: 'Показать все регионы',
+  },
+  explore_top_picks: { en: 'Top picks', he: 'הבחירות המובילות', ru: 'Лучшие варианты' },
+  explore_more_destinations: {
+    en: 'More destinations',
+    he: 'עוד יעדים',
+    ru: 'Ещё направления',
+  },
+  explore_cheapest_first: {
+    en: 'Cheapest first',
+    he: 'הזול ביותר קודם',
+    ru: 'Сначала дешевле',
+  },
+  explore_most_expensive: {
+    en: 'Most expensive',
+    he: 'היקר ביותר',
+    ru: 'Сначала дороже',
+  },
 };
 
 export function getTranslation(key: string, language: LanguageCode): string {

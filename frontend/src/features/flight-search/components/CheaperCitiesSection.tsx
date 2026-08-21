@@ -65,7 +65,7 @@ export function CheaperCitiesSection({ loading, options, isMobile, folded, onTog
         {isMobile && (
           <View style={s.foldTrigger}>
             <Text style={[s.foldTriggerText, { color: theme.primary }]}>
-              {folded ? `Show ${options.length} cities` : 'Collapse'}
+              {folded ? t('show_cities_count').replace('{n}', String(options.length)) : t('collapse')}
             </Text>
           </View>
         )}

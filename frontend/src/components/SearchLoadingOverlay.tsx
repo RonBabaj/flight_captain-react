@@ -7,28 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
-
-const PHRASES_EN = [
-  'Searching hundreds of airlines…',
-  'Comparing prices across providers…',
-  'Checking direct flights…',
-  'Looking for the best deals…',
-  'Almost there…',
-];
-const PHRASES_HE = [
-  'מחפש מאות חברות תעופה…',
-  'משווה מחירים בין ספקים…',
-  'בודק טיסות ישירות…',
-  'מחפש את המחירים הטובים…',
-  'עוד רגע…',
-];
-const PHRASES_RU = [
-  'Ищем сотни авиакомпаний…',
-  'Сравниваем цены у провайдеров…',
-  'Проверяем прямые рейсы…',
-  'Ищем лучшие предложения…',
-  'Почти готово…',
-];
+import { getPhrasesForLanguage, SEARCH_PROGRESS_PHRASES } from './search/searchLoadingPhrases';
 
 interface ExtraLeg {
   origin?: string;
@@ -60,8 +39,7 @@ export function SearchLoadingOverlay({
   const { theme } = useTheme();
   const { language } = useLocale();
 
-  const phrases =
-    language === 'he' ? PHRASES_HE : language === 'ru' ? PHRASES_RU : PHRASES_EN;
+  const phrases = getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language);
 
   const [phraseIdx, setPhraseIdx] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
