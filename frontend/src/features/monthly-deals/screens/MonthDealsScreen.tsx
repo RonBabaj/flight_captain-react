@@ -10,7 +10,6 @@ import {
   Pressable,
   Linking,
   useWindowDimensions,
-  Animated,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -23,13 +22,18 @@ import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams }
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
-import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
-import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import type { DayDeal, FlightDetailsResponse, FlightSegment, FlightOption, MonetaryAmount, MonthDealsResponse } from '../../../types';
 import { ANYWHERE_CODE } from '../../../types';
 import { addDaysYmdUtc, firstBookableDepartureInMonth } from '../../../utils/bookableDates';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
+import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
+import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
+import { EditSearchModal } from '../../../components/search/EditSearchModal';
+import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
+import { SortBar } from '../../flight-search/components/SortBar';
+import { MonthDealsFormContent } from '../components/MonthDealsFormContent';
+import { formatMonthShort, formatMonthYear } from '../../../utils/monthNames';
 import { CheaperCitiesSection } from '../../flight-search/components/CheaperCitiesSection';
 import type { CheaperCitiesOption } from '../../flight-search/components/CheaperCitiesSection';
 
@@ -107,11 +111,6 @@ async function findCheapestFlightForDate(params: {
   POSITIONING_LIVE_CACHE.set(cacheKey, promise);
   return promise;
 }
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 const HUB_AIRPORTS = [
   'ATH',
@@ -200,12 +199,12 @@ function layoverBetween(segs: FlightSegment[], idx: number): number {
   return Math.round((dep - prev) / 60000);
 }
 
-function formatDealDate(dateStr: string): string {
-  const safe = (dateStr ?? '').slice(0, 10); // tolerate 'YYYY-MM-DD...' inputs
+function formatDealDate(dateStr: string, language: string): string {
+  const safe = (dateStr ?? '').slice(0, 10);
   const d = new Date(`${safe}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return safe || String(dateStr);
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const monthShort = MONTHS[d.getUTCMonth()].slice(0, 3);
+  const monthShort = formatMonthShort(d.getUTCMonth(), language);
   return `${weekdays[d.getUTCDay()]}, ${monthShort} ${d.getUTCDate()}`;
 }
 
@@ -235,90 +234,6 @@ function buildDealsPositioningSignature(
   }
   return `${sorted.length}|${sorted[0].date}|${sorted[sorted.length - 1].date}|${sum.toFixed(0)}`;
 }
-
-/** Same rotating status copy as Search results / SearchLoadingOverlay. */
-const DEALS_LOADING_PHRASES: Record<string, string[]> = {
-  en: [
-    'Searching hundreds of airlines…',
-    'Comparing prices across providers…',
-    'Checking direct and connecting flights…',
-    'Finding the best fares…',
-    'Almost done…',
-  ],
-  he: [
-    'מחפש מאות חברות תעופה…',
-    'משווה מחירים בין ספקים…',
-    'בודק טיסות ישירות ועם עצירות…',
-    'מוצא את המחירים הטובים…',
-    'עוד רגע…',
-  ],
-  ru: [
-    'Ищем сотни авиакомпаний…',
-    'Сравниваем цены у провайдеров…',
-    'Проверяем прямые и стыковочные рейсы…',
-    'Ищем лучшие тарифы…',
-    'Почти готово…',
-  ],
-};
-
-function DealsLoadingBanner({
-  language,
-  theme,
-}: {
-  language: string;
-  theme: import('../../../theme/ThemeContext').Theme;
-}) {
-  const phrases = DEALS_LOADING_PHRASES[language] ?? DEALS_LOADING_PHRASES.en;
-  const [phraseIdx, setPhraseIdx] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(progressAnim, { toValue: 1, duration: 2200, useNativeDriver: false }),
-        Animated.timing(progressAnim, { toValue: 0, duration: 0, useNativeDriver: false }),
-      ])
-    ).start();
-
-    const cycle = () => {
-      Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-      setPhraseIdx((i) => (i + 1) % phrases.length);
-    };
-    const id = setInterval(cycle, 2200);
-    return () => {
-      clearInterval(id);
-      progressAnim.stopAnimation();
-    };
-  }, [phrases.length, fadeAnim, progressAnim]);
-
-  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
-
-  return (
-    <View style={[dlb.wrap, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
-      <View style={[dlb.track, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
-        <Animated.View style={[dlb.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
-      </View>
-      <View style={dlb.row}>
-        <ActivityIndicator size="small" color={theme.primary} />
-        <Animated.Text style={[dlb.text, { color: theme.primary, opacity: fadeAnim }]}>
-          {phrases[phraseIdx]}
-        </Animated.Text>
-      </View>
-    </View>
-  );
-}
-
-const dlb = StyleSheet.create({
-  wrap: { paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14 },
-  track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
-  fill: { height: 3, borderRadius: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  text: { fontSize: 13, fontWeight: '500', flex: 1 },
-});
 
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
@@ -921,34 +836,36 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     dealsActions.setSort(field, newOrder);
   };
 
-  // ─── Sort bar ──────────────────────────────────────────────────────────────
-
-  const SORT_ICONS: Record<DealsSortField, string> = { price: '💰', duration: '⚡', best: '⭐' };
-  const SORT_KEYS: Record<DealsSortField, string> = { price: 'cheapest', duration: 'fastest', best: 'best' };
-
   const sortBar = (
-    <View style={[sb.bar, isRTL && { direction: 'rtl' }]}>
-      <Text style={[sb.label, { color: theme.textMuted }]}>{t('sort_by')}</Text>
-      <View style={[sb.pills, isRTL && sb.pillsRTL]}>
-        {(['price', 'duration', 'best'] as DealsSortField[]).map((opt) => {
-          const active = sortField === opt;
-          const arrow = (active && opt !== 'best') ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
-          return (
-            <TouchableOpacity
-              key={opt}
-              style={[sb.pill, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-              onPress={() => handleDealSort(opt)}
-              activeOpacity={0.7}
-            >
-              <Text style={[sb.pillText, { color: theme.text }, active && { color: '#fff', fontWeight: '700' }]}>
-                {`${SORT_ICONS[opt]} ${t(SORT_KEYS[opt])}${arrow}`}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
+    <SortBar
+      sortField={sortField}
+      sortOrder={sortOrder}
+      onSort={(field) => handleDealSort(field as DealsSortField)}
+    />
   );
+
+  const dealsFormProps = {
+    origin,
+    destination,
+    adults,
+    children,
+    durationDays,
+    year: clampedYm.year,
+    month: clampedYm.month,
+    onOriginChange: setOrigin,
+    onDestinationChange: setDestination,
+    onAdultsChange: setAdults,
+    onChildrenChange: setChildren,
+    onDurationChange: dealsActions.setDurationDays,
+    onPrevMonth: dealsActions.prevMonth,
+    onNextMonth: dealsActions.nextMonth,
+    atEarliestDealsMonth,
+    onSearch: handleSearchDeals,
+    loading: isLoading,
+    error,
+  };
+
+  const heroCard = <MonthDealsFormContent {...dealsFormProps} />;
 
   // ─── Filters content (shared between sidebar and modal) ────────────────────
 
@@ -1139,89 +1056,6 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     </Modal>
   );
 
-  // ─── Hero card ──────────────────────────────────────────────────────────────
-
-  const heroInner = (
-    <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <AppIcon name="calendar-outline" size={20} color={theme.text} fallbackText={t('dates')} />
-        <Text style={[p.heroTitle, { color: theme.text }]}>{t('monthly_deals')}</Text>
-      </View>
-      <Text style={[p.heroSub, { color: theme.textMuted }]}>{t('monthly_deals_hero')}</Text>
-
-      <AirportAutocomplete label={t('from')} value={origin} onChange={setOrigin} placeholder={t('city_or_airport')} />
-      <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} showAnywhere />
-
-      <PassengerCabinPicker
-        adults={adults} children={children} cabinClass="ECONOMY"
-        onAdultsChange={setAdults} onChildrenChange={setChildren} onCabinChange={() => {}}
-        label={t('passengers_cabin')} passengersOnly
-      />
-
-      {/* Trip duration stepper */}
-      <Text style={[p.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
-      <View style={p.stepperRow}>
-        <TouchableOpacity style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}>
-          <Text style={[p.stepBtnText, { color: theme.text }]}>−</Text>
-        </TouchableOpacity>
-        <Text style={[p.stepValue, { color: theme.text }]}>{durationDays} {t('days')}</Text>
-        <TouchableOpacity style={[p.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}>
-          <Text style={[p.stepBtnText, { color: theme.text }]}>+</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Month navigator: in RTL, natural flow puts first child (Prev) on right, last (Next) on left — no row-reverse */}
-      <View style={[p.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
-        <TouchableOpacity
-          onPress={() => dealsActions.prevMonth()}
-          style={[p.navBtn, atEarliestDealsMonth && { opacity: 0.45 }]}
-          disabled={atEarliestDealsMonth}
-          activeOpacity={atEarliestDealsMonth ? 1 : 0.7}
-        >
-          <View style={p.navBtnInner}>
-            <AppIcon
-              name={isRTL ? 'chevron-forward' : 'chevron-back'}
-              size={18}
-              color={atEarliestDealsMonth ? theme.textMuted : theme.primary}
-              fallbackText={t('prev')}
-            />
-            <Text style={[p.navText, { color: atEarliestDealsMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
-          </View>
-        </TouchableOpacity>
-        <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
-        <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={p.navBtn}>
-          <View style={p.navBtnInner}>
-            <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
-            <AppIcon name={isRTL ? 'chevron-back' : 'chevron-forward'} size={18} color={theme.primary} fallbackText={t('next')} />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {error ? <Text style={[p.error, { color: theme.error }]}>{error}</Text> : null}
-
-      <TouchableOpacity
-        style={[p.searchBtn, { backgroundColor: theme.buttonBg }, (!origin.trim() || !destination.trim() || isLoading) && { opacity: 0.5 }]}
-        disabled={!origin.trim() || !destination.trim() || isLoading}
-        onPress={handleSearchDeals}
-        activeOpacity={0.8}
-      >
-        {isLoading ? (
-          <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('searching')}</Text>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
-            <Text style={[p.searchBtnText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </>
-  );
-
-  const heroCard = (
-    <View style={[p.hero, hasResultsLayout ? p.heroSide : p.heroCenter, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-      {heroInner}
-    </View>
-  );
 
   // ─── Deal cards list ────────────────────────────────────────────────────────
 
@@ -1265,7 +1099,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
             if (!depDate) return '';
             const retDate = new Date(depDate);
             retDate.setUTCDate(retDate.getUTCDate() + durationDays);
-            return formatDealDate(toYmdUTC(retDate));
+            return formatDealDate(toYmdUTC(retDate), language);
           })();
           const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
           const routeSep = isRTL ? ' ← ' : ' → ';
@@ -1280,7 +1114,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {/* Departure → Return dates */}
                   <Text style={[p.dealDate, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-                    {formatDealDate(day.date)}{retStr ? `${routeSep}${retStr}` : ''}
+                    {formatDealDate(day.date, language)}{retStr ? `${routeSep}${retStr}` : ''}
                   </Text>
                   {/* Outbound route: TLV → ADD → BKK → HND */}
                   <Text style={[p.dealRoute, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
@@ -1339,7 +1173,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           <View style={[m.header, { borderBottomColor: theme.cardBorder }, isRTL && { flexDirection: 'row-reverse' }]}>
             <View>
               <Text style={[m.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
-              {selectedDate && <Text style={[m.headerSub, { color: theme.textMuted }]}>{formatDealDate(selectedDate)}</Text>}
+              {selectedDate && <Text style={[m.headerSub, { color: theme.textMuted }]}>{formatDealDate(selectedDate, language)}</Text>}
             </View>
             <TouchableOpacity onPress={() => setShowDetails(false)} hitSlop={8}>
               <AppIcon name="close" size={24} color={theme.primary} fallbackText={t('close')} />
@@ -1418,35 +1252,19 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const summaryStr = useMemo(() => {
     const o = origin.trim().toUpperCase();
     const d = destination.trim().toUpperCase();
-    const monthLabel = `${MONTHS[Math.max(0, month - 1)]} ${year}`;
+    const monthLabel = formatMonthYear(year, month, language);
     const adultLabel = adults === 1 ? t('adult') : t('adults');
     const childLabel = children === 1 ? t('child') : t('children');
     const pax = children > 0 ? `${adults} ${adultLabel} · ${children} ${childLabel}` : `${adults} ${adultLabel}`;
     return [o && d ? `${o} · ${d}` : '', monthLabel, pax].filter(Boolean).join(' · ');
-  }, [origin, destination, year, month, adults, children, t]);
+  }, [origin, destination, year, month, adults, children, t, language]);
 
   const summaryBar = (showResultsShell || mobileCompact || hasResultsLayout) ? (
-    <View
-      style={[
-        p.summaryBar,
-        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-        isRTL && { flexDirection: 'row-reverse' },
-      ]}
-    >
-      <Text style={[p.summaryText, { color: theme.text }]} numberOfLines={1}>
-        {summaryStr || t('monthly_deals')}
-      </Text>
-      <TouchableOpacity
-        style={[p.editSearchBtn, { borderColor: theme.cardBorder, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-        onPress={() => {
-          setShowEditSearchModal(true);
-        }}
-        activeOpacity={0.7}
-      >
-        <AppIcon name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
-        <Text style={[p.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
-      </TouchableOpacity>
-    </View>
+    <SearchSummaryBar
+      summary={summaryStr || t('monthly_deals')}
+      showEditButton={!hasResultsLayout}
+      onEditPress={() => setShowEditSearchModal(true)}
+    />
   ) : null;
 
   const toolbar = data != null ? (
@@ -1480,7 +1298,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       {/* Full-screen overlay only on the form route. Results uses skeletons / inline banner. */}
       <SearchLoadingOverlay visible={isLoading && showForm} origin={origin} destination={destination} />
       {isLoading && showResultsShell ? (
-        <DealsLoadingBanner language={language} theme={theme} />
+        <SearchProgressBanner language={language} theme={theme} />
       ) : null}
       {hasResultsLayout ? (
         /* Same as main search: parent direction:rtl causes the browser to flow columns
@@ -1534,174 +1352,53 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       )}
       {detailsModal}
       {filtersModal}
-      {/* Edit search popup modal — identical structure to ResultsScreen */}
-      <Modal visible={showEditSearchModal} transparent animationType="fade" onRequestClose={() => setShowEditSearchModal(false)}>
-        <View style={esm.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
-          <View style={[esm.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-            <View style={[esm.header, { borderBottomColor: theme.cardBorder }]}>
-              <Text style={[esm.title, { color: theme.text }]}>{t('change_search')}</Text>
-              <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={esm.closeBtn}>
-                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={esm.scroll} contentContainerStyle={esm.content} keyboardShouldPersistTaps="handled">
-              {/* Inner card — same as SearchFormContent compact mode */}
-              <View style={[esm.formCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-                <Text style={[esm.routeSummary, { color: theme.textMuted }]} numberOfLines={1}>
-                  {origin.trim().toUpperCase()} → {destination.trim().toUpperCase()}
-                </Text>
-                <AirportAutocomplete label={t('from')} value={origin} onChange={setOrigin} placeholder={t('city_or_airport')} />
-                <AirportAutocomplete label={t('to')} value={destination} onChange={setDestination} placeholder={t('city_or_airport')} showAnywhere />
-                <PassengerCabinPicker
-                  adults={adults} children={children} cabinClass="ECONOMY"
-                  onAdultsChange={setAdults} onChildrenChange={setChildren} onCabinChange={() => {}}
-                  label={t('passengers_cabin')} passengersOnly
-                />
-                <Text style={[esm.label, { color: theme.text }]}>{t('trip_duration_days')}</Text>
-                <View style={esm.stepperRow}>
-                  <TouchableOpacity style={[esm.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.max(1, durationDays - 1))}>
-                    <Text style={[esm.stepBtnText, { color: theme.text }]}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={[esm.stepValue, { color: theme.text }]}>{durationDays} {t('days')}</Text>
-                  <TouchableOpacity style={[esm.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]} onPress={() => dealsActions.setDurationDays(Math.min(21, durationDays + 1))}>
-                    <Text style={[esm.stepBtnText, { color: theme.text }]}>+</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={[esm.monthNav, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, isRTL && { direction: 'rtl' }]}>
-                  <TouchableOpacity
-                    onPress={() => dealsActions.prevMonth()}
-                    style={[esm.navBtn, atEarliestDealsMonth && { opacity: 0.45 }]}
-                    disabled={atEarliestDealsMonth}
-                    activeOpacity={atEarliestDealsMonth ? 1 : 0.7}
-                  >
-                    <View style={esm.navBtnInner}>
-                      <AppIcon
-                        name={isRTL ? 'chevron-forward' : 'chevron-back'}
-                        size={16}
-                        color={atEarliestDealsMonth ? theme.textMuted : theme.primary}
-                        fallbackText={t('prev')}
-                      />
-                      <Text style={[esm.navText, { color: atEarliestDealsMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <Text style={[esm.monthTitle, { color: theme.text }]}>{MONTHS[month - 1]} {year}</Text>
-                  <TouchableOpacity onPress={() => dealsActions.nextMonth()} style={esm.navBtn}>
-                    <View style={esm.navBtnInner}>
-                      <Text style={[esm.navText, { color: theme.primary }]}>{t('next')}</Text>
-                      <AppIcon name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={theme.primary} fallbackText={t('next')} />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-                {error ? <Text style={[esm.error, { color: theme.error }]}>{error}</Text> : null}
-                <TouchableOpacity
-                  style={[esm.button, { backgroundColor: theme.buttonBg }, (!origin.trim() || !destination.trim() || isLoading) && { opacity: 0.5 }]}
-                  disabled={!origin.trim() || !destination.trim() || isLoading}
-                  onPress={handleSearchDeals}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <AppIcon name="search" size={16} color={theme.buttonText} fallbackText={t('search_deals')} />
-                    <Text style={[esm.buttonText, { color: theme.buttonText }]}>{t('search_deals')}</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <EditSearchModal
+        visible={showEditSearchModal}
+        onClose={() => setShowEditSearchModal(false)}
+        title={t('change_search')}
+      >
+        <MonthDealsFormContent {...dealsFormProps} compact />
+      </EditSearchModal>
 
-      {/* ─── Hub route summary popup ───────────────────────────────────────── */}
       {hubSummaryModal && (
-        <Modal
+        <HubRouteSummaryModal
           visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setHubSummaryModal(null)}
-        >
-          <Pressable style={hfm.overlay} onPress={() => setHubSummaryModal(null)}>
-            <View
-              style={[hfm.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
-              onStartShouldSetResponder={() => true}
+          onClose={() => setHubSummaryModal(null)}
+          routeTitle={`${origin.trim().toUpperCase()} → ${hubSummaryModal.hubAirport} → ${destination.trim().toUpperCase()}`}
+          legs={[
+            {
+              label: `${origin.trim().toUpperCase()} → ${hubSummaryModal.hubAirport}`,
+              amount: hubSummaryModal.positioningPrice?.amount ?? 0,
+              currency: hubSummaryModal.positioningPrice?.currency ?? currency,
+            },
+            {
+              label: `${hubSummaryModal.hubAirport} → ${destination.trim().toUpperCase()}`,
+              amount: hubSummaryModal.hubFlightPrice?.amount ?? 0,
+              currency: hubSummaryModal.hubFlightPrice?.currency ?? currency,
+            },
+          ]}
+          totalAmount={hubSummaryModal.totalPrice.amount}
+          totalCurrency={hubSummaryModal.totalPrice.currency}
+          directAmount={hubSummaryModal.mainTripPrice?.amount ?? 0}
+          directCurrency={hubSummaryModal.mainTripPrice?.currency ?? currency}
+          savingsAmount={hubSummaryModal.savings.amount}
+          savingsCurrency={hubSummaryModal.savings.currency}
+          footer={
+            <TouchableOpacity
+              style={[hfm.ctaBtn, { backgroundColor: theme.primary }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                const hub = hubSummaryModal.hubAirport;
+                setHubSummaryModal(null);
+                handleViewOptimizedHub(hub);
+              }}
             >
-              {/* Header: origin → hub → destination */}
-              <View style={[hfm.header, { borderBottomColor: theme.cardBorder }]}>
-                <Text style={[hfm.title, { color: theme.text }]} numberOfLines={1}>
-                  {origin.trim().toUpperCase()} → {hubSummaryModal.hubAirport} → {destination.trim().toUpperCase()}
-                </Text>
-                <TouchableOpacity onPress={() => setHubSummaryModal(null)} style={hfm.closeBtn} hitSlop={8}>
-                  <AppIcon name="close" size={22} color={theme.textMuted} fallbackText={t('close')} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Leg breakdown */}
-              <View style={hfm.body}>
-                <View style={hfm.legRow}>
-                  <Text style={[hfm.legLabel, { color: theme.textMuted }]}>
-                    {origin.trim().toUpperCase()} → {hubSummaryModal.hubAirport}
-                  </Text>
-                  <Text style={[hfm.legPrice, { color: theme.text }]}>
-                    {getCurrencySymbol(hubSummaryModal.positioningPrice?.currency ?? currency)}{' '}
-                    {(hubSummaryModal.positioningPrice?.amount ?? 0).toFixed(0)}
-                  </Text>
-                </View>
-                <View style={hfm.legRow}>
-                  <Text style={[hfm.legLabel, { color: theme.textMuted }]}>
-                    {hubSummaryModal.hubAirport} → {destination.trim().toUpperCase()}
-                  </Text>
-                  <Text style={[hfm.legPrice, { color: theme.text }]}>
-                    {getCurrencySymbol(hubSummaryModal.hubFlightPrice?.currency ?? currency)}{' '}
-                    {(hubSummaryModal.hubFlightPrice?.amount ?? 0).toFixed(0)}
-                  </Text>
-                </View>
-
-                <View style={[hfm.divider, { backgroundColor: theme.cardBorder }]} />
-
-                {/* Summary row: total / direct / savings */}
-                <View style={hfm.summaryRow}>
-                  <View style={hfm.summaryCol}>
-                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('total_via_hub')}</Text>
-                    <Text style={[hfm.summaryValue, { color: theme.text }]}>
-                      {getCurrencySymbol(hubSummaryModal.totalPrice.currency)}{' '}
-                      {hubSummaryModal.totalPrice.amount.toFixed(0)}
-                    </Text>
-                  </View>
-                  <View style={hfm.summaryCol}>
-                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('direct_flight')}</Text>
-                    <Text style={[hfm.summaryValue, { color: theme.text }]}>
-                      {getCurrencySymbol(hubSummaryModal.mainTripPrice?.currency ?? currency)}{' '}
-                      {(hubSummaryModal.mainTripPrice?.amount ?? 0).toFixed(0)}
-                    </Text>
-                  </View>
-                  <View style={hfm.summaryCol}>
-                    <Text style={[hfm.summaryLabel, { color: theme.textMuted }]}>{t('you_save')}</Text>
-                    <Text style={[hfm.summaryValue, { color: theme.primary }]}>
-                      {getCurrencySymbol(hubSummaryModal.savings.currency)}{' '}
-                      {hubSummaryModal.savings.amount.toFixed(0)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* CTA */}
-              <View style={[hfm.footer, { borderTopColor: theme.cardBorder }]}>
-                <TouchableOpacity
-                  style={[hfm.ctaBtn, { backgroundColor: theme.primary }]}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    const hub = hubSummaryModal.hubAirport;
-                    setHubSummaryModal(null);
-                    handleViewOptimizedHub(hub);
-                  }}
-                >
-                  <Text style={hfm.ctaText}>
-                    {t('search_via')} {hubSummaryModal.hubAirport}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Pressable>
-        </Modal>
+              <Text style={hfm.ctaText}>
+                {t('search_via')} {hubSummaryModal.hubAirport}
+              </Text>
+            </TouchableOpacity>
+          }
+        />
       )}
     </View>
   );
@@ -1775,52 +1472,6 @@ function renderLeg(
 }
 
 // ─── Page styles ────────────────────────────────────────────────────────────
-
-// ─── Edit-search modal styles — copied 1:1 from ResultsScreen + SearchFormContent ─
-const esm = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '90%',
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderBottomWidth: 1,
-  },
-  title: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { padding: 6 },
-  scroll: { maxHeight: 480 },
-  content: { padding: 18, paddingBottom: 28 },
-  formCard: { borderRadius: 12, padding: 14, borderWidth: 1 },
-  routeSummary: { fontSize: 14, marginBottom: 10 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 3 },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
-  stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  stepBtnText: { fontSize: 18, fontWeight: '600' },
-  stepValue: { fontSize: 15, minWidth: 50, textAlign: 'center' },
-  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 14, marginBottom: 4, borderWidth: 1, borderRadius: 10 },
-  navBtn: {},
-  navBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  navText: { fontWeight: '600', fontSize: 13 },
-  monthTitle: { fontSize: 15, fontWeight: '700', marginHorizontal: 12 },
-  error: { color: 'red', marginTop: 8, fontSize: 13 },
-  button: { marginTop: 12, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  buttonText: { fontSize: 15, fontWeight: '600' },
-});
 
 const p = StyleSheet.create({
   twoCols: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
@@ -1969,27 +1620,6 @@ const m = StyleSheet.create({
 
 });
 
-// ─── Sort bar styles ────────────────────────────────────────────────────────
-
-const sb = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    flex: 1,
-    minWidth: 0,
-  },
-  label: { fontSize: 13, fontWeight: '500' },
-  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 },
-  pillsRTL: { flexDirection: 'row-reverse' },
-  pill: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1 },
-  pillText: { fontSize: 13 },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, marginLeft: 'auto' as any },
-  filterBtnText: { fontSize: 13, fontWeight: '600' },
-});
-
 // ─── Filters panel styles (matches search engine FiltersPanel) ───────────────
 
 const fl = StyleSheet.create({
@@ -2036,40 +1666,6 @@ const fl = StyleSheet.create({
 // ─── Hub summary popup styles ─────────────────────────────────────────────────
 
 const hfm = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  title: { fontSize: 15, fontWeight: '700', flex: 1 },
-  closeBtn: { padding: 4, marginLeft: 10 },
-  body: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10, gap: 10 },
-  legRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  legLabel: { fontSize: 13 },
-  legPrice: { fontSize: 14, fontWeight: '600' },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryCol: { alignItems: 'center', gap: 2 },
-  summaryLabel: { fontSize: 11 },
-  summaryValue: { fontSize: 15, fontWeight: '700' },
-  footer: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth },
   ctaBtn: { borderRadius: 999, paddingVertical: 13, alignItems: 'center' },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

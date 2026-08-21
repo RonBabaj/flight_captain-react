@@ -4,11 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
+import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
+import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
+import { formCardStyles } from '../../../components/search/formStyles';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { DateRangePicker } from '../../flight-search/components/DateRangePicker';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
@@ -55,26 +57,17 @@ export function DynamicDestinationsFormContent({
       : t('select_dates');
 
   return (
-    <View style={[styles.card, compact && styles.cardCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-      {!compact ? (
-        <>
-          <View style={[styles.titleRow, isRTL && { flexDirection: 'row-reverse' }]}>
-            <AppIcon name="airplane-outline" size={22} color={theme.primary} fallbackText="" />
-            <Text style={[styles.title, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-              {t('dd_title')}
-            </Text>
-          </View>
-          <Text style={[styles.subtitle, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-            {t('dd_subtitle')}
-          </Text>
-        </>
-      ) : (
-        <Text style={[styles.compactLabel, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-          {t('dd_title')}
-        </Text>
-      )}
+    <View style={[formCardStyles.card, compact && formCardStyles.cardCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+      <FormHeroHeader
+        icon="airplane-outline"
+        title={t('dd_title')}
+        subtitle={compact ? undefined : t('dd_subtitle')}
+        compact={compact}
+        compactLabel={t('dd_title')}
+        iconColor={theme.primary}
+      />
 
-      <Text style={[styles.sectionLabel, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
+      <Text style={[formCardStyles.sectionLabel, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
         {t('dd_outbound_section')}
       </Text>
       <AirportAutocomplete
@@ -93,7 +86,7 @@ export function DynamicDestinationsFormContent({
       {extras.map((leg, index) => (
         <View key={`extra-${index}`} style={styles.extraBlock}>
           <View style={[styles.extraHeader, isRTL && { flexDirection: 'row-reverse' }]}>
-            <Text style={[styles.sectionLabel, { color: theme.primary, marginBottom: 0 }, isRTL && { textAlign: 'right' }]}>
+            <Text style={[formCardStyles.sectionLabel, { color: theme.primary, marginBottom: 0 }, isRTL && { textAlign: 'right' }]}>
               {t('dd_extra_section')} {index + 2}
             </Text>
             <TouchableOpacity
@@ -117,9 +110,9 @@ export function DynamicDestinationsFormContent({
             onChange={(c) => updateExtra(index, { destination: c })}
             placeholder={t('city_or_airport')}
           />
-          <Text style={[styles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dd_extra_date')}</Text>
+          <Text style={[formCardStyles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dd_extra_date')}</Text>
           <TouchableOpacity
-            style={[styles.dateBtn, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
+            style={[formCardStyles.dateBtn, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
             onPress={() => setExtraDateIndex(index)}
             activeOpacity={0.7}
           >
@@ -145,7 +138,7 @@ export function DynamicDestinationsFormContent({
         <Text style={[styles.addBtnText, { color: theme.primary }]}>{t('dd_add_destination')}</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.sectionLabel, { color: theme.primary, marginTop: 8 }, isRTL && { textAlign: 'right' }]}>
+      <Text style={[formCardStyles.sectionLabel, { color: theme.primary, marginTop: 8 }, isRTL && { textAlign: 'right' }]}>
         {t('dd_return_section')}
       </Text>
       <AirportAutocomplete
@@ -161,9 +154,9 @@ export function DynamicDestinationsFormContent({
         placeholder={t('city_or_airport')}
       />
 
-      <Text style={[styles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dates')}</Text>
+      <Text style={[formCardStyles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dates')}</Text>
       <TouchableOpacity
-        style={[styles.dateBtn, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
+        style={[formCardStyles.dateBtn, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
         onPress={() => setShowCalendar(true)}
         activeOpacity={0.7}
       >
@@ -217,29 +210,19 @@ export function DynamicDestinationsFormContent({
           update('cabinPreference', c as CreateSearchSessionRequest['cabinPreference']);
         }}
         label={t('passengers_cabin')}
-        onDone={onSearch}
       />
 
-      {error ? <Text style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
+      {error ? <Text style={[formCardStyles.error, { color: theme.error }]}>{error}</Text> : null}
 
-      <TouchableOpacity
-        style={[styles.searchBtn, { backgroundColor: theme.buttonBg }, loading && { opacity: 0.65 }]}
+      <SearchSubmitButton
+        label={t('search_flights')}
+        loading={loading}
         onPress={onSearch}
-        disabled={loading}
-        activeOpacity={0.85}
-      >
-        {loading ? (
-          <ActivityIndicator color={theme.buttonText} />
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <AppIcon name="search" size={16} color={theme.buttonText} fallbackText="" />
-            <Text style={[styles.searchBtnText, { color: theme.buttonText }]}>{t('search_flights')}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+        compact={compact}
+      />
 
       {!compact ? (
-        <Text style={[styles.hint, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
+        <Text style={[formCardStyles.hint, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
           {t('dd_example_hint')}
         </Text>
       ) : null}
@@ -248,15 +231,6 @@ export function DynamicDestinationsFormContent({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, padding: 20, borderWidth: 1 },
-  cardCompact: { borderRadius: 12, padding: 14 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  title: { fontSize: 24, fontWeight: '700', flex: 1 },
-  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 18 },
-  compactLabel: { fontSize: 13, fontWeight: '600', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.3 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.4, marginBottom: 8, textTransform: 'uppercase' },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 4 },
-  dateBtn: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, marginBottom: 8 },
   extraBlock: { marginTop: 4, marginBottom: 4 },
   extraHeader: {
     flexDirection: 'row',
@@ -279,15 +253,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addBtnText: { fontSize: 15, fontWeight: '600' },
-  error: { marginTop: 10, fontSize: 14 },
-  searchBtn: {
-    marginTop: 20,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  searchBtnText: { fontSize: 16, fontWeight: '600' },
-  hint: { marginTop: 14, fontSize: 13, lineHeight: 18 },
 });

@@ -14,12 +14,17 @@ import type { LanguageCode, CurrencyCode } from '../data/translations';
 
 type RouteProps = RouteProp<RootStackParamList, keyof RootStackParamList>;
 
+const RESULTS_SCREENS = new Set(['Results', 'MonthDealsResults', 'Explore']);
+
 const TITLE_KEYS: Record<string, string> = {
   Home: 'nav_home',
   SearchForm: 'nav_flight_search',
   Results: 'nav_results',
   Search: 'nav_flight_search',
   MonthDeals: 'nav_monthly_deals',
+  MonthDealsForm: 'nav_monthly_deals',
+  MonthDealsResults: 'nav_results',
+  Explore: 'nav_results',
   DynamicDestinations: 'nav_dynamic_destinations',
   DynamicDestinationsForm: 'nav_dynamic_destinations',
   FlyFixRefine: 'flyfix_refine_nav_title',
@@ -37,15 +42,20 @@ export function TopNavMenu() {
   const isMobile = useIsMobile();
 
   const nestedName =
-    currentRoot === 'Search' || currentRoot === 'DynamicDestinations'
-      ? getFocusedRouteNameFromRoute(route) ?? (currentRoot === 'Search' ? 'SearchForm' : 'DynamicDestinationsForm')
+    currentRoot === 'Search' || currentRoot === 'DynamicDestinations' || currentRoot === 'MonthDeals'
+      ? getFocusedRouteNameFromRoute(route) ??
+        (currentRoot === 'Search'
+          ? 'SearchForm'
+          : currentRoot === 'MonthDeals'
+            ? 'MonthDealsForm'
+            : 'DynamicDestinationsForm')
       : null;
   const titleKey =
-    currentRoot === 'DynamicDestinations'
-      ? TITLE_KEYS.DynamicDestinations
+    nestedName && RESULTS_SCREENS.has(nestedName)
+      ? 'nav_results'
       : nestedName
         ? TITLE_KEYS[nestedName] ?? TITLE_KEYS[currentRoot] ?? TITLE_KEYS.Search
-        : TITLE_KEYS[currentRoot];
+        : TITLE_KEYS[currentRoot] ?? TITLE_KEYS.Search;
   const title = t(titleKey);
 
   const isHome = currentRoot === 'Home';

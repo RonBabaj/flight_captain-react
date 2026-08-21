@@ -44,6 +44,10 @@ import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
+import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
+import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
+import { EditSearchModal } from '../../../components/search/EditSearchModal';
+import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
 const POLL_INTERVAL_MS = 1500;
@@ -122,83 +126,6 @@ const sk = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   line: { height: 18, borderRadius: 6, marginBottom: 6 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
-});
-
-const LOADING_PHRASES: Record<string, string[]> = {
-  en: [
-    'Searching hundreds of airlines…',
-    'Comparing prices across providers…',
-    'Checking direct and connecting flights…',
-    'Finding the best fares…',
-    'Almost done…',
-  ],
-  he: [
-    'מחפש מאות חברות תעופה…',
-    'משווה מחירים בין ספקים…',
-    'בודק טיסות ישירות ועם עצירות…',
-    'מוצא את המחירים הטובים…',
-    'עוד רגע…',
-  ],
-  ru: [
-    'Ищем сотни авиакомпаний…',
-    'Сравниваем цены у провайдеров…',
-    'Проверяем прямые и стыковочные рейсы…',
-    'Ищем лучшие тарифы…',
-    'Почти готово…',
-  ],
-};
-
-function LoadingBanner({ language, theme }: {
-  language: string;
-  theme: import('../../../theme/ThemeContext').Theme;
-}) {
-  const phrases = LOADING_PHRASES[language] ?? LOADING_PHRASES.en;
-  const [phraseIdx, setPhraseIdx] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(progressAnim, { toValue: 1, duration: 2200, useNativeDriver: false }),
-        Animated.timing(progressAnim, { toValue: 0, duration: 0, useNativeDriver: false }),
-      ])
-    ).start();
-
-    const cycle = () => {
-      Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-      setPhraseIdx((i) => (i + 1) % phrases.length);
-    };
-    const id = setInterval(cycle, 2200);
-    return () => { clearInterval(id); progressAnim.stopAnimation(); };
-  }, [phrases.length]);
-
-  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
-
-  return (
-    <View style={[lb.wrap, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
-      <View style={[lb.track, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
-        <Animated.View style={[lb.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
-      </View>
-      <View style={lb.row}>
-        <ActivityIndicator size="small" color={theme.primary} />
-        <Animated.Text style={[lb.text, { color: theme.primary, opacity: fadeAnim }]}>
-          {phrases[phraseIdx]}
-        </Animated.Text>
-      </View>
-    </View>
-  );
-}
-
-const lb = StyleSheet.create({
-  wrap: { paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14 },
-  track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
-  fill: { height: 3, borderRadius: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  text: { fontSize: 13, fontWeight: '500', flex: 1 },
 });
 
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
@@ -1381,52 +1308,22 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
-      {/* Summary bar */}
-      <View
-        style={[
-          styles.summaryBar,
-          { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-          isRTL && { flexDirection: 'row-reverse' },
-        ]}
+      <SearchSummaryBar
+        summary={summaryStr || t('search_results')}
+        showEditButton={isMobile}
+        onEditPress={() => setShowEditSearchModal(true)}
+      />
+
+      <EditSearchModal
+        visible={showEditSearchModal}
+        onClose={() => setShowEditSearchModal(false)}
+        title={isDynamicDestinations ? t('dd_title') : t('change_search')}
+        tall={isDynamicDestinations}
       >
-        <Text style={[styles.summaryText, { color: theme.text }]} numberOfLines={1}>
-          {summaryStr || t('search_results')}
-        </Text>
-        <TouchableOpacity
-          style={[styles.editSearchBtn, { borderColor: theme.cardBorder, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-          onPress={() => setShowEditSearchModal(true)}
-          activeOpacity={0.7}
-        >
-          <AppIcon name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
-          <Text style={[styles.editSearchBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
-        </TouchableOpacity>
-      </View>
+        {editSearchForm}
+      </EditSearchModal>
 
-      {/* Edit search popup modal */}
-      <Modal visible={showEditSearchModal} transparent animationType="fade">
-        <View style={styles.editSearchOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEditSearchModal(false)} />
-          <View style={[styles.editSearchModalCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-            <View style={[styles.editSearchModalHeader, { borderBottomColor: theme.cardBorder }]}>
-              <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>
-                {isDynamicDestinations ? t('dd_title') : t('change_search')}
-              </Text>
-              <TouchableOpacity onPress={() => setShowEditSearchModal(false)} style={styles.editSearchModalClose}>
-                <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={[styles.editSearchModalScroll, isDynamicDestinations && styles.editSearchModalScrollTall]}
-              contentContainerStyle={styles.editSearchModalContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {editSearchForm}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {isLoading && <LoadingBanner language={language} theme={theme} />}
+      {isLoading && <SearchProgressBanner language={language} theme={theme} />}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (
@@ -1539,108 +1436,62 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </View>
 
       {positioningDetails && (
-        <Modal visible transparent animationType="fade">
-          <View style={styles.editSearchOverlay}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => setPositioningDetails(null)}
-            />
-            <View
-              style={[
-                styles.editSearchModalCard,
-                { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
-              ]}
-            >
-              <View
-                style={[
-                  styles.editSearchModalHeader,
-                  { borderBottomColor: theme.cardBorder },
-                ]}
+        <HubRouteSummaryModal
+          visible
+          onClose={() => setPositioningDetails(null)}
+          routeTitle={`${storeParams?.origin} → ${positioningDetails.hubAirport} → ${storeParams?.destination}`}
+          legs={[
+            {
+              label: `${storeParams?.origin} → ${positioningDetails.hubAirport}`,
+              amount: positioningDetails.positioningPrice.amount,
+              currency: positioningDetails.positioningPrice.currency,
+            },
+            {
+              label: `${positioningDetails.hubAirport} → ${storeParams?.destination}`,
+              amount: positioningDetails.hubFlightPrice.amount,
+              currency: positioningDetails.hubFlightPrice.currency,
+            },
+          ]}
+          totalAmount={positioningDetails.totalPrice.amount}
+          totalCurrency={positioningDetails.totalPrice.currency}
+          directAmount={positioningDetails.savings.amount + positioningDetails.totalPrice.amount}
+          directCurrency={positioningDetails.totalPrice.currency}
+          savingsAmount={positioningDetails.savings.amount}
+          savingsCurrency={positioningDetails.savings.currency}
+          footer={
+            <>
+              <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 4 }}>
+                {t('positioning_split_hint')}
+              </Text>
+              <TouchableOpacity
+                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.primary }]}
+                onPress={() =>
+                  openPositioningLegSearch(storeParams?.origin || '', positioningDetails.hubAirport)
+                }
+                activeOpacity={0.8}
               >
-                <Text style={[styles.editSearchModalTitle, { color: theme.text }]}>
-                  Cheaper departure route
+                <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
+                  {t('search_route_leg')
+                    .replace('{from}', storeParams?.origin || '')
+                    .replace('{to}', positioningDetails.hubAirport)}
                 </Text>
-                <TouchableOpacity
-                  onPress={() => setPositioningDetails(null)}
-                  style={styles.editSearchModalClose}
-                >
-                  <AppIcon name="close" size={24} color={theme.textMuted} fallbackText={t('close')} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView
-                style={styles.editSearchModalScroll}
-                contentContainerStyle={styles.editSearchModalContent}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.primary }]}
+                onPress={() =>
+                  openPositioningLegSearch(positioningDetails.hubAirport, storeParams?.destination || '')
+                }
+                activeOpacity={0.8}
               >
-                <Text style={{ color: theme.text, fontSize: 14, marginBottom: 12 }}>
-                  {storeParams?.origin} → {positioningDetails.hubAirport} →{' '}
-                  {storeParams?.destination}
+                <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
+                  {t('search_route_leg')
+                    .replace('{from}', positioningDetails.hubAirport)
+                    .replace('{to}', storeParams?.destination || '')}
                 </Text>
-                <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
-                  Total: {positioningDetails.totalPrice.currency}{' '}
-                  {positioningDetails.totalPrice.amount.toFixed(0)} · Save{' '}
-                  {positioningDetails.savings.currency}{' '}
-                  {positioningDetails.savings.amount.toFixed(0)} vs. cheapest direct
-                </Text>
-
-                <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 6 }}>
-                  Leg 1 – Positioning
-                </Text>
-                <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 4 }}>
-                  {storeParams?.origin} → {positioningDetails.hubAirport}{' '}
-                  ({positioningDetails.positioningPrice.currency}{' '}
-                  {positioningDetails.positioningPrice.amount.toFixed(0)})
-                </Text>
-
-                <Text style={{ color: theme.text, fontWeight: '600', marginTop: 12, marginBottom: 6 }}>
-                  Leg 2 – Main flight
-                </Text>
-                <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>
-                  {positioningDetails.hubAirport} → {storeParams?.destination}{' '}
-                  ({positioningDetails.hubFlightPrice.currency}{' '}
-                  {positioningDetails.hubFlightPrice.amount.toFixed(0)})
-                </Text>
-
-                <Text style={{ color: theme.text, fontSize: 13, marginBottom: 12 }}>
-                  {t('positioning_split_hint')}
-                </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.positioningPrimaryBtn,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={() =>
-                    openPositioningLegSearch(storeParams?.origin || '', positioningDetails.hubAirport)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
-                    {t('search_route_leg')
-                      .replace('{from}', storeParams?.origin || '')
-                      .replace('{to}', positioningDetails.hubAirport)}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.positioningPrimaryBtn,
-                    { backgroundColor: theme.primary, marginTop: 10 },
-                  ]}
-                  onPress={() =>
-                    openPositioningLegSearch(positioningDetails.hubAirport, storeParams?.destination || '')
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
-                    {t('search_route_leg')
-                      .replace('{from}', positioningDetails.hubAirport)
-                      .replace('{to}', storeParams?.destination || '')}
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
+              </TouchableOpacity>
+            </>
+          }
+        />
       )}
 
       <FlightDetailsModal

@@ -36,8 +36,7 @@ import {
   firstBookableDepartureInMonth,
 } from '../../../utils/bookableDates';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
+import { formatMonthYear } from '../../../utils/monthNames';
 const EXPLORE_PREFETCH_TIMEOUT_MS = 15_000;
 const EXPLORE_LIVE_TIMEOUT_MS = 35_000;
 
@@ -588,7 +587,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   }, [destinations, regionFilter, sortAsc]);
 
   const tripLabel = isDealsMode
-    ? `${MONTHS[localMonth - 1]} ${localYear} · ${localDuration} ${t('days')}`
+    ? `${formatMonthYear(localYear, localMonth, language)} · ${localDuration} ${t('days')}`
     : returnDate
       ? `${fmtDate(departureDate)} – ${fmtDate(returnDate)}`
       : fmtDate(departureDate);
@@ -753,7 +752,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             <Text style={[p.navText, { color: atEarliestMonth ? theme.textMuted : theme.primary }]}>{t('prev')}</Text>
           </View>
         </TouchableOpacity>
-        <Text style={[p.monthTitle, { color: theme.text }]}>{MONTHS[localMonth - 1]} {localYear}</Text>
+        <Text style={[p.monthTitle, { color: theme.text }]}>{formatMonthYear(localYear, localMonth, language)}</Text>
         <TouchableOpacity onPress={() => bumpDealsMonth(1)} style={p.navBtn}>
           <View style={p.navBtnInner}>
             <Text style={[p.navText, { color: theme.primary }]}>{t('next')}</Text>
@@ -823,7 +822,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         onPress={() => setSortAsc(true)}
         activeOpacity={0.7}
       >
-        <Text style={[d.sortPillText, { color: sortAsc ? theme.primary : theme.text }]}>💰 Cheapest first</Text>
+        <Text style={[d.sortPillText, { color: sortAsc ? theme.primary : theme.text }]}>💰 {t('explore_cheapest_first')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[d.sortPill, { borderColor: !sortAsc ? theme.primary : theme.cardBorder, backgroundColor: !sortAsc ? theme.primary + '18' : theme.controlBg, marginTop: 6 }]}
@@ -877,25 +876,25 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           <Text style={[s.errorTitle, { color: theme.text }]}>Could not load destinations</Text>
           <Text style={[s.errorSub, { color: theme.textMuted }]}>{error}</Text>
           <TouchableOpacity style={[s.retryBtn, { borderColor: theme.primary }]} onPress={() => doFetch()}>
-            <Text style={[s.retryText, { color: theme.primary }]}>Try again</Text>
+            <Text style={[s.retryText, { color: theme.primary }]}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
       ) : destinations.length === 0 ? (
         <View style={s.centered}>
           <AppIcon name="search-outline" size={44} color={theme.textMuted} fallbackText="?" />
-          <Text style={[s.errorTitle, { color: theme.text }]}>No destinations found</Text>
+          <Text style={[s.errorTitle, { color: theme.text }]}>{t('explore_no_destinations')}</Text>
           <Text style={[s.errorSub, { color: theme.textMuted }]}>
-            Try a different departure date, or check that the origin is a valid airport code (e.g. TLV, JFK, LHR).
+            {t('explore_no_destinations_tip')}
           </Text>
           <TouchableOpacity style={[s.retryBtn, { borderColor: theme.primary }]} onPress={() => doFetch()}>
-            <Text style={[s.retryText, { color: theme.primary }]}>Try again</Text>
+            <Text style={[s.retryText, { color: theme.primary }]}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
       ) : displayed.length === 0 ? (
         <View style={s.centered}>
-          <Text style={[s.errorTitle, { color: theme.text }]}>No destinations in this region</Text>
+          <Text style={[s.errorTitle, { color: theme.text }]}>{t('explore_no_region')}</Text>
           <TouchableOpacity style={[s.retryBtn, { borderColor: theme.primary }]} onPress={() => setRegionFilter('All')}>
-            <Text style={[s.retryText, { color: theme.primary }]}>Show all regions</Text>
+            <Text style={[s.retryText, { color: theme.primary }]}>{t('explore_show_all_regions')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -903,7 +902,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           {/* Top 3 picks — always shown first when not filtering by region */}
           {regionFilter === 'All' && displayed.length > 0 && (
             <>
-              <Text style={[s.sectionLabel, { color: theme.textMuted }]}>Top picks</Text>
+              <Text style={[s.sectionLabel, { color: theme.textMuted }]}>{t('explore_top_picks')}</Text>
               <View style={s.grid}>
                 {displayed.slice(0, Math.min(3, displayed.length)).map((dest, idx) => (
                   <DestCard
@@ -927,7 +926,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           {(regionFilter !== 'All' ? displayed : displayed.slice(3)).length > 0 && (
             <>
               <Text style={[s.sectionLabel, { color: theme.textMuted }]}>
-                {regionFilter === 'All' ? 'More destinations' : regionFilter}
+                {regionFilter === 'All' ? t('explore_more_destinations') : regionFilter}
               </Text>
               <View style={s.grid}>
                 {(regionFilter !== 'All' ? displayed : displayed.slice(3)).map((dest) => (
@@ -1007,7 +1006,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           activeOpacity={0.7}
         >
           <AppIcon name="create-outline" size={15} color={theme.primary} fallbackText="✏" />
-          <Text style={[s.editBtnText, { color: theme.primary }]}>Edit</Text>
+          <Text style={[s.editBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -1030,7 +1029,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         activeOpacity={0.7}
       >
         <Text style={[s.sortBtnText, { color: theme.primary }]}>
-          💰 {sortAsc ? 'Cheapest first' : 'Most expensive'}
+          💰 {sortAsc ? t('explore_cheapest_first') : t('explore_most_expensive')}
         </Text>
       </TouchableOpacity>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.regionPills}>
