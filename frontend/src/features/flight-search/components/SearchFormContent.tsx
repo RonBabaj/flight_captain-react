@@ -19,12 +19,22 @@ export interface SearchFormContentProps {
   loading: boolean;
   error: string | null;
   compact?: boolean;
+  /** Flat layout for use inside EditSearchModal (no nested card chrome). */
+  embedded?: boolean;
   /** When set, tapping Done in Passenger & cabin triggers this (e.g. re-search on results page) */
   onPassengerCabinDone?: () => void;
 }
 
 export function SearchFormContent({
-  params, update, tripType, setTripType, onSearch, loading, error, compact = false,
+  params,
+  update,
+  tripType,
+  setTripType,
+  onSearch,
+  loading,
+  error,
+  compact = false,
+  embedded = false,
   onPassengerCabinDone,
 }: SearchFormContentProps) {
   const { theme } = useTheme();
@@ -45,7 +55,17 @@ export function SearchFormContent({
     params.origin && params.destination ? `${params.origin} → ${params.destination}` : null;
 
   return (
-    <View style={[formCardStyles.card, compact && formCardStyles.cardCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+    <View
+      style={
+        embedded
+          ? undefined
+          : [
+              formCardStyles.card,
+              compact && formCardStyles.cardCompact,
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+            ]
+      }
+    >
       {compact ? (
         routeSummary && (
           <Text style={[ts.heroSubtitle, { marginBottom: 10 }]} numberOfLines={1}>

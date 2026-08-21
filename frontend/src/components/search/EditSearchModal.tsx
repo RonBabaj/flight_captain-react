@@ -30,9 +30,10 @@ export function EditSearchModal({ visible, onClose, title, children, tall = fals
             </TouchableOpacity>
           </View>
           <ScrollView
-            style={[s.scroll, tall && s.scrollTall]}
+            style={[s.scroll, tall ? s.scrollTall : null]}
             contentContainerStyle={s.content}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
           >
             {children}
           </ScrollView>
@@ -57,6 +58,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -65,10 +67,21 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderBottomWidth: 1,
+    flexShrink: 0,
   },
-  title: { fontSize: 18, fontWeight: '700' },
+  title: { fontSize: 18, fontWeight: '700', flex: 1 },
   closeBtn: { padding: 6 },
-  scroll: { maxHeight: 480 },
-  scrollTall: { maxHeight: 560 },
-  content: { padding: 18, paddingBottom: 28 },
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    maxHeight: 480,
+  },
+  scrollTall: {
+    maxHeight: 560,
+  },
+  content: {
+    padding: 18,
+    paddingBottom: 28,
+    flexGrow: 1,
+  },
 });
