@@ -14,7 +14,8 @@ import { useLocale } from '../../../context/LocaleContext';
 import { ANYWHERE_CODE } from '../../../types';
 import type { AirportCityResult } from '../../../types';
 
-const DEBOUNCE_MS = 300;
+import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
+
 const MIN_CHARS = 2;
 
 interface AirportAutocompleteProps {
@@ -35,6 +36,7 @@ export function AirportAutocomplete({
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
   const { language, t } = useLocale();
+  const runtimeConfig = useRuntimeConfig();
   const [query, setQuery] = useState(value);
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +73,7 @@ export function AirportAutocomplete({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
-    }, DEBOUNCE_MS);
+    }, runtimeConfig.airportAutocompleteDebounceMs);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };

@@ -8,12 +8,10 @@ import {
   SearchSession,
   SearchSessionResultsResponse,
 } from '../types';
+import { getRuntimeConfig } from '../config/runtimeConfigStore';
 import { apiGet, apiPost } from './client';
 
 const SESSIONS_PATH = '/api/search/sessions';
-
-const RESULTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (memory)
-const RESULTS_STORAGE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (localStorage)
 
 interface CachedResult {
   data: SearchSessionResultsResponse;
@@ -39,7 +37,7 @@ function getFromStorage(sessionId: string): SearchSessionResultsResponse | null 
     const raw = storage.getItem(STORAGE_PREFIX + sessionId);
     if (!raw) return null;
     const { data, at }: { data: SearchSessionResultsResponse; at: number } = JSON.parse(raw);
-    if (!data || Date.now() - at > RESULTS_STORAGE_TTL_MS) return null;
+    if (!data || Date.now() - at > getRuntimeConfig().resultsStorageTtlMs) return null;
     return data;
   } catch {
     return null;
@@ -97,7 +95,7 @@ export async function getSearchSessionResults(
   const now = Date.now();
 
   const memHit = isInitialLoad ? resultsCache.get(sessionId) : undefined;
-  if (memHit && now - memHit.at < RESULTS_CACHE_TTL_MS) {
+  if (memHit && now - memHit.at < getRuntimeConfig().resultsCacheTtlMs) {
     if (!paramsMatch(memHit.data.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
     return memHit.data;
   }

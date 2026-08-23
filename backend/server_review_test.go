@@ -27,7 +27,7 @@ func TestLoadSearchSession_Expiry(t *testing.T) {
 	clear(sessions)
 	id := "sess_ttl_test"
 	sessions[id] = SearchSessionResultsResponse{
-		Session: SearchSession{ID: id, CreatedAt: time.Now().Add(-2 * searchSessionTTL)},
+		Session: SearchSession{ID: id, CreatedAt: time.Now().Add(-2 * searchSessionTTL())},
 		Version: 1,
 	}
 	sessionsMu.Unlock()

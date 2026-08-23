@@ -46,8 +46,7 @@ interface PositioningLegResult {
 }
 const POSITIONING_LIVE_CACHE = new Map<string, Promise<PositioningLegResult | null>>();
 
-const POSITIONING_POLL_INTERVAL_MS = 1500;
-const POSITIONING_POLL_MAX_ATTEMPTS = 6;
+import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 
 /**
  * Creates a real one-way search session, polls for results, and returns the cheapest
@@ -88,13 +87,14 @@ async function findCheapestFlightForDate(params: {
       let attempts = 0;
       let lastResults: FlightOption[] = [];
 
-      while (attempts < POSITIONING_POLL_MAX_ATTEMPTS) {
+      const cfg = getRuntimeConfig();
+      while (attempts < cfg.positioningPollMaxAttempts) {
         const res = await getSearchSessionResults(session.id);
         lastResults = res.results ?? [];
         const status = res.session?.status;
         if (status === 'COMPLETE' || status === 'FAILED') break;
         attempts += 1;
-        await new Promise<void>((r) => setTimeout(r, POSITIONING_POLL_INTERVAL_MS));
+        await new Promise<void>((r) => setTimeout(r, cfg.positioningPollIntervalMs));
       }
 
       if (!lastResults.length) return null;

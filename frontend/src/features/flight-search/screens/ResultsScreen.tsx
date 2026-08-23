@@ -25,6 +25,8 @@ import { getSearchSessionResults, createSearchSession, getUniformBookingRedirect
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
+import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
+import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
@@ -49,7 +51,6 @@ import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
-const POLL_INTERVAL_MS = 1500;
 
 /** Snapshot generation for async work that must not clobber a newer search. */
 function currentGeneration(): number {
@@ -181,7 +182,7 @@ async function findCheapestOptionForParams(
       break;
     }
     attempts += 1;
-    await delay(POLL_INTERVAL_MS);
+    await delay(getRuntimeConfig().pollIntervalMs);
   }
 
   if (!lastResults.length) return null;
@@ -195,6 +196,7 @@ async function findCheapestOptionForParams(
 export function ResultsScreen({ route }: { route: { params: Record<string, unknown> } }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language } = useLocale();
+  const runtimeConfig = useRuntimeConfig();
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
@@ -763,7 +765,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         return;
       }
       poll();
-    }, POLL_INTERVAL_MS);
+    }, runtimeConfig.pollIntervalMs);
 
     poll();
     return () => {
@@ -864,14 +866,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const found: PositioningOption[] = [];
     const startedAt = Date.now();
     // Hard cap so "Searching cheaper departure cities..." cannot run for many minutes.
-    const POSITIONING_BUDGET_MS = 45_000;
+    const positioningBudgetMs = runtimeConfig.positioningBudgetMs;
     const sessionStillActive = () => optimizerSessionRef.current === sessionId;
 
     try {
       let hubRunIndex = 0;
       for (const hub of HUB_AIRPORTS) {
         if (!sessionStillActive()) break;
-        if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+        if (Date.now() - startedAt > positioningBudgetMs) break;
         if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
         // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
         if (hubRunIndex > 0) {
@@ -899,7 +901,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             departureDate,
           });
           if (!sessionStillActive()) break;
-          if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+          if (Date.now() - startedAt > positioningBudgetMs) break;
           const hubFlight = await findCheapestOptionForParams({
             ...(baseOpts as CreateSearchSessionRequest),
             origin: hub,
@@ -938,7 +940,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         setPositioningLoading(false);
       }
     }
-  }, [sessionId, storeParams, results]);
+  }, [sessionId, storeParams, results, runtimeConfig.positioningBudgetMs]);
 
   useEffect(() => {
     if (status === 'COMPLETE' && results.length > 0 && storeParams) {
@@ -1007,14 +1009,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (status === 'PENDING' || status === 'PARTIAL') {
         setShowSlowPopup(true);
       }
-    }, 10000);
+    }, runtimeConfig.slowResultsPopupDelayMs);
     return () => {
       if (slowPopupTimerRef.current) {
         clearTimeout(slowPopupTimerRef.current);
         slowPopupTimerRef.current = null;
       }
     };
-  }, [status, sessionId, showSlowPopup]);
+  }, [status, sessionId, showSlowPopup, runtimeConfig.slowResultsPopupDelayMs]);
 
   // Must stay above any early return (Rules of Hooks).
   useEffect(() => {

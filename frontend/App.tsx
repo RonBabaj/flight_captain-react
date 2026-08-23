@@ -5,6 +5,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { LocaleProvider, useLocale } from './src/context/LocaleContext';
+import { RuntimeConfigProvider } from './src/context/RuntimeConfigContext';
+import { AdminAuthProvider } from './src/context/AdminAuthContext';
 import { RootNavigator } from './src/navigation';
 import { API_BASE } from './src/api/client';
 import { useExchangeRates } from './src/hooks/useExchangeRates';
@@ -37,6 +39,7 @@ const linking = {
           Results: 'results',
         },
       },
+      AdminSettings: 'admin/settings',
     },
   },
 };
@@ -63,12 +66,16 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider defaultMode="dark">
         <LocaleProvider>
-          <RTLWrapper>
-            <NavigationContainer linking={linking}>
-              <StatusBar style="auto" />
-              <RootNavigator />
-            </NavigationContainer>
-          </RTLWrapper>
+          <RuntimeConfigProvider>
+            <AdminAuthProvider>
+              <RTLWrapper>
+                <NavigationContainer linking={linking}>
+                  <StatusBar style="auto" />
+                  <RootNavigator />
+                </NavigationContainer>
+              </RTLWrapper>
+            </AdminAuthProvider>
+          </RuntimeConfigProvider>
         </LocaleProvider>
       </ThemeProvider>
     </SafeAreaProvider>
