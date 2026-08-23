@@ -238,7 +238,13 @@ type SearchSessionResultsResponse struct {
 	ProviderStats []search.ProviderSearchStats `json:"providerStats,omitempty"`
 }
 
-const searchSessionTTL = 25 * time.Minute
+func searchSessionTTL() time.Duration {
+	return time.Duration(getRuntimeConfig().SearchSessionTtlMinutes) * time.Minute
+}
+
+func monthDealsCacheTTL() time.Duration {
+	return time.Duration(getRuntimeConfig().MonthDealsCacheTtlMinutes) * time.Minute
+}
 
 var (
 	sessions               = make(map[string]SearchSessionResultsResponse)
@@ -254,7 +260,7 @@ var (
 func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	sessionsMu.Lock()
 	resp, ok := sessions[id]
-	if ok && time.Since(resp.Session.CreatedAt) > searchSessionTTL {
+	if ok && time.Since(resp.Session.CreatedAt) > searchSessionTTL() {
 		delete(sessions, id)
 		ok = false
 	}
@@ -273,7 +279,7 @@ func startSearchSessionCleanup() {
 			sessionsMu.Lock()
 			now := time.Now()
 			for id, resp := range sessions {
-				if now.Sub(resp.Session.CreatedAt) > searchSessionTTL {
+				if now.Sub(resp.Session.CreatedAt) > searchSessionTTL() {
 					delete(sessions, id)
 				}
 			}
@@ -1583,8 +1589,6 @@ var (
 	monthDealsCache   = make(map[string]monthDealsCacheEntry)
 )
 
-const monthDealsCacheTTL = 15 * time.Minute
-
 func monthDealsCacheKey(origin, destination, currency string, useRange bool, year, month int, startDateStr, endDateStr string, durationDays, adults, children int, nonStop bool) string {
 	if useRange {
 		return fmt.Sprintf("r\x1e%s\x1e%s\x1e%s\x1e%s\x1e%s\x1e%d\x1e%d\x1e%d\x1e%v", origin, destination, currency, startDateStr, endDateStr, durationDays, adults, children, nonStop)
@@ -1609,7 +1613,7 @@ func monthDealsCacheGet(key string) (MonthDealsResponse, bool) {
 func monthDealsCachePut(key string, resp MonthDealsResponse) {
 	monthDealsCacheMu.Lock()
 	defer monthDealsCacheMu.Unlock()
-	monthDealsCache[key] = monthDealsCacheEntry{expires: time.Now().Add(monthDealsCacheTTL), resp: resp}
+	monthDealsCache[key] = monthDealsCacheEntry{expires: time.Now().Add(monthDealsCacheTTL()), resp: resp}
 }
 
 // --- Airport autocomplete API ---
@@ -2655,7 +2659,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -2684,6 +2688,7 @@ func main() {
 		log.Println("[STARTUP] no flight providers configured — set FLIGHT_PROVIDERS (default googleflights2) and provider credentials")
 	}
 	initSessionStore()
+	initRuntimeConfigStore()
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
 	startSearchSessionCleanup()
@@ -2703,6 +2708,9 @@ func main() {
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
 	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
+	mux.HandleFunc("/api/runtime-config", handleGetRuntimeConfig)
+	mux.HandleFunc("/api/admin/verify", handleAdminVerify)
+	mux.HandleFunc("/api/admin/runtime-config", handleAdminRuntimeConfig)
 
 	port := os.Getenv("PORT")
 	if port == "" {

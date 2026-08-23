@@ -80,7 +80,7 @@ func TestLoadSearchSessionMemoryExpiredButInDB(t *testing.T) {
 	initTestSessionDB(t)
 
 	id := "sess_mem_expired"
-	old := makeSessionResp(id, time.Now().UTC().Add(-2*searchSessionTTL))
+	old := makeSessionResp(id, time.Now().UTC().Add(-2*searchSessionTTL()))
 	persistSearchSession(old)
 
 	sessionsMu.Lock()

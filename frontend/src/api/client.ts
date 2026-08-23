@@ -11,6 +11,8 @@
  * IMPORTANT: Expo/Metro statically inlines EXPO_PUBLIC_* only when accessed via
  * direct `process.env.EXPO_PUBLIC_*` references (no typeof checks, no dynamic lookup).
  */
+import { getRuntimeConfig } from '../config/runtimeConfigStore';
+
 const EXPO_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 const EXPO_API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -80,7 +82,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const url = apiUrl(path);
   const { timeoutMs, ...fetchOptions } = options;
-  const waitMs = timeoutMs ?? 90_000;
+  const waitMs = timeoutMs ?? getRuntimeConfig().apiRequestDefaultTimeoutMs;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), waitMs);
   if (fetchOptions.signal) {

@@ -8,6 +8,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { LANGUAGES, CURRENCIES } from '../data/translations';
 import { useSearchStore } from '../store';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import { useIsMobile } from '../hooks/useResponsive';
 import type { RootStackParamList } from './types';
 import type { LanguageCode, CurrencyCode } from '../data/translations';
@@ -28,6 +29,7 @@ const TITLE_KEYS: Record<string, string> = {
   DynamicDestinations: 'nav_dynamic_destinations',
   DynamicDestinationsForm: 'nav_dynamic_destinations',
   FlyFixRefine: 'flyfix_refine_nav_title',
+  AdminSettings: 'nav_admin_settings',
 };
 
 export function TopNavMenu() {
@@ -36,6 +38,7 @@ export function TopNavMenu() {
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
   const sessionId = useSearchStore((s) => s.sessionId);
+  const { isAdmin } = useAdminAuth();
   const currentRoot = route.name;
   const [showLocaleModal, setShowLocaleModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -62,6 +65,7 @@ export function TopNavMenu() {
   const isSearch = currentRoot === 'Search';
   const isDeals = currentRoot === 'MonthDeals';
   const isDynamic = currentRoot === 'DynamicDestinations';
+  const isAdminSettings = currentRoot === 'AdminSettings';
 
   const handleGoToHome = () => {
     if (!isHome) {
@@ -96,6 +100,31 @@ export function TopNavMenu() {
     }
     setShowMobileMenu(false);
   };
+
+  const handleGoToAdminSettings = () => {
+    if (!isAdminSettings) {
+      navigation.navigate('AdminSettings' as never);
+    }
+    setShowMobileMenu(false);
+  };
+
+  const adminNavItem = isAdmin ? (
+    <TouchableOpacity
+      style={styles.tab}
+      onPress={handleGoToAdminSettings}
+      activeOpacity={0.8}
+    >
+      <Text
+        style={[
+          styles.tabText,
+          { color: theme.tabInactive },
+          isAdminSettings && { color: theme.tabActive },
+        ]}
+      >
+        {t('nav_admin_settings')}
+      </Text>
+    </TouchableOpacity>
+  ) : null;
 
   return (
     <>
@@ -224,6 +253,7 @@ export function TopNavMenu() {
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
+              {adminNavItem}
             </View>
           </>
         ) : (
@@ -294,6 +324,7 @@ export function TopNavMenu() {
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
+              {adminNavItem}
             </View>
             <View style={styles.rightActions}>
               <TouchableOpacity
@@ -442,6 +473,23 @@ export function TopNavMenu() {
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
+              {isAdmin ? (
+                <TouchableOpacity
+                  style={styles.mobileMenuItem}
+                  onPress={handleGoToAdminSettings}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.mobileMenuItemText,
+                      { color: theme.text },
+                      isAdminSettings && { fontWeight: '700', color: theme.tabActive },
+                    ]}
+                  >
+                    {t('nav_admin_settings')}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </Pressable>

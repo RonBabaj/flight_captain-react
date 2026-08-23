@@ -37,8 +37,7 @@ import {
 } from '../../../utils/bookableDates';
 
 import { formatMonthYear } from '../../../utils/monthNames';
-const EXPLORE_PREFETCH_TIMEOUT_MS = 15_000;
-const EXPLORE_LIVE_TIMEOUT_MS = 35_000;
+import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 
 function initialDatesFromRouteParams(p: ExploreScreenParams): {
   departureDate: string;
@@ -217,6 +216,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   const { theme } = useTheme();
   const { t, language, locale, currency: localeCurrency } = useLocale();
+  const runtimeConfig = useRuntimeConfig();
   const { width } = useWindowDimensions();
   const isMobile = useIsMobile();
 
@@ -352,11 +352,11 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       if (!isCurrent()) return;
       setLoading(false);
       setLiveRefreshing(false);
-    }, EXPLORE_PREFETCH_TIMEOUT_MS + EXPLORE_LIVE_TIMEOUT_MS);
+    }, runtimeConfig.explorePrefetchTimeoutMs + runtimeConfig.exploreLiveTimeoutMs);
 
     // Prefetch returns cached real prices only (no estimate placeholders). Live batches
     // then grow the list as confirmed destinations arrive.
-    getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true }, EXPLORE_PREFETCH_TIMEOUT_MS)
+    getExploreDestinations({ ...req, limit: pageSize, offset: 0, prefetch: true }, runtimeConfig.explorePrefetchTimeoutMs)
       .then(async (res) => {
         if (!isCurrent()) return;
         const confirmed = (res.destinations ?? []).filter(
@@ -393,7 +393,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
                 offset: 0,
                 limit: pageSize,
                 live: true,
-              }, EXPLORE_LIVE_TIMEOUT_MS);
+              }, runtimeConfig.exploreLiveTimeoutMs);
               if (!isCurrent()) return;
               const next = (r2.destinations ?? []).filter(
                 (d) => d.priceSource !== 'estimated',

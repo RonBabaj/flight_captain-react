@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { AppIcon } from '../../../components/AppIcon';
 import { tomorrowYmdUtc } from '../../../utils/bookableDates';
+import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 
 function getMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -32,8 +33,6 @@ function buildMonthDays(monthStart: Date): string[] {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** Ignore rapid repeat taps on the same day (accidental double-press). */
-const DUPLICATE_TAP_MS = 400;
 
 export interface DateRangePickerProps {
   visible: boolean;
@@ -55,6 +54,7 @@ export function DateRangePicker({
   mode = 'single',
 }: DateRangePickerProps) {
   const { theme } = useTheme();
+  const runtimeConfig = useRuntimeConfig();
   const todayUtc = useMemo(() => tomorrowYmdUtc(), []);
   const todayMonthStart = useMemo(() => monthStartForYmd(todayUtc, getMonthStart(new Date())), [todayUtc]);
 
@@ -102,7 +102,7 @@ export function DateRangePicker({
   const handleDayPress = (date: string) => {
     const now = Date.now();
     const last = lastTapRef.current;
-    if (last && last.date === date && now - last.at < DUPLICATE_TAP_MS) {
+    if (last && last.date === date && now - last.at < runtimeConfig.datePickerDuplicateTapMs) {
       return;
     }
     lastTapRef.current = { date, at: now };
