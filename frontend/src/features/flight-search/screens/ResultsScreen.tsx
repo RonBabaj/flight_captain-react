@@ -50,6 +50,7 @@ import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummary
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
 const POLL_INTERVAL_MS = 1500;
+const SLOW_RESULTS_POPUP_DELAY_MS = 60_000;
 
 /** Snapshot generation for async work that must not clobber a newer search. */
 function currentGeneration(): number {
@@ -1007,7 +1008,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (status === 'PENDING' || status === 'PARTIAL') {
         setShowSlowPopup(true);
       }
-    }, 10000);
+    }, SLOW_RESULTS_POPUP_DELAY_MS);
     return () => {
       if (slowPopupTimerRef.current) {
         clearTimeout(slowPopupTimerRef.current);
