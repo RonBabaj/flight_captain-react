@@ -37,6 +37,7 @@ import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
 
 const POLL_INTERVAL_MS = 1500;
+const SLOW_RESULTS_POPUP_DELAY_MS = 60_000;
 
 // ─── Positioning flight optimizer (MVP) ────────────────────────────────────────
 
@@ -734,7 +735,7 @@ export function ResultsScreen({ route }: { route: { params: { sessionId: string 
       if (status === 'PENDING' || status === 'PARTIAL') {
         setShowSlowPopup(true);
       }
-    }, 10000);
+    }, SLOW_RESULTS_POPUP_DELAY_MS);
     return () => {
       if (slowPopupTimerRef.current) {
         clearTimeout(slowPopupTimerRef.current);
