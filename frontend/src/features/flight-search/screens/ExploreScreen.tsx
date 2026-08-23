@@ -18,12 +18,19 @@ import { createSearchSession } from '../../../api';
 import { getMonthDeals } from '../../../api/deals';
 import { searchActions, dealsActions, isCurrentSearchGeneration } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
+import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { PassengerCabinPicker } from '../components/PassengerCabinPicker';
-import { ANYWHERE_CODE } from '../../../types';
+import {
+  ANYWHERE_CODE,
+  isCountryDestination,
+  makeCountryDestination,
+  parseCountryDestination,
+} from '../../../types';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import type { ExploreDestination } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { ExploreScreenParams } from '../../../navigation/types';
@@ -209,10 +216,27 @@ function getRegion(code: string): string {
 
 const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'] as const;
 
+function destinationLabelForCode(
+  code: string | undefined,
+  language: string,
+  t: (key: string) => string,
+): string {
+  const upper = (code || '').trim().toUpperCase();
+  if (!upper || upper === ANYWHERE_CODE) return t('anywhere');
+  if (isCountryDestination(upper)) {
+    const cc = parseCountryDestination(upper);
+    const country = cc ? getCountryEntry(cc) : null;
+    return country ? getCountryDisplayName(country, language as any) : upper;
+  }
+  const entry = getAirportEntry(upper);
+  return entry ? getCityDisplayName(entry, language as any) : upper;
+}
+
 export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const params = route.params;
   const { adults, currency: routeCurrency } = params;
   const isDealsMode = params.mode === 'deals';
+  const routeCountryFilter = params.countryFilter?.trim().toUpperCase() || null;
 
   const { theme } = useTheme();
   const { t, language, locale, currency: localeCurrency } = useLocale();
@@ -228,9 +252,12 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   // ── Search-mode sidebar form state ────────────────────────────────────────
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>(initialDr.tripType);
+  const initialDestination = routeCountryFilter
+    ? makeCountryDestination(routeCountryFilter)
+    : ANYWHERE_CODE;
   const [formParams, setFormParams] = useState<CreateSearchSessionRequest>({
     origin: params.origin,
-    destination: ANYWHERE_CODE,
+    destination: initialDestination,
     departureDate: initialDr.departureDate,
     returnDate: initialDr.returnDate || (undefined as any),
     adults: params.adults ?? 1,
@@ -469,6 +496,8 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   useEffect(() => {
     const org = (params.origin || '').trim();
     const dr = initialDatesFromRouteParams(params);
+    const cc = params.countryFilter?.trim().toUpperCase() || null;
+    const dest = cc ? makeCountryDestination(cc) : ANYWHERE_CODE;
     setOrigin(org);
     setDepartureDate(dr.departureDate);
     setReturnDate(dr.returnDate);
@@ -476,6 +505,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     setFormParams((p) => ({
       ...p,
       origin: org,
+      destination: dest,
       departureDate: dr.departureDate,
       returnDate: dr.tripType === 'one-way' ? (undefined as any) : dr.returnDate,
     }));
@@ -492,6 +522,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     isDealsMode && params.mode === 'deals' ? params.durationDays : '',
     params.adults,
     params.currency,
+    params.countryFilter,
     isDealsMode,
     params.searchNonce,
   ]);
@@ -575,6 +606,12 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   const displayed = useMemo(() => {
     let list = destinations;
+    if (routeCountryFilter) {
+      list = list.filter((d) => {
+        const entry = getAirportEntry(d.destination);
+        return entry?.countryCode?.toUpperCase() === routeCountryFilter;
+      });
+    }
     if (regionFilter !== 'All') {
       list = list.filter((d) => getRegion(d.destination) === regionFilter);
     }
@@ -584,7 +621,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       const nb = Number.isFinite(pb) ? pb : 0;
       return sortAsc ? na - nb : nb - na;
     });
-  }, [destinations, regionFilter, sortAsc]);
+  }, [destinations, regionFilter, routeCountryFilter, sortAsc]);
 
   const tripLabel = isDealsMode
     ? `${formatMonthYear(localYear, localMonth, language)} · ${localDuration} ${t('days')}`
@@ -594,6 +631,8 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
   /** Sidebar / Edit modal "Search flights": Anywhere → re-fetch explore; specific airport → Results. */
   const handleSidebarSearch = async () => {
+    await flushActiveAutocomplete();
+
     const newOrigin = (formParams.origin || origin).trim();
     const destRaw = (formParams.destination || '').trim().toUpperCase();
     const newDep = formParams.departureDate || departureDate;
@@ -601,6 +640,49 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
     if (!newOrigin || !destRaw) {
       setFormSearchError(t('please_fill_origin_destination'));
+      return;
+    }
+
+    if (isCountryDestination(destRaw)) {
+      const cc = parseCountryDestination(destRaw);
+      if (!cc) {
+        setFormSearchError(t('please_fill_origin_destination'));
+        return;
+      }
+      setFormSearchError(null);
+      setShowEditSearchModal(false);
+      setOrigin(newOrigin.toUpperCase());
+      setDepartureDate(newDep);
+      setReturnDate(newRet);
+      setFormParams((p) => ({
+        ...p,
+        origin: newOrigin.toUpperCase(),
+        destination: makeCountryDestination(cc),
+        departureDate: newDep,
+        returnDate: tripType === 'one-way' ? (undefined as any) : newRet || undefined,
+      }));
+      navigation.navigate('Explore', {
+        ...(isDealsMode && params.mode === 'deals'
+          ? {
+              mode: 'deals' as const,
+              year: localYear,
+              month: localMonth,
+              durationDays: localDuration,
+              children: localChildren,
+              nonStop: localNonStop,
+              departureDate: newDep,
+              returnDate: newRet,
+            }
+          : {
+              departureDate: newDep,
+              returnDate: tripType === 'one-way' ? undefined : newRet || undefined,
+            }),
+        origin: newOrigin.toUpperCase(),
+        adults: formParams.adults ?? adults ?? 1,
+        currency: routeCurrency || 'USD',
+        countryFilter: cc,
+        searchNonce: Date.now(),
+      });
       return;
     }
 
@@ -613,10 +695,31 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       setFormParams((p) => ({
         ...p,
         origin: newOrigin.toUpperCase(),
+        destination: ANYWHERE_CODE,
         departureDate: newDep,
         returnDate: tripType === 'one-way' ? (undefined as any) : newRet || undefined,
       }));
-      doFetch({ origin: newOrigin, departureDate: newDep, returnDate: newRet });
+      navigation.navigate('Explore', {
+        ...(isDealsMode && params.mode === 'deals'
+          ? {
+              mode: 'deals' as const,
+              year: localYear,
+              month: localMonth,
+              durationDays: localDuration,
+              children: localChildren,
+              nonStop: localNonStop,
+              departureDate: newDep,
+              returnDate: newRet,
+            }
+          : {
+              departureDate: newDep,
+              returnDate: tripType === 'one-way' ? undefined : newRet || undefined,
+            }),
+        origin: newOrigin.toUpperCase(),
+        adults: formParams.adults ?? adults ?? 1,
+        currency: routeCurrency || 'USD',
+        searchNonce: Date.now(),
+      });
       return;
     }
 
@@ -689,15 +792,16 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         label={t('from')}
         value={origin}
         onChange={(v) => { setOrigin(v); updateForm('origin', v); }}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
-      {/* Destination locked to Anywhere */}
       <AirportAutocomplete
         label={t('to')}
-        value={ANYWHERE_CODE}
-        onChange={() => {}}
-        placeholder={t('anywhere')}
+        value={routeCountryFilter ? makeCountryDestination(routeCountryFilter) : ANYWHERE_CODE}
+        onChange={(v) => updateForm('destination', v)}
+        placeholder={t('city_country_or_airport')}
         showAnywhere
+        countryMode="country-code"
       />
 
       <PassengerCabinPicker
@@ -892,9 +996,39 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         </View>
       ) : displayed.length === 0 ? (
         <View style={s.centered}>
-          <Text style={[s.errorTitle, { color: theme.text }]}>{t('explore_no_region')}</Text>
-          <TouchableOpacity style={[s.retryBtn, { borderColor: theme.primary }]} onPress={() => setRegionFilter('All')}>
-            <Text style={[s.retryText, { color: theme.primary }]}>{t('explore_show_all_regions')}</Text>
+          <Text style={[s.errorTitle, { color: theme.text }]}>
+            {routeCountryFilter ? t('explore_no_country') : t('explore_no_region')}
+          </Text>
+          <TouchableOpacity
+            style={[s.retryBtn, { borderColor: theme.primary }]}
+            onPress={() => (routeCountryFilter ? navigation.navigate('Explore', {
+              ...(isDealsMode && params.mode === 'deals'
+                ? {
+                    mode: 'deals' as const,
+                    origin,
+                    year: localYear,
+                    month: localMonth,
+                    durationDays: localDuration,
+                    children: localChildren,
+                    nonStop: localNonStop,
+                    departureDate,
+                    returnDate,
+                    adults: localAdults,
+                    currency: routeCurrency,
+                  }
+                : {
+                    origin,
+                    departureDate,
+                    returnDate: tripType === 'one-way' ? undefined : returnDate || undefined,
+                    adults: formParams.adults ?? adults ?? 1,
+                    currency: routeCurrency || 'USD',
+                  }),
+              searchNonce: Date.now(),
+            }) : setRegionFilter('All'))}
+          >
+            <Text style={[s.retryText, { color: theme.primary }]}>
+              {routeCountryFilter ? t('explore_show_all_destinations') : t('explore_show_all_regions')}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -973,11 +1107,11 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   // ── Top summary bar (shared mobile + desktop) ─────────────────────────────
 
   const formDestCode = formParams.destination?.trim().toUpperCase();
-  let summaryDestLabel = t('anywhere');
-  if (!isDealsMode && formDestCode && formDestCode !== ANYWHERE_CODE) {
-    const entry = getAirportEntry(formDestCode);
-    summaryDestLabel = entry ? getCityDisplayName(entry, language as any) : formDestCode;
-  }
+  const summaryDestLabel = destinationLabelForCode(
+    isDealsMode ? (routeCountryFilter ? makeCountryDestination(routeCountryFilter) : ANYWHERE_CODE) : formDestCode,
+    language,
+    t,
+  );
 
   const summaryBar = (
     <View style={[s.summaryBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>

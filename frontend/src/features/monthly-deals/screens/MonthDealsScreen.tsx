@@ -24,8 +24,9 @@ import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import type { DayDeal, FlightDetailsResponse, FlightSegment, FlightOption, MonetaryAmount, MonthDealsResponse } from '../../../types';
-import { ANYWHERE_CODE } from '../../../types';
+import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { addDaysYmdUtc, firstBookableDepartureInMonth } from '../../../utils/bookableDates';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
@@ -468,12 +469,41 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // into a compact summary bar with an "Edit search" popup (same pattern as ResultsScreen).
   const mobileCompact = isMobile && (data != null || view === 'results');
 
-  const handleSearchDeals = () => {
+  const handleSearchDeals = async () => {
+    await flushActiveAutocomplete();
+
     const o = origin.trim(), d = destination.trim();
     if (!o || !d) { dealsActions.setError('Please fill origin and destination.'); return; }
 
+    const destUpper = d.toUpperCase();
+
+    // Country — navigate to Explore (deals mode) filtered by country.
+    if (isCountryDestination(destUpper)) {
+      setShowEditSearchModal(false);
+      const departureYmd = firstBookableDepartureInMonth(clampedYm.year, clampedYm.month);
+      const returnDateStr = addDaysYmdUtc(departureYmd, durationDays);
+      try {
+        navigation?.navigate?.('Explore', {
+          mode: 'deals',
+          origin: o,
+          departureDate: departureYmd,
+          returnDate: returnDateStr,
+          currency,
+          adults,
+          year: clampedYm.year,
+          month: clampedYm.month,
+          durationDays,
+          children,
+          nonStop,
+          countryFilter: parseCountryDestination(destUpper) ?? undefined,
+          searchNonce: Date.now(),
+        });
+      } catch {}
+      return;
+    }
+
     // "Anywhere" — navigate to the Explore screen (deals mode) for destination picking
-    if (d.toUpperCase() === ANYWHERE_CODE) {
+    if (destUpper === ANYWHERE_CODE) {
       setShowEditSearchModal(false);
       const departureYmd = firstBookableDepartureInMonth(clampedYm.year, clampedYm.month);
       const returnDateStr = addDaysYmdUtc(departureYmd, durationDays);

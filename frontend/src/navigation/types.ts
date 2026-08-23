@@ -9,6 +9,8 @@ export type ExploreScreenParams =
       returnDate?: string;
       adults: number;
       currency: string;
+      /** ISO country code — filter explore results to this country. */
+      countryFilter?: string;
       /** Bumps on each navigation so a kept-alive Explore screen refetches. */
       searchNonce?: number;
     }
@@ -24,6 +26,7 @@ export type ExploreScreenParams =
       durationDays: number;
       children: number;
       nonStop: boolean;
+      countryFilter?: string;
       searchNonce?: number;
     };
 
