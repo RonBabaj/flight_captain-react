@@ -8,9 +8,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
-import { createSearchSession, getSearchSessionResults } from '../../../api';
-import { searchActions, isCurrentSearchGeneration } from '../../../store';
+import { searchActions } from '../../../store';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import type { DynamicDestinationsStackParamList } from '../../../navigation/types';
 import { DynamicDestinationsFormContent } from '../components/DynamicDestinationsFormContent';
@@ -80,42 +78,24 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
     setParams((prev) => removeExtraDestinationLeg(prev, index));
   };
 
-  const onSearch = async () => {
+  const onSearch = () => {
     const validated = validateDynamicDestinationsSearch(params, t, currency, locale);
     if (!validated.ok) {
       setError(validated.error);
       return;
     }
-    const payload = validated.payload;
 
     setError(null);
     setLoading(true);
-    searchActions.setLoading(true);
-    searchActions.setError(null);
     try {
-      const generation = searchActions.beginSearch(payload);
-      const session = await createSearchSession(payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      const res = await getSearchSessionResults(session.id, undefined, payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      const applied = searchActions.applySessionResults({
-        generation,
-        sessionId: session.id,
-        session: res.session ?? session,
-        status: res.session?.status ?? session.status,
-        results: res.results ?? [],
-        version: res.version ?? 1,
-        mode: 'replace',
-      });
-      if (!applied) return;
-      navigation.navigate('Results', { sessionId: session.id });
+      // Same optimistic flow as regular search: Results bootstraps the session
+      // with the full DD payload (returnOrigin, extraLegs, etc.).
+      searchActions.beginSearch(validated.payload);
+      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() } as any);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : t('search_failed');
-      setError(msg);
-      searchActions.setError(msg);
+      setError(e instanceof Error ? e.message : t('search_failed'));
     } finally {
       setLoading(false);
-      searchActions.setLoading(false);
     }
   };
 
@@ -137,15 +117,6 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
           error={error}
         />
       </ScrollView>
-
-      <SearchLoadingOverlay
-        visible={loading}
-        origin={params.origin}
-        destination={params.destination}
-        extraLegs={params.extraLegs ?? []}
-        returnOrigin={params.returnOrigin}
-        returnDestination={params.returnDestination || params.origin}
-      />
     </View>
   );
 }

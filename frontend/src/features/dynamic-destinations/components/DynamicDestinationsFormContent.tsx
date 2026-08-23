@@ -30,6 +30,8 @@ export interface DynamicDestinationsFormContentProps {
   loading: boolean;
   error: string | null;
   compact?: boolean;
+  /** Flat layout for use inside EditSearchModal (no nested card chrome). */
+  embedded?: boolean;
 }
 
 export function DynamicDestinationsFormContent({
@@ -42,6 +44,7 @@ export function DynamicDestinationsFormContent({
   loading,
   error,
   compact = false,
+  embedded = false,
 }: DynamicDestinationsFormContentProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
@@ -57,7 +60,17 @@ export function DynamicDestinationsFormContent({
       : t('select_dates');
 
   return (
-    <View style={[formCardStyles.card, compact && formCardStyles.cardCompact, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+    <View
+      style={
+        embedded
+          ? undefined
+          : [
+              formCardStyles.card,
+              compact && formCardStyles.cardCompact,
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+            ]
+      }
+    >
       <FormHeroHeader
         icon="airplane-outline"
         title={t('dd_title')}

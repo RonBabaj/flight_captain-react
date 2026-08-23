@@ -43,7 +43,6 @@ import {
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
-import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
@@ -210,11 +209,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     filters,
   } = useSearchStore();
   const isDynamicDestinations = useMemo(() => {
-    const routeNames = navigation.getState()?.routeNames;
-    if (Array.isArray(routeNames) && routeNames.includes('DynamicDestinationsForm')) {
-      return true;
+    if (isDynamicDestinationsSearch(storeParams)) return true;
+    let nav: { getState?: () => { routeNames?: string[] } | undefined; getParent?: () => unknown } | undefined =
+      navigation;
+    while (nav) {
+      const routeNames = nav.getState?.()?.routeNames;
+      if (Array.isArray(routeNames) && routeNames.includes('DynamicDestinationsForm')) {
+        return true;
+      }
+      nav = nav.getParent?.() as typeof nav;
     }
-    return isDynamicDestinationsSearch(storeParams);
+    return false;
   }, [navigation, storeParams]);
 
   // Portable deep links: merge live URL + React Navigation route params. On iOS
@@ -1148,7 +1153,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // session resolved (or the expired-link screen appeared), which read as broken.
   const awaitingFirstPoll = !!sessionId && status == null;
   const isLoading =
-    (bootstrappingSession || awaitingFirstPoll || status === 'PENDING' || status === 'PARTIAL') &&
+    (bootstrappingSession ||
+      awaitingFirstPoll ||
+      sidebarSearchLoading ||
+      status === 'PENDING' ||
+      status === 'PARTIAL') &&
     results.length === 0;
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
@@ -1277,7 +1286,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     )
   );
 
-  const editSearchForm = isDynamicDestinations ? (
+  const openEditSearch = () => {
+    if (storeParams) {
+      setFormParams({ ...defaultFormParams, ...storeParams });
+      setTripType(storeParams.returnDate ? 'round-trip' : 'one-way');
+    }
+    setShowEditSearchModal(true);
+  };
+
+  const sidebarSearchForm = isDynamicDestinations ? (
     <DynamicDestinationsFormContent
       params={formParams}
       update={updateDynamicFormParams}
@@ -1306,12 +1323,43 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     />
   );
 
+  const modalSearchForm = isDynamicDestinations ? (
+    <DynamicDestinationsFormContent
+      params={formParams}
+      update={updateDynamicFormParams}
+      updateExtra={updateDynamicExtra}
+      addExtraDestination={addDynamicExtra}
+      removeExtraDestination={removeDynamicExtra}
+      onSearch={handleSidebarSearch}
+      loading={sidebarSearchLoading}
+      error={sidebarSearchError}
+      compact
+      embedded
+    />
+  ) : (
+    <SearchFormContent
+      params={formParams}
+      update={updateFormParams}
+      tripType={tripType}
+      setTripType={setTripType}
+      onSearch={handleSidebarSearch}
+      onPassengerCabinDone={() => {
+        setShowEditSearchModal(false);
+        handleSidebarSearch();
+      }}
+      loading={sidebarSearchLoading}
+      error={sidebarSearchError}
+      compact
+      embedded
+    />
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       <SearchSummaryBar
         summary={summaryStr || t('search_results')}
         showEditButton={isMobile}
-        onEditPress={() => setShowEditSearchModal(true)}
+        onEditPress={openEditSearch}
       />
 
       <EditSearchModal
@@ -1320,7 +1368,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         title={isDynamicDestinations ? t('dd_title') : t('change_search')}
         tall={isDynamicDestinations}
       >
-        {editSearchForm}
+        {modalSearchForm}
       </EditSearchModal>
 
       {isLoading && <SearchProgressBanner language={language} theme={theme} />}
@@ -1333,7 +1381,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               <>
                 <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                      {editSearchForm}
+                      {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
@@ -1356,7 +1404,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               <>
                 <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
-                      {editSearchForm}
+                      {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
@@ -1505,12 +1553,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           (storeParams?.children ?? 0) +
           (storeParams?.infants ?? 0)
         }
-      />
-
-      <SearchLoadingOverlay
-        visible={sidebarSearchLoading}
-        origin={formParams.origin || storeParams?.origin}
-        destination={formParams.destination || storeParams?.destination}
       />
 
       {showSlowPopup && (
