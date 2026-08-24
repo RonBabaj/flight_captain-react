@@ -15,7 +15,8 @@ function getSvgMarkup(name: string, color: string): string {
   const stroke = color.replace(/"/g, "'");
   const fill = stroke;
   const common = `xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
-  switch (name) {
+  const resolved = name === 'search-outline' ? 'search' : name;
+  switch (resolved) {
     case 'airplane-outline':
       return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="${fill}" d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-.84-1.28-1.64-1.06l-5.31 1.42-6.92-6.42-1.91.51 4.14 7.21-4.97 1.33-1.97-1.54-.45 1.15 1.82 3.39.59 1.33 1.6.58 5.31-1.43 4.31-1.16 5.31-.59c.81-.24 1.28-1.06 1.07-1.86z"/></svg>`;
     case 'globe-outline':
@@ -54,6 +55,24 @@ function getSvgMarkup(name: string, color: string): string {
       return `<svg ${common}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>`;
     case 'link-outline':
       return `<svg ${common}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+    case 'settings-outline':
+      return `<svg ${common}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+    case 'home-outline':
+      return `<svg ${common}><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/></svg>`;
+    case 'person-outline':
+      return `<svg ${common}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    case 'heart-outline':
+      return `<svg ${common}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+    case 'shield-outline':
+      return `<svg ${common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+    case 'information-circle-outline':
+      return `<svg ${common}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`;
+    case 'alert-circle-outline':
+      return `<svg ${common}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>`;
+    case 'arrow-back':
+      return `<svg ${common}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>`;
+    case 'arrow-forward':
+      return `<svg ${common}><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
     default:
       return '';
   }
@@ -62,9 +81,11 @@ function getSvgMarkup(name: string, color: string): string {
 /** All icon names supported by local static SVG (no font). */
 export const LOCAL_ICON_NAMES = new Set([
   'airplane-outline', 'globe-outline', 'sunny-outline', 'moon-outline', 'menu-outline',
-  'search', 'filter-outline', 'options-outline', 'calendar-outline', 'close',
+  'search', 'search-outline', 'filter-outline', 'options-outline', 'calendar-outline', 'close',
   'create-outline', 'time-outline', 'chevron-down', 'chevron-up', 'chevron-back', 'chevron-forward',
   'add-outline', 'share-outline', 'link-outline',
+  'settings-outline', 'home-outline', 'person-outline', 'heart-outline', 'shield-outline',
+  'information-circle-outline', 'alert-circle-outline', 'arrow-back', 'arrow-forward',
 ]);
 
 export function hasWebSvgFallback(name: string): boolean {

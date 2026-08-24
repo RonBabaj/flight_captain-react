@@ -156,7 +156,7 @@ export function TopNavMenu() {
           name="settings-outline"
           size={21}
           color={isSettings ? theme.tabActive : theme.tabInactive}
-          fallbackText="Settings"
+          fallbackText=""
         />
       </TouchableOpacity>
       <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.8}>
