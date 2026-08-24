@@ -7,6 +7,7 @@
 
 import type { AirportCityResult } from '../types';
 import type { LanguageCode } from './translations';
+import { getCountryEntry, getCountryDisplayName } from './countries';
 
 export const AIRPORT_DICTIONARY: AirportCityResult[] = [
   // ── Israel ──────────────────────────────────────────────────────────────────
@@ -505,14 +506,14 @@ export const AIRPORT_DICTIONARY: AirportCityResult[] = [
   { id: 'MIL', type: 'CITY', cityCode: 'MIL', name: 'All airports', cityName: 'Milan', countryCode: 'IT', cityNameHe: 'מילאנו', cityNameRu: 'Милан' },
   { id: 'MOW', type: 'CITY', cityCode: 'MOW', name: 'All airports', cityName: 'Moscow', countryCode: 'RU', cityNameHe: 'מוסקבה', cityNameRu: 'Москва' },
   { id: 'ROM', type: 'CITY', cityCode: 'ROM', name: 'All airports', cityName: 'Rome', countryCode: 'IT', cityNameHe: 'רומא', cityNameRu: 'Рим' },
-  { id: 'IST', type: 'CITY', cityCode: 'IST', name: 'All airports', cityName: 'Istanbul', countryCode: 'TR', cityNameHe: 'איסטנבול', cityNameRu: 'Стамбул' },
+  { id: 'CITY-IST', type: 'CITY', cityCode: 'IST', name: 'All airports', cityName: 'Istanbul', countryCode: 'TR', cityNameHe: 'איסטנבול', cityNameRu: 'Стамбул' },
   { id: 'BUE', type: 'CITY', cityCode: 'BUE', name: 'All airports', cityName: 'Buenos Aires', countryCode: 'AR', cityNameRu: 'Буэнос-Айрес' },
   { id: 'STO', type: 'CITY', cityCode: 'STO', name: 'All airports', cityName: 'Stockholm', countryCode: 'SE', cityNameHe: 'שטוקהולם', cityNameRu: 'Стокгольм' },
   { id: 'CHI', type: 'CITY', cityCode: 'CHI', name: 'All airports', cityName: 'Chicago', countryCode: 'US', cityNameHe: 'שיקגו', cityNameRu: 'Чикаго' },
   { id: 'WAS', type: 'CITY', cityCode: 'WAS', name: 'All airports', cityName: 'Washington D.C.', countryCode: 'US', cityNameHe: 'וושינגטון', cityNameRu: 'Вашингтон' },
   { id: 'SEL', type: 'CITY', cityCode: 'SEL', name: 'All airports', cityName: 'Seoul', countryCode: 'KR', cityNameHe: 'סיאול', cityNameRu: 'Сеул' },
   { id: 'HOU', type: 'CITY', cityCode: 'HOU', name: 'All airports', cityName: 'Houston', countryCode: 'US', cityNameHe: 'יוסטון', cityNameRu: 'Хьюстон' },
-  { id: 'ETH', type: 'CITY', cityCode: 'ETH', name: 'All airports', cityName: 'Eilat', countryCode: 'IL', cityNameHe: 'אילת', cityNameRu: 'Эйлат' },
+  { id: 'CITY-ETH', type: 'CITY', cityCode: 'ETH', name: 'All airports', cityName: 'Eilat', countryCode: 'IL', cityNameHe: 'אילת', cityNameRu: 'Эйлат' },
 ];
 
 const lower = (s: string) => s.toLowerCase();
@@ -524,6 +525,14 @@ function matchesQuery(a: AirportCityResult, q: string): boolean {
   if (a.cityName && lower(a.cityName).includes(q)) return true;
   if (lower(a.name).includes(q)) return true;
   if (a.countryCode && lower(a.countryCode) === q) return true;
+  if (a.countryCode) {
+    const country = getCountryEntry(a.countryCode);
+    if (country) {
+      if (lower(country.name).includes(q)) return true;
+      if (country.nameHe && lower(country.nameHe).includes(q)) return true;
+      if (country.nameRu && lower(country.nameRu).includes(q)) return true;
+    }
+  }
   if (a.cityNameHe && lower(a.cityNameHe).includes(q)) return true;
   if (a.cityNameRu && lower(a.cityNameRu).includes(q)) return true;
   if (a.nameHe && lower(a.nameHe).includes(q)) return true;
@@ -574,14 +583,14 @@ export function getAirportDisplayName(a: AirportCityResult, language: LanguageCo
   return a.name || '';
 }
 
-/** Returns the raw dictionary entry for an airport or city code, preferring CITY entries. */
+/** Returns the raw dictionary entry for an airport or city code. Prefers airports over metro CITY entries. */
 export function getAirportEntry(code: string | undefined | null): AirportCityResult | null {
   if (!code || typeof code !== 'string') return null;
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return null;
   return (
-    AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && x.id === trimmed) ??
-    AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed) ??
+    AIRPORT_DICTIONARY.find((x) => x.type === 'AIRPORT' && (x.airportCode === trimmed || x.id === trimmed)) ??
+    AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && (x.cityCode === trimmed || x.id === trimmed)) ??
     null
   );
 }

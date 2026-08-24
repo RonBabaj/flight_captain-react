@@ -273,6 +273,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   no_flights_cabin_tip: { en: 'Try a different cabin class or dates', he: 'נסה מחלקה אחרת או תאריכים שונים', ru: 'Попробуйте другой класс или даты' },
   compare_prices: { en: 'Compare prices and book with one click', he: 'השווה מחירים והזמן בלחיצה', ru: 'Сравните цены и забронируйте' },
   city_or_airport: { en: 'City or airport', he: 'עיר או שדה תעופה', ru: 'Город или аэропорт' },
+  city_country_or_airport: {
+    en: 'City, country or airport',
+    he: 'עיר, מדינה או שדה תעופה',
+    ru: 'Город, страна или аэропорт',
+  },
+  all_cities_airports: {
+    en: 'All cities & airports',
+    he: 'כל הערים ושדות התעופה',
+    ru: 'Все города и аэропорты',
+  },
   search_these_dates: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   direct: { en: 'Direct', he: 'ישיר', ru: 'Прямой' },
   stop: { en: 'stop', he: 'תחנה', ru: 'пересадка' },
@@ -481,10 +491,20 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'אין יעדים באזור זה',
     ru: 'Нет направлений в этом регионе',
   },
+  explore_no_country: {
+    en: 'No destinations found in this country',
+    he: 'לא נמצאו יעדים במדינה זו',
+    ru: 'Направления в этой стране не найдены',
+  },
   explore_show_all_regions: {
     en: 'Show all regions',
     he: 'הצג את כל האזורים',
     ru: 'Показать все регионы',
+  },
+  explore_show_all_destinations: {
+    en: 'Show all destinations',
+    he: 'הצג את כל היעדים',
+    ru: 'Показать все направления',
   },
   explore_top_picks: { en: 'Top picks', he: 'הבחירות המובילות', ru: 'Лучшие варианты' },
   explore_more_destinations: {
