@@ -6,6 +6,7 @@ import type { RootStackParamList } from './types';
 import { MonthDealsStack } from './MonthDealsStack';
 import { DynamicDestinationsStack } from './DynamicDestinationsStack';
 import { LandingScreen } from '../features/landing';
+import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { LoginScreen } from '../features/auth/screens/LoginScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
