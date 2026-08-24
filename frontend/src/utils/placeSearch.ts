@@ -4,8 +4,10 @@ import {
   makeCountryDestination,
   parseCountryDestination,
   type AirportCityResult,
+  type AirportCityType,
 } from '../types';
-import { searchAirportsLocal, getAirportEntry } from '../data/airports';
+import { searchAirportsLocal, getAirportEntry, PLACE_SEARCH_LIMIT } from '../data/airports';
+export { PLACE_SEARCH_LIMIT } from '../data/airports';
 import {
   COUNTRY_DIRECTORY,
   getCountryEntry,
@@ -13,6 +15,9 @@ import {
   type CountryEntry,
 } from '../data/countries';
 import type { LanguageCode } from '../data/translations';
+
+/** Max country rows shown alongside airports/cities in autocomplete. */
+export const PLACE_COUNTRY_LIMIT = 12;
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -32,7 +37,28 @@ function countryRank(country: CountryEntry, q: string, language: LanguageCode): 
   if (lower(country.code) === q) return 0;
   if (ln === q) return 1;
   if (ln.startsWith(q)) return 2;
-  return 5;
+  if (ln.includes(q)) return 4;
+  return 8;
+}
+
+function placeRank(item: AirportCityResult, q: string): number {
+  const code = lower(item.airportCode || item.cityCode || item.id);
+  let base: number;
+  if (code === q) base = 0;
+  else if (code.startsWith(q)) base = 2;
+  else if (item.cityName && lower(item.cityName) === q) base = 1;
+  else if (item.cityName && lower(item.cityName).startsWith(q)) base = 3;
+  else if (item.cityName && lower(item.cityName).includes(q)) base = 5;
+  else if (lower(item.name).startsWith(q)) base = 7;
+  else base = 9;
+  if (item.type === 'CITY') return base - 0.5;
+  return base;
+}
+
+function typeOrder(type: AirportCityType): number {
+  if (type === 'COUNTRY') return 0;
+  if (type === 'CITY') return 1;
+  return 2;
 }
 
 export function countryToPlaceResult(country: CountryEntry, language: LanguageCode): AirportCityResult {
@@ -50,7 +76,7 @@ export function countryToPlaceResult(country: CountryEntry, language: LanguageCo
 
 export function searchCountriesLocal(
   query: string,
-  limit = 5,
+  limit = PLACE_COUNTRY_LIMIT,
   language: LanguageCode = 'en',
 ): AirportCityResult[] {
   const q = query.trim().toLowerCase();
@@ -64,42 +90,40 @@ export function searchCountriesLocal(
   out.sort((a, b) => {
     const ca = getCountryEntry(a.countryCode!)!;
     const cb = getCountryEntry(b.countryCode!)!;
-    return countryRank(ca, q, language) - countryRank(cb, q, language);
+    const diff = countryRank(ca, q, language) - countryRank(cb, q, language);
+    if (diff !== 0) return diff;
+    return getCountryDisplayName(ca, language).localeCompare(getCountryDisplayName(cb, language));
   });
   return out.slice(0, limit);
 }
 
-/** Search airports/cities and countries together for autocomplete. */
+/** Search airports, cities, and countries together for autocomplete. */
 export function searchPlacesLocal(
   query: string,
-  limit = 15,
+  limit = PLACE_SEARCH_LIMIT,
   language: LanguageCode = 'en',
 ): AirportCityResult[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  const countries = searchCountriesLocal(query, 5, language);
-  const airports = searchAirportsLocal(query, limit, language);
+  const countries = searchCountriesLocal(query, PLACE_COUNTRY_LIMIT, language);
+  const places = searchAirportsLocal(query, limit, language);
 
-  const countryCodesInAirports = new Set(
-    airports.map((a) => a.countryCode).filter(Boolean) as string[],
-  );
-  const topCountry = countries[0];
-  const countryIsStrong =
-    topCountry &&
-    getCountryEntry(topCountry.countryCode!) &&
-    countryRank(getCountryEntry(topCountry.countryCode!)!, q, language) <= 2;
-
-  const merged: AirportCityResult[] = [];
-  if (countryIsStrong) {
-    merged.push(...countries);
-  }
-  merged.push(...airports);
-  if (!countryIsStrong && countries.length > 0) {
-    for (const c of countries) {
-      if (!countryCodesInAirports.has(c.countryCode!)) merged.push(c);
-    }
-  }
+  const merged = [...countries, ...places];
+  merged.sort((a, b) => {
+    const ra = a.type === 'COUNTRY'
+      ? countryRank(getCountryEntry(a.countryCode!)!, q, language)
+      : placeRank(a, q);
+    const rb = b.type === 'COUNTRY'
+      ? countryRank(getCountryEntry(b.countryCode!)!, q, language)
+      : placeRank(b, q);
+    if (ra !== rb) return ra - rb;
+    const to = typeOrder(a.type) - typeOrder(b.type);
+    if (to !== 0) return to;
+    const la = a.cityName || a.name || '';
+    const lb = b.cityName || b.name || '';
+    return la.localeCompare(lb);
+  });
 
   const seen = new Set<string>();
   const deduped: AirportCityResult[] = [];
@@ -143,7 +167,7 @@ export function resolvePlaceQuery(
   if (/^[A-Za-z]{2}$/.test(raw) && getCountryEntry(upper)) return makeCountryDestination(upper);
 
   const qLower = raw.toLowerCase();
-  const results = searchPlacesLocal(raw, 10, language);
+  const results = searchPlacesLocal(raw, PLACE_SEARCH_LIMIT, language);
   if (results.length === 0) return null;
 
   const exact = results.find((item) => {
@@ -157,6 +181,11 @@ export function resolvePlaceQuery(
     return names.some((n) => lower(n) === qLower);
   });
   if (exact) return placeResultToCode(exact);
+
+  const cityExact = results.find(
+    (item) => item.type === 'CITY' && item.cityName && lower(item.cityName) === qLower,
+  );
+  if (cityExact) return placeResultToCode(cityExact);
 
   if (results.length === 1) return placeResultToCode(results[0]);
   return null;
