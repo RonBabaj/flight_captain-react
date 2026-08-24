@@ -2688,6 +2688,7 @@ func main() {
 		log.Println("[STARTUP] no flight providers configured — set FLIGHT_PROVIDERS (default googleflights2) and provider credentials")
 	}
 	initSessionStore()
+	initAuthStore()
 	initRuntimeConfigStore()
 	startExchangeRateRefresh()
 	startExploreSessionCleanup()
@@ -2708,6 +2709,10 @@ func main() {
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
 	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
+	mux.HandleFunc("/api/auth/login", handleAuthLogin)
+	mux.HandleFunc("/api/auth/logout", handleAuthLogout)
+	mux.HandleFunc("/api/auth/me", handleAuthMe)
+	mux.HandleFunc("/api/auth/change-password", handleAuthChangePassword)
 	mux.HandleFunc("/api/runtime-config", handleGetRuntimeConfig)
 	mux.HandleFunc("/api/admin/verify", handleAdminVerify)
 	mux.HandleFunc("/api/admin/runtime-config", handleAdminRuntimeConfig)

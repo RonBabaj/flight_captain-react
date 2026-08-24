@@ -214,18 +214,6 @@ func adminTokenFromHeader(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("X-Admin-Token"))
 }
 
-func isAdminRequest(r *http.Request) bool {
-	expected := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
-	if expected == "" {
-		return false
-	}
-	got := adminTokenFromHeader(r)
-	if got == "" {
-		return false
-	}
-	return got == expected
-}
-
 func handleGetRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
@@ -239,27 +227,26 @@ func handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
-	if !adminTokenConfigured() {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "admin access is not configured on this server"})
-		return
+	// Legacy shared-token verify (deprecated — prefer POST /api/auth/login).
+	if adminTokenConfigured() {
+		var body struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		expected := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
+		if strings.TrimSpace(body.Token) == expected {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "role": "admin"})
+			return
+		}
 	}
-	var body struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
-		return
-	}
-	expected := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
-	if strings.TrimSpace(body.Token) != expected {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "role": "guest"})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "role": "admin"})
+	writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "role": "guest"})
 }
 
 func handleAdminRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	if !adminTokenConfigured() {
+	if !adminAccessConfigured() {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "admin access is not configured on this server"})
 		return
 	}

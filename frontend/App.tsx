@@ -43,6 +43,7 @@ const linking = {
         path: 'settings',
         alias: ['admin/settings'],
       },
+      Login: 'login',
     },
   },
 };

@@ -10,19 +10,14 @@ export async function fetchRuntimeConfig(): Promise<RuntimeConfig> {
   }
 }
 
-export async function verifyAdminToken(token: string): Promise<boolean> {
-  const res = await apiRequest<{ ok: boolean; role: string }>('/api/admin/verify', {
-    method: 'POST',
-    body: JSON.stringify({ token }),
-    timeoutMs: 15_000,
-  });
-  return res.ok === true && res.role === 'admin';
+function adminAuthHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
 }
 
 export async function fetchAdminRuntimeConfig(token: string): Promise<RuntimeConfig> {
   return apiRequest<RuntimeConfig>('/api/admin/runtime-config', {
     method: 'GET',
-    headers: { 'X-Admin-Token': token },
+    headers: adminAuthHeaders(token),
     timeoutMs: 15_000,
   });
 }
@@ -33,7 +28,7 @@ export async function saveAdminRuntimeConfig(
 ): Promise<RuntimeConfig> {
   return apiRequest<RuntimeConfig>('/api/admin/runtime-config', {
     method: 'PUT',
-    headers: { 'X-Admin-Token': token },
+    headers: adminAuthHeaders(token),
     body: JSON.stringify(config),
     timeoutMs: 15_000,
   });
