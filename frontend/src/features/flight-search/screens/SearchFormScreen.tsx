@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
-import { ANYWHERE_CODE } from '../../../types';
+import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { searchActions } from '../../../store';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -10,6 +10,7 @@ import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
 import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -103,13 +104,35 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   };
 
   const handleSearch = async () => {
+    await flushActiveAutocomplete();
+
     if (!params.origin.trim() || !params.destination.trim()) {
       setError(t('please_fill_origin_destination'));
       return;
     }
 
+    const destUpper = params.destination.trim().toUpperCase();
+
+    if (isCountryDestination(destUpper)) {
+      const dr = clampExploreSearchDates(
+        params.departureDate || undefined,
+        params.returnDate || undefined,
+        tripType === 'round-trip',
+      );
+      navigation.navigate('Explore', {
+        origin: params.origin.trim().toUpperCase(),
+        departureDate: dr.departureDate,
+        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
+        adults: params.adults ?? 1,
+        currency: currency || 'USD',
+        countryFilter: parseCountryDestination(destUpper) ?? undefined,
+        searchNonce: Date.now(),
+      });
+      return;
+    }
+
     // "Anywhere" — navigate to the explore screen instead of running a regular search
-    if (params.destination.trim().toUpperCase() === ANYWHERE_CODE) {
+    if (destUpper === ANYWHERE_CODE) {
       const dr = clampExploreSearchDates(
         params.departureDate || undefined,
         params.returnDate || undefined,

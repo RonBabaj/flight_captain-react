@@ -85,14 +85,16 @@ export function MonthDealsFormContent({
         label={t('from')}
         value={origin}
         onChange={onOriginChange}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
       <AirportAutocomplete
         label={t('to')}
         value={destination}
         onChange={onDestinationChange}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
         showAnywhere
+        countryMode="country-code"
       />
 
       <PassengerCabinPicker

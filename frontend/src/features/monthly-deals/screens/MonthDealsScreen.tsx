@@ -18,14 +18,15 @@ import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYea
 import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl, createSearchSession, getSearchSessionResults } from '../../../api';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { getPendingDealsParams, setPendingDealsParams, clearPendingDealsParams } from '../../../utils/dealsCache';
+import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import type { DayDeal, FlightDetailsResponse, FlightSegment, FlightOption, MonetaryAmount, MonthDealsResponse } from '../../../types';
-import { ANYWHERE_CODE } from '../../../types';
+import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { addDaysYmdUtc, firstBookableDepartureInMonth } from '../../../utils/bookableDates';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
@@ -46,8 +47,7 @@ interface PositioningLegResult {
 }
 const POSITIONING_LIVE_CACHE = new Map<string, Promise<PositioningLegResult | null>>();
 
-const POSITIONING_POLL_INTERVAL_MS = 1500;
-const POSITIONING_POLL_MAX_ATTEMPTS = 6;
+import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 
 /**
  * Creates a real one-way search session, polls for results, and returns the cheapest
@@ -88,13 +88,14 @@ async function findCheapestFlightForDate(params: {
       let attempts = 0;
       let lastResults: FlightOption[] = [];
 
-      while (attempts < POSITIONING_POLL_MAX_ATTEMPTS) {
+      const cfg = getRuntimeConfig();
+      while (attempts < cfg.positioningPollMaxAttempts) {
         const res = await getSearchSessionResults(session.id);
         lastResults = res.results ?? [];
         const status = res.session?.status;
         if (status === 'COMPLETE' || status === 'FAILED') break;
         attempts += 1;
-        await new Promise<void>((r) => setTimeout(r, POSITIONING_POLL_INTERVAL_MS));
+        await new Promise<void>((r) => setTimeout(r, cfg.positioningPollIntervalMs));
       }
 
       if (!lastResults.length) return null;
@@ -305,36 +306,72 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
 
   useEffect(() => {
     const toRestore = typeof window !== 'undefined' ? getPendingDealsParams() : null;
-    if (!toRestore || !toRestore.origin?.trim() || !toRestore.destination?.trim()) return;
-    const ry = toRestore.year ?? year;
-    const rm = toRestore.month ?? month;
-    const { year: cy, month: cm } = clampDealsMonth(ry, rm);
+    if (!toRestore) return;
 
-    // If data is already loaded for the same route/period, skip the re-fetch (tab return / remount).
-    // We intentionally do NOT clear pending params here so a page refresh still restores the search.
-    const sameRoute =
-      route?.origin === toRestore.origin.trim().toUpperCase() &&
-      route?.destination === toRestore.destination.trim().toUpperCase();
-    const samePeriod = cy === year && cm === month;
-    const sameDuration = !toRestore.durationDays || toRestore.durationDays === durationDays;
-    if (data != null && sameRoute && samePeriod && sameDuration) return;
-    // Optimistic search already in flight from handleSearchDeals — don't double-fetch.
+    const { year: cy, month: cm } = clampDealsMonth(toRestore.year, toRestore.month);
+    const params: DealsParams = {
+      ...toRestore,
+      origin: toRestore.origin.trim().toUpperCase(),
+      destination: toRestore.destination.trim().toUpperCase(),
+      year: cy,
+      month: cm,
+    };
+
+    setOrigin(params.origin);
+    setDestination(params.destination);
+    setAdults(params.adults);
+    setChildren(params.children);
+    setNonStop(params.nonStop);
+    dealsActions.setRoute(params.origin, params.destination);
+    dealsActions.setMonth(params.year, params.month);
+    dealsActions.setDurationDays(params.durationDays);
+
+    const currentData = useDealsStore.getState().data;
+    if (paramsMatchSavedData(params, currentData)) return;
     if (useDealsStore.getState().isLoading) return;
 
-    if (toRestore.year) dealsActions.setMonth(cy, cm);
-    if (toRestore.durationDays) dealsActions.setDurationDays(toRestore.durationDays);
-    clearPendingDealsParams();
+    const cached = getCachedDealsResults(params);
+    if (cached) {
+      dealsActions.setData(cached);
+      if (view !== 'results') return;
+    } else if (view !== 'results') {
+      return;
+    }
+
+    const fetchParams = {
+      origin: params.origin,
+      destination: params.destination,
+      year: params.year,
+      month: params.month,
+      durationDays: params.durationDays,
+      currency,
+      adults: params.adults,
+      children: params.children,
+      nonStop: params.nonStop,
+    };
+
+    const applyResults = (res: import('../../../types').MonthDealsResponse) => {
+      dealsActions.setData(res);
+      setCachedDealsResults(params, res);
+    };
+
+    if (cached) {
+      getMonthDeals(fetchParams)
+        .then(applyResults)
+        .catch(() => {
+          /* keep cached results visible */
+        });
+      return;
+    }
+
     dealsActions.setLoading(true);
     dealsActions.setError(null);
-    getMonthDeals({
-      origin: toRestore.origin.trim(), destination: toRestore.destination.trim(),
-      year: cy, month: cm, durationDays: toRestore.durationDays,
-      currency, adults: toRestore.adults, children: toRestore.children, nonStop: toRestore.nonStop,
-    })
-      .then(res => dealsActions.setData(res))
+    getMonthDeals(fetchParams)
+      .then(applyResults)
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currency]);
 
   // Tracks the pax/nonStop values from the last time this effect actually fired a search.
   // Initialised to the current values so the first mount (or a remount with unchanged values)
@@ -363,8 +400,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     })
       .then(res => {
         dealsActions.setData(res);
-        if (typeof window !== 'undefined') {
-          setPendingDealsParams({
+        setCachedDealsResults(
+          {
             origin: o,
             destination: d,
             year: clampedYm.year,
@@ -373,8 +410,9 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
             adults,
             children,
             nonStop,
-          });
-        }
+          },
+          res,
+        );
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
@@ -431,12 +469,41 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // into a compact summary bar with an "Edit search" popup (same pattern as ResultsScreen).
   const mobileCompact = isMobile && (data != null || view === 'results');
 
-  const handleSearchDeals = () => {
+  const handleSearchDeals = async () => {
+    await flushActiveAutocomplete();
+
     const o = origin.trim(), d = destination.trim();
     if (!o || !d) { dealsActions.setError('Please fill origin and destination.'); return; }
 
+    const destUpper = d.toUpperCase();
+
+    // Country — navigate to Explore (deals mode) filtered by country.
+    if (isCountryDestination(destUpper)) {
+      setShowEditSearchModal(false);
+      const departureYmd = firstBookableDepartureInMonth(clampedYm.year, clampedYm.month);
+      const returnDateStr = addDaysYmdUtc(departureYmd, durationDays);
+      try {
+        navigation?.navigate?.('Explore', {
+          mode: 'deals',
+          origin: o,
+          departureDate: departureYmd,
+          returnDate: returnDateStr,
+          currency,
+          adults,
+          year: clampedYm.year,
+          month: clampedYm.month,
+          durationDays,
+          children,
+          nonStop,
+          countryFilter: parseCountryDestination(destUpper) ?? undefined,
+          searchNonce: Date.now(),
+        });
+      } catch {}
+      return;
+    }
+
     // "Anywhere" — navigate to the Explore screen (deals mode) for destination picking
-    if (d.toUpperCase() === ANYWHERE_CODE) {
+    if (destUpper === ANYWHERE_CODE) {
       setShowEditSearchModal(false);
       const departureYmd = firstBookableDepartureInMonth(clampedYm.year, clampedYm.month);
       const returnDateStr = addDaysYmdUtc(departureYmd, durationDays);
@@ -492,6 +559,19 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     })
       .then(res => {
         dealsActions.setData(res);
+        setCachedDealsResults(
+          {
+            origin: o,
+            destination: d,
+            year: clampedYm.year,
+            month: clampedYm.month,
+            durationDays,
+            adults,
+            children,
+            nonStop,
+          },
+          res,
+        );
       })
       .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
       .finally(() => dealsActions.setLoading(false));
@@ -1060,7 +1140,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   // ─── Deal cards list ────────────────────────────────────────────────────────
 
   const resultsContent = (
-    isLoading && data == null ? (
+    (isLoading || (view === 'results' && data == null)) ? (
       <View style={p.list}>
         {[1, 2, 3, 4].map((i) => (
           <View

@@ -3,8 +3,9 @@
  * Fetches from Frankfurter API (free, no key). Rates: 1 USD = X foreign.
  */
 
+import { getRuntimeConfig } from '../config/runtimeConfigStore';
+
 const FRANKFURTER_URL = 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=GBP,EUR,ILS,JPY';
-const REFRESH_MS = 60 * 60 * 1000; // 1 hour
 
 type CurrencyCode = 'USD' | 'GBP' | 'EUR' | 'ILS' | 'JPY';
 
@@ -39,7 +40,7 @@ async function fetchRates(): Promise<void> {
 }
 
 export async function ensureRates(): Promise<void> {
-  if (Date.now() - lastFetch < REFRESH_MS && lastFetch > 0) return;
+  if (Date.now() - lastFetch < getRuntimeConfig().exchangeRatesRefreshMs && lastFetch > 0) return;
   await fetchRates();
 }
 

@@ -17,7 +17,7 @@ import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
 import type { FlightOption, MonetaryAmount } from '../../../types';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
-import { ANYWHERE_CODE } from '../../../types';
+import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
@@ -25,6 +25,8 @@ import { getSearchSessionResults, createSearchSession, getUniformBookingRedirect
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
+import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
+import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
@@ -41,6 +43,7 @@ import {
   validateDynamicDestinationsSearch,
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
@@ -48,9 +51,6 @@ import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
-
-const POLL_INTERVAL_MS = 1500;
-const SLOW_RESULTS_POPUP_DELAY_MS = 60_000;
 
 /** Snapshot generation for async work that must not clobber a newer search. */
 function currentGeneration(): number {
@@ -182,7 +182,7 @@ async function findCheapestOptionForParams(
       break;
     }
     attempts += 1;
-    await delay(POLL_INTERVAL_MS);
+    await delay(getRuntimeConfig().pollIntervalMs);
   }
 
   if (!lastResults.length) return null;
@@ -196,6 +196,7 @@ async function findCheapestOptionForParams(
 export function ResultsScreen({ route }: { route: { params: Record<string, unknown> } }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language } = useLocale();
+  const runtimeConfig = useRuntimeConfig();
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
@@ -434,6 +435,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   };
 
   const handleSidebarSearch = async () => {
+    await flushActiveAutocomplete();
+
     if (isDynamicDestinations) {
       await handleDynamicDestinationsSearch();
       return;
@@ -443,8 +446,29 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       setSidebarSearchError(t('fill_origin_destination_dates'));
       return;
     }
+    const destUpper = p.destination.trim().toUpperCase();
+    // Match SearchForm: country → Explore filtered by country.
+    if (isCountryDestination(destUpper)) {
+      setSidebarSearchError(null);
+      setShowEditSearchModal(false);
+      const dr = clampExploreSearchDates(
+        p.departureDate || undefined,
+        p.returnDate || undefined,
+        tripType === 'round-trip',
+      );
+      navigation.navigate('Explore', {
+        origin: p.origin.trim().toUpperCase(),
+        departureDate: dr.departureDate,
+        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
+        adults: p.adults ?? 1,
+        currency: currency || 'USD',
+        countryFilter: parseCountryDestination(destUpper) ?? undefined,
+        searchNonce: Date.now(),
+      });
+      return;
+    }
     // Match SearchForm: Anywhere opens Explore instead of POSTing ANYWHERE to GF2.
-    if (p.destination.trim().toUpperCase() === ANYWHERE_CODE) {
+    if (destUpper === ANYWHERE_CODE) {
       setSidebarSearchError(null);
       setShowEditSearchModal(false);
       const dr = clampExploreSearchDates(
@@ -764,7 +788,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         return;
       }
       poll();
-    }, POLL_INTERVAL_MS);
+    }, runtimeConfig.pollIntervalMs);
 
     poll();
     return () => {
@@ -865,14 +889,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const found: PositioningOption[] = [];
     const startedAt = Date.now();
     // Hard cap so "Searching cheaper departure cities..." cannot run for many minutes.
-    const POSITIONING_BUDGET_MS = 45_000;
+    const positioningBudgetMs = runtimeConfig.positioningBudgetMs;
     const sessionStillActive = () => optimizerSessionRef.current === sessionId;
 
     try {
       let hubRunIndex = 0;
       for (const hub of HUB_AIRPORTS) {
         if (!sessionStillActive()) break;
-        if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+        if (Date.now() - startedAt > positioningBudgetMs) break;
         if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
         // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
         if (hubRunIndex > 0) {
@@ -900,7 +924,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             departureDate,
           });
           if (!sessionStillActive()) break;
-          if (Date.now() - startedAt > POSITIONING_BUDGET_MS) break;
+          if (Date.now() - startedAt > positioningBudgetMs) break;
           const hubFlight = await findCheapestOptionForParams({
             ...(baseOpts as CreateSearchSessionRequest),
             origin: hub,
@@ -939,7 +963,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         setPositioningLoading(false);
       }
     }
-  }, [sessionId, storeParams, results]);
+  }, [sessionId, storeParams, results, runtimeConfig.positioningBudgetMs]);
 
   useEffect(() => {
     if (status === 'COMPLETE' && results.length > 0 && storeParams) {
@@ -1008,14 +1032,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (status === 'PENDING' || status === 'PARTIAL') {
         setShowSlowPopup(true);
       }
-    }, SLOW_RESULTS_POPUP_DELAY_MS);
+    }, runtimeConfig.slowResultsPopupDelayMs);
     return () => {
       if (slowPopupTimerRef.current) {
         clearTimeout(slowPopupTimerRef.current);
         slowPopupTimerRef.current = null;
       }
     };
-  }, [status, sessionId, showSlowPopup]);
+  }, [status, sessionId, showSlowPopup, runtimeConfig.slowResultsPopupDelayMs]);
 
   // Must stay above any early return (Rules of Hooks).
   useEffect(() => {

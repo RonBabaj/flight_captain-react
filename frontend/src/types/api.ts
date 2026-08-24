@@ -213,7 +213,7 @@ export interface FlightDetailsResponse {
 
 // --- Airport / city autocomplete ---
 
-export type AirportCityType = 'AIRPORT' | 'CITY';
+export type AirportCityType = 'AIRPORT' | 'CITY' | 'COUNTRY';
 
 export interface AirportCityResult {
   id: string;
@@ -239,6 +239,23 @@ export interface AirportCitySearchResponse {
 
 // Special code used when the user selects "Anywhere" as the destination.
 export const ANYWHERE_CODE = 'ANYWHERE';
+
+/** Prefix for destination = explore/filter by country (ISO 3166-1 alpha-2). */
+export const COUNTRY_DEST_PREFIX = 'COUNTRY:';
+
+export function isCountryDestination(code: string | null | undefined): boolean {
+  return typeof code === 'string' && code.trim().toUpperCase().startsWith(COUNTRY_DEST_PREFIX);
+}
+
+export function makeCountryDestination(countryCode: string): string {
+  return `${COUNTRY_DEST_PREFIX}${countryCode.trim().toUpperCase()}`;
+}
+
+export function parseCountryDestination(code: string | null | undefined): string | null {
+  if (!isCountryDestination(code)) return null;
+  const cc = code!.trim().slice(COUNTRY_DEST_PREFIX.length).toUpperCase();
+  return /^[A-Z]{2}$/.test(cc) ? cc : null;
+}
 
 // A single destination returned by the /api/explore endpoint (Amadeus Flight Inspiration).
 export type ExplorePriceSource = 'live' | 'cached' | 'estimated';

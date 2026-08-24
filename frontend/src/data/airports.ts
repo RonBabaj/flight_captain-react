@@ -7,6 +7,7 @@
 
 import type { AirportCityResult } from '../types';
 import type { LanguageCode } from './translations';
+import { getCountryEntry, getCountryDisplayName } from './countries';
 
 export const AIRPORT_DICTIONARY: AirportCityResult[] = [
   // ── Israel ──────────────────────────────────────────────────────────────────
@@ -495,24 +496,47 @@ export const AIRPORT_DICTIONARY: AirportCityResult[] = [
   { id: 'LPB', type: 'AIRPORT', airportCode: 'LPB', cityCode: 'LPB', name: 'La Paz El Alto Intl', cityName: 'La Paz', countryCode: 'BO', cityNameRu: 'Ла-Пас' },
   { id: 'VVI', type: 'AIRPORT', airportCode: 'VVI', cityCode: 'SRZ', name: 'Santa Cruz Viru Viru Intl', cityName: 'Santa Cruz', countryCode: 'BO', cityNameRu: 'Санта-Крус' },
   { id: 'GEO', type: 'AIRPORT', airportCode: 'GEO', cityCode: 'GEO', name: 'Georgetown Cheddi Jagan Intl', cityName: 'Georgetown', countryCode: 'GY', cityNameRu: 'Джорджтаун' },
+];
 
-  // ── City (all airports) entries ──────────────────────────────────────────────
-  // These represent the metropolitan area code; selecting them searches all airports in the city.
-  { id: 'LON', type: 'CITY', cityCode: 'LON', name: 'All airports', cityName: 'London', countryCode: 'GB', cityNameHe: 'לונדון', cityNameRu: 'Лондон' },
-  { id: 'NYC', type: 'CITY', cityCode: 'NYC', name: 'All airports', cityName: 'New York', countryCode: 'US', cityNameHe: 'ניו יורק', cityNameRu: 'Нью-Йорк' },
-  { id: 'PAR', type: 'CITY', cityCode: 'PAR', name: 'All airports', cityName: 'Paris', countryCode: 'FR', cityNameHe: 'פריז', cityNameRu: 'Париж' },
-  { id: 'TYO', type: 'CITY', cityCode: 'TYO', name: 'All airports', cityName: 'Tokyo', countryCode: 'JP', cityNameHe: 'טוקיו', cityNameRu: 'Токио' },
-  { id: 'MIL', type: 'CITY', cityCode: 'MIL', name: 'All airports', cityName: 'Milan', countryCode: 'IT', cityNameHe: 'מילאנו', cityNameRu: 'Милан' },
-  { id: 'MOW', type: 'CITY', cityCode: 'MOW', name: 'All airports', cityName: 'Moscow', countryCode: 'RU', cityNameHe: 'מוסקבה', cityNameRu: 'Москва' },
-  { id: 'ROM', type: 'CITY', cityCode: 'ROM', name: 'All airports', cityName: 'Rome', countryCode: 'IT', cityNameHe: 'רומא', cityNameRu: 'Рим' },
-  { id: 'IST', type: 'CITY', cityCode: 'IST', name: 'All airports', cityName: 'Istanbul', countryCode: 'TR', cityNameHe: 'איסטנבול', cityNameRu: 'Стамбул' },
-  { id: 'BUE', type: 'CITY', cityCode: 'BUE', name: 'All airports', cityName: 'Buenos Aires', countryCode: 'AR', cityNameRu: 'Буэнос-Айрес' },
-  { id: 'STO', type: 'CITY', cityCode: 'STO', name: 'All airports', cityName: 'Stockholm', countryCode: 'SE', cityNameHe: 'שטוקהולם', cityNameRu: 'Стокгольм' },
-  { id: 'CHI', type: 'CITY', cityCode: 'CHI', name: 'All airports', cityName: 'Chicago', countryCode: 'US', cityNameHe: 'שיקגו', cityNameRu: 'Чикаго' },
-  { id: 'WAS', type: 'CITY', cityCode: 'WAS', name: 'All airports', cityName: 'Washington D.C.', countryCode: 'US', cityNameHe: 'וושינגטון', cityNameRu: 'Вашингтон' },
-  { id: 'SEL', type: 'CITY', cityCode: 'SEL', name: 'All airports', cityName: 'Seoul', countryCode: 'KR', cityNameHe: 'סיאול', cityNameRu: 'Сеул' },
-  { id: 'HOU', type: 'CITY', cityCode: 'HOU', name: 'All airports', cityName: 'Houston', countryCode: 'US', cityNameHe: 'יוסטון', cityNameRu: 'Хьюстон' },
-  { id: 'ETH', type: 'CITY', cityCode: 'ETH', name: 'All airports', cityName: 'Eilat', countryCode: 'IL', cityNameHe: 'אילת', cityNameRu: 'Эйлат' },
+/** Derive a CITY ("All airports") row for every metro in the airport list. */
+function buildDerivedCityEntries(airports: AirportCityResult[]): AirportCityResult[] {
+  const groups = new Map<string, AirportCityResult[]>();
+  for (const a of airports) {
+    if (a.type !== 'AIRPORT') continue;
+    const cityCode = (a.cityCode || a.airportCode || a.id).toUpperCase();
+    const key = `${cityCode}|${a.countryCode || ''}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(a);
+    else groups.set(key, [a]);
+  }
+
+  const cities: AirportCityResult[] = [];
+  for (const members of groups.values()) {
+    const rep = members[0];
+    const cityCode = (rep.cityCode || rep.airportCode || rep.id).toUpperCase();
+    cities.push({
+      id: `CITY-${cityCode}`,
+      type: 'CITY',
+      cityCode,
+      name: 'All airports',
+      cityName: rep.cityName || rep.name,
+      countryCode: rep.countryCode,
+      cityNameHe: rep.cityNameHe,
+      cityNameRu: rep.cityNameRu,
+    });
+  }
+  return cities;
+}
+
+/** Airports only (no city rows). */
+export const AIRPORT_ONLY_DICTIONARY: AirportCityResult[] = AIRPORT_DICTIONARY.filter(
+  (e) => e.type === 'AIRPORT',
+);
+
+/** Full offline place list: every airport plus an "All airports" city row per metro. */
+export const FULL_PLACE_DICTIONARY: AirportCityResult[] = [
+  ...AIRPORT_ONLY_DICTIONARY,
+  ...buildDerivedCityEntries(AIRPORT_ONLY_DICTIONARY),
 ];
 
 const lower = (s: string) => s.toLowerCase();
@@ -524,6 +548,14 @@ function matchesQuery(a: AirportCityResult, q: string): boolean {
   if (a.cityName && lower(a.cityName).includes(q)) return true;
   if (lower(a.name).includes(q)) return true;
   if (a.countryCode && lower(a.countryCode) === q) return true;
+  if (a.countryCode) {
+    const country = getCountryEntry(a.countryCode);
+    if (country) {
+      if (lower(country.name).includes(q)) return true;
+      if (country.nameHe && lower(country.nameHe).includes(q)) return true;
+      if (country.nameRu && lower(country.nameRu).includes(q)) return true;
+    }
+  }
   if (a.cityNameHe && lower(a.cityNameHe).includes(q)) return true;
   if (a.cityNameRu && lower(a.cityNameRu).includes(q)) return true;
   if (a.nameHe && lower(a.nameHe).includes(q)) return true;
@@ -546,12 +578,15 @@ function rankResult(a: AirportCityResult, q: string): number {
   return a.type === 'CITY' ? base - 1 : base;
 }
 
+/** Default max autocomplete rows (airports + cities combined). */
+export const PLACE_SEARCH_LIMIT = 40;
+
 /** Search the dictionary by code or city/airport name (incl. localized names); returns matches for Amadeus-ready codes. */
-export function searchAirportsLocal(query: string, limit = 15, _language?: LanguageCode): AirportCityResult[] {
+export function searchAirportsLocal(query: string, limit = PLACE_SEARCH_LIMIT, _language?: LanguageCode): AirportCityResult[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const out: AirportCityResult[] = [];
-  for (const a of AIRPORT_DICTIONARY) {
+  for (const a of FULL_PLACE_DICTIONARY) {
     if (matchesQuery(a, q)) {
       out.push(a);
     }
@@ -574,14 +609,14 @@ export function getAirportDisplayName(a: AirportCityResult, language: LanguageCo
   return a.name || '';
 }
 
-/** Returns the raw dictionary entry for an airport or city code, preferring CITY entries. */
+/** Returns the raw dictionary entry for an airport or city code. Prefers airports over metro CITY entries. */
 export function getAirportEntry(code: string | undefined | null): AirportCityResult | null {
   if (!code || typeof code !== 'string') return null;
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return null;
   return (
-    AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && x.id === trimmed) ??
-    AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed) ??
+    FULL_PLACE_DICTIONARY.find((x) => x.type === 'AIRPORT' && (x.airportCode === trimmed || x.id === trimmed)) ??
+    FULL_PLACE_DICTIONARY.find((x) => x.type === 'CITY' && (x.cityCode === trimmed || x.id === trimmed)) ??
     null
   );
 }
@@ -593,9 +628,11 @@ export function getAirportNameByCode(code: string | undefined | null, language: 
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return code;
   // Prefer CITY entry when the code is a city code
-  const cityEntry = AIRPORT_DICTIONARY.find((x) => x.type === 'CITY' && x.id === trimmed);
+  const cityEntry = FULL_PLACE_DICTIONARY.find(
+    (x) => x.type === 'CITY' && (x.cityCode === trimmed || x.id === trimmed || x.id === `CITY-${trimmed}`),
+  );
   if (cityEntry) return getCityDisplayName(cityEntry, language);
-  const a = AIRPORT_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed);
+  const a = FULL_PLACE_DICTIONARY.find((x) => x.airportCode === trimmed || x.id === trimmed);
   if (!a) return code;
   const city = getCityDisplayName(a, language);
   const airport = getAirportDisplayName(a, language);

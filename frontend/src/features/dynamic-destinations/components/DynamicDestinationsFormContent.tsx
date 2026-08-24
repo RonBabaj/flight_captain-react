@@ -87,13 +87,15 @@ export function DynamicDestinationsFormContent({
         label={t('from')}
         value={params.origin}
         onChange={(c) => update('origin', c)}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
       <AirportAutocomplete
         label={t('to')}
         value={params.destination}
         onChange={(c) => update('destination', c)}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
 
       {extras.map((leg, index) => (
@@ -115,13 +117,15 @@ export function DynamicDestinationsFormContent({
             label={t('from')}
             value={leg.origin}
             onChange={(c) => updateExtra(index, { origin: c })}
-            placeholder={t('city_or_airport')}
+            placeholder={t('city_country_or_airport')}
+            countryMode="resolve-primary"
           />
           <AirportAutocomplete
             label={t('to')}
             value={leg.destination}
             onChange={(c) => updateExtra(index, { destination: c })}
-            placeholder={t('city_or_airport')}
+            placeholder={t('city_country_or_airport')}
+            countryMode="resolve-primary"
           />
           <Text style={[formCardStyles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dd_extra_date')}</Text>
           <TouchableOpacity
@@ -158,13 +162,15 @@ export function DynamicDestinationsFormContent({
         label={t('dd_return_from')}
         value={params.returnOrigin || ''}
         onChange={(c) => update('returnOrigin', c)}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
       <AirportAutocomplete
         label={t('dd_return_to')}
         value={params.returnDestination || params.origin}
         onChange={(c) => update('returnDestination', c)}
-        placeholder={t('city_or_airport')}
+        placeholder={t('city_country_or_airport')}
+        countryMode="resolve-primary"
       />
 
       <Text style={[formCardStyles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>{t('dates')}</Text>

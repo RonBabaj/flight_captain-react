@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -8,22 +8,38 @@ import {
   ScrollView,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
-import { searchAirportsLocal, getCityDisplayName, getAirportDisplayName, getAirportEntry } from '../../../data/airports';
+import { getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
+import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { ANYWHERE_CODE } from '../../../types';
+import {
+  ANYWHERE_CODE,
+  isCountryDestination,
+  makeCountryDestination,
+  parseCountryDestination,
+} from '../../../types';
 import type { AirportCityResult } from '../../../types';
+import {
+  formatPlaceCodeForDisplay,
+  placeResultToCode,
+  resolveCountryToPrimaryAirport,
+  resolvePlaceQuery,
+  searchPlacesLocal,
+  PLACE_SEARCH_LIMIT,
+} from '../../../utils/placeSearch';
+import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 
-const DEBOUNCE_MS = 300;
 const MIN_CHARS = 2;
+
+export type CountrySelectMode = 'none' | 'resolve-primary' | 'country-code';
 
 interface AirportAutocompleteProps {
   label: string;
   value: string;
   onChange: (code: string) => void;
   placeholder?: string;
-  /** When true, shows an "Anywhere" option pinned at the top of the dropdown. Use on destination fields only. */
   showAnywhere?: boolean;
+  countryMode?: CountrySelectMode;
 }
 
 export function AirportAutocomplete({
@@ -32,62 +48,96 @@ export function AirportAutocomplete({
   onChange,
   placeholder,
   showAnywhere = false,
+  countryMode = 'none',
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
   const { language, t } = useLocale();
   const [query, setQuery] = useState(value);
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceMs = getRuntimeConfig().airportAutocompleteDebounceMs;
 
-  // Re-sync only when the stored IATA/city code changes — not when `t`/language changes, or we
-  // overwrite the user's in-progress typing while value is still ANYWHERE.
+  const applyStoredCode = useCallback(
+    (code: string) => {
+      onChange(code);
+      setQuery(formatPlaceCodeForDisplay(code, language, t));
+    },
+    [language, onChange, t],
+  );
+
   useEffect(() => {
-    if (value === '') {
+    if (!value) {
       setQuery('');
       return;
     }
-    if (value === ANYWHERE_CODE) {
-      setQuery(t('anywhere'));
-      return;
-    }
-    const entry = getAirportEntry(value);
-    if (entry) {
-      const code = (entry.airportCode || entry.cityCode || entry.id).toUpperCase();
-      const cityDisplay = getCityDisplayName(entry, language);
-      setQuery(`${cityDisplay} (${code})`);
-    } else {
-      setQuery(value);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only when `value` changes
+    setQuery(formatPlaceCodeForDisplay(value, language, t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const results = useMemo(() => {
     const q = query.trim();
     if (q.length < MIN_CHARS) return [];
-    return searchAirportsLocal(q, 15, language);
+    return searchPlacesLocal(q, PLACE_SEARCH_LIMIT, language);
   }, [query, language]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
-    }, DEBOUNCE_MS);
+    }, debounceMs);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, debounceMs]);
 
-  const handleSelect = (item: AirportCityResult) => {
-    const code = (item.airportCode || item.cityCode || item.id).toUpperCase();
-    onChange(code);
-    const cityDisplay = getCityDisplayName(item, language);
-    setQuery(`${cityDisplay} (${code})`);
-    setShowList(false);
-  };
+  const commitSelection = useCallback(
+    (item: AirportCityResult) => {
+      if (item.type === 'COUNTRY' && item.countryCode) {
+        if (countryMode === 'resolve-primary') {
+          const hub = resolveCountryToPrimaryAirport(item.countryCode);
+          if (hub) {
+            applyStoredCode(hub);
+            setShowList(false);
+            return;
+          }
+        }
+        if (countryMode === 'country-code') {
+          applyStoredCode(makeCountryDestination(item.countryCode));
+          setShowList(false);
+          return;
+        }
+      }
+      applyStoredCode(placeResultToCode(item));
+      setShowList(false);
+    },
+    [applyStoredCode, countryMode],
+  );
+
+  const tryResolveTypedQuery = useCallback(() => {
+    const resolved = resolvePlaceQuery(query, language);
+    if (!resolved) return false;
+    if (isCountryDestination(resolved)) {
+      if (countryMode === 'resolve-primary') {
+        const cc = parseCountryDestination(resolved);
+        const hub = cc ? resolveCountryToPrimaryAirport(cc) : null;
+        if (hub) {
+          applyStoredCode(hub);
+          return true;
+        }
+        return false;
+      }
+      if (countryMode === 'country-code') {
+        applyStoredCode(resolved);
+        return true;
+      }
+      return false;
+    }
+    applyStoredCode(resolved);
+    return true;
+  }, [applyStoredCode, countryMode, language, query]);
 
   const handleSelectAnywhere = () => {
-    onChange(ANYWHERE_CODE);
-    setQuery(t('anywhere'));
+    applyStoredCode(ANYWHERE_CODE);
     setShowList(false);
   };
 
@@ -115,15 +165,18 @@ export function AirportAutocomplete({
               color: theme.text,
             },
           ]}
-          placeholder={placeholder ?? t('city_or_airport')}
+          placeholder={placeholder ?? t('city_country_or_airport')}
           placeholderTextColor={theme.textMuted}
           value={query}
           onChangeText={(text) => {
             setQuery(text);
             setShowList(true);
           }}
-          onFocus={() => {
-            setShowList(true);
+          onFocus={() => setShowList(true)}
+          onBlur={() => tryResolveTypedQuery()}
+          onSubmitEditing={() => {
+            tryResolveTypedQuery();
+            setShowList(false);
           }}
         />
       </View>
@@ -145,7 +198,6 @@ export function AirportAutocomplete({
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
             >
-              {/* Anywhere option pinned at top */}
               {showAnywhere && queryMatchesAnywhere && (
                 <TouchableOpacity
                   style={[styles.optionRow, styles.anywhereRow, { borderBottomColor: theme.cardBorder, borderBottomWidth: 1 }]}
@@ -156,43 +208,45 @@ export function AirportAutocomplete({
                     <AppIcon name="globe-outline" size={20} color={theme.primary} fallbackText="Anywhere" />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, { color: theme.primary }]}>
-                      {t('anywhere')}
-                    </Text>
-                    <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>
-                      {t('anywhere_subtitle')}
-                    </Text>
+                    <Text style={[styles.optionTitle, { color: theme.primary }]}>{t('anywhere')}</Text>
+                    <Text style={[styles.optionSubtitle, { color: theme.textMuted }]}>{t('anywhere_subtitle')}</Text>
                   </View>
                 </TouchableOpacity>
               )}
 
-              {/* Regular airport/city results */}
               {query.trim().length >= MIN_CHARS && results.map((item) => {
                 const isCity = item.type === 'CITY';
-                const code = item.airportCode || item.cityCode || item.id;
-                const cityDisplay = getCityDisplayName(item, language);
-                const nameDisplay = isCity ? t('all_airports') : getAirportDisplayName(item, language);
+                const isCountry = item.type === 'COUNTRY';
+                const code = item.airportCode || item.cityCode || item.countryCode || item.id;
+                const cityDisplay = isCountry && item.countryCode
+                  ? getCountryDisplayName(getCountryEntry(item.countryCode)!, language)
+                  : getCityDisplayName(item, language);
+                const nameDisplay = isCountry
+                  ? t('all_cities_airports')
+                  : isCity
+                    ? t('all_airports')
+                    : getAirportDisplayName(item, language);
                 return (
                   <TouchableOpacity
-                    key={`${item.id}-${code}`}
+                    key={`${item.type}-${item.id}-${code}`}
                     style={[styles.optionRow, { borderBottomColor: theme.cardBorder }]}
-                    onPress={() => handleSelect(item)}
+                    onPress={() => commitSelection(item)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.optionIcon}>
                       <AppIcon
-                        name={isCity ? 'location-outline' : 'airplane-outline'}
+                        name={isCountry ? 'flag-outline' : isCity ? 'location-outline' : 'airplane-outline'}
                         size={20}
-                        color={isCity ? theme.primary : theme.textMuted}
-                        fallbackText={isCity ? 'City' : 'Airport'}
+                        color={isCountry || isCity ? theme.primary : theme.textMuted}
+                        fallbackText={isCountry ? 'Country' : isCity ? 'City' : 'Airport'}
                       />
                     </View>
                     <View style={styles.optionTextWrap}>
                       <Text style={[styles.optionTitle, { color: theme.text }]}>
-                        {cityDisplay} ({code}){isCity ? '' : ''}
+                        {cityDisplay}{isCountry ? ` (${item.countryCode})` : ` (${code})`}
                       </Text>
-                      <Text style={[styles.optionSubtitle, { color: isCity ? theme.primary : theme.textMuted }]}>
-                        {nameDisplay} · {item.countryCode}
+                      <Text style={[styles.optionSubtitle, { color: isCity || isCountry ? theme.primary : theme.textMuted }]}>
+                        {nameDisplay}{item.countryCode ? ` · ${item.countryCode}` : ''}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -200,10 +254,7 @@ export function AirportAutocomplete({
               })}
             </ScrollView>
           </View>
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => setShowList(false)}
-          >
+          <TouchableOpacity style={styles.closeBtn} onPress={() => setShowList(false)}>
             <Text style={[styles.closeBtnText, { color: theme.primary }]}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
@@ -232,10 +283,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    maxHeight: 320,
+    maxHeight: 420,
     overflow: 'hidden',
   },
-  dropdownScroll: { maxHeight: 320 },
+  dropdownScroll: { maxHeight: 420 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,9 +294,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  anywhereRow: {
-    borderBottomWidth: 1,
-  },
+  anywhereRow: { borderBottomWidth: 1 },
   optionIcon: { marginRight: 12 },
   optionTextWrap: { flex: 1 },
   optionTitle: { fontSize: 17, fontWeight: '600' },
