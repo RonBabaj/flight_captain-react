@@ -24,7 +24,13 @@ export const CURRENCIES: { code: CurrencyCode; label: string; symbol?: string }[
 const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   nav_search: { en: 'Search', he: 'חיפוש', ru: 'Поиск' },
   nav_home: { en: 'Home', he: 'בית', ru: 'Главная' },
-  nav_sections: { en: 'Navigation', he: 'ניווט', ru: 'Навигация' },
+  nav_sections: { en: 'Menu', he: 'תפריט', ru: 'Меню' },
+  nav_settings: { en: 'Settings', he: 'הגדרות', ru: 'Настройки' },
+  nav_settings_admin_hint: {
+    en: 'Admin sign-in required',
+    he: 'נדרשת התחברות מנהל',
+    ru: 'Требуется вход администратора',
+  },
   nav_monthly_deals: { en: 'Monthly Deals', he: 'דילים חודשיים', ru: 'Предложения месяца' },
   nav_dynamic_destinations: {
     en: 'Dynamic Destinations',

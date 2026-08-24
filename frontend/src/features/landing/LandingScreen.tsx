@@ -14,6 +14,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
+import { useIsMobile } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -24,6 +25,7 @@ export function LandingScreen() {
   const { t, isRTL } = useLocale();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const isMobile = useIsMobile();
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
@@ -74,9 +76,18 @@ export function LandingScreen() {
           <Text style={[styles.heroSubtitle, { color: theme.textMuted, textAlign }]}>
             {t('landing_hero_subtitle')}
           </Text>
-          <View style={[styles.heroCtas, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View
+            style={[
+              styles.heroCtas,
+              isMobile ? styles.heroCtasMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
+            ]}
+          >
             <TouchableOpacity
-              style={[styles.btnPrimary, { backgroundColor: theme.buttonBg }]}
+              style={[
+                styles.btnPrimary,
+                { backgroundColor: theme.buttonBg },
+                isMobile && styles.btnFullWidth,
+              ]}
               onPress={goSearch}
               activeOpacity={0.85}
             >
@@ -86,7 +97,11 @@ export function LandingScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnSecondary, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}
+              style={[
+                styles.btnSecondary,
+                { borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
+                isMobile && styles.btnFullWidth,
+              ]}
               onPress={goDeals}
               activeOpacity={0.85}
             >
@@ -95,7 +110,11 @@ export function LandingScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnSecondary, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}
+              style={[
+                styles.btnSecondary,
+                { borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
+                isMobile && styles.btnFullWidth,
+              ]}
               onPress={goDynamic}
               activeOpacity={0.85}
             >
@@ -129,6 +148,7 @@ export function LandingScreen() {
               key={f.titleKey}
               style={[
                 styles.featureCard,
+                isMobile && styles.featureCardMobile,
                 {
                   backgroundColor: theme.cardBg,
                   borderColor: theme.cardBorder,
@@ -185,16 +205,30 @@ export function LandingScreen() {
         >
           <Text style={[styles.bottomCtaTitle, { color: theme.text, textAlign }]}>{t('landing_bottom_title')}</Text>
           <Text style={[styles.bottomCtaSub, { color: theme.textMuted, textAlign }]}>{t('landing_bottom_subtitle')}</Text>
-          <View style={[styles.bottomCtaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View
+            style={[
+              styles.bottomCtaRow,
+              isMobile ? styles.bottomCtaRowMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
+            ]}
+          >
             <TouchableOpacity
-              style={[styles.btnPrimary, styles.btnPrimarySmall, { backgroundColor: theme.buttonBg }]}
+              style={[
+                styles.btnPrimary,
+                styles.btnPrimarySmall,
+                { backgroundColor: theme.buttonBg },
+                isMobile && styles.btnFullWidth,
+              ]}
               onPress={goSearch}
               activeOpacity={0.85}
             >
               <Text style={[styles.btnPrimaryText, { color: theme.buttonText }]}>{t('landing_cta_search')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnGhost, { borderColor: theme.primary + '55' }]}
+              style={[
+                styles.btnGhost,
+                { borderColor: theme.primary + '55' },
+                isMobile && styles.btnFullWidth,
+              ]}
               onPress={goDeals}
               activeOpacity={0.85}
             >
@@ -268,6 +302,15 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
     marginBottom: 32,
+  },
+  heroCtasMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  btnFullWidth: {
+    width: '100%',
+    justifyContent: 'center',
   },
   btnPrimary: {
     flexDirection: 'row',
@@ -363,6 +406,10 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
+  featureCardMobile: {
+    flexBasis: '100%',
+    minWidth: 0,
+  },
   featureIconWrap: {
     width: 48,
     height: 48,
@@ -432,6 +479,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     alignItems: 'center',
+  },
+  bottomCtaRowMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
   },
   footer: {
     paddingVertical: 28,

@@ -4,6 +4,7 @@ import { AppIcon } from '../components/AppIcon';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { LANGUAGES, CURRENCIES } from '../data/translations';
@@ -29,14 +30,72 @@ const TITLE_KEYS: Record<string, string> = {
   DynamicDestinations: 'nav_dynamic_destinations',
   DynamicDestinationsForm: 'nav_dynamic_destinations',
   FlyFixRefine: 'flyfix_refine_nav_title',
-  AdminSettings: 'nav_admin_settings',
+  AdminSettings: 'nav_settings',
 };
+
+type NavIconName =
+  | 'home-outline'
+  | 'search-outline'
+  | 'calendar-outline'
+  | 'airplane-outline'
+  | 'settings-outline';
+
+function MobileNavRow({
+  icon,
+  label,
+  active,
+  hint,
+  onPress,
+}: {
+  icon: NavIconName;
+  label: string;
+  active?: boolean;
+  hint?: string;
+  onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[
+        styles.mobileMenuItem,
+        {
+          backgroundColor: active ? theme.primary + '14' : 'transparent',
+          borderColor: active ? theme.primary + '44' : 'transparent',
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.mobileMenuIconWrap, { backgroundColor: theme.controlBg }]}>
+        <AppIcon name={icon} size={20} color={active ? theme.primary : theme.textMuted} fallbackText="" />
+      </View>
+      <View style={styles.mobileMenuTextWrap}>
+        <Text
+          style={[
+            styles.mobileMenuItemText,
+            { color: active ? theme.primary : theme.text },
+            active && styles.mobileMenuItemTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+        {hint ? (
+          <Text style={[styles.mobileMenuHint, { color: theme.textMuted }]} numberOfLines={1}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+      <AppIcon name="chevron-forward" size={18} color={theme.textMuted} fallbackText="" />
+    </TouchableOpacity>
+  );
+}
 
 export function TopNavMenu() {
   const { theme, toggleTheme } = useTheme();
   const { t, language, currency, setLanguage, setCurrency, isRTL } = useLocale();
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
+  const insets = useSafeAreaInsets();
   const sessionId = useSearchStore((s) => s.sessionId);
   const { isAdmin } = useAdminAuth();
   const currentRoot = route.name;
@@ -67,11 +126,11 @@ export function TopNavMenu() {
   const isDynamic = currentRoot === 'DynamicDestinations';
   const isAdminSettings = currentRoot === 'AdminSettings';
 
+  const closeMobileMenu = () => setShowMobileMenu(false);
+
   const handleGoToHome = () => {
-    if (!isHome) {
-      navigation.navigate('Home' as never);
-    }
-    setShowMobileMenu(false);
+    if (!isHome) navigation.navigate('Home' as never);
+    closeMobileMenu();
   };
 
   const handleGoToSearch = () => {
@@ -84,31 +143,25 @@ export function TopNavMenu() {
     } else {
       navigation.navigate('Search' as never);
     }
-    setShowMobileMenu(false);
+    closeMobileMenu();
   };
 
   const handleGoToDeals = () => {
-    if (!isDeals) {
-      navigation.navigate('MonthDeals' as never);
-    }
-    setShowMobileMenu(false);
+    if (!isDeals) navigation.navigate('MonthDeals' as never);
+    closeMobileMenu();
   };
 
   const handleGoToDynamic = () => {
-    if (!isDynamic) {
-      navigation.navigate('DynamicDestinations' as never);
-    }
-    setShowMobileMenu(false);
+    if (!isDynamic) navigation.navigate('DynamicDestinations' as never);
+    closeMobileMenu();
   };
 
   const handleGoToAdminSettings = () => {
-    if (!isAdminSettings) {
-      navigation.navigate('AdminSettings' as never);
-    }
-    setShowMobileMenu(false);
+    if (!isAdminSettings) navigation.navigate('AdminSettings' as never);
+    closeMobileMenu();
   };
 
-  const adminNavItem = isAdmin ? (
+  const settingsNavItem = (
     <TouchableOpacity
       style={styles.tab}
       onPress={handleGoToAdminSettings}
@@ -121,10 +174,10 @@ export function TopNavMenu() {
           isAdminSettings && { color: theme.tabActive },
         ]}
       >
-        {t('nav_admin_settings')}
+        {t('nav_settings')}
       </Text>
     </TouchableOpacity>
-  ) : null;
+  );
 
   return (
     <>
@@ -146,6 +199,7 @@ export function TopNavMenu() {
                 style={styles.mobileMenuBtn}
                 onPress={() => setShowMobileMenu(true)}
                 activeOpacity={0.8}
+                accessibilityLabel={t('nav_sections')}
               >
                 <AppIcon name="menu-outline" size={22} color={theme.tabInactive} fallbackText="Menu" />
               </TouchableOpacity>
@@ -180,10 +234,7 @@ export function TopNavMenu() {
                   fallbackText={theme.isDark ? 'Light' : 'Dark'}
                 />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.localeBtn}
-                onPress={() => setShowLocaleModal(true)}
-              >
+              <TouchableOpacity style={styles.localeBtn} onPress={() => setShowLocaleModal(true)}>
                 <AppIcon name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
             </View>
@@ -193,67 +244,27 @@ export function TopNavMenu() {
               </Text>
             </View>
             <View style={styles.menuWrap}>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToHome}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isHome && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToHome} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isHome && { color: theme.tabActive }]}>
                   {t('nav_home')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToSearch}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isSearch && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToSearch} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isSearch && { color: theme.tabActive }]}>
                   {t('nav_search')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToDeals}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isDeals && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToDeals} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isDeals && { color: theme.tabActive }]}>
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToDynamic}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isDynamic && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToDynamic} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isDynamic && { color: theme.tabActive }]}>
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
-              {adminNavItem}
+              {settingsNavItem}
             </View>
           </>
         ) : (
@@ -264,73 +275,30 @@ export function TopNavMenu() {
               </Text>
             </View>
             <View style={styles.menuWrap}>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToHome}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isHome && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToHome} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isHome && { color: theme.tabActive }]}>
                   {t('nav_home')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToSearch}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isSearch && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToSearch} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isSearch && { color: theme.tabActive }]}>
                   {t('nav_search')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToDeals}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isDeals && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToDeals} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isDeals && { color: theme.tabActive }]}>
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tab}
-                onPress={handleGoToDynamic}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: theme.tabInactive },
-                    isDynamic && { color: theme.tabActive },
-                  ]}
-                >
+              <TouchableOpacity style={styles.tab} onPress={handleGoToDynamic} activeOpacity={0.8}>
+                <Text style={[styles.tabText, { color: theme.tabInactive }, isDynamic && { color: theme.tabActive }]}>
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
-              {adminNavItem}
+              {settingsNavItem}
             </View>
             <View style={styles.rightActions}>
-              <TouchableOpacity
-                style={styles.localeBtn}
-                onPress={() => setShowLocaleModal(true)}
-              >
+              <TouchableOpacity style={styles.localeBtn} onPress={() => setShowLocaleModal(true)}>
                 <AppIcon name="globe-outline" size={20} color={theme.tabInactive} fallbackText="Locale" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
@@ -346,155 +314,115 @@ export function TopNavMenu() {
         )}
       </View>
 
-    <Modal visible={showLocaleModal} transparent animationType="fade">
-      <Pressable style={styles.localeOverlay} onPress={() => setShowLocaleModal(false)}>
-        <View style={[styles.localeModal, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]} onStartShouldSetResponder={() => true}>
-          <View style={[styles.localeModalHeader, { borderBottomColor: theme.cardBorder }]}>
-            <Text style={[styles.localeModalTitle, { color: theme.text }]}>{t('locale_language')} / {t('locale_currency')}</Text>
-            <TouchableOpacity onPress={() => setShowLocaleModal(false)} style={styles.localeModalClose}>
-              <AppIcon name="close" size={24} color={theme.textMuted} fallbackText="Close" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.localeModalScroll} contentContainerStyle={styles.localeModalContent}>
-            <Text style={[styles.localeSectionLabel, { color: theme.textMuted }]}>{t('locale_language')}</Text>
-            {LANGUAGES.map(({ code, label }) => (
-              <TouchableOpacity
-                key={code}
-                style={[styles.localeOption, language === code && { backgroundColor: theme.tabActive + '20' }]}
-                onPress={() => setLanguage(code as LanguageCode)}
-              >
-                <Text style={[styles.localeOptionText, { color: theme.text }]}>{label}</Text>
-                {language === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-            <Text style={[styles.localeSectionLabel, { color: theme.textMuted, marginTop: 16 }]}>{t('locale_currency')}</Text>
-            {CURRENCIES.map(({ code, label, symbol }) => (
-              <TouchableOpacity
-                key={code}
-                style={[styles.localeOption, currency === code && { backgroundColor: theme.tabActive + '20' }]}
-                onPress={() => setCurrency(code as CurrencyCode)}
-              >
-                <Text style={[styles.localeOptionText, { color: theme.text }]}>{symbol ?? code} – {label}</Text>
-                {currency === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </Pressable>
-    </Modal>
-
-    {isMobile && (
-      <Modal visible={showMobileMenu} transparent animationType="slide">
-        <Pressable
-          style={styles.mobileMenuOverlay}
-          onPress={() => setShowMobileMenu(false)}
-        >
+      <Modal visible={showLocaleModal} transparent animationType="fade">
+        <Pressable style={styles.localeOverlay} onPress={() => setShowLocaleModal(false)}>
           <View
-            style={[
-              styles.mobileMenuPanel,
-              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
-            ]}
+            style={[styles.localeModal, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
             onStartShouldSetResponder={() => true}
           >
-            <View
-              style={[
-                styles.localeModalHeader,
-                { borderBottomColor: theme.cardBorder },
-              ]}
-            >
+            <View style={[styles.localeModalHeader, { borderBottomColor: theme.cardBorder }]}>
               <Text style={[styles.localeModalTitle, { color: theme.text }]}>
-                {t('nav_sections')}
+                {t('locale_language')} / {t('locale_currency')}
               </Text>
-              <TouchableOpacity
-                onPress={() => setShowMobileMenu(false)}
-                style={styles.localeModalClose}
-              >
+              <TouchableOpacity onPress={() => setShowLocaleModal(false)} style={styles.localeModalClose}>
                 <AppIcon name="close" size={24} color={theme.textMuted} fallbackText="Close" />
               </TouchableOpacity>
             </View>
-            <View style={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
-              <TouchableOpacity
-                style={styles.mobileMenuItem}
-                onPress={handleGoToHome}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.mobileMenuItemText,
-                    { color: theme.text },
-                    isHome && { fontWeight: '700', color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_home')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.mobileMenuItem}
-                onPress={handleGoToSearch}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.mobileMenuItemText,
-                    { color: theme.text },
-                    isSearch && { fontWeight: '700', color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_search')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.mobileMenuItem}
-                onPress={handleGoToDeals}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.mobileMenuItemText,
-                    { color: theme.text },
-                    isDeals && { fontWeight: '700', color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_monthly_deals')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.mobileMenuItem}
-                onPress={handleGoToDynamic}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.mobileMenuItemText,
-                    { color: theme.text },
-                    isDynamic && { fontWeight: '700', color: theme.tabActive },
-                  ]}
-                >
-                  {t('nav_dynamic_destinations')}
-                </Text>
-              </TouchableOpacity>
-              {isAdmin ? (
+            <ScrollView style={styles.localeModalScroll} contentContainerStyle={styles.localeModalContent}>
+              <Text style={[styles.localeSectionLabel, { color: theme.textMuted }]}>{t('locale_language')}</Text>
+              {LANGUAGES.map(({ code, label }) => (
                 <TouchableOpacity
-                  style={styles.mobileMenuItem}
-                  onPress={handleGoToAdminSettings}
-                  activeOpacity={0.8}
+                  key={code}
+                  style={[styles.localeOption, language === code && { backgroundColor: theme.tabActive + '20' }]}
+                  onPress={() => setLanguage(code as LanguageCode)}
                 >
-                  <Text
-                    style={[
-                      styles.mobileMenuItemText,
-                      { color: theme.text },
-                      isAdminSettings && { fontWeight: '700', color: theme.tabActive },
-                    ]}
-                  >
-                    {t('nav_admin_settings')}
-                  </Text>
+                  <Text style={[styles.localeOptionText, { color: theme.text }]}>{label}</Text>
+                  {language === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
                 </TouchableOpacity>
-              ) : null}
-            </View>
+              ))}
+              <Text style={[styles.localeSectionLabel, { color: theme.textMuted, marginTop: 16 }]}>
+                {t('locale_currency')}
+              </Text>
+              {CURRENCIES.map(({ code, label, symbol }) => (
+                <TouchableOpacity
+                  key={code}
+                  style={[styles.localeOption, currency === code && { backgroundColor: theme.tabActive + '20' }]}
+                  onPress={() => setCurrency(code as CurrencyCode)}
+                >
+                  <Text style={[styles.localeOptionText, { color: theme.text }]}>
+                    {symbol ?? code} – {label}
+                  </Text>
+                  {currency === code && <Text style={{ color: theme.tabActive }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
-    )}
+
+      {isMobile && (
+        <Modal visible={showMobileMenu} transparent animationType="slide">
+          <Pressable style={styles.mobileMenuOverlay} onPress={closeMobileMenu}>
+            <View
+              style={[
+                styles.mobileMenuPanel,
+                {
+                  backgroundColor: theme.cardBg,
+                  borderColor: theme.cardBorder,
+                  paddingBottom: Math.max(insets.bottom, 16),
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
+              <View style={[styles.mobileMenuHandle, { backgroundColor: theme.cardBorder }]} />
+              <View style={[styles.localeModalHeader, { borderBottomColor: theme.cardBorder }]}>
+                <Text style={[styles.localeModalTitle, { color: theme.text }]}>{t('nav_sections')}</Text>
+                <TouchableOpacity onPress={closeMobileMenu} style={styles.localeModalClose}>
+                  <AppIcon name="close" size={24} color={theme.textMuted} fallbackText="Close" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                style={styles.mobileMenuScroll}
+                contentContainerStyle={styles.mobileMenuScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <MobileNavRow
+                  icon="home-outline"
+                  label={t('nav_home')}
+                  active={isHome}
+                  onPress={handleGoToHome}
+                />
+                <MobileNavRow
+                  icon="search-outline"
+                  label={t('nav_search')}
+                  active={isSearch}
+                  onPress={handleGoToSearch}
+                />
+                <MobileNavRow
+                  icon="calendar-outline"
+                  label={t('nav_monthly_deals')}
+                  active={isDeals}
+                  onPress={handleGoToDeals}
+                />
+                <MobileNavRow
+                  icon="airplane-outline"
+                  label={t('nav_dynamic_destinations')}
+                  active={isDynamic}
+                  onPress={handleGoToDynamic}
+                />
+                <View style={[styles.mobileMenuDivider, { backgroundColor: theme.cardBorder }]} />
+                <MobileNavRow
+                  icon="settings-outline"
+                  label={t('nav_settings')}
+                  active={isAdminSettings}
+                  hint={isAdmin ? t('nav_admin_settings') : t('nav_settings_admin_hint')}
+                  onPress={handleGoToAdminSettings}
+                />
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </>
   );
 }
@@ -549,12 +477,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  localeBtnText: { fontSize: 18 },
   themeToggle: {
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  themeToggleRTL: {},
   localeOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -580,7 +506,6 @@ const styles = StyleSheet.create({
   },
   localeModalTitle: { fontSize: 18, fontWeight: '700' },
   localeModalClose: { padding: 8 },
-  localeModalCloseText: { fontSize: 20 },
   localeModalScroll: { maxHeight: 400 },
   localeModalContent: { padding: 16, paddingBottom: 24 },
   localeSectionLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
@@ -605,25 +530,70 @@ const styles = StyleSheet.create({
   },
   mobileMenuPanel: {
     width: '100%',
-    maxWidth: 420,
-    maxHeight: '55%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    maxWidth: 480,
+    maxHeight: '72%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     borderWidth: 1,
     overflow: 'hidden',
   },
+  mobileMenuHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 10,
+    marginBottom: 4,
+  },
   mobileMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
     alignItems: 'center',
+  },
+  mobileMenuScroll: {
+    flexGrow: 0,
+  },
+  mobileMenuScrollContent: {
     paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 6,
   },
   mobileMenuItem: {
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  mobileMenuIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileMenuTextWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   mobileMenuItemText: {
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  mobileMenuItemTextActive: {
+    fontWeight: '700',
+  },
+  mobileMenuHint: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  mobileMenuDivider: {
+    height: 1,
+    marginVertical: 8,
+    marginHorizontal: 4,
   },
 });
