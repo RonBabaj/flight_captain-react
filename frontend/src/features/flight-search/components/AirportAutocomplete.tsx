@@ -25,6 +25,7 @@ import {
   resolveCountryToPrimaryAirport,
   resolvePlaceQuery,
   searchPlacesLocal,
+  PLACE_SEARCH_LIMIT,
 } from '../../../utils/placeSearch';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 
@@ -76,7 +77,7 @@ export function AirportAutocomplete({
   const results = useMemo(() => {
     const q = query.trim();
     if (q.length < MIN_CHARS) return [];
-    return searchPlacesLocal(q, 15, language);
+    return searchPlacesLocal(q, PLACE_SEARCH_LIMIT, language);
   }, [query, language]);
 
   useEffect(() => {
@@ -282,10 +283,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    maxHeight: 320,
+    maxHeight: 420,
     overflow: 'hidden',
   },
-  dropdownScroll: { maxHeight: 320 },
+  dropdownScroll: { maxHeight: 420 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
