@@ -39,7 +39,10 @@ const linking = {
           Results: 'results',
         },
       },
-      AdminSettings: 'admin/settings',
+      Settings: {
+        path: 'settings',
+        alias: ['admin/settings'],
+      },
     },
   },
 };

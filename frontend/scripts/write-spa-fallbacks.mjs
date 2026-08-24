@@ -32,6 +32,8 @@ const SPA_ROUTES = [
   'monthly-deals/Explore',
   'dynamic-destinations',
   'dynamic-destinations/results',
+  'settings',
+  'admin/settings',
   // Legacy bookmarks / old links (.htaccess redirected these on Apache only)
   'results',
   'deals',

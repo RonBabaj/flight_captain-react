@@ -47,7 +47,7 @@ export type RootStackParamList = {
   MonthDeals: undefined;
   DynamicDestinations: undefined;
   FlyFixRefine: undefined;
-  AdminSettings: undefined;
+  Settings: undefined;
 };
 
 export type SearchFormProps = NativeStackScreenProps<SearchStackParamList, 'SearchForm'>;
