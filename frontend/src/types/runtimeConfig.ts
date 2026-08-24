@@ -1,4 +1,4 @@
-export type UserRole = 'guest' | 'admin';
+export type UserRole = 'guest' | 'user' | 'admin';
 
 export interface RuntimeConfig {
   pollIntervalMs: number;

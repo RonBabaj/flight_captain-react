@@ -84,70 +84,12 @@ function ConfigFieldRow({
   );
 }
 
-function AdminLoginPanel({ compact }: { compact?: boolean }) {
-  const { theme } = useTheme();
-  const { t } = useLocale();
-  const { signIn } = useAdminAuth();
-  const [token, setToken] = useState('');
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSignIn = async () => {
-    setSubmitting(true);
-    setError('');
-    try {
-      const ok = await signIn(token);
-      if (!ok) setError(t('admin_login_failed'));
-    } catch {
-      setError(t('admin_login_failed'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <View
-      style={[
-        styles.loginCard,
-        compact && styles.loginCardCompact,
-        { backgroundColor: theme.screenBg, borderColor: theme.cardBorder },
-      ]}
-    >
-      <Text style={[styles.loginTitle, { color: theme.text }]}>{t('settings_admin_sign_in_title')}</Text>
-      <Text style={[styles.loginSubtitle, { color: theme.textMuted }]}>{t('admin_login_subtitle')}</Text>
-      <TextInput
-        style={[
-          styles.loginInput,
-          { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
-        ]}
-        value={token}
-        onChangeText={setToken}
-        placeholder={t('admin_token_placeholder')}
-        placeholderTextColor={theme.textMuted}
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
-      <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
-        onPress={handleSignIn}
-        disabled={submitting || !token.trim()}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.primaryBtnText}>{t('admin_sign_in')}</Text>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
-}
+import { LoginForm, ChangePasswordForm } from '../../auth/components/LoginForm';
 
 export function AdminRuntimeConfigPanel() {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { isAdmin, token, signOut } = useAdminAuth();
+  const { isAdmin, token, signOut, mustChangePassword, email } = useAdminAuth();
   const liveConfig = useRuntimeConfig();
   const { applyConfig, refresh } = useRuntimeConfigActions();
   const [draft, setDraft] = useState<RuntimeConfig>(liveConfig);
@@ -222,13 +164,26 @@ export function AdminRuntimeConfigPanel() {
   };
 
   if (!isAdmin) {
-    return <AdminLoginPanel compact />;
+    return <LoginForm compact requireAdmin />;
+  }
+
+  if (mustChangePassword) {
+    return (
+      <View style={styles.panel}>
+        <Text style={[styles.adminStatus, { color: theme.textMuted }]}>
+          {t('auth_must_change_password_notice')}
+        </Text>
+        <ChangePasswordForm compact />
+      </View>
+    );
   }
 
   return (
     <View style={styles.panel}>
       <View style={styles.adminHeaderRow}>
-        <Text style={[styles.adminStatus, { color: theme.textMuted }]}>{t('settings_admin_signed_in')}</Text>
+        <Text style={[styles.adminStatus, { color: theme.textMuted }]}>
+          {t('settings_admin_signed_in')} {email ? `(${email})` : ''}
+        </Text>
         <TouchableOpacity onPress={signOut} style={styles.linkBtn}>
           <Text style={{ color: theme.primary }}>{t('admin_sign_out')}</Text>
         </TouchableOpacity>
@@ -340,24 +295,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     alignItems: 'center',
-  },
-  loginCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-  },
-  loginCardCompact: {
-    marginTop: 0,
-  },
-  loginTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  loginSubtitle: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
-  loginInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginBottom: 8,
   },
   linkBtn: { padding: 8 },
   errorText: { marginTop: 8, fontSize: 13 },
