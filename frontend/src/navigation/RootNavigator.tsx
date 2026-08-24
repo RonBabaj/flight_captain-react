@@ -6,7 +6,7 @@ import type { RootStackParamList } from './types';
 import { MonthDealsStack } from './MonthDealsStack';
 import { DynamicDestinationsStack } from './DynamicDestinationsStack';
 import { LandingScreen } from '../features/landing';
-import { AdminSettingsScreen } from '../features/admin/screens/AdminSettingsScreen';
+import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -21,7 +21,7 @@ export function RootNavigator() {
       <Stack.Screen name="Search" component={SearchStack} />
       <Stack.Screen name="MonthDeals" component={MonthDealsStack} />
       <Stack.Screen name="DynamicDestinations" component={DynamicDestinationsStack} />
-      <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }
