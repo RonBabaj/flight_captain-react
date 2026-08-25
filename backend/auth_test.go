@@ -41,6 +41,42 @@ func TestBootstrapAdminUser(t *testing.T) {
 	}
 }
 
+func TestBootstrapAdminPasswordSync(t *testing.T) {
+	bootstrapPassword := initTestAuthDB(t)
+	newPassword := randomTestPassword(t)
+	t.Setenv("ADMIN_SYNC_BOOTSTRAP_PASSWORD", "1")
+	t.Setenv("ADMIN_TEMP_PASSWORD", newPassword)
+	initAuthStore()
+
+	loginBody, err := json.Marshal(map[string]string{
+		"email":    "admin-test@fly-fix.test",
+		"password": bootstrapPassword,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(loginBody))
+	rec := httptest.NewRecorder()
+	handleAuthLogin(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("old password should fail after sync, got status %d", rec.Code)
+	}
+
+	loginBody2, err := json.Marshal(map[string]string{
+		"email":    "admin-test@fly-fix.test",
+		"password": newPassword,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(loginBody2))
+	rec2 := httptest.NewRecorder()
+	handleAuthLogin(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("synced password login status %d body %s", rec2.Code, rec2.Body.String())
+	}
+}
+
 func TestAuthLoginAndChangePassword(t *testing.T) {
 	bootstrapPassword := initTestAuthDB(t)
 	newPassword := randomTestPassword(t)

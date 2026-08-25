@@ -123,7 +123,10 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       setToken(res.token);
       applyUser(setRole, setEmail, setMustChangePassword, res.user);
       return res.user;
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && (e.message === 'AUTH_NOT_AVAILABLE' || e.message === 'AUTH_NOT_CONFIGURED')) {
+        throw e;
+      }
       return null;
     }
   }, []);

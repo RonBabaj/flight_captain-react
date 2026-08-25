@@ -107,6 +107,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'אימייל או סיסמה לא תקינים.',
     ru: 'Неверный email или пароль.',
   },
+  auth_not_available: {
+    en: 'Sign-in is not available yet — the server needs to be updated with the latest API.',
+    he: 'ההתחברות אינה זמינה עדיין — יש לעדכן את השרת לגרסת API האחרונה.',
+    ru: 'Вход пока недоступен — на сервере нужна последняя версия API.',
+  },
+  auth_not_configured: {
+    en: 'Admin sign-in is not configured on the server (set ADMIN_EMAIL and ADMIN_TEMP_PASSWORD).',
+    he: 'התחברות מנהל לא מוגדרת בשרת (הגדירו ADMIN_EMAIL ו-ADMIN_TEMP_PASSWORD).',
+    ru: 'Вход администратора не настроен на сервере (задайте ADMIN_EMAIL и ADMIN_TEMP_PASSWORD).',
+  },
   auth_not_admin: {
     en: 'This account does not have admin access.',
     he: 'לחשבון זה אין גישת מנהל.',

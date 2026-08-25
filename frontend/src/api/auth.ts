@@ -16,11 +16,22 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-    timeoutMs: 15_000,
-  });
+  try {
+    return await apiRequest<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+      timeoutMs: 15_000,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/API 404|404 page not found/i.test(msg)) {
+      throw new Error('AUTH_NOT_AVAILABLE');
+    }
+    if (/API 503|authentication is not available/i.test(msg)) {
+      throw new Error('AUTH_NOT_CONFIGURED');
+    }
+    throw e;
+  }
 }
 
 export async function fetchAuthMe(token: string): Promise<AuthUser> {

@@ -42,7 +42,15 @@ export function LoginForm({
         return;
       }
       onSuccess?.();
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.message === 'AUTH_NOT_AVAILABLE') {
+        setError(t('auth_not_available'));
+        return;
+      }
+      if (e instanceof Error && e.message === 'AUTH_NOT_CONFIGURED') {
+        setError(t('auth_not_configured'));
+        return;
+      }
       setError(t('auth_login_failed'));
     } finally {
       setSubmitting(false);
