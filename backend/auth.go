@@ -60,23 +60,46 @@ func initAuthStore() {
 
 func bootstrapAdminUser() {
 	email := strings.TrimSpace(strings.ToLower(os.Getenv("ADMIN_EMAIL")))
-	password := os.Getenv("ADMIN_TEMP_PASSWORD")
+	password := strings.TrimSpace(os.Getenv("ADMIN_TEMP_PASSWORD"))
 	if email == "" || password == "" {
 		return
 	}
+	syncFromEnv := envFlagTrue("ADMIN_SYNC_BOOTSTRAP_PASSWORD")
+
 	var existingID int64
 	err := sessionDB.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&existingID)
 	if err == nil {
+		if !syncFromEnv {
+			log.Printf("[AUTH] admin user %s already exists (set ADMIN_SYNC_BOOTSTRAP_PASSWORD=1 to reset password from env)", email)
+			return
+		}
+		if err := setAdminPassword(existingID, password, true); err != nil {
+			log.Printf("[AUTH] bootstrap admin password sync failed: %v", err)
+			return
+		}
+		log.Printf("[AUTH] synced bootstrap admin password for %s from env", email)
 		return
 	}
 	if err != sql.ErrNoRows {
 		log.Printf("[AUTH] bootstrap admin lookup failed: %v", err)
 		return
 	}
+	if err := insertAdminUser(email, password); err != nil {
+		log.Printf("[AUTH] bootstrap admin insert failed: %v", err)
+		return
+	}
+	log.Printf("[AUTH] created bootstrap admin user %s (must change password on first login)", email)
+}
+
+func envFlagTrue(name string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+func insertAdminUser(email, password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		log.Printf("[AUTH] bootstrap admin hash failed: %v", err)
-		return
+		return err
 	}
 	now := time.Now().Unix()
 	_, err = sessionDB.Exec(
@@ -84,11 +107,24 @@ func bootstrapAdminUser() {
 		 VALUES (?, ?, 'admin', 1, ?, ?)`,
 		email, string(hash), now, now,
 	)
+	return err
+}
+
+func setAdminPassword(userID int64, password string, mustChange bool) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		log.Printf("[AUTH] bootstrap admin insert failed: %v", err)
-		return
+		return err
 	}
-	log.Printf("[AUTH] created bootstrap admin user %s (must change password on first login)", email)
+	mustChangeInt := 0
+	if mustChange {
+		mustChangeInt = 1
+	}
+	now := time.Now().Unix()
+	_, err = sessionDB.Exec(
+		`UPDATE users SET password_hash = ?, must_change_password = ?, updated_at = ? WHERE id = ?`,
+		string(hash), mustChangeInt, now, userID,
+	)
+	return err
 }
 
 func adminAccessConfigured() bool {
