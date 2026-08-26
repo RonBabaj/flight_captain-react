@@ -7,44 +7,55 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout is not required for remote-only SSH deploy, but keeps the job
-      # explicit and makes future local pre-deploy steps easier to add.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Connect to the VPS over SSH and run the production update sequence:
-      # 1) cd into the app directory
-      # 2) pull latest main
-      # 3) rebuild Docker images without cache
-      # 4) restart containers in detached mode
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 15m
           script: |
-            # Step 1: enter the deployed app directory on the VPS
+            set -euo pipefail
             cd /opt/apps/flight_captain-react
-
-            # Step 2: fetch and apply the latest commits from main
             git pull origin main
-
-            # Step 3: rebuild the Expo web bundle on the VPS so the
-            # frontend container never reuses a stale untracked dist/.
             cd frontend
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-
-            # Step 4: rebuild Docker images from a clean cache
             docker compose build --no-cache
+            docker compose up -d
 
-            # Step 5: recreate and start production containers in the background
+      - name: Wait before SSH retry
+        if: failure()
+        run: sleep 30
+
+      - name: Deploy over SSH (retry)
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            cd /opt/apps/flight_captain-react
+            git pull origin main
+            cd frontend
+            npm ci
+            EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
+            cd ..
+            docker compose build --no-cache
             docker compose up -d
