@@ -77,6 +77,67 @@ func TestBootstrapAdminPasswordSync(t *testing.T) {
 	}
 }
 
+func TestAuthRegister(t *testing.T) {
+	initTestAuthDB(t)
+
+	regBody, err := json.Marshal(map[string]string{
+		"email":    "user-test@fly-fix.test",
+		"password": randomTestPassword(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(regBody))
+	rec := httptest.NewRecorder()
+	handleAuthRegister(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register status %d body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthUserManagement(t *testing.T) {
+	bootstrapPassword := initTestAuthDB(t)
+
+	loginBody, _ := json.Marshal(map[string]string{
+		"email":    "admin-test@fly-fix.test",
+		"password": bootstrapPassword,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(loginBody))
+	rec := httptest.NewRecorder()
+	handleAuthLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin login failed: %d", rec.Code)
+	}
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &loginResp); err != nil {
+		t.Fatal(err)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/auth/users", nil)
+	listReq.Header.Set("Authorization", "Bearer "+loginResp.Token)
+	listRec := httptest.NewRecorder()
+	handleAuthUsers(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list users status %d body %s", listRec.Code, listRec.Body.String())
+	}
+
+	newUserPassword := randomTestPassword(t)
+	createBody, _ := json.Marshal(map[string]string{
+		"email":    "managed-user@fly-fix.test",
+		"password": newUserPassword,
+		"role":     "user",
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/auth/users", bytes.NewReader(createBody))
+	createReq.Header.Set("Authorization", "Bearer "+loginResp.Token)
+	createRec := httptest.NewRecorder()
+	handleAuthUsers(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create user status %d body %s", createRec.Code, createRec.Body.String())
+	}
+}
+
 func TestAuthLoginAndChangePassword(t *testing.T) {
 	bootstrapPassword := initTestAuthDB(t)
 	newPassword := randomTestPassword(t)

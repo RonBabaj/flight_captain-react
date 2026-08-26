@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { useAdminAuth } from '../../../context/AdminAuthContext';
+import { useAuth } from '../../../context/AuthContext';
 import { useRuntimeConfig, useRuntimeConfigActions } from '../../../context/RuntimeConfigContext';
 import { fetchAdminRuntimeConfig, saveAdminRuntimeConfig } from '../../../api/runtimeConfig';
 import {
@@ -84,12 +84,10 @@ function ConfigFieldRow({
   );
 }
 
-import { LoginForm, ChangePasswordForm } from '../../auth/components/LoginForm';
-
 export function AdminRuntimeConfigPanel() {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { isAdmin, token, signOut, mustChangePassword, email } = useAdminAuth();
+  const { token, email } = useAuth();
   const liveConfig = useRuntimeConfig();
   const { applyConfig, refresh } = useRuntimeConfigActions();
   const [draft, setDraft] = useState<RuntimeConfig>(liveConfig);
@@ -103,7 +101,7 @@ export function AdminRuntimeConfigPanel() {
   }, [liveConfig]);
 
   useEffect(() => {
-    if (!isAdmin || !token) return;
+    if (!token) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -125,7 +123,7 @@ export function AdminRuntimeConfigPanel() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, token, applyConfig]);
+  }, [token, applyConfig]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, RuntimeConfigFieldMeta[]>();
@@ -163,31 +161,13 @@ export function AdminRuntimeConfigPanel() {
     setDraft(DEFAULT_RUNTIME_CONFIG);
   };
 
-  if (!isAdmin) {
-    return <LoginForm compact requireAdmin />;
-  }
-
-  if (mustChangePassword) {
-    return (
-      <View style={styles.panel}>
-        <Text style={[styles.adminStatus, { color: theme.textMuted }]}>
-          {t('auth_must_change_password_notice')}
-        </Text>
-        <ChangePasswordForm compact />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.panel}>
-      <View style={styles.adminHeaderRow}>
+      {email ? (
         <Text style={[styles.adminStatus, { color: theme.textMuted }]}>
-          {t('settings_admin_signed_in')} {email ? `(${email})` : ''}
+          {t('settings_admin_signed_in')} ({email})
         </Text>
-        <TouchableOpacity onPress={signOut} style={styles.linkBtn}>
-          <Text style={{ color: theme.primary }}>{t('admin_sign_out')}</Text>
-        </TouchableOpacity>
-      </View>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />

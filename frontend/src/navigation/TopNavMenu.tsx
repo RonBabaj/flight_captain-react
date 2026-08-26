@@ -29,6 +29,7 @@ const TITLE_KEYS: Record<string, string> = {
   FlyFixRefine: 'flyfix_refine_nav_title',
   Settings: 'nav_settings',
   Login: 'auth_login_page_title',
+  Register: 'auth_register_page_title',
 };
 
 type NavIconName = 'home-outline' | 'search-outline' | 'calendar-outline' | 'airplane-outline';

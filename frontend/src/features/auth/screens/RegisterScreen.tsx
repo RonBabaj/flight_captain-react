@@ -4,9 +4,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { LoginForm } from '../components/LoginForm';
+import { RegisterForm } from '../components/LoginForm';
 
-export function LoginScreen() {
+export function RegisterScreen() {
   const { theme } = useTheme();
   const { t } = useLocale();
   const insets = useSafeAreaInsets();
@@ -22,14 +22,14 @@ export function LoginScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={[styles.pageTitle, { color: theme.text }]} accessibilityRole="header">
-        {t('auth_login_page_title')}
+        {t('auth_register_page_title')}
       </Text>
-      <Text style={[styles.pageSubtitle, { color: theme.textMuted }]}>{t('auth_login_page_subtitle')}</Text>
-      <LoginForm onSuccess={() => navigation.navigate('Settings' as never)} />
+      <Text style={[styles.pageSubtitle, { color: theme.textMuted }]}>{t('auth_register_page_subtitle')}</Text>
+      <RegisterForm onSuccess={() => navigation.navigate('Settings' as never)} />
       <View style={styles.footerRow}>
-        <Text style={[styles.footerText, { color: theme.textMuted }]}>{t('auth_no_account')}</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Register' as never)}>
-          <Text style={[styles.footerLink, { color: theme.primary }]}>{t('auth_create_account')}</Text>
+        <Text style={[styles.footerText, { color: theme.textMuted }]}>{t('auth_have_account')}</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>
+          <Text style={[styles.footerLink, { color: theme.primary }]}>{t('auth_sign_in')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

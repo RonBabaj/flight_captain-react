@@ -9,20 +9,18 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { useAdminAuth } from '../../../context/AdminAuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 export function LoginForm({
   compact,
-  requireAdmin,
   onSuccess,
 }: {
   compact?: boolean;
-  requireAdmin?: boolean;
   onSuccess?: () => void;
 }) {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { signInWithPassword } = useAdminAuth();
+  const { signInWithPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -35,10 +33,6 @@ export function LoginForm({
       const user = await signInWithPassword(email, password);
       if (!user) {
         setError(t('auth_login_failed'));
-        return;
-      }
-      if (requireAdmin && user.role !== 'admin') {
-        setError(t('auth_not_admin'));
         return;
       }
       onSuccess?.();
@@ -106,7 +100,120 @@ export function LoginForm({
         {submitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.primaryBtnText}>{t('admin_sign_in')}</Text>
+          <Text style={styles.primaryBtnText}>{t('auth_sign_in')}</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export function RegisterForm({
+  compact,
+  onSuccess,
+}: {
+  compact?: boolean;
+  onSuccess?: () => void;
+}) {
+  const { theme } = useTheme();
+  const { t } = useLocale();
+  const { register } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleRegister = async () => {
+    setError('');
+    if (password.length < 8) {
+      setError(t('auth_password_too_short'));
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError(t('auth_password_mismatch'));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const user = await register(email, password);
+      if (!user) {
+        setError(t('auth_register_failed'));
+        return;
+      }
+      onSuccess?.();
+    } catch (e) {
+      if (e instanceof Error && e.message === 'REGISTRATION_DISABLED') {
+        setError(t('auth_registration_disabled'));
+        return;
+      }
+      if (e instanceof Error && e.message === 'EMAIL_TAKEN') {
+        setError(t('auth_email_taken'));
+        return;
+      }
+      setError(t('auth_register_failed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View
+      style={[
+        styles.card,
+        compact && styles.cardCompact,
+        { backgroundColor: theme.screenBg, borderColor: theme.cardBorder },
+      ]}
+    >
+      <Text style={[styles.title, { color: theme.text }]}>{t('auth_register_title')}</Text>
+      <Text style={[styles.subtitle, { color: theme.textMuted }]}>{t('auth_register_subtitle')}</Text>
+      <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_email_label')}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
+        ]}
+        value={email}
+        onChangeText={setEmail}
+        placeholder={t('auth_email_placeholder')}
+        placeholderTextColor={theme.textMuted}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_password_label')}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
+        ]}
+        value={password}
+        onChangeText={setPassword}
+        placeholder={t('auth_new_password_placeholder')}
+        placeholderTextColor={theme.textMuted}
+        secureTextEntry
+        autoCapitalize="none"
+      />
+      <TextInput
+        style={[
+          styles.input,
+          { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
+        ]}
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        placeholder={t('auth_confirm_password_placeholder')}
+        placeholderTextColor={theme.textMuted}
+        secureTextEntry
+        autoCapitalize="none"
+      />
+      {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
+      <TouchableOpacity
+        style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+        onPress={handleRegister}
+        disabled={submitting || !email.trim() || !password || !confirmPassword}
+      >
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.primaryBtnText}>{t('auth_create_account')}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -116,7 +223,7 @@ export function LoginForm({
 export function ChangePasswordForm({ compact }: { compact?: boolean }) {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { changePassword } = useAdminAuth();
+  const { changePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
