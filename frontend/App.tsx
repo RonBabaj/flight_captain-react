@@ -43,8 +43,12 @@ const linking = {
         path: 'settings',
         alias: ['admin/settings'],
       },
+      Account: 'account',
       Login: 'login',
       Register: 'register',
+      Admin: 'admin',
+      AdminRuntimeConfig: 'admin/runtime-config',
+      AdminUsers: 'admin/users',
     },
   },
 };

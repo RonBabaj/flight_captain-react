@@ -87,7 +87,7 @@ function ConfigFieldRow({
 export function AdminRuntimeConfigPanel() {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { token, email } = useAuth();
+  const { token } = useAuth();
   const liveConfig = useRuntimeConfig();
   const { applyConfig, refresh } = useRuntimeConfigActions();
   const [draft, setDraft] = useState<RuntimeConfig>(liveConfig);
@@ -163,12 +163,6 @@ export function AdminRuntimeConfigPanel() {
 
   return (
     <View style={styles.panel}>
-      {email ? (
-        <Text style={[styles.adminStatus, { color: theme.textMuted }]}>
-          {t('settings_admin_signed_in')} ({email})
-        </Text>
-      ) : null}
-
       {loading ? (
         <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
       ) : (

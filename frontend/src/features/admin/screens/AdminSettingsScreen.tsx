@@ -1,2 +1,2 @@
-/** @deprecated Use SettingsScreen — kept for import compatibility. */
-export { SettingsScreen as AdminSettingsScreen } from '../../settings/screens/SettingsScreen';
+/** @deprecated Use AdminHubScreen at /admin */
+export { AdminHubScreen as AdminSettingsScreen } from './AdminHubScreen';
