@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { LocaleProvider, useLocale } from './src/context/LocaleContext';
 import { RuntimeConfigProvider } from './src/context/RuntimeConfigContext';
-import { AdminAuthProvider } from './src/context/AdminAuthContext';
+import { AuthProvider } from './src/context/AuthContext';
 import { RootNavigator } from './src/navigation';
 import { API_BASE } from './src/api/client';
 import { useExchangeRates } from './src/hooks/useExchangeRates';
@@ -44,6 +44,7 @@ const linking = {
         alias: ['admin/settings'],
       },
       Login: 'login',
+      Register: 'register',
     },
   },
 };
@@ -71,14 +72,14 @@ export default function App() {
       <ThemeProvider defaultMode="dark">
         <LocaleProvider>
           <RuntimeConfigProvider>
-            <AdminAuthProvider>
+            <AuthProvider>
               <RTLWrapper>
                 <NavigationContainer linking={linking}>
                   <StatusBar style="auto" />
                   <RootNavigator />
                 </NavigationContainer>
               </RTLWrapper>
-            </AdminAuthProvider>
+            </AuthProvider>
           </RuntimeConfigProvider>
         </LocaleProvider>
       </ThemeProvider>

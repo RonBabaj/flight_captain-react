@@ -49,6 +49,7 @@ export type RootStackParamList = {
   FlyFixRefine: undefined;
   Settings: undefined;
   Login: undefined;
+  Register: undefined;
 };
 
 export type SearchFormProps = NativeStackScreenProps<SearchStackParamList, 'SearchForm'>;

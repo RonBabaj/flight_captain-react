@@ -8,6 +8,7 @@ import { DynamicDestinationsStack } from './DynamicDestinationsStack';
 import { LandingScreen } from '../features/landing';
 import { SettingsScreen } from '../features/settings/screens/SettingsScreen';
 import { LoginScreen } from '../features/auth/screens/LoginScreen';
+import { RegisterScreen } from '../features/auth/screens/RegisterScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -24,6 +25,7 @@ export function RootNavigator() {
       <Stack.Screen name="DynamicDestinations" component={DynamicDestinationsStack} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>
   );
 }
