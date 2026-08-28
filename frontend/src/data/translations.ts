@@ -606,9 +606,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Забронировать {from} → {to} на Skyscanner',
   },
   split_booking_hint: {
-    en: 'This trip uses separate one-way tickets. Use Book This Flight for each leg.',
-    he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. השתמשו ב״הזמן טיסה זו״ לכל קטע.',
-    ru: 'Маршрут состоит из отдельных билетов в одну сторону. Нажмите «Забронировать этот рейс» для каждого участка.',
+    en: 'Separate tickets — book each leg below.',
+    he: 'כרטיסים נפרדים — הזמינו כל קטע למטה.',
+    ru: 'Отдельные билеты — забронируйте каждый сегмент ниже.',
   },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',
