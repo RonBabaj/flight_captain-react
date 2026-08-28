@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 	}
 	maxQ := envInt("WEB_SEARCH_MAX_QUERIES", 5)
 	maxC := envInt("WEB_SEARCH_MAX_CANDIDATES", 20)
-	threshold := envInt("BOOKING_MATCH_VERIFY_THRESHOLD", 80)
+	threshold := envInt("BOOKING_MATCH_VERIFY_THRESHOLD", 70)
 	timeoutSec := envInt("WEB_SEARCH_TIMEOUT_SEC", 15)
 
 	return Config{
@@ -135,25 +135,40 @@ func parseSerpAPIResults(body []byte, query string) ([]SearchCandidate, error) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
-	results, _ := raw["organic_results"].([]interface{})
 	var out []SearchCandidate
-	for _, rAny := range results {
-		m, _ := rAny.(map[string]interface{})
-		if m == nil {
-			continue
-		}
-		link, _ := m["link"].(string)
+	appendResult := func(link, title, snippet string) {
+		link = strings.TrimSpace(link)
 		if link == "" {
-			continue
+			return
 		}
-		title, _ := m["title"].(string)
-		snippet, _ := m["snippet"].(string)
-		domain := domainFromURL(link)
 		out = append(out, SearchCandidate{
-			URL: link, Title: title, Snippet: snippet, Domain: domain, Query: query,
+			URL: link, Title: title, Snippet: snippet,
+			Domain: domainFromURL(link), Query: query,
 		})
 	}
+	for _, rAny := range collectSerpAPIResultMaps(raw) {
+		link, _ := rAny["link"].(string)
+		title, _ := rAny["title"].(string)
+		snippet, _ := rAny["snippet"].(string)
+		appendResult(link, title, snippet)
+	}
 	return out, nil
+}
+
+func collectSerpAPIResultMaps(raw map[string]interface{}) []map[string]interface{} {
+	var out []map[string]interface{}
+	for _, key := range []string{"organic_results", "ads", "inline_videos"} {
+		items, _ := raw[key].([]interface{})
+		for _, rAny := range items {
+			if m, ok := rAny.(map[string]interface{}); ok {
+				out = append(out, m)
+			}
+		}
+	}
+	if box, ok := raw["answer_box"].(map[string]interface{}); ok {
+		out = append(out, box)
+	}
+	return out
 }
 
 func truncate(b []byte, n int) string {

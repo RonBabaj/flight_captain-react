@@ -1363,6 +1363,11 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			depTime.IsZero(), arrTime.IsZero(), rawDep, rawDep, rawArr, rawArr, rawDepT, rawDepT, rawArrT, rawArrT, departureDate)
 	}
 
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
+	}
+
 	return &Segment{
 		From:                  from,
 		To:                    to,
@@ -1403,6 +1408,14 @@ func gf2OperatingFlightNumber(s map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+func gf2NormalizeSegmentIdentity(carrier, flightNum string) (string, string) {
+	code, fn := ResolveFlightIdentity(carrier, flightNum)
+	if code != "" {
+		carrier = code
+	}
+	return carrier, fn
 }
 
 func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
@@ -1448,6 +1461,11 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 	}
 	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
 		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
+	}
+
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
 	}
 
 	return &Segment{
@@ -1635,6 +1653,41 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 		return "", fmt.Errorf("no booking_token in route search")
 	}
 	return p.ResolvePartnerBookingURL(ctx, token, currency)
+}
+
+// ResolvePartnerBookingForFingerprint re-runs GF2 search and resolves the partner checkout URL
+// for the result whose itinerary fingerprint matches wantFP.
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantFP, currency string) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("google flights provider not configured")
+	}
+	wantFP = strings.TrimSpace(wantFP)
+	if wantFP == "" {
+		return "", fmt.Errorf("missing itinerary fingerprint")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if !p.limiter.allow() {
+		return "", fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	results, err := p.Search(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	AttachCanonicalIdentityAll(results)
+	for i := range results {
+		r := &results[i]
+		if r.ItineraryFingerprint != wantFP {
+			continue
+		}
+		token := strings.TrimSpace(r.BookingToken)
+		if token == "" {
+			continue
+		}
+		return p.ResolvePartnerBookingURL(ctx, token, currency)
+	}
+	return "", fmt.Errorf("no booking_token for itinerary fingerprint %s", wantFP)
 }
 
 func isLikelyPartnerCheckoutURL(u string) bool {
