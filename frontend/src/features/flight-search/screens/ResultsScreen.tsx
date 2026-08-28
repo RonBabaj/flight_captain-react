@@ -43,6 +43,7 @@ import {
   validateDynamicDestinationsSearch,
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
+import { classicSearchPayload } from '../../../utils/skyscanner';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
@@ -473,8 +474,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
         ? p.cabinClass
         : 'ECONOMY';
-    const payload: CreateSearchSessionRequest = {
-      ...p,
+    const payload: CreateSearchSessionRequest = classicSearchPayload(p, {
       origin: p.origin.trim().toUpperCase(),
       destination: p.destination.trim().toUpperCase(),
       returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
@@ -483,7 +483,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       includeCheckedBag: false,
       currency: currency || 'USD',
       locale: locale || 'en-US',
-    };
+    });
     await runEditedSearch(payload);
   };
 

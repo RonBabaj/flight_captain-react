@@ -55,6 +55,26 @@ func ResolveReturnAirports(req SearchRequest) (returnOrigin, returnDestination s
 	return returnOrigin, returnDestination
 }
 
+// SanitizeStandardSearchRequest strips open-jaw / extra-leg fields for classic round-trips.
+// Stale returnOrigin values from prior open-jaw searches must not force decomposed one-way searches.
+func SanitizeStandardSearchRequest(req SearchRequest) SearchRequest {
+	if strings.TrimSpace(req.ReturnDate) == "" {
+		return req
+	}
+	if HasExtraLegs(req) {
+		return req
+	}
+	dest := strings.ToUpper(strings.TrimSpace(req.Destination))
+	retOrig := strings.ToUpper(strings.TrimSpace(req.ReturnOrigin))
+	if retOrig != "" && dest != "" && retOrig != dest {
+		return req
+	}
+	req.ReturnOrigin = ""
+	req.ReturnDestination = ""
+	req.ExtraLegs = nil
+	return req
+}
+
 // IsOpenJaw reports whether the return leg differs from a classic destination→origin reverse.
 func IsOpenJaw(req SearchRequest) bool {
 	if strings.TrimSpace(req.ReturnDate) == "" {

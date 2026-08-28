@@ -11,6 +11,7 @@ import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
 import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { classicSearchPayload } from '../../../utils/skyscanner';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -165,8 +166,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
           ? params.cabinClass
           : 'ECONOMY';
-      const payload: CreateSearchSessionRequest = {
-        ...params,
+      const payload: CreateSearchSessionRequest = classicSearchPayload(params, {
         origin: params.origin.trim().toUpperCase(),
         destination: params.destination.trim().toUpperCase(),
         returnDate: tripType === 'one-way' ? undefined : params.returnDate || undefined,
@@ -175,7 +175,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         includeCheckedBag: false,
         currency: currency || 'USD',
         locale: locale || 'en-US',
-      };
+      });
       setCachedSearch(payload);
       // Optimistic navigation: create the session after the Results screen mounts.
       // beginSearch bumps generation + clears prior results so a late poll cannot

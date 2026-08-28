@@ -75,7 +75,7 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 
 	threshold := cfg.VerifyThreshold
 	if threshold <= 0 {
-		threshold = 85
+		threshold = 80
 	}
 
 	reason := verifyExactEligibility(checks, segs, total, threshold, offer.URLType)
