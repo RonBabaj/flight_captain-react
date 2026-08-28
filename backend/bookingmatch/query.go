@@ -92,6 +92,10 @@ func directFlightQueries(seg search.CanonicalSegment) []string {
 	}
 	if date != "" {
 		qs = append(qs, addQuoted(fn, from, to, date))
+		qs = append(qs, addQuoted(fn, from, to, date, "book flight"))
+	}
+	if carrier != "" && fn != "" {
+		qs = append(qs, addQuoted(carrier, fn, from, to, "book"))
 	}
 	if carrier != "" && carrier != fn {
 		qs = append(qs, addQuoted(carrier, fn, from, to, "book flight"))

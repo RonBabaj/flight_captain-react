@@ -766,7 +766,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	sreq := search.SearchRequest{
+	sreq := search.SanitizeStandardSearchRequest(search.SearchRequest{
 		Origin:            req.Origin,
 		Destination:       req.Destination,
 		DepartureDate:     req.DepartureDate,
@@ -781,6 +781,17 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Children:          req.ChildrenOrDefault(),
 		Infants:           req.Infants,
 		Currency:          req.CurrencyOrDefault(),
+	})
+	// Persist sanitized params on the session so clients do not inherit stale open-jaw fields.
+	req.ReturnOrigin = sreq.ReturnOrigin
+	req.ReturnDestination = sreq.ReturnDestination
+	if len(sreq.ExtraLegs) == 0 {
+		req.ExtraLegs = nil
+	} else {
+		req.ExtraLegs = make([]ExtraSearchLeg, len(sreq.ExtraLegs))
+		for i, l := range sreq.ExtraLegs {
+			req.ExtraLegs[i] = ExtraSearchLeg{Origin: l.Origin, Destination: l.Destination, Date: l.Date}
+		}
 	}
 
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)

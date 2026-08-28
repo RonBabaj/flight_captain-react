@@ -187,10 +187,15 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
-	// For round-trip: search outbound and return separately (one-way each), then combine legs
-	// so every result has both legs with full route data.
+	// Round-trip: native GF2 RT for classic routes; decomposed one-ways for open-jaw / extra legs.
 	if req.ReturnDate != "" {
-		results, err := p.searchRoundTrip(ctx, req)
+		var results []ProviderResult
+		var err error
+		if IsOpenJaw(req) || HasExtraLegs(req) {
+			results, err = p.searchRoundTrip(ctx, req)
+		} else {
+			results, err = p.doSearch(ctx, req)
+		}
 		if err != nil {
 			errLog = err.Error()
 			return nil, err
@@ -257,7 +262,7 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 
 	batches := make([][]ProviderResult, 0, len(steps))
 	for i, step := range steps {
-		res, err := p.doSearch(ctx, step.req)
+		res, err := p.searchLegCached(ctx, step.req)
 		if err != nil || len(res) == 0 {
 			if i == 0 {
 				if IsOpenJaw(req) || len(extras) > 0 {
@@ -280,6 +285,22 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 		idPrefix = "gf2oj"
 	}
 	return CombineOneWayBatches(batches, idPrefix), nil
+}
+
+// searchLegCached runs a one-way GF2 search with the same in-memory cache as Search().
+func (p *GoogleFlights2Provider) searchLegCached(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	cacheKey := p.buildCacheKey(req)
+	if cached, ok := p.cache.get(cacheKey); ok && len(cached) > 0 {
+		return cached, nil
+	}
+	res, err := p.doSearch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 0 {
+		p.cache.set(cacheKey, res)
+	}
+	return res, nil
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {

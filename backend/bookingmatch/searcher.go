@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 	}
 	maxQ := envInt("WEB_SEARCH_MAX_QUERIES", 5)
 	maxC := envInt("WEB_SEARCH_MAX_CANDIDATES", 20)
-	threshold := envInt("BOOKING_MATCH_VERIFY_THRESHOLD", 85)
+	threshold := envInt("BOOKING_MATCH_VERIFY_THRESHOLD", 80)
 	timeoutSec := envInt("WEB_SEARCH_TIMEOUT_SEC", 15)
 
 	return Config{
