@@ -56,6 +56,35 @@ export function buildSkyscannerPrefillURL(p: SkyscannerPrefillParams): string {
   return `${path}?${params.toString()}`;
 }
 
+/** Build a Skyscanner prefill URL for a whole option (round-trip or one-way). */
+export function buildSkyscannerPrefillFromOption(
+  option: FlightOption,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): string | null {
+  const legs = option.legs ?? [];
+  if (!legs.length) return null;
+  const outLeg = legs[0];
+  const outFirst = firstSeg(outLeg);
+  const outLast = lastSeg(outLeg);
+  const origin = (outFirst?.from?.code || searchParams?.origin || '').toUpperCase();
+  const destination = (outLast?.to?.code || searchParams?.destination || '').toUpperCase();
+  const departureDate = isoDatePrefix(outFirst?.departureTime) || searchParams?.departureDate || '';
+  if (!origin || !destination || !departureDate) return null;
+  let returnDate: string | undefined;
+  if (!isSplitBookingItinerary(option, searchParams) && legs.length > 1) {
+    returnDate = isoDatePrefix(firstSeg(legs[1])?.departureTime) || searchParams?.returnDate || undefined;
+  }
+  return buildSkyscannerPrefillURL({
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    cabinClass: searchParams?.cabinClass,
+    adults: searchParams?.adults,
+    children: searchParams?.children,
+  });
+}
+
 function firstSeg(leg?: FlightLeg) {
   return leg?.segments?.[0];
 }

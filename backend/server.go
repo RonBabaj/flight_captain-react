@@ -2773,6 +2773,7 @@ func main() {
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
+	mux.HandleFunc("/api/booking/resolve", handleBookingResolve)
 	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
 	mux.HandleFunc("/api/auth/login", handleAuthLogin)
 	mux.HandleFunc("/api/auth/logout", handleAuthLogout)

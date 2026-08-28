@@ -21,7 +21,7 @@ import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '..
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
-import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
+import { getSearchSessionResults, createSearchSession } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
@@ -44,7 +44,6 @@ import {
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
-import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
@@ -261,7 +260,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const sharedLinkHydrationRef = useRef(!!(routeSessionId || urlSessionId) && !storeSessionId);
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
-  const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
@@ -316,28 +314,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   }, []);
 
   const handleBookFromCard = async (option: FlightOption) => {
-    if (isSplitBookingItinerary(option, storeParams)) {
-      openDetails(option);
-      return;
-    }
-    if (!sessionId) {
-      Alert.alert('', 'Session expired. Please run a new search.');
-      return;
-    }
-    setBookLoadingId(option.id);
-    try {
-      const url = getUniformBookingRedirectUrl(sessionId, option.id, option);
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('', 'Cannot open booking link.');
-      }
-    } catch {
-      Alert.alert('', 'Cannot open booking link.');
-    } finally {
-      setBookLoadingId(null);
-    }
+    openDetails(option);
   };
 
   const [formParams, setFormParams] = useState<CreateSearchSessionRequest>(() =>
@@ -1272,8 +1249,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             option={item}
             onDetails={() => openDetails(item)}
             onBook={() => handleBookFromCard(item)}
-            bookLoading={bookLoadingId === item.id}
-            bookLabel={isSplitBookingItinerary(item, storeParams) ? t('view_booking_options') : t('book_now')}
+            bookLoading={false}
+            bookLabel={t('book_this_flight')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
             passengerCount={

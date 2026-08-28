@@ -104,6 +104,22 @@ export interface FlightOption {
   marketedBy?: string[];
   cheapestSeller?: string;
   sellerOptions?: SellerOption[];
+  /** Deterministic physical-itinerary hash from Google Flights scrape. */
+  itineraryFingerprint?: string;
+  canonicalFingerprint?: string;
+  /** Normalized itinerary identity (from backend). */
+  canonicalItinerary?: {
+    segments: Array<{
+      from: string;
+      to: string;
+      departureTime: string;
+      arrivalTime: string;
+      marketingCarrier: string;
+      operatingCarrier?: string;
+      flightNumber: string;
+      operatingFlightNumber?: string;
+    }>;
+  };
 }
 
 // --- Search session ---
