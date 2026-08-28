@@ -74,7 +74,42 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 				adults = session.Params.Adults
 			}
 		}
-		return buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin, adults)
+		in := skyscannerPrefillInput{
+			origin: origin, dest: dest, dep: dep, ret: ret, cabin: cabin, adults: adults,
+		}
+		if option != nil && len(option.Legs) > 0 {
+			var airlineSet []string
+			seen := map[string]struct{}{}
+			for _, leg := range option.Legs {
+				for _, c := range carriersFromLeg(leg) {
+					if _, ok := seen[c]; ok {
+						continue
+					}
+					seen[c] = struct{}{}
+					airlineSet = append(airlineSet, c)
+				}
+			}
+			in.airlines = strings.Join(airlineSet, ",")
+			outRange := ""
+			if len(option.Legs[0].Segments) > 0 {
+				outRange = skyscannerDepartureTimeRange(option.Legs[0].Segments[0].DepartureTime, 120)
+			}
+			if len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
+				inRange := skyscannerDepartureTimeRange(option.Legs[1].Segments[0].DepartureTime, 120)
+				if outRange != "" && inRange != "" {
+					in.departureTimes = outRange + "," + inRange
+				} else if outRange != "" {
+					in.departureTimes = outRange
+				}
+			} else {
+				in.departureTimes = outRange
+			}
+			in.preferDirects = legIsDirect(option.Legs[0])
+			if len(option.Legs) > 1 {
+				in.preferDirects = in.preferDirects && legIsDirect(option.Legs[1])
+			}
+		}
+		return buildSkyscannerPrefillURLFiltered(in)
 	default:
 		u := buildGoogleFlightsPrefillURL(origin, dest, dep, ret)
 		if u == "" {
@@ -186,29 +221,57 @@ func buildGoogleFlightsPrefillURL(origin, dest, dep, ret string) string {
 }
 
 func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int) string {
-	origin = strings.ToLower(strings.TrimSpace(origin))
-	dest = strings.ToLower(strings.TrimSpace(dest))
+	return buildSkyscannerPrefillURLFiltered(skyscannerPrefillInput{
+		origin: origin, dest: dest, dep: dep, ret: ret, cabin: cabin, adults: adults,
+	})
+}
+
+type skyscannerPrefillInput struct {
+	origin, dest, dep, ret, cabin string
+	adults                          int
+	airlines, departureTimes        string
+	preferDirects                   bool
+}
+
+func buildSkyscannerPrefillURLFiltered(in skyscannerPrefillInput) string {
+	origin := strings.ToLower(strings.TrimSpace(in.origin))
+	dest := strings.ToLower(strings.TrimSpace(in.dest))
 	if origin == "" {
 		origin = "any"
 	}
 	if dest == "" {
 		dest = "any"
 	}
-	outbound := depToYYMMDD(dep)
-	inbound := depToYYMMDD(ret)
+	outbound := depToYYMMDD(in.dep)
+	inbound := depToYYMMDD(in.ret)
 	if outbound == "" {
 		outbound = "any"
 	}
 	params := url.Values{}
-	if cabin != "" {
-		params.Set("cabinclass", strings.ToLower(cabin))
+	if in.cabin != "" {
+		params.Set("cabinclass", strings.ToLower(in.cabin))
 	}
-	if adults >= 1 {
-		params.Set("adultsv2", fmt.Sprintf("%d", adults))
+	adults := in.adults
+	if adults < 1 {
+		adults = 1
 	}
+	params.Set("adultsv2", fmt.Sprintf("%d", adults))
+	if in.airlines != "" {
+		params.Set("airlines", in.airlines)
+	}
+	if in.departureTimes != "" {
+		params.Set("departure-times", in.departureTimes)
+	}
+	if in.preferDirects {
+		params.Set("preferdirects", "true")
+	} else {
+		params.Set("preferdirects", "false")
+	}
+	params.Set("inboundaltsenabled", "false")
+	params.Set("outboundaltsenabled", "false")
+	params.Set("ref", "flyfix")
 	var u string
 	if inbound == "" {
-		// True one-way: do not invent a same-day return.
 		params.Set("rtn", "0")
 		u = fmt.Sprintf("https://www.skyscanner.net/transport/flights/%s/%s/%s/", origin, dest, outbound)
 	} else {
@@ -219,6 +282,49 @@ func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int)
 		u += "?" + params.Encode()
 	}
 	return u
+}
+
+func skyscannerDepartureTimeRange(t time.Time, windowMin int) string {
+	if t.IsZero() {
+		return ""
+	}
+	if windowMin <= 0 {
+		windowMin = 120
+	}
+	center := t.Hour()*60 + t.Minute()
+	start := center - windowMin
+	if start < 0 {
+		start = 0
+	}
+	end := center + windowMin
+	if end > 24*60-1 {
+		end = 24*60 - 1
+	}
+	return fmt.Sprintf("%d-%d", start, end)
+}
+
+func carriersFromLeg(leg FlightLeg) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, seg := range leg.Segments {
+		code := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+		if seg.OperatingCarrier != nil && strings.TrimSpace(seg.OperatingCarrier.Code) != "" {
+			code = strings.ToUpper(strings.TrimSpace(seg.OperatingCarrier.Code))
+		}
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		out = append(out, code)
+	}
+	return out
+}
+
+func legIsDirect(leg FlightLeg) bool {
+	return len(leg.Segments) == 1
 }
 
 // depToYYMMDD converts YYYY-MM-DD to YYMMDD for Skyscanner URL.
@@ -252,7 +358,16 @@ func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legI
 			adults = session.Params.Adults
 		}
 	}
-	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	leg := option.Legs[legIdx]
+	airlines := strings.Join(carriersFromLeg(leg), ",")
+	depRange := ""
+	if len(leg.Segments) > 0 {
+		depRange = skyscannerDepartureTimeRange(leg.Segments[0].DepartureTime, 120)
+	}
+	return buildSkyscannerPrefillURLFiltered(skyscannerPrefillInput{
+		origin: origin, dest: dest, dep: dep, ret: "", cabin: cabin, adults: adults,
+		airlines: airlines, departureTimes: depRange, preferDirects: legIsDirect(leg),
+	})
 }
 
 // BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.

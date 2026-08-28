@@ -552,6 +552,36 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   link_copied: { en: 'Copied!', he: 'הועתק!', ru: 'Скопировано!' },
   view_booking_options: { en: 'View booking options', he: 'אפשרויות הזמנה', ru: 'Варианты бронирования' },
   book_on_skyscanner: { en: 'Book on Skyscanner', he: 'הזמן ב־Skyscanner', ru: 'Забронировать на Skyscanner' },
+  find_on_skyscanner: {
+    en: 'Find on Skyscanner',
+    he: 'מצא ב־Skyscanner',
+    ru: 'Найти на Skyscanner',
+  },
+  find_outbound_skyscanner: {
+    en: 'Find outbound on Skyscanner',
+    he: 'מצא הלוך ב־Skyscanner',
+    ru: 'Найти туда на Skyscanner',
+  },
+  find_return_skyscanner: {
+    en: 'Find return on Skyscanner',
+    he: 'מצא חזור ב־Skyscanner',
+    ru: 'Найти обратно на Skyscanner',
+  },
+  find_leg_skyscanner: {
+    en: 'Find {from} → {to} on Skyscanner',
+    he: 'מצא {from} → {to} ב־Skyscanner',
+    ru: 'Найти {from} → {to} на Skyscanner',
+  },
+  skyscanner_find_disclaimer: {
+    en: 'Opens Skyscanner with this route, airline, and departure time pre-filtered.',
+    he: 'פותח Skyscanner עם מסנני מסלול, חברת תעופה ושעת המראה.',
+    ru: 'Открывает Skyscanner с фильтрами маршрута, авиакомпании и времени вылета.',
+  },
+  skyscanner_split_disclaimer: {
+    en: 'Each leg opens Skyscanner with airline and time filters for that flight.',
+    he: 'כל רגל פותח Skyscanner עם מסנני חברת תעופה ושעה לטיסה זו.',
+    ru: 'Каждый сегмент открывает Skyscanner с фильтрами авиакомпании и времени.',
+  },
   book_outbound_skyscanner: {
     en: 'Book outbound on Skyscanner',
     he: 'הזמן הלוך ב־Skyscanner',

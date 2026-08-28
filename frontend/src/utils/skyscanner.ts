@@ -1,9 +1,12 @@
 /**
  * Skyscanner prefill URLs and helpers for split (open-jaw / extra-hop) itineraries.
  * Dynamic Destinations combine separate one-way tickets; each hop needs its own search.
+ *
+ * Tier-1 "specific flight" prefill: airline filter + departure time window (±2h).
+ * @see https://developers.skyscanner.net/docs/referrals/flights-parameters
  */
 
-import type { CreateSearchSessionRequest, FlightLeg, FlightOption } from '../types';
+import type { CreateSearchSessionRequest, FlightLeg, FlightOption, FlightSegment } from '../types';
 
 export function isoDatePrefix(iso?: string | null): string {
   if (!iso) return '';
@@ -23,6 +26,49 @@ function skyCode(code?: string | null): string {
   return c || 'any';
 }
 
+/** Minutes from local-midnight for Skyscanner departure-times filter (e.g. 14:30 → 870). */
+export function minutesFromDeparture(iso?: string | null): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** Skyscanner departure-times segment: minutes-from-midnight range, default ±2 hours. */
+export function skyscannerDepartureTimeRange(iso?: string | null, windowMinutes = 120): string {
+  const center = minutesFromDeparture(iso);
+  if (center == null) return '';
+  const start = Math.max(0, center - windowMinutes);
+  const end = Math.min(24 * 60 - 1, center + windowMinutes);
+  return `${start}-${end}`;
+}
+
+function segmentCarrierCode(seg: FlightSegment): string {
+  const op = seg.operatingCarrier?.code?.trim();
+  if (op) return op.toUpperCase();
+  return (seg.marketingCarrier?.code || '').trim().toUpperCase();
+}
+
+/** Unique IATA carrier codes on a leg (operating preferred). */
+export function carriersFromLeg(leg?: FlightLeg): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const seg of leg?.segments ?? []) {
+    const code = segmentCarrierCode(seg);
+    if (code && !seen.has(code)) {
+      seen.add(code);
+      out.push(code);
+    }
+  }
+  return out;
+}
+
+function legIsDirect(leg?: FlightLeg): boolean {
+  const n = leg?.segments?.length ?? 0;
+  return n === 1;
+}
+
 export interface SkyscannerPrefillParams {
   origin: string;
   destination: string;
@@ -31,6 +77,13 @@ export interface SkyscannerPrefillParams {
   cabinClass?: string;
   adults?: number;
   children?: number;
+  /** Comma-separated IATA airline codes (Skyscanner day-view filter). */
+  airlines?: string;
+  /** Skyscanner departure-times filter, e.g. "750-990" or "750-990,1200-1380". */
+  departureTimes?: string;
+  /** When true, prefer nonstop flights in Skyscanner results. */
+  preferDirects?: boolean;
+  currency?: string;
 }
 
 /** Prefill a Skyscanner search. Omitting returnDate yields a true one-way (rtn=0). */
@@ -50,7 +103,10 @@ export function buildSkyscannerPrefillURL(p: SkyscannerPrefillParams): string {
   if (p.children && p.children > 0) params.set('childrenv2', String(p.children));
   params.set('inboundaltsenabled', 'false');
   params.set('outboundaltsenabled', 'false');
-  params.set('preferdirects', 'false');
+  params.set('preferdirects', p.preferDirects ? 'true' : 'false');
+  if (p.airlines) params.set('airlines', p.airlines);
+  if (p.departureTimes) params.set('departure-times', p.departureTimes);
+  if (p.currency) params.set('currency', p.currency.toUpperCase());
   params.set('ref', 'flyfix');
   params.set('rtn', inbound ? '1' : '0');
   return `${path}?${params.toString()}`;
@@ -65,11 +121,109 @@ function lastSeg(leg?: FlightLeg) {
   return segs?.length ? segs[segs.length - 1] : undefined;
 }
 
+function uniqueCarriers(legs: FlightLeg[]): string {
+  const seen = new Set<string>();
+  for (const leg of legs) {
+    for (const c of carriersFromLeg(leg)) seen.add(c);
+  }
+  return [...seen].join(',');
+}
+
+function prefillForLeg(
+  leg: FlightLeg,
+  origin: string,
+  destination: string,
+  date: string,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): SkyscannerPrefillParams {
+  const first = firstSeg(leg);
+  return {
+    origin,
+    destination,
+    departureDate: date,
+    cabinClass: searchParams?.cabinClass,
+    adults: searchParams?.adults,
+    children: searchParams?.children,
+    currency: searchParams?.currency,
+    airlines: carriersFromLeg(leg).join(',') || undefined,
+    departureTimes: skyscannerDepartureTimeRange(first?.departureTime) || undefined,
+    preferDirects: legIsDirect(leg),
+  };
+}
+
+/** Build a filtered Skyscanner URL for one itinerary leg (split / open-jaw hops). */
+export function buildSkyscannerPrefillForLeg(
+  option: FlightOption,
+  legIndex: number,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): string | null {
+  const leg = option.legs?.[legIndex];
+  if (!leg) return null;
+  const first = firstSeg(leg);
+  const last = lastSeg(leg);
+  const origin = (first?.from?.code || '').toUpperCase();
+  const destination = (last?.to?.code || '').toUpperCase();
+  const date = isoDatePrefix(first?.departureTime);
+  if (!origin || !destination || !date) return null;
+  return buildSkyscannerPrefillURL(prefillForLeg(leg, origin, destination, date, searchParams));
+}
+
+/** Build a filtered Skyscanner URL for a whole option (round-trip or one-way). */
+export function buildSkyscannerPrefillFromOption(
+  option: FlightOption,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): string | null {
+  const legs = option.legs ?? [];
+  if (!legs.length) return null;
+
+  const outLeg = legs[0];
+  const outFirst = firstSeg(outLeg);
+  const outLast = lastSeg(outLeg);
+  const origin = (outFirst?.from?.code || searchParams?.origin || '').toUpperCase();
+  const destination = (outLast?.to?.code || searchParams?.destination || '').toUpperCase();
+  const departureDate = isoDatePrefix(outFirst?.departureTime) || searchParams?.departureDate || '';
+  if (!origin || !destination || !departureDate) return null;
+
+  const split = isSplitBookingItinerary(option, searchParams);
+  if (split) {
+    return buildSkyscannerPrefillForLeg(option, 0, searchParams);
+  }
+
+  let returnDate: string | undefined;
+  let departureTimes: string | undefined;
+  let preferDirects = legIsDirect(outLeg);
+
+  if (legs.length > 1) {
+    const retFirst = firstSeg(legs[1]);
+    returnDate = isoDatePrefix(retFirst?.departureTime) || searchParams?.returnDate || undefined;
+    const outRange = skyscannerDepartureTimeRange(outFirst?.departureTime);
+    const inRange = skyscannerDepartureTimeRange(retFirst?.departureTime);
+    if (outRange && inRange) departureTimes = `${outRange},${inRange}`;
+    else if (outRange) departureTimes = outRange;
+    preferDirects = legIsDirect(outLeg) && legIsDirect(legs[1]);
+  } else {
+    departureTimes = skyscannerDepartureTimeRange(outFirst?.departureTime) || undefined;
+  }
+
+  return buildSkyscannerPrefillURL({
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    cabinClass: searchParams?.cabinClass,
+    adults: searchParams?.adults,
+    children: searchParams?.children,
+    currency: searchParams?.currency,
+    airlines: uniqueCarriers(legs) || undefined,
+    departureTimes,
+    preferDirects,
+  });
+}
+
 export function isSplitBookingItinerary(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
-  // Extra hops (3+ legs) = server-combined separate one-way tickets.
   const extra = (searchParams?.extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),
   );
@@ -78,13 +232,10 @@ export function isSplitBookingItinerary(
   const legs = option?.legs ?? [];
   if (legs.length > 2) return true;
 
-  // Open-jaw: return departs from a different city than the outbound destination.
-  // Cannot be booked as a single round-trip — needs two separate one-way searches.
   const dest = (searchParams?.destination || '').trim().toUpperCase();
   const retOrig = (searchParams?.returnOrigin || '').trim().toUpperCase();
   if (retOrig && dest && retOrig !== dest) return true;
 
-  // Detect from legs when search params not available.
   if (legs.length === 2) {
     const outDest = (lastSeg(legs[0])?.to?.code || '').toUpperCase();
     const inOrig = (firstSeg(legs[1])?.from?.code || '').toUpperCase();
@@ -116,12 +267,6 @@ export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
   return hops;
 }
 
-/**
- * Build a shareable URL for a specific flight. Always includes the search params
- * (origin, destination, dates, cabin, pax) so a recipient on a fresh device can
- * re-run the search if the session has expired. Falls back to window.location for
- * params not explicitly provided.
- */
 export function buildShareUrlWithOptionId(
   optionId: string,
   flightId?: string,
@@ -132,17 +277,12 @@ export function buildShareUrlWithOptionId(
     const href = g?.window?.location?.href;
     if (!href) return '';
     const u = new URL(href);
-    // setOrClear: the shared URL must describe EXACTLY the current search. Stale
-    // address-bar leftovers (an old returnDate on a one-way, a previous session's
-    // id) must be dropped, not silently kept — they made recipients re-run a
-    // different search than the one being shared.
     const setOrClear = (key: string, value: string | undefined | null) => {
       if (value) u.searchParams.set(key, value);
       else u.searchParams.delete(key);
     };
     setOrClear('optionId', optionId);
     setOrClear('flightId', flightId);
-    // Bake search params into the URL so the recipient can always reconstruct the search.
     if (searchParams) {
       setOrClear('sessionId', searchParams.sessionId);
       setOrClear('origin', searchParams.origin);

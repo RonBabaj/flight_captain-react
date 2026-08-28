@@ -27,7 +27,8 @@ import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
-  buildSkyscannerPrefillURL,
+  buildSkyscannerPrefillForLeg,
+  buildSkyscannerPrefillFromOption,
   isSplitBookingItinerary,
 } from '../../../utils/skyscanner';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
@@ -116,6 +117,7 @@ export function FlightDetailsModal({
   const { t, isRTL, language, currency: displayCurrency } = useLocale();
   const [bookLoading, setBookLoading] = useState(false);
   const [bookLoadingLeg, setBookLoadingLeg] = useState<number | null>(null);
+  const [skyscannerLoading, setSkyscannerLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { width, height: windowHeight } = useWindowDimensions();
   const isNarrow = width < 600;
@@ -199,29 +201,41 @@ export function FlightDetailsModal({
 
   const handleBookHop = async (legIndex: number) => {
     if (!option) return;
-    const hop = hops.find((h) => h.legIndex === legIndex);
-    if (!hop) {
-      Alert.alert('Error', 'Could not build Skyscanner link for this leg.');
-      return;
-    }
     setBookLoadingLeg(legIndex);
     try {
-      const sky = buildSkyscannerPrefillURL({
-        origin: hop.origin,
-        destination: hop.destination,
-        departureDate: hop.date,
-        cabinClass: searchParams?.cabinClass,
-        adults: searchParams?.adults,
-        children: searchParams?.children,
-      });
+      const sky = buildSkyscannerPrefillForLeg(option, legIndex, searchParams);
+      if (!sky) {
+        Alert.alert('Error', 'Could not build Skyscanner link for this leg.');
+        return;
+      }
       const ok = await openUrlInNewTab(sky);
       if (!ok) {
         Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
       }
     } catch {
-      Alert.alert('Error', 'Could not open booking link.');
+      Alert.alert('Error', 'Could not open Skyscanner.');
     } finally {
       setBookLoadingLeg(null);
+    }
+  };
+
+  const handleFindOnSkyscanner = async () => {
+    if (!option) return;
+    setSkyscannerLoading(true);
+    try {
+      const sky = buildSkyscannerPrefillFromOption(option, searchParams);
+      if (!sky) {
+        Alert.alert('Error', 'Could not build Skyscanner link for this flight.');
+        return;
+      }
+      const ok = await openUrlInNewTab(sky);
+      if (!ok) {
+        Alert.alert('Cannot open link', 'Your device cannot open Skyscanner.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open Skyscanner.');
+    } finally {
+      setSkyscannerLoading(false);
     }
   };
 
@@ -558,43 +572,61 @@ export function FlightDetailsModal({
                   const lastIdx = hops.length - 1;
                   const label =
                     hops.length === 2 && idx === 0
-                      ? t('book_outbound_skyscanner')
+                      ? t('find_outbound_skyscanner')
                       : hops.length === 2 && idx === lastIdx
-                        ? t('book_return_skyscanner')
-                        : t('book_leg_skyscanner')
+                        ? t('find_return_skyscanner')
+                        : t('find_leg_skyscanner')
                             .replace('{from}', hop.origin)
                             .replace('{to}', hop.destination);
                   const loading = bookLoadingLeg === hop.legIndex;
                   return (
                     <TouchableOpacity
                       key={hop.legIndex}
-                      style={[s.bookBtn, idx > 0 && s.bookBtnSpaced, { backgroundColor: theme.primary }]}
+                      style={[s.secondaryBtn, idx > 0 && s.bookBtnSpaced, { borderColor: theme.cardBorder }]}
                       onPress={() => handleBookHop(hop.legIndex)}
                       disabled={bookLoadingLeg != null}
                     >
                       {loading ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={theme.primary} />
                       ) : (
-                        <Text style={s.bookBtnText}>{label}</Text>
+                        <Text style={[s.secondaryBtnText, { color: theme.text }]}>{label}</Text>
                       )}
                     </TouchableOpacity>
                   );
                 })}
               </>
             ) : (
-              <TouchableOpacity
-                style={[s.bookBtn, { backgroundColor: theme.primary }]}
-                onPress={handleBook}
-                disabled={bookLoading}
-              >
-                {bookLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={s.bookBtnText}>{t('book_now')}</Text>
-                )}
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[s.bookBtn, { backgroundColor: theme.primary }]}
+                  onPress={handleBook}
+                  disabled={bookLoading || skyscannerLoading}
+                >
+                  {bookLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={s.bookBtnText}>{t('book_now')}</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.secondaryBtn, s.bookBtnSpaced, { borderColor: theme.cardBorder }]}
+                  onPress={handleFindOnSkyscanner}
+                  disabled={bookLoading || skyscannerLoading}
+                >
+                  {skyscannerLoading ? (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  ) : (
+                    <Text style={[s.secondaryBtnText, { color: theme.text }]}>{t('find_on_skyscanner')}</Text>
+                  )}
+                </TouchableOpacity>
+              </>
             )}
-            <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+            <Text style={[s.disclaimer, { color: theme.textMuted }]}>
+              {splitBooking ? t('skyscanner_split_disclaimer') : t('skyscanner_find_disclaimer')}
+            </Text>
+            {!splitBooking ? (
+              <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+            ) : null}
           </View>
         </CardContainer>
       </View>
@@ -759,6 +791,15 @@ const s = StyleSheet.create({
   },
   bookBtnSpaced: { marginTop: 8 },
   bookBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  secondaryBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderWidth: 1,
+  },
+  secondaryBtnText: { fontSize: 16, fontWeight: '600' },
   splitHint: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginBottom: 10, textAlign: 'center' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
 });

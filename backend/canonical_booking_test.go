@@ -146,7 +146,24 @@ func TestBookingRouteFromSessionOption_splitOmitsReturn(t *testing.T) {
 	}
 }
 
-func TestBuildOneWayLegBookingURL(t *testing.T) {
+func TestBuildSkyscannerPrefillURL_withFilters(t *testing.T) {
+	dep := time.Date(2026, 10, 7, 14, 30, 0, 0, time.UTC)
+	u := buildSkyscannerPrefillURLFiltered(skyscannerPrefillInput{
+		origin: "TLV", dest: "VIE", dep: "2026-10-07", ret: "", cabin: "ECONOMY", adults: 1,
+		airlines: "LY", departureTimes: skyscannerDepartureTimeRange(dep, 120), preferDirects: true,
+	})
+	if !strings.Contains(u, "airlines=LY") {
+		t.Fatalf("expected airlines filter, got %q", u)
+	}
+	if !strings.Contains(u, "departure-times=") {
+		t.Fatalf("expected departure-times filter, got %q", u)
+	}
+	if !strings.Contains(u, "preferdirects=true") {
+		t.Fatalf("expected preferdirects=true, got %q", u)
+	}
+}
+
+func TestBuildOneWayLegBookingURL_withFilters(t *testing.T) {
 	opt := openJawOption()
 	out := BuildOneWayLegBookingURL(nil, opt, 0)
 	if !strings.Contains(out, "/transport/flights/tlv/vie/261007/") || !strings.Contains(out, "rtn=0") {
