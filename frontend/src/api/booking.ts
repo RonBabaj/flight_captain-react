@@ -65,3 +65,13 @@ export async function resolveBookingOffer(
   }
   return data;
 }
+
+/** Client-side guard before opening an externally resolved booking URL. */
+export function isSafeBookingUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}

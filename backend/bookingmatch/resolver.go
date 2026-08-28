@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"flightcaptainweb/search"
 )
@@ -31,6 +32,7 @@ func NewResolver(cfg Config) *Resolver {
 
 // Match finds verified booking offers for an itinerary via web search.
 func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*MatchResult, error) {
+	start := time.Now()
 	cfg := r.Config
 	if r == nil {
 		return nil, fmt.Errorf("resolver not configured")
@@ -47,7 +49,16 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 
 	queries := GenerateQueries(it, cfg.MaxQueries)
 	result.Queries = queries
-	r.log(result, "generated %d search queries", len(queries))
+	if len(queries) == 0 {
+		logMatchEvent(MatchEvent{
+			Event:                "match_failed",
+			ItineraryFingerprint: fp,
+			FailureReason:        "no search queries generated",
+			DurationMs:           elapsedMs(start),
+		})
+		return result, fmt.Errorf("no search queries generated for itinerary")
+	}
+
 	for _, q := range queries {
 		r.log(result, "query: %s", q)
 	}
@@ -59,20 +70,42 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 	if perQueryMax < 3 {
 		perQueryMax = 3
 	}
-	if len(queries) == 0 {
-		return result, fmt.Errorf("no search queries generated for itinerary")
-	}
 
 	for _, q := range queries {
+		if ctx.Err() != nil {
+			logMatchEvent(MatchEvent{
+				Event:                "match_timeout",
+				ItineraryFingerprint: fp,
+				Query:                q,
+				FailureReason:        ctx.Err().Error(),
+				DurationMs:           elapsedMs(start),
+			})
+			return result, ctx.Err()
+		}
 		hits, err := r.Searcher.Search(ctx, q, perQueryMax)
 		if err != nil {
 			r.log(result, "search failed for %q: %v", q, err)
-			log.Printf("[BOOKING_MATCH] search error query=%q err=%v", q, err)
+			logMatchEvent(MatchEvent{
+				Event:                "search_error",
+				ItineraryFingerprint: fp,
+				Query:                q,
+				FailureReason:        err.Error(),
+			})
 			continue
 		}
 		r.log(result, "query %q returned %d candidates", q, len(hits))
 		for _, h := range hits {
 			if h.URL == "" {
+				continue
+			}
+			if err := ValidateBookingURL(h.URL); err != nil {
+				r.log(result, "rejected unsafe url=%s err=%v", h.URL, err)
+				logMatchEvent(MatchEvent{
+					Event:                "candidate_rejected",
+					ItineraryFingerprint: fp,
+					CandidateURL:         h.URL,
+					RejectionReason:      "unsafe URL",
+				})
 				continue
 			}
 			if _, ok := seenURL[h.URL]; ok {
@@ -92,26 +125,56 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 	}
 	result.CandidatesConsidered = len(candidates)
 
-	// Score all candidates
 	var offers []BookingOffer
+	rejected := 0
 	for _, c := range candidates {
 		offer := VerifyCandidate(it, c, cfg)
 		offers = append(offers, offer)
 		r.log(result, "verified url=%s score=%d status=%s reason=%s",
 			c.URL, offer.MatchScore, offer.VerificationStatus, offer.RejectionReason)
+		if offer.VerificationStatus != StatusVerifiedExact {
+			rejected++
+			logMatchEvent(MatchEvent{
+				Event:                "candidate_rejected",
+				ItineraryFingerprint: fp,
+				CandidateURL:         c.URL,
+				CandidateDomain:      c.Domain,
+				MatchScore:           offer.MatchScore,
+				VerificationStatus:   string(offer.VerificationStatus),
+				RejectionReason:      offer.RejectionReason,
+			})
+		}
 	}
 
-	// Optionally fetch pages for top partial/verified candidates to re-score
 	if r.Fetcher != nil && cfg.MaxPagesToFetch > 0 {
 		offers = r.refineWithPageFetch(ctx, it, offers, candidates, cfg, result)
 	}
 
 	result.Offers = offers
 	result.BestOffer = SelectBestOffer(offers)
+
 	if result.BestOffer != nil {
+		logMatchEvent(MatchEvent{
+			Event:                "match_success",
+			ItineraryFingerprint: fp,
+			CandidatesFound:      len(candidates),
+			CandidatesRejected:   rejected,
+			MatchScore:           result.BestOffer.MatchScore,
+			SelectedProvider:     result.BestOffer.Domain,
+			SelectedURLType:      string(result.BestOffer.URLType),
+			DurationMs:           elapsedMs(start),
+		})
 		r.log(result, "selected offer url=%s type=%s score=%d price=%v",
 			result.BestOffer.URL, result.BestOffer.URLType, result.BestOffer.MatchScore, result.BestOffer.Price)
 	} else {
+		logMatchEvent(MatchEvent{
+			Event:                "match_not_found",
+			ItineraryFingerprint: fp,
+			CandidatesFound:      len(candidates),
+			CandidatesRejected:   rejected,
+			FailureReason:        "no verified exact offer",
+			DurationMs:           elapsedMs(start),
+		})
 		r.log(result, "no verified exact offer found among %d candidates", len(candidates))
 	}
 
@@ -119,7 +182,6 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 }
 
 func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalItinerary, offers []BookingOffer, candidates []SearchCandidate, cfg Config, result *MatchResult) []BookingOffer {
-	// Pick top-scoring offers that aren't yet verified exact
 	type idxScore struct {
 		i int
 		s int
@@ -133,7 +195,6 @@ func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalI
 			toFetch = append(toFetch, idxScore{i, o.MatchScore})
 		}
 	}
-	// sort by score desc - simple bubble for small n
 	for a := 0; a < len(toFetch); a++ {
 		for b := a + 1; b < len(toFetch); b++ {
 			if toFetch[b].s > toFetch[a].s {

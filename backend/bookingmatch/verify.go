@@ -8,6 +8,15 @@ import (
 	"flightcaptainweb/search"
 )
 
+type segmentCheck struct {
+	score         int
+	flightNumOK   bool
+	dateOK        bool
+	fromOK        bool
+	toOK          bool
+	requiresFlightNum bool
+}
+
 // VerifyCandidate scores a search candidate against a canonical itinerary.
 func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config) BookingOffer {
 	now := time.Now().UTC()
@@ -25,6 +34,12 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 		Snippet:              c.Snippet,
 	}
 
+	if err := ValidateBookingURL(c.URL); err != nil {
+		offer.VerificationStatus = StatusRejected
+		offer.RejectionReason = "unsafe or malformed URL"
+		return offer
+	}
+
 	if amount, cur, ok := extractPrice(rawText); ok {
 		offer.Price = &amount
 		offer.Currency = cur
@@ -37,37 +52,17 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 		return offer
 	}
 
-	allFlightNumbersFound := true
-	total := 0
 	segMax := 90 / len(segs)
+	if segMax < 1 {
+		segMax = 1
+	}
 
+	var checks []segmentCheck
+	total := 0
 	for _, seg := range segs {
-		_, fn := segmentIdentity(seg)
-		segScore := 0
-
-		if fn != "" {
-			if flightNumberInText(rawText, fn) {
-				segScore += segMax * 35 / 100
-			} else {
-				allFlightNumbersFound = false
-			}
-		}
-		if textContainsAirport(rawText, seg.From) {
-			segScore += segMax * 15 / 100
-		}
-		if textContainsAirport(rawText, seg.To) {
-			segScore += segMax * 15 / 100
-		}
-		if textContainsAny(rawText, segmentDateVariants(seg)) {
-			segScore += segMax * 15 / 100
-		}
-		if timeMatches(rawText, seg, true) {
-			segScore += segMax * 10 / 100
-		}
-		if timeMatches(rawText, seg, false) {
-			segScore += segMax * 10 / 100
-		}
-		total += segScore
+		chk := scoreSegment(seg, rawText, segMax)
+		checks = append(checks, chk)
+		total += chk.score
 	}
 
 	if len(segs) > 1 && segmentOrderMatches(rawText, segs) {
@@ -83,18 +78,99 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 		threshold = 85
 	}
 
-	switch {
-	case !allFlightNumbersFound:
-		offer.VerificationStatus = StatusPartial
-		offer.RejectionReason = "flight number not established in candidate text"
-	case total >= threshold && allFlightNumbersFound:
+	reason := verifyExactEligibility(checks, segs, total, threshold, offer.URLType)
+	switch reason {
+	case "":
 		offer.VerificationStatus = StatusVerifiedExact
+	case "partial":
+		offer.VerificationStatus = StatusPartial
+		if offer.RejectionReason == "" {
+			offer.RejectionReason = fmt.Sprintf("score %d below verify threshold %d", total, threshold)
+		}
 	default:
 		offer.VerificationStatus = StatusPartial
-		offer.RejectionReason = fmt.Sprintf("score %d below verify threshold %d", total, threshold)
+		offer.RejectionReason = reason
 	}
 
 	return offer
+}
+
+func scoreSegment(seg search.CanonicalSegment, rawText string, segMax int) segmentCheck {
+	_, fn := segmentIdentity(seg)
+	chk := segmentCheck{requiresFlightNum: fn != ""}
+
+	// Flight number — heavily weighted (50% of segment score).
+	if fn != "" {
+		if flightNumberInText(rawText, fn) {
+			chk.flightNumOK = true
+			chk.score += segMax * 50 / 100
+		} else if opFn := operatingFlightForMatch(seg); opFn != "" && flightNumberInText(rawText, opFn) {
+			chk.flightNumOK = true
+			chk.score += segMax * 45 / 100
+		}
+	}
+
+	// Airports (15% each).
+	if chk.fromOK = textContainsAirport(rawText, seg.From); chk.fromOK {
+		chk.score += segMax * 15 / 100
+	}
+	if chk.toOK = textContainsAirport(rawText, seg.To); chk.toOK {
+		chk.score += segMax * 15 / 100
+	}
+
+	// Date — mandatory for exact match (15%).
+	if chk.dateOK = textContainsAny(rawText, segmentDateVariants(seg)); chk.dateOK {
+		chk.score += segMax * 15 / 100
+	}
+
+	// Departure / arrival times (5% each).
+	if timeMatches(rawText, seg, true) {
+		chk.score += segMax * 5 / 100
+	}
+	if timeMatches(rawText, seg, false) {
+		chk.score += segMax * 5 / 100
+	}
+
+	return chk
+}
+
+func operatingFlightForMatch(seg search.CanonicalSegment) string {
+	op := search.NormalizeCarrierCode(seg.OperatingCarrier)
+	mkt := search.NormalizeCarrierCode(seg.MarketingCarrier)
+	if op == "" || op == mkt {
+		return ""
+	}
+	if seg.OperatingFlightNumber != "" {
+		return search.NormalizeFlightNumber(op, seg.OperatingFlightNumber)
+	}
+	return search.NormalizeFlightNumber(op, seg.FlightNumber)
+}
+
+// verifyExactEligibility returns "" when the candidate qualifies as verified exact.
+func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegment, total, threshold int, urlType URLType) string {
+	if urlType == URLTypeGenericSearch {
+		return "generic search page cannot be an exact-flight booking"
+	}
+	for i, chk := range checks {
+		if !chk.dateOK && !segs[i].DepartureTime.IsZero() {
+			return "departure date not established in candidate text"
+		}
+		if chk.requiresFlightNum && !chk.flightNumOK {
+			return "flight number not established in candidate text"
+		}
+		if !chk.requiresFlightNum {
+			if !chk.fromOK || !chk.toOK {
+				return "route not established for segment without flight number"
+			}
+			if !chk.dateOK {
+				return "date required when flight number is missing"
+			}
+		}
+	}
+	if total < threshold {
+		return "partial"
+	}
+	return ""
 }
 
 // segmentOrderMatches checks flight numbers appear in itinerary order in text.

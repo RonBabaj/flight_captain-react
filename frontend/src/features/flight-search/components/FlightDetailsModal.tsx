@@ -20,6 +20,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
 import { SheetDragHandle, useDraggableSheetHeight } from '../../../components/DraggableBottomSheet';
 import { resolveBookingOffer } from '../../../api';
+import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
@@ -28,8 +29,6 @@ import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
-  buildSkyscannerPrefillURL,
-  buildSkyscannerPrefillFromOption,
   isSplitBookingItinerary,
 } from '../../../utils/skyscanner';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
@@ -116,11 +115,9 @@ export function FlightDetailsModal({
 }: FlightDetailsModalProps) {
   const { theme } = useTheme();
   const { t, isRTL, language, currency: displayCurrency } = useLocale();
-  const [bookLoadingLeg, setBookLoadingLeg] = useState<number | null>(null);
   const [resolveLoading, setResolveLoading] = useState(false);
   const [resolveLegIndex, setResolveLegIndex] = useState<number | null>(null);
   const [bookingResolve, setBookingResolve] = useState<BookingResolveResponse | null>(null);
-  const [skyscannerLoading, setSkyscannerLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { width, height: windowHeight } = useWindowDimensions();
   const isNarrow = width < 600;
@@ -218,58 +215,13 @@ export function FlightDetailsModal({
 
   const handleOpenVerifiedBooking = async () => {
     const url = bookingResolve?.offer?.url;
-    if (!url) return;
+    if (!url || !isSafeBookingUrl(url)) {
+      Alert.alert('Cannot open link', 'This booking link is not valid.');
+      return;
+    }
     const ok = await openUrlInNewTab(url);
     if (!ok) {
       Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
-    }
-  };
-
-  const handleFindOnSkyscanner = async () => {
-    if (!option) return;
-    setSkyscannerLoading(true);
-    try {
-      const sky = buildSkyscannerPrefillFromOption(option, searchParams);
-      if (!sky) {
-        Alert.alert('Error', 'Could not build Skyscanner link for this flight.');
-        return;
-      }
-      const ok = await openUrlInNewTab(sky);
-      if (!ok) {
-        Alert.alert('Cannot open link', 'Your device cannot open Skyscanner.');
-      }
-    } catch {
-      Alert.alert('Error', 'Could not open Skyscanner.');
-    } finally {
-      setSkyscannerLoading(false);
-    }
-  };
-
-  const handleBookHopSkyscanner = async (legIndex: number) => {
-    if (!option) return;
-    const hop = hops.find((h) => h.legIndex === legIndex);
-    if (!hop) {
-      Alert.alert('Error', 'Could not build Skyscanner link for this leg.');
-      return;
-    }
-    setBookLoadingLeg(legIndex);
-    try {
-      const sky = buildSkyscannerPrefillURL({
-        origin: hop.origin,
-        destination: hop.destination,
-        departureDate: hop.date,
-        cabinClass: searchParams?.cabinClass,
-        adults: searchParams?.adults,
-        children: searchParams?.children,
-      });
-      const ok = await openUrlInNewTab(sky);
-      if (!ok) {
-        Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
-      }
-    } catch {
-      Alert.alert('Error', 'Could not open booking link.');
-    } finally {
-      setBookLoadingLeg(null);
     }
   };
 
@@ -652,15 +604,6 @@ export function FlightDetailsModal({
               <>
                 <Text style={[s.splitHint, { color: theme.text }]}>{t('split_booking_hint')}</Text>
                 {hops.map((hop, idx) => {
-                  const lastIdx = hops.length - 1;
-                  const skyLabel =
-                    hops.length === 2 && idx === 0
-                      ? t('book_outbound_skyscanner')
-                      : hops.length === 2 && idx === lastIdx
-                        ? t('book_return_skyscanner')
-                        : t('book_leg_skyscanner')
-                            .replace('{from}', hop.origin)
-                            .replace('{to}', hop.destination);
                   const legResolving = resolveLoading && resolveLegIndex === hop.legIndex;
                   const legResolved =
                     bookingResolve && resolveLegIndex === hop.legIndex ? bookingResolve : null;
@@ -680,36 +623,29 @@ export function FlightDetailsModal({
                           <Text style={s.bookBtnText}>{t('book_this_flight')}</Text>
                         )}
                       </TouchableOpacity>
+                      {legResolving ? (
+                        <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
+                      ) : null}
                       {legResolved ? (
                         legResolved.found && legResolved.offer ? (
-                          <TouchableOpacity
-                            style={[s.secondaryBtn, { borderColor: theme.cardBorder }]}
-                            onPress={async () => {
-                              const u = legResolved.offer?.url;
-                              if (u) await openUrlInNewTab(u);
-                            }}
-                          >
-                            <Text style={[s.secondaryBtnText, { color: theme.primary }]}>
-                              {t('open_booking_site')}
-                            </Text>
-                          </TouchableOpacity>
+                          <View style={[s.verifyPanel, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
+                            <Text style={[s.verifyTitle, { color: theme.text }]}>{t('exact_itinerary_matched')}</Text>
+                            <TouchableOpacity
+                              style={[s.bookBtn, s.bookBtnSpaced, { backgroundColor: theme.primary }]}
+                              onPress={async () => {
+                                const u = legResolved.offer?.url;
+                                if (u && isSafeBookingUrl(u)) await openUrlInNewTab(u);
+                              }}
+                            >
+                              <Text style={s.bookBtnText}>{t('open_booking_site')}</Text>
+                            </TouchableOpacity>
+                          </View>
                         ) : (
                           <Text style={[s.verifyError, { color: theme.textMuted }]}>
                             {legResolved.message || t('no_verified_booking')}
                           </Text>
                         )
                       ) : null}
-                      <TouchableOpacity
-                        style={[s.secondaryBtn, { borderColor: theme.cardBorder }]}
-                        onPress={() => handleBookHopSkyscanner(hop.legIndex)}
-                        disabled={bookLoadingLeg != null}
-                      >
-                        {bookLoadingLeg === hop.legIndex ? (
-                          <ActivityIndicator size="small" color={theme.primary} />
-                        ) : (
-                          <Text style={[s.secondaryBtnText, { color: theme.text }]}>{skyLabel}</Text>
-                        )}
-                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -720,7 +656,7 @@ export function FlightDetailsModal({
                 <TouchableOpacity
                   style={[s.bookBtn, { backgroundColor: theme.primary }]}
                   onPress={() => handleBookThisFlight()}
-                  disabled={resolveLoading || skyscannerLoading}
+                  disabled={resolveLoading}
                 >
                   {resolveLoading && resolveLegIndex === null ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -732,17 +668,6 @@ export function FlightDetailsModal({
                   <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
                 ) : null}
                 {renderVerifiedOfferPanel()}
-                <TouchableOpacity
-                  style={[s.secondaryBtn, { borderColor: theme.cardBorder }]}
-                  onPress={handleFindOnSkyscanner}
-                  disabled={resolveLoading || skyscannerLoading}
-                >
-                  {skyscannerLoading ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
-                  ) : (
-                    <Text style={[s.secondaryBtnText, { color: theme.text }]}>{t('find_on_skyscanner')}</Text>
-                  )}
-                </TouchableOpacity>
               </>
             )}
             <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>

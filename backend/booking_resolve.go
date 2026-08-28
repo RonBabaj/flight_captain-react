@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,8 +32,7 @@ const (
 type BookingResolveRequest struct {
 	SessionID string `json:"sessionId"`
 	OptionID  string `json:"optionId"`
-	// LegIndex resolves a single hop for split (open-jaw / extra-leg) itineraries.
-	LegIndex *int `json:"legIndex,omitempty"`
+	LegIndex  *int   `json:"legIndex,omitempty"`
 }
 
 // PublicBookingOffer is the client-facing verified booking offer (no internal search details).
@@ -60,11 +62,74 @@ type bookingResolveCacheEntry struct {
 	expiresAt time.Time
 }
 
+type bookingResolveLogEvent struct {
+	Event                string `json:"event"`
+	SessionID            string `json:"sessionId,omitempty"`
+	OptionID             string `json:"optionId,omitempty"`
+	ItineraryFingerprint string `json:"itineraryFingerprint,omitempty"`
+	Status               string `json:"status,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	DurationMs           int64  `json:"durationMs,omitempty"`
+	CacheHit             bool   `json:"cacheHit,omitempty"`
+	FailureReason        string `json:"failureReason,omitempty"`
+}
+
+type inflightResolveEntry struct {
+	done chan struct{}
+	resp *BookingResolveResponse
+}
+
 var (
-	bookingResolveCache   sync.Map
-	bookingResolveCacheTTL = 30 * time.Minute
-	bookingMatchRunner    = defaultBookingMatchRunner
+	bookingResolveCache        sync.Map
+	bookingResolveInflight     sync.Map // cacheKey -> *inflightResolveEntry
+	bookingResolveCacheTTL     = 30 * time.Minute
+	bookingResolveNegativeTTL  = 5 * time.Minute
+	bookingResolveSem          chan struct{}
+	bookingMatchRunner         = defaultBookingMatchRunner
 )
+
+func init() {
+	bookingResolveSem = make(chan struct{}, bookingResolveMaxConcurrentFromEnv())
+	if v := envDurationMinutes("BOOKING_RESOLVE_CACHE_TTL_MIN", 30); v > 0 {
+		bookingResolveCacheTTL = v
+	}
+	if v := envDurationMinutes("BOOKING_RESOLVE_NEGATIVE_CACHE_TTL_MIN", 5); v > 0 {
+		bookingResolveNegativeTTL = v
+	}
+}
+
+func envDurationMinutes(key string, def int) time.Duration {
+	s := strings.TrimSpace(os.Getenv(key))
+	if s == "" {
+		return time.Duration(def) * time.Minute
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return time.Duration(def) * time.Minute
+	}
+	return time.Duration(n) * time.Minute
+}
+
+func bookingResolveMaxConcurrentFromEnv() int {
+	s := strings.TrimSpace(os.Getenv("BOOKING_RESOLVE_MAX_CONCURRENT"))
+	if s == "" {
+		return 5
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 5
+	}
+	return n
+}
+
+func logBookingResolve(ev bookingResolveLogEvent) {
+	b, err := json.Marshal(ev)
+	if err != nil {
+		log.Printf("[BOOKING_RESOLVE] event=%s status=%s", ev.Event, ev.Status)
+		return
+	}
+	log.Printf("[BOOKING_RESOLVE] %s", string(b))
+}
 
 func defaultBookingMatchRunner(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 	cfg := bookingmatch.DefaultConfig()
@@ -134,18 +199,32 @@ func getCachedBookingResolve(key string) (BookingResolveResponse, bool) {
 	return BookingResolveResponse{}, false
 }
 
-func setCachedBookingResolve(key string, resp BookingResolveResponse) {
-	if key == "" {
+func setCachedBookingResolve(key string, resp BookingResolveResponse, ttl time.Duration) {
+	if key == "" || ttl <= 0 {
 		return
 	}
 	bookingResolveCache.Store(key, bookingResolveCacheEntry{
 		resp:      resp,
-		expiresAt: time.Now().Add(bookingResolveCacheTTL),
+		expiresAt: time.Now().Add(ttl),
 	})
+}
+
+func cacheTTLForStatus(status string) time.Duration {
+	switch status {
+	case BookingResolveVerified:
+		return bookingResolveCacheTTL
+	case BookingResolveNotFound:
+		return bookingResolveNegativeTTL
+	default:
+		return 0
+	}
 }
 
 func publicOfferFromMatch(o *bookingmatch.BookingOffer, hadMultipleVerified bool) *PublicBookingOffer {
 	if o == nil {
+		return nil
+	}
+	if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
 		return nil
 	}
 	provider := strings.TrimSpace(o.Domain)
@@ -183,6 +262,22 @@ func countVerifiedExactOffers(offers []bookingmatch.BookingOffer) int {
 	return n
 }
 
+func acquireBookingResolveSlot(ctx context.Context) error {
+	select {
+	case bookingResolveSem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func releaseBookingResolveSlot() {
+	select {
+	case <-bookingResolveSem:
+	default:
+	}
+}
+
 func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int) BookingResolveResponse {
 	it, err := canonicalItineraryForOption(option, legIndex)
 	if err != nil {
@@ -198,6 +293,75 @@ func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int
 		return cached
 	}
 
+	waitEntry, leader := beginInflightResolve(cacheKey)
+	if !leader {
+		select {
+		case <-waitEntry.done:
+		case <-ctx.Done():
+			return BookingResolveResponse{
+				Found:                false,
+				Status:               BookingResolveTimeout,
+				ItineraryFingerprint: fp,
+				Message:              "Booking search timed out. Please try again.",
+			}
+		}
+		if waitEntry.resp != nil {
+			return *waitEntry.resp
+		}
+		if cached, ok := getCachedBookingResolve(cacheKey); ok {
+			return cached
+		}
+		return BookingResolveResponse{
+			Found:                false,
+			Status:               BookingResolveSearchUnavailable,
+			ItineraryFingerprint: fp,
+			Message:              "Booking search is temporarily unavailable.",
+		}
+	}
+
+	defer finishInflightResolve(cacheKey, waitEntry)
+
+	if err := acquireBookingResolveSlot(ctx); err != nil {
+		resp := BookingResolveResponse{
+			Found:                false,
+			Status:               BookingResolveTimeout,
+			ItineraryFingerprint: fp,
+			Message:              "Booking search timed out. Please try again.",
+		}
+		waitEntry.resp = &resp
+		return resp
+	}
+	defer releaseBookingResolveSlot()
+
+	if cached, ok := getCachedBookingResolve(cacheKey); ok {
+		waitEntry.resp = &cached
+		return cached
+	}
+
+	resp := runBookingMatch(ctx, it, fp, legIndex)
+	waitEntry.resp = &resp
+	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
+		setCachedBookingResolve(cacheKey, resp, ttl)
+	}
+	return resp
+}
+
+func beginInflightResolve(key string) (*inflightResolveEntry, bool) {
+	entry := &inflightResolveEntry{done: make(chan struct{})}
+	actual, loaded := bookingResolveInflight.LoadOrStore(key, entry)
+	if loaded {
+		return actual.(*inflightResolveEntry), false
+	}
+	return entry, true
+}
+
+func finishInflightResolve(key string, entry *inflightResolveEntry) {
+	close(entry.done)
+	bookingResolveInflight.Delete(key)
+}
+
+func runBookingMatch(ctx context.Context, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
+	start := time.Now()
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
 		resp := BookingResolveResponse{
@@ -214,6 +378,13 @@ func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int
 		} else {
 			resp.Status = BookingResolveSearchUnavailable
 		}
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
+			ItineraryFingerprint: fp,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        err.Error(),
+		})
 		return resp
 	}
 
@@ -225,7 +396,30 @@ func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int
 			ItineraryFingerprint: fp,
 			Message:              "No verified booking page found for this exact itinerary.",
 		}
-		setCachedBookingResolve(cacheKey, resp)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_not_found",
+			ItineraryFingerprint: fp,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
+	}
+
+	offer := publicOfferFromMatch(matchResult.BestOffer, verifiedCount > 1)
+	if offer == nil {
+		resp := BookingResolveResponse{
+			Found:                false,
+			Status:               BookingResolveNotFound,
+			ItineraryFingerprint: fp,
+			Message:              "No safe verified booking URL found for this exact itinerary.",
+		}
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_unsafe_url",
+			ItineraryFingerprint: fp,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        "verified offer failed URL validation",
+		})
 		return resp
 	}
 
@@ -233,9 +427,16 @@ func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int
 		Found:                true,
 		Status:               BookingResolveVerified,
 		ItineraryFingerprint: fp,
-		Offer:                publicOfferFromMatch(matchResult.BestOffer, verifiedCount > 1),
+		Offer:                offer,
 	}
-	setCachedBookingResolve(cacheKey, resp)
+	logBookingResolve(bookingResolveLogEvent{
+		Event:                "resolve_verified",
+		ItineraryFingerprint: fp,
+		Status:               resp.Status,
+		Provider:             offer.Provider,
+		DurationMs:           time.Since(start).Milliseconds(),
+	})
+	_ = legIndex
 	return resp
 }
 
@@ -249,6 +450,7 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
 	var req BookingResolveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -276,6 +478,21 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 		legIndex = *req.LegIndex
 	}
 
+	if cached, ok := getCachedBookingResolve(bookingResolveCacheKey(
+		search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex)), legIndex)); ok {
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_request",
+			SessionID:            sessionID,
+			OptionID:             optionID,
+			ItineraryFingerprint: cached.ItineraryFingerprint,
+			Status:               cached.Status,
+			CacheHit:             true,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		writeJSON(w, http.StatusOK, cached)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)
 	defer cancel()
 
@@ -284,5 +501,29 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	if out.Status == BookingResolveInvalidItinerary {
 		statusCode = http.StatusBadRequest
 	}
+	logBookingResolve(bookingResolveLogEvent{
+		Event:                "resolve_request",
+		SessionID:            sessionID,
+		OptionID:             optionID,
+		ItineraryFingerprint: out.ItineraryFingerprint,
+		Status:               out.Status,
+		Provider:             providerFromOffer(out.Offer),
+		DurationMs:           time.Since(start).Milliseconds(),
+	})
 	writeJSON(w, statusCode, out)
+}
+
+func providerFromOffer(o *PublicBookingOffer) string {
+	if o == nil {
+		return ""
+	}
+	return o.Provider
+}
+
+func mustCanonicalForLog(option *FlightOption, legIndex int) search.CanonicalItinerary {
+	it, err := canonicalItineraryForOption(option, legIndex)
+	if err != nil {
+		return search.CanonicalItinerary{}
+	}
+	return it
 }

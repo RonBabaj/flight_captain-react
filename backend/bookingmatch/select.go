@@ -17,13 +17,20 @@ func urlTypeRank(t URLType) int {
 }
 
 // SelectBestOffer picks the best verified offer from scored candidates.
-// Only StatusVerifiedExact offers are eligible; unverified offers are never returned as best.
+// Only StatusVerifiedExact offers with safe URLs are eligible; unverified offers are never returned.
 func SelectBestOffer(offers []BookingOffer) *BookingOffer {
 	var verified []BookingOffer
 	for _, o := range offers {
-		if o.VerificationStatus == StatusVerifiedExact {
-			verified = append(verified, o)
+		if o.VerificationStatus != StatusVerifiedExact {
+			continue
 		}
+		if o.URLType == URLTypeGenericSearch {
+			continue
+		}
+		if err := ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
+		verified = append(verified, o)
 	}
 	if len(verified) == 0 {
 		return nil
@@ -35,11 +42,9 @@ func SelectBestOffer(offers []BookingOffer) *BookingOffer {
 		if ra != rb {
 			return ra < rb
 		}
-		// Prefer higher match score
 		if a.MatchScore != b.MatchScore {
 			return a.MatchScore > b.MatchScore
 		}
-		// Prefer lower price when both have price
 		if a.Price != nil && b.Price != nil && *a.Price != *b.Price {
 			return *a.Price < *b.Price
 		}

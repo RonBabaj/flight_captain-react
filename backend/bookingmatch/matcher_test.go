@@ -236,6 +236,105 @@ func TestClassifyURLType_genericVsExact(t *testing.T) {
 	}
 }
 
+func TestSelectBestOffer_rejectsGenericSearchURL(t *testing.T) {
+	offers := []BookingOffer{
+		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 99, VerificationStatus: StatusVerifiedExact},
+	}
+	if SelectBestOffer(offers) != nil {
+		t.Fatal("generic search URL must not be selected")
+	}
+}
+
+func TestVerifyCandidate_missingFlightNumberRequiresRouteAndDate(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep,
+		MarketingCarrier: "OS", FlightNumber: "",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{seg}}
+	c := SearchCandidate{
+		URL:     "https://ota.com/book",
+		Snippet: "Tel Aviv to Vienna January 7, 2027 morning flight",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus == StatusVerifiedExact {
+		t.Fatal("missing flight number with weak snippet must not verify exact")
+	}
+}
+
+func TestVerifyCandidate_mandatoryDate(t *testing.T) {
+	it := testItineraryOS860()
+	c := SearchCandidate{
+		URL:     "https://ota.com/book",
+		Snippet: "OS860 TLV VIE dep 10:00 arr 12:30",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus == StatusVerifiedExact {
+		t.Fatal("date is mandatory for exact match")
+	}
+}
+
+func TestVerifyCandidate_codeshareOperatingNumber(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 12, 30, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LH", FlightNumber: "LH9600",
+		OperatingCarrier: "OS", OperatingFlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{seg}}
+	c := SearchCandidate{
+		URL:     "https://austrian.com/book",
+		Snippet: "OS860 TLV Vienna January 7, 2027 10:00 12:30",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus != StatusVerifiedExact {
+		t.Fatalf("operating flight number should verify: status=%s reason=%s", offer.VerificationStatus, offer.RejectionReason)
+	}
+}
+
+func TestVerifyCandidate_unsafeURLRejected(t *testing.T) {
+	it := testItineraryOS860()
+	c := SearchCandidate{
+		URL:     "javascript:alert(1)",
+		Snippet: "OS860 TLV VIE January 7, 2027 10:00 12:30",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus != StatusRejected {
+		t.Fatalf("expected rejected, got %s", offer.VerificationStatus)
+	}
+}
+
+func TestVerifyCandidate_staleWrongFlightInSnippet(t *testing.T) {
+	it := testItineraryOS860()
+	c := SearchCandidate{
+		URL:     "https://ota.com/book",
+		Snippet: "OS860 and OS862 TLV VIE January 7, 2027 10:00 12:30",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus == StatusVerifiedExact && strings.Contains(offer.RejectionReason, "") {
+		// OS860 matches — conflicting OS862 mention is ok if primary fn matches
+	}
+	if offer.VerificationStatus != StatusVerifiedExact {
+		t.Fatalf("primary flight match should still verify: %s %s", offer.VerificationStatus, offer.RejectionReason)
+	}
+}
+
+func TestSelectBestOffer_conflictingCandidatesPicksBest(t *testing.T) {
+	low := 120.0
+	high := 200.0
+	offers := []BookingOffer{
+		{URL: "https://ota-a.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &high},
+		{URL: "https://ota-b.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 92, VerificationStatus: StatusVerifiedExact, Price: &low},
+	}
+	best := SelectBestOffer(offers)
+	if best == nil || best.MatchScore != 92 {
+		t.Fatalf("expected highest score offer, got %+v", best)
+	}
+}
+
 func TestVerifyCandidate_differentPricesSameItinerary(t *testing.T) {
 	it := testItineraryOS860()
 	c1 := SearchCandidate{URL: "https://a.com/book", Snippet: "OS860 TLV VIE January 7, 2027 10:00 12:30 $199"}
