@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Linking,
   useWindowDimensions,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
@@ -16,7 +15,10 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
-import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl, createSearchSession, getSearchSessionResults } from '../../../api';
+import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSession, getSearchSessionResults } from '../../../api';
+import { isSafeBookingUrl } from '../../../api/booking';
+import type { BookingResolveResponse } from '../../../api/booking';
+import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
 import { getAirlineName } from '../../../data/airlines';
@@ -259,6 +261,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const [details, setDetails] = useState<FlightDetailsResponse | null>(null);
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [bookingResolve, setBookingResolve] = useState<BookingResolveResponse | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const [stopsOpen, setStopsOpen] = useState(true);
@@ -865,6 +868,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     setShowDetails(true);
     setDetails(null);
     setDetailsError(null);
+    setBookingResolve(null);
+    setBookError(null);
     setDetailsLoading(true);
     try {
       setDetails(await getFlightDetails({ origin: o, destination: d, date, durationDays, currency, adults, children }));
@@ -876,34 +881,36 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   };
 
   const handleBookFromDetails = async () => {
-    if (!selectedDate || !details) return;
-    const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
-
-    const depDate = new Date(selectedDate + 'T00:00:00Z');
-    const retDate = new Date(depDate);
-    retDate.setUTCDate(retDate.getUTCDate() + durationDays);
-    const returnDateStr = retDate.toISOString().slice(0, 10);
-
-    const url = getUniformBookingRedirectUrl(
-      details.sessionId || '',
-      details.optionId || '',
-      {
-        origin: o,
-        destination: d,
-        departureDate: selectedDate,
-        returnDate: returnDateStr,
-      }
-    );
-
+    if (!details?.sessionId || !details?.optionId) {
+      setBookError(t('booking_search_unavailable'));
+      return;
+    }
     setBookLoading(true);
     setBookError(null);
+    setBookingResolve(null);
     try {
-      await Linking.openURL(url);
+      const res = await resolveBookingOffer(details.sessionId, details.optionId);
+      setBookingResolve(res);
+      if (res.found && res.offer?.url) {
+        if (!isSafeBookingUrl(res.offer.url)) {
+          setBookError(t('no_verified_booking'));
+          return;
+        }
+      } else if (!res.found) {
+        setBookError(res.message || t('no_verified_booking'));
+      }
     } catch {
-      setBookError('Cannot open booking link.');
+      setBookError(t('booking_search_unavailable'));
     } finally {
       setBookLoading(false);
     }
+  };
+
+  const handleOpenVerifiedBooking = async () => {
+    const url = bookingResolve?.offer?.url;
+    if (!url || !isSafeBookingUrl(url)) return;
+    const ok = await openUrlInNewTab(url);
+    if (!ok) setBookError('Cannot open booking link.');
   };
 
   const handleDealSort = (field: DealsSortField) => {
@@ -1303,6 +1310,24 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
             {bookError ? (
               <Text style={[m.bookError, { color: theme.error }]}>{bookError}</Text>
             ) : null}
+            {bookingResolve?.found && bookingResolve.offer ? (
+              <View style={m.bookVerifyBlock}>
+                <Text style={[m.bookVerifyTitle, { color: theme.text }]}>{t('exact_itinerary_matched')}</Text>
+                {bookingResolve.offer.price != null ? (
+                  <Text style={[m.bookVerifyPrice, { color: theme.primary }]}>
+                    {getCurrencySymbol(bookingResolve.offer.currency || currency)}{' '}
+                    {getDisplayPrice(bookingResolve.offer.price, bookingResolve.offer.currency || currency, currency).amount.toFixed(0)}{' '}
+                    · {bookingResolve.offer.provider || bookingResolve.offer.domain}
+                  </Text>
+                ) : null}
+                <TouchableOpacity
+                  style={[m.bookBtn, { backgroundColor: theme.primary }]}
+                  onPress={handleOpenVerifiedBooking}
+                >
+                  <Text style={m.bookBtnText}>{t('open_booking_site')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <TouchableOpacity
               style={[m.bookBtn, { backgroundColor: details && !bookLoading ? theme.primary : theme.controlBg }]}
               onPress={handleBookFromDetails}
@@ -1312,9 +1337,12 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               {bookLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={[m.bookBtnText, { color: details ? '#fff' : theme.textMuted }]}>{t('book_now')}</Text>
+                <Text style={[m.bookBtnText, { color: details ? '#fff' : theme.textMuted }]}>{t('book_this_flight')}</Text>
               )}
             </TouchableOpacity>
+            {!bookLoading && details && !bookingResolve ? (
+              <Text style={[m.disclaimer, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
+            ) : null}
             <Text style={[m.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
           </View>
         </View>
@@ -1693,6 +1721,9 @@ const m = StyleSheet.create({
 
   footer: { padding: 20, borderTopWidth: 1 },
   bookError: { fontSize: 14, marginBottom: 10, textAlign: 'center' },
+  bookVerifyBlock: { marginBottom: 12, gap: 8 },
+  bookVerifyTitle: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  bookVerifyPrice: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
   bookBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
   bookBtnText: { fontSize: 17, fontWeight: '600' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
