@@ -180,6 +180,30 @@ func TestGenerateQueries_direct(t *testing.T) {
 	}
 }
 
+func TestGenerateQueries_gf2AirlineNameIdentity(t *testing.T) {
+	dep := time.Date(2026, 9, 15, 16, 30, 0, 0, time.UTC)
+	arr := time.Date(2026, 9, 15, 20, 10, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "CDG",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "AF", FlightNumber: "AF963",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{seg}}
+	qs := GenerateQueries(it, 5)
+	found := false
+	for _, q := range qs {
+		if strings.Contains(q, "AF963") {
+			found = true
+		}
+		if strings.Contains(q, "AIR FRANCE") {
+			t.Fatalf("query must not contain full airline name: %q", q)
+		}
+	}
+	if !found {
+		t.Fatalf("expected AF963 in queries, got %v", qs)
+	}
+}
+
 func TestGenerateQueries_connecting(t *testing.T) {
 	it := testConnectingTLVJFK()
 	qs := GenerateQueries(it, 5)

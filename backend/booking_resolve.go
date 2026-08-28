@@ -145,13 +145,10 @@ func canonicalItineraryForOption(option *FlightOption, legIndex int) (search.Can
 	if option == nil {
 		return search.CanonicalItinerary{}, fmt.Errorf("missing option")
 	}
-	var base search.CanonicalItinerary
-	if option.CanonicalItinerary != nil && len(option.CanonicalItinerary.Segments) > 0 {
-		base = *option.CanonicalItinerary
-	} else {
-		pr := providerResultFromFlightOption(option)
-		base = search.BuildCanonicalItinerary(pr)
-	}
+	// Always rebuild from leg segments so booking uses corrected flight identity
+	// (stored canonicalItinerary may predate carrier/name normalization fixes).
+	pr := providerResultFromFlightOption(option)
+	base := search.BuildCanonicalItinerary(pr)
 	if len(base.Segments) == 0 {
 		return search.CanonicalItinerary{}, fmt.Errorf("itinerary has no segments")
 	}

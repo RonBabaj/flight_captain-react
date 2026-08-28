@@ -1363,6 +1363,11 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			depTime.IsZero(), arrTime.IsZero(), rawDep, rawDep, rawArr, rawArr, rawDepT, rawDepT, rawArrT, rawArrT, departureDate)
 	}
 
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
+	}
+
 	return &Segment{
 		From:                  from,
 		To:                    to,
@@ -1403,6 +1408,14 @@ func gf2OperatingFlightNumber(s map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+func gf2NormalizeSegmentIdentity(carrier, flightNum string) (string, string) {
+	code, fn := ResolveFlightIdentity(carrier, flightNum)
+	if code != "" {
+		carrier = code
+	}
+	return carrier, fn
 }
 
 func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
@@ -1448,6 +1461,11 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 	}
 	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
 		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
+	}
+
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
 	}
 
 	return &Segment{
