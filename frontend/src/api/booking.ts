@@ -29,6 +29,9 @@ export interface BookingResolveResponse {
   itineraryFingerprint?: string;
   offer?: PublicBookingOffer;
   message?: string;
+  quotedPrice?: number;
+  quotedCurrency?: string;
+  priceMismatch?: boolean;
 }
 
 export interface BookingResolveRequest {

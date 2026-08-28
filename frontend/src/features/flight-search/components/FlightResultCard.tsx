@@ -285,7 +285,11 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           ) : null}
           {option.source === 'kiwi' || option.vendorName ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-              {option.source === 'kiwi' ? t('source_kiwi') : option.vendorName}
+              {option.vendorName
+                ? t('via_vendor').replace('{vendor}', option.vendorName)
+                : option.source === 'kiwi'
+                  ? t('source_kiwi')
+                  : option.vendorName}
             </Text>
           ) : null}
           {perPassengerStr ? (

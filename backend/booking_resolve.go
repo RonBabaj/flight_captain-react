@@ -55,6 +55,9 @@ type BookingResolveResponse struct {
 	ItineraryFingerprint string              `json:"itineraryFingerprint,omitempty"`
 	Offer                *PublicBookingOffer `json:"offer,omitempty"`
 	Message              string              `json:"message,omitempty"`
+	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
+	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
+	PriceMismatch        bool                `json:"priceMismatch,omitempty"`
 }
 
 type bookingResolveCacheEntry struct {
@@ -336,6 +339,7 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 	}
 
 	resp := runBookingMatch(ctx, session, option, it, fp, legIndex)
+	resp = attachQuotedPriceMeta(resp, session, option, legIndex)
 	waitEntry.resp = &resp
 	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
 		setCachedBookingResolve(cacheKey, resp, ttl)
