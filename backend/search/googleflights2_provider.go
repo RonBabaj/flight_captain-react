@@ -1655,6 +1655,41 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 	return p.ResolvePartnerBookingURL(ctx, token, currency)
 }
 
+// ResolvePartnerBookingForFingerprint re-runs GF2 search and resolves the partner checkout URL
+// for the result whose itinerary fingerprint matches wantFP.
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantFP, currency string) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("google flights provider not configured")
+	}
+	wantFP = strings.TrimSpace(wantFP)
+	if wantFP == "" {
+		return "", fmt.Errorf("missing itinerary fingerprint")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if !p.limiter.allow() {
+		return "", fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	results, err := p.Search(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	AttachCanonicalIdentityAll(results)
+	for i := range results {
+		r := &results[i]
+		if r.ItineraryFingerprint != wantFP {
+			continue
+		}
+		token := strings.TrimSpace(r.BookingToken)
+		if token == "" {
+			continue
+		}
+		return p.ResolvePartnerBookingURL(ctx, token, currency)
+	}
+	return "", fmt.Errorf("no booking_token for itinerary fingerprint %s", wantFP)
+}
+
 func isLikelyPartnerCheckoutURL(u string) bool {
 	s := strings.ToLower(strings.TrimSpace(u))
 	if !strings.HasPrefix(s, "https://") {

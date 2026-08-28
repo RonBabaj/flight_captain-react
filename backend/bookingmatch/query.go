@@ -53,6 +53,12 @@ func GenerateQueries(it search.CanonicalItinerary, maxQueries int) []string {
 		for _, q := range connectingFlightQueries(segs) {
 			add(q)
 		}
+		// Per-segment queries help SerpAPI surface airline/OTA pages for connections.
+		for _, seg := range segs {
+			for _, q := range directFlightQueries(seg) {
+				add(q)
+			}
+		}
 	}
 
 	out := queries
@@ -85,6 +91,9 @@ func directFlightQueries(seg search.CanonicalSegment) []string {
 	}
 
 	qs = append(qs, addQuoted(fn, from, to))
+	if fn != "" {
+		qs = append(qs, strings.TrimSpace(fn+" "+from+" "+to))
+	}
 	if cityFrom, ok := airportCityNames[from]; ok {
 		if cityTo, ok2 := airportCityNames[to]; ok2 {
 			qs = append(qs, addQuoted(fn, cityFrom, cityTo))
@@ -192,6 +201,17 @@ func segmentDateVariants(seg search.CanonicalSegment) []string {
 		t.Format("January 2, 2006"),
 		t.Format("01/02/2006"),
 		t.Format("02/01/2006"),
+		t.Format("2/1/2006"),
+		t.Format("02/01/06"),
+	}
+	// Connecting segments may appear on adjacent calendar days in snippets.
+	for _, delta := range []int{-1, 1} {
+		adj := t.AddDate(0, 0, delta)
+		variants = append(variants,
+			adj.Format("2006-01-02"),
+			adj.Format("Jan 2, 2006"),
+			adj.Format("2 Jan 2006"),
+		)
 	}
 	return variants
 }

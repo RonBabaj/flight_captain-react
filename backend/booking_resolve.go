@@ -275,7 +275,7 @@ func releaseBookingResolveSlot() {
 	}
 }
 
-func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int) BookingResolveResponse {
+func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int) BookingResolveResponse {
 	it, err := canonicalItineraryForOption(option, legIndex)
 	if err != nil {
 		return BookingResolveResponse{
@@ -335,7 +335,7 @@ func resolveBookingOffer(ctx context.Context, option *FlightOption, legIndex int
 		return cached
 	}
 
-	resp := runBookingMatch(ctx, it, fp, legIndex)
+	resp := runBookingMatch(ctx, session, option, it, fp, legIndex)
 	waitEntry.resp = &resp
 	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
 		setCachedBookingResolve(cacheKey, resp, ttl)
@@ -357,8 +357,29 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 	bookingResolveInflight.Delete(key)
 }
 
-func runBookingMatch(ctx context.Context, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
+func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
 	start := time.Now()
+
+	if gf2Offer := resolveGF2PartnerOffer(ctx, session, option, fp, legIndex); gf2Offer != nil {
+		offer := publicOfferFromMatch(gf2Offer, false)
+		if offer != nil {
+			resp := BookingResolveResponse{
+				Found:                true,
+				Status:               BookingResolveVerified,
+				ItineraryFingerprint: fp,
+				Offer:                offer,
+			}
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_verified_gf2",
+				ItineraryFingerprint: fp,
+				Status:               resp.Status,
+				Provider:             offer.Provider,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			return resp
+		}
+	}
+
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
 		resp := BookingResolveResponse{
@@ -493,7 +514,7 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)
 	defer cancel()
 
-	out := resolveBookingOffer(ctx, option, legIndex)
+	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex)
 	statusCode := http.StatusOK
 	if out.Status == BookingResolveInvalidItinerary {
 		statusCode = http.StatusBadRequest
