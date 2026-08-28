@@ -574,9 +574,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Самое дешёвое подходящее предложение',
   },
   no_verified_booking: {
-    en: 'We could not verify a booking page for this exact itinerary. You can still search similar flights on Skyscanner.',
-    he: 'לא הצלחנו לאמת דף הזמנה למסלול המדויק. אפשר עדיין לחפש טיסות דומות ב־Skyscanner.',
-    ru: 'Не удалось подтвердить страницу бронирования для этого маршрута. Можно поискать похожие рейсы на Skyscanner.',
+    en: 'No verified booking page found for this exact itinerary.',
+    he: 'לא נמצא דף הזמנה מאומת למסלול המדויק.',
+    ru: 'Не найдена проверенная страница бронирования для этого маршрута.',
   },
   booking_search_unavailable: {
     en: 'Exact-flight booking search is temporarily unavailable. Please try again later.',
@@ -606,9 +606,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Забронировать {from} → {to} на Skyscanner',
   },
   split_booking_hint: {
-    en: 'This trip uses separate one-way tickets. Book each flight on Skyscanner.',
-    he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. הזמינו כל טיסה ב־Skyscanner.',
-    ru: 'Этот маршрут — отдельные билеты в одну сторону. Бронируйте каждый рейс на Skyscanner.',
+    en: 'This trip uses separate one-way tickets. Use Book This Flight for each leg.',
+    he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. השתמשו ב״הזמן טיסה זו״ לכל קטע.',
+    ru: 'Маршрут состоит из отдельных билетов в одну сторону. Нажмите «Забронировать этот рейс» для каждого участка.',
   },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',
