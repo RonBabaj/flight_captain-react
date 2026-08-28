@@ -157,6 +157,7 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 		out.Stats = append(out.Stats, p.stats)
 		out.Results = append(out.Results, p.results...)
 	}
+	out.Results = AttachCanonicalIdentityAll(out.Results)
 	out.Results = DedupeProviderResults(out.Results)
 	return out
 }

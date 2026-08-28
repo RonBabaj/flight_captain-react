@@ -1308,6 +1308,7 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 	if c, ok := s["airline"].(string); ok {
 		carrier = c
 	}
+	operatingCarrier := gf2OperatingCarrier(s)
 	if fn, ok := s["flight_number"].(string); ok {
 		flightNum = fn
 		// Extract carrier code from "NH 962" -> "NH" when airline not set
@@ -1318,6 +1319,7 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			}
 		}
 	}
+	operatingFlightNum := gf2OperatingFlightNumber(s)
 	if durMin == 0 {
 		durMin = extractGF2DurationMinutes(s, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
@@ -1341,15 +1343,45 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 	}
 
 	return &Segment{
-		From:             from,
-		To:               to,
-		DepartureTime:    depTime,
-		ArrivalTime:      arrTime,
-		MarketingCarrier: carrier,
-		FlightNumber:     flightNum,
-		DurationMinutes:  durMin,
-		CabinClass:       cabin,
+		From:                  from,
+		To:                    to,
+		DepartureTime:         depTime,
+		ArrivalTime:           arrTime,
+		MarketingCarrier:      carrier,
+		OperatingCarrier:      operatingCarrier,
+		FlightNumber:          flightNum,
+		OperatingFlightNumber: operatingFlightNum,
+		DurationMinutes:       durMin,
+		CabinClass:            cabin,
 	}
+}
+
+func gf2OperatingCarrier(s map[string]interface{}) string {
+	for _, key := range []string{
+		"operating_airline", "operatingAirline", "operated_by", "operatedBy",
+		"operating_carrier", "operatingCarrier", "operating_airline_iata",
+	} {
+		if v, ok := s[key].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	if m, ok := s["operating_airline"].(map[string]interface{}); ok {
+		if code := gf2AirportCode(m); code != "" {
+			return code
+		}
+	}
+	return ""
+}
+
+func gf2OperatingFlightNumber(s map[string]interface{}) string {
+	for _, key := range []string{
+		"operating_flight_number", "operatingFlightNumber", "operated_flight_number",
+	} {
+		if v, ok := s[key].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
@@ -1379,9 +1411,11 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 	if c, ok := seg["airline"].(string); ok {
 		carrier = c
 	}
+	operatingCarrier := gf2OperatingCarrier(seg)
 	if fn, ok := seg["flight_number"].(string); ok {
 		flightNum = fn
 	}
+	operatingFlightNum := gf2OperatingFlightNumber(seg)
 	if durMin == 0 {
 		durMin = extractGF2DurationMinutes(seg, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
@@ -1396,14 +1430,16 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 	}
 
 	return &Segment{
-		From:             from,
-		To:               to,
-		DepartureTime:    depTime,
-		ArrivalTime:      arrTime,
-		MarketingCarrier: carrier,
-		FlightNumber:     flightNum,
-		DurationMinutes:  durMin,
-		CabinClass:       cabin,
+		From:                  from,
+		To:                    to,
+		DepartureTime:         depTime,
+		ArrivalTime:           arrTime,
+		MarketingCarrier:      carrier,
+		OperatingCarrier:      operatingCarrier,
+		FlightNumber:          flightNum,
+		OperatingFlightNumber: operatingFlightNum,
+		DurationMinutes:       durMin,
+		CabinClass:            cabin,
 	}, durMin
 }
 
