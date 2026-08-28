@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"flightcaptainweb/search"
 )
 
 // BOOKING_LINK_MODE: "google_prefill" | "skyscanner_prefill" | "direct_provider"
@@ -264,34 +266,19 @@ func BuildGoogleFlightsFallbackFromParams(origin, destination, departureDate, re
 	return u
 }
 
-// CanonicalFingerprint returns a stable hash for dedupe: origin, dest, departAt, arriveAt, carrierCodes, flightNumbers, stopsCount, totalDuration. Does not include price so same flight from different providers dedupes to cheapest.
+// CanonicalFingerprint returns a stable hash for dedupe based on physical itinerary identity (not price).
 func CanonicalFingerprint(option *FlightOption) string {
-	if option == nil || len(option.Legs) == 0 {
+	if option == nil {
 		return ""
 	}
-	var parts []string
-	for _, leg := range option.Legs {
-		if len(leg.Segments) == 0 {
-			continue
-		}
-		first := leg.Segments[0]
-		last := leg.Segments[len(leg.Segments)-1]
-		parts = append(parts, first.From.Code, last.To.Code)
-		parts = append(parts, first.DepartureTime.Format(time.RFC3339), last.ArrivalTime.Format(time.RFC3339))
-		var carriers, numbers []string
-		stops := len(leg.Segments) - 1
-		parts = append(parts, fmt.Sprintf("%d", stops))
-		for _, s := range leg.Segments {
-			carriers = append(carriers, s.MarketingCarrier.Code)
-			numbers = append(numbers, s.FlightNumber)
-		}
-		sort.Strings(carriers)
-		sort.Strings(numbers)
-		parts = append(parts, strings.Join(carriers, ","), strings.Join(numbers, ","))
+	if fp := strings.TrimSpace(option.ItineraryFingerprint); fp != "" {
+		return fp
 	}
-	parts = append(parts, fmt.Sprintf("%d", option.DurationMinutes))
-	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
-	return hex.EncodeToString(h[:16])
+	if option.CanonicalItinerary != nil {
+		return search.CanonicalItineraryFingerprint(*option.CanonicalItinerary)
+	}
+	pr := providerResultFromFlightOption(option)
+	return search.CanonicalItineraryFingerprint(search.BuildCanonicalItinerary(pr))
 }
 
 // roundTimeToMinutes rounds t to the nearest 5-minute bucket (e.g. for fingerprint tolerance).

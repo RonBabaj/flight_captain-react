@@ -1,55 +1,17 @@
 package search
 
 import (
-	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // ItineraryFingerprint builds a stable key for the physical itinerary (not price/source).
 func ItineraryFingerprint(r ProviderResult) string {
-	var parts []string
-	for _, leg := range r.Legs {
-		if len(leg.Segments) == 0 {
-			continue
-		}
-		first := leg.Segments[0]
-		last := leg.Segments[len(leg.Segments)-1]
-		parts = append(parts,
-			strings.ToUpper(first.From),
-			strings.ToUpper(last.To),
-			roundTimeKey(first.DepartureTime),
-			roundTimeKey(last.ArrivalTime),
-		)
-		for _, s := range leg.Segments {
-			parts = append(parts,
-				strings.ToUpper(s.MarketingCarrier),
-				normalizeFlightNumber(s.FlightNumber),
-			)
-		}
-		parts = append(parts, fmt.Sprintf("stops%d", maxInt(0, len(leg.Segments)-1)))
+	if fp := strings.TrimSpace(r.ItineraryFingerprint); fp != "" {
+		return fp
 	}
-	if len(parts) == 0 {
-		return r.ID
-	}
-	return strings.Join(parts, "|")
-}
-
-func roundTimeKey(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	// 5-minute buckets tolerate minor provider clock differences
-	unix := t.Unix()
-	rounded := (unix / 300) * 300
-	return time.Unix(rounded, 0).UTC().Format(time.RFC3339)
-}
-
-func normalizeFlightNumber(n string) string {
-	n = strings.ToUpper(strings.TrimSpace(n))
-	n = strings.ReplaceAll(n, " ", "")
-	return n
+	it := BuildCanonicalItinerary(r)
+	return CanonicalItineraryFingerprint(it)
 }
 
 // DedupeProviderResults keeps the cheapest offer per itinerary fingerprint.

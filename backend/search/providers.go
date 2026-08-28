@@ -187,7 +187,7 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 	if len(acc) > maxOut {
 		acc = acc[:maxOut]
 	}
-	return acc
+	return AttachCanonicalIdentityAll(acc)
 }
 
 // Monetary holds currency and amount.
@@ -223,6 +223,8 @@ type ProviderResult struct {
 	SelfTransfer          bool                   // separate tickets / virtual interlining
 	FetchedAt             time.Time              // data freshness
 	Metadata              map[string]interface{} // provider-specific extras (never secrets)
+	CanonicalItinerary    CanonicalItinerary     // normalized identity (excludes price from fingerprint)
+	ItineraryFingerprint  string                 // deterministic hash of physical itinerary
 }
 
 // Leg represents one direction (outbound or return).
@@ -232,14 +234,16 @@ type Leg struct {
 
 // Segment represents a single flight segment.
 type Segment struct {
-	From             string
-	To               string
-	DepartureTime    time.Time
-	ArrivalTime      time.Time
-	MarketingCarrier string
-	FlightNumber     string
-	DurationMinutes  int
-	CabinClass       string
+	From                  string
+	To                    string
+	DepartureTime         time.Time
+	ArrivalTime           time.Time
+	MarketingCarrier      string
+	OperatingCarrier      string
+	FlightNumber          string
+	OperatingFlightNumber string
+	DurationMinutes       int
+	CabinClass            string
 }
 
 // Provider is the interface all flight search providers implement.

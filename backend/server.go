@@ -219,8 +219,10 @@ type FlightOption struct {
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
 	SelfTransferWarning   string           `json:"selfTransferWarning,omitempty"`   // user-facing warning when SelfTransfer
-	CanonicalFingerprint  string           `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
-	FetchedAt             *time.Time       `json:"fetchedAt,omitempty"`             // provider data freshness when known
+	CanonicalFingerprint  string                    `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
+	ItineraryFingerprint  string                    `json:"itineraryFingerprint,omitempty"`  // deterministic physical-itinerary hash
+	CanonicalItinerary    *search.CanonicalItinerary `json:"canonicalItinerary,omitempty"`     // normalized identity from GF scraper
+	FetchedAt             *time.Time                `json:"fetchedAt,omitempty"`             // provider data freshness when known
 
 	// Codeshare / multi-seller (additive)
 	PrimaryMarketingCarrier string         `json:"primaryMarketingCarrier,omitempty"` // first segment marketing
@@ -793,6 +795,11 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	prs := multi.Results
 	options := providerResultsToFlightOptions(prs)
+	for i := range options {
+		if options[i].CanonicalItinerary != nil {
+			options[i].CanonicalItinerary.SetPassengerContext(req.Adults, req.ChildrenOrDefault(), req.Infants)
+		}
+	}
 	offersInitial := options
 
 	offersAfterCabin := options
@@ -1179,12 +1186,17 @@ func computeOutboundSummary(opt *FlightOption) *OutboundSummary {
 // providerResultsToFlightOptions converts search.ProviderResult to FlightOption.
 func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption {
 	var out []FlightOption
-	for _, pr := range prs {
+	for i := range prs {
+		pr := prs[i]
+		if pr.ItineraryFingerprint == "" {
+			search.AttachCanonicalIdentity(&prs[i])
+			pr = prs[i]
+		}
 		var legs []FlightLeg
 		for _, l := range pr.Legs {
 			var segs []FlightSegment
 			for _, s := range l.Segments {
-				segs = append(segs, FlightSegment{
+				fs := FlightSegment{
 					From:             AirportLike{Code: strings.ToUpper(s.From)},
 					To:               AirportLike{Code: strings.ToUpper(s.To)},
 					DepartureTime:    s.DepartureTime,
@@ -1193,7 +1205,14 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 					FlightNumber:     s.FlightNumber,
 					DurationMinutes:  s.DurationMinutes,
 					CabinClass:       s.CabinClass,
-				})
+				}
+				if op := strings.TrimSpace(s.OperatingCarrier); op != "" {
+					fs.OperatingCarrier = &Carrier{Code: op}
+				}
+				if opFn := strings.TrimSpace(s.OperatingFlightNumber); opFn != "" {
+					fs.OperatingFlightNum = opFn
+				}
+				segs = append(segs, fs)
 			}
 			legs = append(legs, FlightLeg{Segments: segs})
 		}
@@ -1231,9 +1250,55 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 		ensurePrimaryCarrier(&opt)
 		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
 		opt.OutboundSummary = computeOutboundSummary(&opt)
+		it := pr.CanonicalItinerary
+		if len(it.Segments) == 0 {
+			it = search.BuildCanonicalItinerary(pr)
+		}
+		opt.CanonicalItinerary = &it
+		opt.ItineraryFingerprint = pr.ItineraryFingerprint
+		if opt.ItineraryFingerprint == "" {
+			opt.ItineraryFingerprint = search.CanonicalItineraryFingerprint(it)
+		}
+		opt.CanonicalFingerprint = opt.ItineraryFingerprint
 		out = append(out, opt)
 	}
 	return out
+}
+
+func providerResultFromFlightOption(o *FlightOption) search.ProviderResult {
+	if o == nil {
+		return search.ProviderResult{}
+	}
+	var legs []search.Leg
+	for _, leg := range o.Legs {
+		var segs []search.Segment
+		for _, s := range leg.Segments {
+			seg := search.Segment{
+				From:             s.From.Code,
+				To:               s.To.Code,
+				DepartureTime:    s.DepartureTime,
+				ArrivalTime:      s.ArrivalTime,
+				MarketingCarrier: s.MarketingCarrier.Code,
+				FlightNumber:     s.FlightNumber,
+				DurationMinutes:  s.DurationMinutes,
+				CabinClass:       s.CabinClass,
+			}
+			if s.OperatingCarrier != nil {
+				seg.OperatingCarrier = s.OperatingCarrier.Code
+			}
+			seg.OperatingFlightNumber = s.OperatingFlightNum
+			segs = append(segs, seg)
+		}
+		legs = append(legs, search.Leg{Segments: segs})
+	}
+	return search.ProviderResult{
+		ID:              o.ID,
+		Price:           search.Monetary{Currency: o.Price.Currency, Amount: o.Price.Amount},
+		DurationMinutes: o.DurationMinutes,
+		Legs:            legs,
+		Source:          o.Source,
+		SelfTransfer:    o.SelfTransfer,
+	}
 }
 
 // dedupeFlightOptions removes duplicates by canonicalFingerprint (when set), else by legacy key; keeps cheapest. Renumbers IDs to opt_0, opt_1, ...
