@@ -25,8 +25,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 180s
-          command_timeout: 15m
+          timeout: 300s
+          command_timeout: 20m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -40,7 +40,7 @@ jobs:
 
       - name: Wait before SSH retry
         if: steps.ssh1.outcome == 'failure'
-        run: sleep 45
+        run: sleep 60
 
       - name: Deploy over SSH (retry)
         id: ssh2
@@ -51,8 +51,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 180s
-          command_timeout: 15m
+          timeout: 300s
+          command_timeout: 20m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -66,7 +66,7 @@ jobs:
 
       - name: Wait before second SSH retry
         if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure'
-        run: sleep 90
+        run: sleep 120
 
       - name: Deploy over SSH (second retry)
         id: ssh3
@@ -76,8 +76,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 180s
-          command_timeout: 15m
+          timeout: 300s
+          command_timeout: 20m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
