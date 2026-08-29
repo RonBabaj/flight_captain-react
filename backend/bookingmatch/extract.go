@@ -183,18 +183,41 @@ func flightNumberInText(text, want string) bool {
 	}
 	found := extractFlightNumbers(strings.ToUpper(text))
 	for _, f := range found {
-		if f == want {
+		if flightNumbersEquivalent(want, f) {
 			return true
 		}
 	}
 	if len(want) >= 3 {
 		carrier := want[:2]
-		num := strings.TrimPrefix(strings.TrimPrefix(want[2:], "0"), "0")
-		if strings.Contains(strings.ToUpper(text), carrier+" "+num) {
+		num := strings.TrimLeft(want[2:], "0")
+		if num != "" && strings.Contains(strings.ToUpper(text), carrier+" "+num) {
 			return true
 		}
 	}
 	return strings.Contains(strings.ToUpper(text), want)
+}
+
+func flightNumbersEquivalent(a, b string) bool {
+	a = strings.ToUpper(strings.TrimSpace(a))
+	b = strings.ToUpper(strings.TrimSpace(b))
+	if a == b {
+		return true
+	}
+	ac, an, aok := splitFlightDesignator(a)
+	bc, bn, bok := splitFlightDesignator(b)
+	if !aok || !bok || ac != bc {
+		return false
+	}
+	return strings.TrimLeft(an, "0") == strings.TrimLeft(bn, "0")
+}
+
+func splitFlightDesignator(fn string) (carrier, num string, ok bool) {
+	fn = strings.ToUpper(strings.TrimSpace(fn))
+	m := flightNumPattern.FindStringSubmatch(fn)
+	if len(m) < 3 {
+		return "", "", false
+	}
+	return m[1], m[2], true
 }
 
 func timeMatches(text string, seg search.CanonicalSegment, dep bool) bool {

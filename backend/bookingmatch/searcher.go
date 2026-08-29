@@ -39,7 +39,7 @@ func DefaultConfig() Config {
 	if engine == "" {
 		engine = "google"
 	}
-	maxQ := envInt("WEB_SEARCH_MAX_QUERIES", 5)
+	maxQ := envInt("WEB_SEARCH_MAX_QUERIES", 8)
 	maxC := envInt("WEB_SEARCH_MAX_CANDIDATES", 20)
 	threshold := envInt("BOOKING_MATCH_VERIFY_THRESHOLD", 70)
 	timeoutSec := envInt("WEB_SEARCH_TIMEOUT_SEC", 15)
@@ -53,7 +53,7 @@ func DefaultConfig() Config {
 		VerifyThreshold:   threshold,
 		SearchTimeout:     time.Duration(timeoutSec) * time.Second,
 		FetchPageTimeout:  10 * time.Second,
-		MaxPagesToFetch:   3,
+		MaxPagesToFetch:   5,
 	}
 }
 

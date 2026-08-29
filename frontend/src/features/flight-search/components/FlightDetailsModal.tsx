@@ -132,6 +132,28 @@ export function FlightDetailsModal({
     setResolveLoadingKey(null);
   }, [option?.id, sessionId]);
 
+  useEffect(() => {
+    if (!visible || !option || !sessionId) return;
+    const keysToResolve = splitBooking && hops.length > 0
+      ? hops.map((hop) => hop.legIndex)
+      : [undefined];
+    for (const legIndex of keysToResolve) {
+      const key = resolveStorageKey(legIndex);
+      void (async () => {
+        try {
+          const res = await resolveBookingOffer(
+            sessionId,
+            option.id,
+            legIndex != null && legIndex >= 0 ? legIndex : undefined,
+          );
+          setLegResolves((prev) => ({ ...prev, [key]: res }));
+        } catch {
+          // User can still tap Book / Try again manually.
+        }
+      })();
+    }
+  }, [visible, option?.id, sessionId, splitBooking, hops.length]);
+
   const handleShare = async () => {
     if (!option) return;
     const fingerprint = (option as any).canonicalFingerprint as string | undefined;
