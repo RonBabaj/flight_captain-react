@@ -25,6 +25,7 @@ type Config struct {
 	SerpAPIKey         string
 	SerpAPIEngine      string
 	Enabled            bool
+	PriceNormalizer    PriceNormalizer
 }
 
 // DefaultConfig loads configuration from environment variables.

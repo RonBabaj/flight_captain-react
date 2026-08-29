@@ -42,6 +42,29 @@ func cfgTest() Config {
 	return Config{VerifyThreshold: 85, MaxQueries: 5, MaxCandidates: 20}
 }
 
+// testPriceNormalizer converts EUR/GBP to USD for deterministic test comparisons.
+func testPriceNormalizer(amount float64, from, to string) (float64, string) {
+	if to != "USD" {
+		return amount, from
+	}
+	switch from {
+	case "EUR":
+		return amount * 1.1, "USD"
+	case "GBP":
+		return amount * 1.25, "USD"
+	default:
+		return amount, from
+	}
+}
+
+func TestExtractPrice_euroPrefixNotArrivalTime(t *testing.T) {
+	snippet := "OS860 TLV to VIE January 7, 2027 10:00 12:30 €137"
+	amount, cur, ok := extractPrice(snippet)
+	if !ok || cur != "EUR" || amount != 137 {
+		t.Fatalf("expected €137, got ok=%v amount=%v cur=%s", ok, amount, cur)
+	}
+}
+
 func TestVerifyCandidate_exactFlightMatch(t *testing.T) {
 	it := testItineraryOS860()
 	c := SearchCandidate{
@@ -118,16 +141,16 @@ func TestSelectBestOffer_multipleMatching(t *testing.T) {
 	price199 := 199.0
 	price249 := 249.0
 	offers := []BookingOffer{
-		{URL: "https://kayak.com/flights/x", URLType: URLTypeExactSearch, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &price249},
-		{URL: "https://airline.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &price199},
-		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 95, VerificationStatus: StatusVerifiedExact},
+		{URL: "https://kayak.com/flights/x", URLType: URLTypeExactSearch, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &price249, Currency: "USD"},
+		{URL: "https://airline.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &price199, Currency: "USD"},
+		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 95, VerificationStatus: StatusVerifiedExact, Price: floatPtr(99)},
 	}
-	best := SelectBestOffer(offers)
+	best := SelectBestOffer(offers, testPriceNormalizer)
 	if best == nil {
 		t.Fatal("expected best offer")
 	}
-	if best.URLType != URLTypeExactBooking {
-		t.Fatalf("expected exact booking, got %s url=%s", best.URLType, best.URL)
+	if best.URL != "https://airline.com/book/checkout" {
+		t.Fatalf("expected cheapest offer, got url=%s price=%v", best.URL, best.Price)
 	}
 }
 
@@ -138,7 +161,7 @@ func TestSelectBestOffer_prefersPriceAmongSameURLType(t *testing.T) {
 		{URL: "https://ota.com/book/a", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &high},
 		{URL: "https://ota.com/book/b", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &low},
 	}
-	best := SelectBestOffer(offers)
+	best := SelectBestOffer(offers, testPriceNormalizer)
 	if best == nil || best.Price == nil || *best.Price != low {
 		t.Fatalf("expected cheaper offer, got %v", best)
 	}
@@ -148,9 +171,8 @@ func TestSelectBestOffer_missingPrice(t *testing.T) {
 	offers := []BookingOffer{
 		{URL: "https://airline.com/book", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact},
 	}
-	best := SelectBestOffer(offers)
-	if best == nil || best.Price != nil {
-		t.Fatalf("expected offer without price requirement, got %v", best)
+	if SelectBestOffer(offers, testPriceNormalizer) != nil {
+		t.Fatal("verified offer without price must not be selected")
 	}
 }
 
@@ -158,7 +180,7 @@ func TestSelectBestOffer_rejectsUnverified(t *testing.T) {
 	offers := []BookingOffer{
 		{URL: "https://x.com", MatchScore: 99, VerificationStatus: StatusPartial},
 	}
-	if SelectBestOffer(offers) != nil {
+	if SelectBestOffer(offers, testPriceNormalizer) != nil {
 		t.Fatal("unverified must not be selected")
 	}
 }
@@ -227,14 +249,15 @@ func TestResolver_pipeline_exactMatch(t *testing.T) {
 		mockResults[q] = []SearchCandidate{{
 			URL:     "https://www.austrian.com/en/book-flight/checkout",
 			Title:   "Austrian OS860 TLV Vienna",
-			Snippet: "OS860 from TLV to VIE on January 7, 2027 departure 10:00 arrival 12:30",
+			Snippet: "OS860 from TLV to VIE on January 7, 2027 departure 10:00 arrival 12:30 €158",
 			Domain:  "austrian.com",
 		}}
 	}
 	mock := &MockSearcher{Results: mockResults}
 	res := &Resolver{
-		Searcher: mock,
-		Config:   cfgTest(),
+		Searcher:        mock,
+		Config:          cfgTest(),
+		PriceNormalizer: testPriceNormalizer,
 	}
 	result, err := res.Match(context.Background(), it)
 	if err != nil {
@@ -246,6 +269,64 @@ func TestResolver_pipeline_exactMatch(t *testing.T) {
 	if result.BestOffer.VerificationStatus != StatusVerifiedExact {
 		t.Fatalf("status=%s score=%d reason=%s", result.BestOffer.VerificationStatus, result.BestOffer.MatchScore, result.BestOffer.RejectionReason)
 	}
+}
+
+func TestResolver_pipeline_cheapestVerifiedOffer(t *testing.T) {
+	it := testItineraryOS860()
+	queries := GenerateQueries(it, 5)
+	if len(queries) == 0 {
+		t.Fatal("no queries")
+	}
+	candidates := []SearchCandidate{
+		{
+			URL:     "https://www.trip.com/flights/book/OS860",
+			Title:   "Trip.com OS860 TLV Vienna",
+			Snippet: "OS860 TLV to VIE January 7, 2027 10:00 12:30 €137",
+			Domain:  "trip.com",
+		},
+		{
+			URL:     "https://www.expedia.com/flights/OS860",
+			Title:   "Expedia OS860",
+			Snippet: "OS860 Tel Aviv Vienna January 7, 2027 dep 10:00 arr 12:30 €145",
+			Domain:  "expedia.com",
+		},
+		{
+			URL:     "https://www.austrian.com/en/book-flight/checkout",
+			Title:   "Austrian OS860",
+			Snippet: "OS860 from TLV to VIE on January 7, 2027 departure 10:00 arrival 12:30 €158",
+			Domain:  "austrian.com",
+		},
+	}
+	mockResults := map[string][]SearchCandidate{}
+	for _, q := range queries {
+		mockResults[q] = candidates
+	}
+	res := &Resolver{
+		Searcher:        &MockSearcher{Results: mockResults},
+		Config:          cfgTest(),
+		PriceNormalizer: testPriceNormalizer,
+	}
+	result, err := res.Match(context.Background(), it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Queries) == 0 {
+		t.Fatal("expected search queries")
+	}
+	if result.CandidatesConsidered < 3 {
+		t.Fatalf("expected multiple candidates, got %d log=%v", result.CandidatesConsidered, result.Log)
+	}
+	if result.BestOffer == nil {
+		t.Fatalf("expected cheapest verified offer; log=%v offers=%+v", result.Log, result.Offers)
+	}
+	if result.BestOffer.Domain != "trip.com" {
+		t.Fatalf("expected trip.com, got %s (%v %s) log=%v",
+			result.BestOffer.Domain, result.BestOffer.Price, result.BestOffer.Currency, result.Log)
+	}
+	if result.BestOffer.Price == nil || *result.BestOffer.Price != 137 {
+		t.Fatalf("expected €137, got %v", result.BestOffer.Price)
+	}
+	t.Logf("pipeline log:\n%s", strings.Join(result.Log, "\n"))
 }
 
 func TestClassifyURLType_genericVsExact(t *testing.T) {
@@ -264,7 +345,7 @@ func TestSelectBestOffer_rejectsGenericSearchURL(t *testing.T) {
 	offers := []BookingOffer{
 		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 99, VerificationStatus: StatusVerifiedExact},
 	}
-	if SelectBestOffer(offers) != nil {
+	if SelectBestOffer(offers, testPriceNormalizer) != nil {
 		t.Fatal("generic search URL must not be selected")
 	}
 }
@@ -346,18 +427,41 @@ func TestVerifyCandidate_staleWrongFlightInSnippet(t *testing.T) {
 	}
 }
 
-func TestSelectBestOffer_conflictingCandidatesPicksBest(t *testing.T) {
+func TestSelectBestOffer_conflictingCandidatesPicksCheapest(t *testing.T) {
 	low := 120.0
 	high := 200.0
 	offers := []BookingOffer{
-		{URL: "https://ota-a.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &high},
-		{URL: "https://ota-b.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 92, VerificationStatus: StatusVerifiedExact, Price: &low},
+		{URL: "https://ota-a.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &high, Currency: "USD"},
+		{URL: "https://ota-b.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 92, VerificationStatus: StatusVerifiedExact, Price: &low, Currency: "USD"},
 	}
-	best := SelectBestOffer(offers)
-	if best == nil || best.MatchScore != 92 {
-		t.Fatalf("expected highest score offer, got %+v", best)
+	best := SelectBestOffer(offers, testPriceNormalizer)
+	if best == nil || best.Price == nil || *best.Price != low {
+		t.Fatalf("expected cheapest offer, got %+v", best)
 	}
 }
+
+func TestSelectBestOffer_cheapestOTAOverAirline(t *testing.T) {
+	trip := 137.0
+	expedia := 145.0
+	austrian := 158.0
+	offers := []BookingOffer{
+		{Domain: "trip.com", URL: "https://www.trip.com/flights/book/OS860", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &trip, Currency: "EUR"},
+		{Domain: "expedia.com", URL: "https://www.expedia.com/flights/OS860", URLType: URLTypeExactBooking, MatchScore: 91, VerificationStatus: StatusVerifiedExact, Price: &expedia, Currency: "EUR"},
+		{Domain: "austrian.com", URL: "https://www.austrian.com/en/book-flight/checkout", URLType: URLTypeExactBooking, MatchScore: 95, VerificationStatus: StatusVerifiedExact, Price: &austrian, Currency: "EUR"},
+	}
+	best := SelectBestOffer(offers, testPriceNormalizer)
+	if best == nil {
+		t.Fatal("expected best offer")
+	}
+	if best.Domain != "trip.com" {
+		t.Fatalf("expected trip.com cheapest, got %s price=%v", best.Domain, best.Price)
+	}
+	if best.Price == nil || *best.Price != trip {
+		t.Fatalf("expected €137, got %v", best.Price)
+	}
+}
+
+func floatPtr(v float64) *float64 { return &v }
 
 func TestVerifyCandidate_differentPricesSameItinerary(t *testing.T) {
 	it := testItineraryOS860()

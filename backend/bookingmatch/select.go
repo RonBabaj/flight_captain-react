@@ -2,7 +2,15 @@ package bookingmatch
 
 import "sort"
 
-// urlTypeRank lower is better (more specific).
+// PriceNormalizer converts an amount from one currency to another for comparison.
+// Returns (convertedAmount, effectiveCurrency). When conversion is unavailable,
+// return the original amount and currency.
+type PriceNormalizer func(amount float64, fromCurr, toCurr string) (float64, string)
+
+// DefaultCompareCurrency is used when normalizing offer prices for comparison.
+const DefaultCompareCurrency = "USD"
+
+// urlTypeRank lower is better (more specific booking URL).
 func urlTypeRank(t URLType) int {
 	switch t {
 	case URLTypeExactBooking:
@@ -16,10 +24,41 @@ func urlTypeRank(t URLType) int {
 	}
 }
 
-// SelectBestOffer picks the best verified offer from scored candidates.
-// Only StatusVerifiedExact offers with safe URLs are eligible; unverified offers are never returned.
-func SelectBestOffer(offers []BookingOffer) *BookingOffer {
-	var verified []BookingOffer
+// normalizedOfferPrice returns a comparable price in compareCurr, or ok=false when unavailable.
+func normalizedOfferPrice(o BookingOffer, compareCurr string, normalize PriceNormalizer) (float64, bool) {
+	if o.Price == nil || *o.Price <= 0 {
+		return 0, false
+	}
+	from := o.Currency
+	if from == "" {
+		from = compareCurr
+	}
+	if normalize == nil {
+		if from == compareCurr {
+			return *o.Price, true
+		}
+		return 0, false
+	}
+	amount, cur := normalize(*o.Price, from, compareCurr)
+	if amount <= 0 {
+		return 0, false
+	}
+	if cur == "" {
+		cur = compareCurr
+	}
+	return amount, true
+}
+
+// SelectBestOffer picks the cheapest verified offer with a reliable price.
+// Only StatusVerifiedExact offers with safe, non-generic URLs and extractable prices are eligible.
+func SelectBestOffer(offers []BookingOffer, normalize PriceNormalizer) *BookingOffer {
+	compareCurr := DefaultCompareCurrency
+
+	type priced struct {
+		offer    BookingOffer
+		normPrice float64
+	}
+	var verified []priced
 	for _, o := range offers {
 		if o.VerificationStatus != StatusVerifiedExact {
 			continue
@@ -30,7 +69,11 @@ func SelectBestOffer(offers []BookingOffer) *BookingOffer {
 		if err := ValidateBookingURL(o.URL); err != nil {
 			continue
 		}
-		verified = append(verified, o)
+		np, ok := normalizedOfferPrice(o, compareCurr, normalize)
+		if !ok {
+			continue
+		}
+		verified = append(verified, priced{offer: o, normPrice: np})
 	}
 	if len(verified) == 0 {
 		return nil
@@ -38,22 +81,16 @@ func SelectBestOffer(offers []BookingOffer) *BookingOffer {
 
 	sort.SliceStable(verified, func(i, j int) bool {
 		a, b := verified[i], verified[j]
-		ra, rb := urlTypeRank(a.URLType), urlTypeRank(b.URLType)
+		if a.normPrice != b.normPrice {
+			return a.normPrice < b.normPrice
+		}
+		ra, rb := urlTypeRank(a.offer.URLType), urlTypeRank(b.offer.URLType)
 		if ra != rb {
 			return ra < rb
 		}
-		if a.MatchScore != b.MatchScore {
-			return a.MatchScore > b.MatchScore
-		}
-		if a.Price != nil && b.Price != nil && *a.Price != *b.Price {
-			return *a.Price < *b.Price
-		}
-		if a.Price != nil && b.Price == nil {
-			return true
-		}
-		return false
+		return a.offer.MatchScore > b.offer.MatchScore
 	})
 
-	best := verified[0]
+	best := verified[0].offer
 	return &best
 }
