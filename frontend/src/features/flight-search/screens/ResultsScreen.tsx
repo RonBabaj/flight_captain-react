@@ -43,8 +43,6 @@ import {
   validateDynamicDestinationsSearch,
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
-import { classicSearchPayload } from '../../../utils/skyscanner';
-import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
@@ -475,7 +473,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
         ? p.cabinClass
         : 'ECONOMY';
-    const payload: CreateSearchSessionRequest = classicSearchPayload(p, {
+    const payload: CreateSearchSessionRequest = {
+      ...p,
       origin: p.origin.trim().toUpperCase(),
       destination: p.destination.trim().toUpperCase(),
       returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
@@ -484,7 +483,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       includeCheckedBag: false,
       currency: currency || 'USD',
       locale: locale || 'en-US',
-    });
+    };
     await runEditedSearch(payload);
   };
 
@@ -557,12 +556,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const destination = (base.destination ?? '').trim();
     const departureDate = (base.departureDate ?? '').trim();
     if (!origin || !destination || !departureDate) return;
-
-    if (isDynamicDestinationsSearch(base) && !(base.returnDate ?? '').trim()) {
-      searchActions.setError(t('choose_return_date'));
-      searchActions.setSession(null, null, 'FAILED');
-      return;
-    }
 
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
@@ -959,7 +952,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const filtered = useMemo(() => {
     let list = results;
     if (filters.maxStops != null) {
-      list = list.filter((opt) => matchesStopsFilter(opt, filters.maxStops));
+      list = list.filter((opt) => {
+        // Use max stops per leg (not sum), so a 2-stop outbound + 2-stop return = 2 max, not 4
+        const maxPerLeg = opt.legs.length > 0
+          ? Math.max(...opt.legs.map((leg) => Math.max(0, leg.segments.length - 1)))
+          : 0;
+        if (filters.maxStops === 0) return maxPerLeg === 0;       // Direct only
+        if (filters.maxStops === 1) return maxPerLeg === 1;       // Exactly 1 stop
+        if (filters.maxStops === 2) return maxPerLeg >= 2;        // 2+ stops
+        return true;
+      });
     }
     if (filters.airlines.length > 0) {
       const set = new Set(filters.airlines.map((c) => c.toUpperCase()));
@@ -1273,9 +1275,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 {t('no_flights_match')}
               </Text>
               <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                {filters.maxStops === 0
-                  ? t('no_direct_flights_tip')
-                  : t('try_filters')}
+                {t('try_filters')}
               </Text>
             </View>
           ) : null

@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -115,34 +114,13 @@ func BuildCanonicalItinerary(pr ProviderResult) CanonicalItinerary {
 	return it
 }
 
-var flightDesignatorPattern = regexp.MustCompile(`^([A-Z0-9]{2})(\d{1,4})$`)
-
-func isIATACarrierCode(code string) bool {
-	if len(code) != 2 {
-		return false
-	}
-	for _, r := range code {
-		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
-			return false
-		}
-	}
-	return true
-}
-
-func splitFlightDesignator(fn string) (carrier, num string, ok bool) {
-	m := flightDesignatorPattern.FindStringSubmatch(fn)
-	if len(m) != 3 {
-		return "", "", false
-	}
-	return m[1], m[2], true
-}
-
 func canonicalSegmentFromProvider(seg Segment) CanonicalSegment {
-	mkt, mktFn := ResolveFlightIdentity(seg.MarketingCarrier, seg.FlightNumber)
+	mkt := NormalizeCarrierCode(seg.MarketingCarrier)
 	op := NormalizeCarrierCode(seg.OperatingCarrier)
+	mktFn := NormalizeFlightNumber(mkt, seg.FlightNumber)
 	opFn := ""
 	if seg.OperatingFlightNumber != "" {
-		op, opFn = ResolveFlightIdentity(seg.OperatingCarrier, seg.OperatingFlightNumber)
+		opFn = NormalizeFlightNumber(op, seg.OperatingFlightNumber)
 	} else if op != "" && op != mkt {
 		opFn = NormalizeFlightNumber(op, seg.FlightNumber)
 	}
@@ -214,31 +192,6 @@ func NormalizeCarrierCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
-// ResolveFlightIdentity normalizes carrier + flight number from provider fields.
-// GF2 often sends full airline names ("Air France") with numbers that already
-// include the IATA designator ("AF 963").
-func ResolveFlightIdentity(marketingCarrier, flightNum string) (carrierCode, normalized string) {
-	compact := strings.ToUpper(strings.TrimSpace(flightNum))
-	compact = strings.ReplaceAll(compact, " ", "")
-	compact = strings.ReplaceAll(compact, "-", "")
-	if compact == "" {
-		carrierCode = NormalizeCarrierCode(marketingCarrier)
-		return carrierCode, carrierCode
-	}
-	if c, n, ok := splitFlightDesignator(compact); ok {
-		return c, c + n
-	}
-	mkt := NormalizeCarrierCode(marketingCarrier)
-	normalized = NormalizeFlightNumber(mkt, flightNum)
-	if isIATACarrierCode(mkt) {
-		return mkt, normalized
-	}
-	if c, _, ok := splitFlightDesignator(normalized); ok {
-		return c, normalized
-	}
-	return mkt, normalized
-}
-
 // NormalizeFlightNumber produces a stable carrier+number token (e.g. "LY081" from "LY", "LY 081").
 func NormalizeFlightNumber(carrier, flightNum string) string {
 	carrier = NormalizeCarrierCode(carrier)
@@ -248,20 +201,10 @@ func NormalizeFlightNumber(carrier, flightNum string) string {
 	if fn == "" {
 		return carrier
 	}
-	if c, n, ok := splitFlightDesignator(fn); ok {
-		if carrier == "" || !isIATACarrierCode(carrier) || c == carrier {
-			return c + n
-		}
-	}
 	if carrier != "" && strings.HasPrefix(fn, carrier) {
 		return fn
 	}
-	if carrier != "" && isIATACarrierCode(carrier) {
-		return carrier + strings.TrimPrefix(fn, carrier)
-	}
-	if c, n, ok := splitFlightDesignator(fn); ok {
-		return c + n
-	}
+	// Strip duplicate carrier prefix variants: "081" with carrier "LY"
 	if carrier != "" {
 		return carrier + strings.TrimPrefix(fn, carrier)
 	}

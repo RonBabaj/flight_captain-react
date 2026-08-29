@@ -9,7 +9,6 @@ import {
   SearchSessionResultsResponse,
 } from '../types';
 import { getRuntimeConfig } from '../config/runtimeConfigStore';
-import { sanitizeStandardSearchPayload } from '../utils/skyscanner';
 import { apiGet, apiPost } from './client';
 
 const SESSIONS_PATH = '/api/search/sessions';
@@ -57,7 +56,7 @@ function setToStorage(sessionId: string, data: SearchSessionResultsResponse): vo
 export async function createSearchSession(
   params: CreateSearchSessionRequest
 ): Promise<SearchSession> {
-  const session = await apiPost<SearchSession>(SESSIONS_PATH, sanitizeStandardSearchPayload(params));
+  const session = await apiPost<SearchSession>(SESSIONS_PATH, params);
   return session;
 }
 

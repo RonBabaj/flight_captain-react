@@ -204,7 +204,7 @@ func (p *KiwiApifyProvider) Search(ctx context.Context, req SearchRequest) ([]Pr
 	if IsOpenJaw(req) || HasExtraLegs(req) {
 		retO, retD := ResolveReturnAirports(req)
 		log.Printf("[KIWI] skipping dynamic-destination search (return %s→%s extra=%s); use Google Flights provider", retO, retD, ExtraLegsFingerprint(req.ExtraLegs))
-		return nil, ErrProviderSkipped
+		return nil, nil
 	}
 	key := p.cacheKey(req)
 	if cached, ok := p.cache.get(key); ok {

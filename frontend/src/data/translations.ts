@@ -502,11 +502,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   link_expired_invalid: { en: 'This link has expired or is invalid. Please start a new search.', he: 'הקישור פג תוקף או אינו תקין. אנא התחל חיפוש חדש.', ru: 'Ссылка устарела или недействительна. Начните новый поиск.' },
   run_search_again: { en: 'Run this search again', he: 'הפעל את החיפוש שוב', ru: 'Повторить этот поиск' },
   try_filters: { en: 'Try changing stops or airlines in Filters.', he: 'נסה לשנות עצירות או חברות במסננים.', ru: 'Попробуйте изменить пересадки или авиакомпании в фильтрах.' },
-  no_direct_flights_tip: {
-    en: 'No nonstop options for every leg of this trip. Clear the Direct filter or try different dates.',
-    he: 'אין טיסות ישירות לכל קטע במסלול. בטל את מסנן "ישיר" או נסה תאריכים אחרים.',
-    ru: 'Нет прямых рейсов на каждый участок маршрута. Снимите фильтр «Прямой» или попробуйте другие даты.',
-  },
   fill_origin_destination_dates: { en: 'Fill origin, destination and dates.', he: 'מלא מוצא, יעד ותאריכים.', ru: 'Укажите пункты вылета, прилёта и даты.' },
   choose_return_date: { en: 'Choose return date.', he: 'בחר תאריך חזרה.', ru: 'Выберите дату возврата.' },
   please_fill_origin_destination: { en: 'Please fill origin, destination and departure date.', he: 'מלא מוצא, יעד ותאריך יציאה.', ru: 'Укажите пункты вылета, прилёта и дату.' },
@@ -568,21 +563,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'מסלול מדויק נמצא',
     ru: 'Точное совпадение маршрута',
   },
-  via_vendor: {
-    en: 'via {vendor}',
-    he: 'דרך {vendor}',
-    ru: 'через {vendor}',
-  },
-  price_mismatch_warning: {
-    en: 'Checkout price may differ from the search quote. Confirm the fare on the partner site before paying.',
-    he: 'מחיר בקופה עשוי להיות שונה מהצעת החיפוש. ודאו את המחיר באתר השותף לפני התשלום.',
-    ru: 'Цена при оплате может отличаться от результата поиска. Проверьте тариф на сайте партнёра перед оплатой.',
-  },
-  checkout_price: {
-    en: 'Checkout price',
-    he: 'מחיר בקופה',
-    ru: 'Цена при оплате',
-  },
   best_matching_price: {
     en: 'Best matching price found',
     he: 'מחיר מתאים נמצא',
@@ -593,15 +573,10 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'ההצעה הזולה ביותר למסלול זה',
     ru: 'Самое дешёвое подходящее предложение',
   },
-  search_quote_price: {
-    en: 'search quote',
-    he: 'מחיר חיפוש',
-    ru: 'цена из поиска',
-  },
   no_verified_booking: {
-    en: 'No verified booking offer found yet',
-    he: 'לא נמצא דף הזמנה מאומת למסלול המדויק.',
-    ru: 'Не найдена проверенная страница бронирования для этого маршрута.',
+    en: 'We could not verify a booking page for this exact itinerary. You can still search similar flights on Skyscanner.',
+    he: 'לא הצלחנו לאמת דף הזמנה למסלול המדויק. אפשר עדיין לחפש טיסות דומות ב־Skyscanner.',
+    ru: 'Не удалось подтвердить страницу бронирования для этого маршрута. Можно поискать похожие рейсы на Skyscanner.',
   },
   booking_search_unavailable: {
     en: 'Exact-flight booking search is temporarily unavailable. Please try again later.',
@@ -631,9 +606,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Забронировать {from} → {to} на Skyscanner',
   },
   split_booking_hint: {
-    en: 'Separate tickets — book each leg below.',
-    he: 'כרטיסים נפרדים — הזמינו כל קטע למטה.',
-    ru: 'Отдельные билеты — забронируйте каждый сегмент ниже.',
+    en: 'This trip uses separate one-way tickets. Book each flight on Skyscanner.',
+    he: 'הטיול מורכב מכרטיסי כיוון אחד נפרדים. הזמינו כל טיסה ב־Skyscanner.',
+    ru: 'Этот маршрут — отдельные билеты в одну сторону. Бронируйте каждый рейс на Skyscanner.',
   },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',

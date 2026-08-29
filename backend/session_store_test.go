@@ -135,56 +135,6 @@ func TestOptInRetention(t *testing.T) {
 	}
 }
 
-// Booking tokens/deeplinks must survive persist → DB reload. json:"-" on those
-// fields made open-jaw booking unfixable: every replica, restart, or TTL miss
-// loaded a session with no checkout identity.
-func TestPersistSearchSessionKeepsBookingTokens(t *testing.T) {
-	initTestSessionDB(t)
-
-	id := "sess_booking_tokens"
-	resp := makeSessionResp(id, time.Now().UTC())
-	resp.Results[0].BookingToken = "tok-full"
-	resp.Results[0].LegBookingTokens = []string{"tok-leg0", "tok-leg1"}
-	resp.Results[0].LegDeepLinks = []string{"https://ota.example/out", "https://ota.example/ret"}
-	resp.Results[0].BookingURL = "https://ota.example/out"
-	resp.Results[0].DeepLink = "https://ota.example/full"
-	persistSearchSession(resp)
-
-	sessionsMu.Lock()
-	delete(sessions, id)
-	sessionsMu.Unlock()
-
-	got, ok := loadSearchSession(id)
-	if !ok {
-		t.Fatal("expected persisted session to load")
-	}
-	opt := got.Results[0]
-	if opt.BookingToken != "tok-full" {
-		t.Fatalf("BookingToken=%q", opt.BookingToken)
-	}
-	if len(opt.LegBookingTokens) != 2 || opt.LegBookingTokens[0] != "tok-leg0" || opt.LegBookingTokens[1] != "tok-leg1" {
-		t.Fatalf("LegBookingTokens=%v", opt.LegBookingTokens)
-	}
-	if len(opt.LegDeepLinks) != 2 || opt.LegDeepLinks[0] != "https://ota.example/out" {
-		t.Fatalf("LegDeepLinks=%v", opt.LegDeepLinks)
-	}
-	if opt.BookingURL != "https://ota.example/out" || opt.DeepLink != "https://ota.example/full" {
-		t.Fatalf("urls booking=%q deep=%q", opt.BookingURL, opt.DeepLink)
-	}
-
-	public := sanitizeSessionForClient(got)
-	if public.Results[0].BookingToken != "" || len(public.Results[0].LegBookingTokens) != 0 ||
-		len(public.Results[0].LegDeepLinks) != 0 || public.Results[0].BookingURL != "" {
-		t.Fatalf("client snapshot leaked booking internals: %+v", public.Results[0])
-	}
-	if public.Results[0].DeepLink != "https://ota.example/full" {
-		t.Fatalf("public deepLink=%q", public.Results[0].DeepLink)
-	}
-	if got.Results[0].BookingToken != "tok-full" {
-		t.Fatal("sanitizeSessionForClient must not mutate the stored session")
-	}
-}
-
 // Re-persisting the same id must update the stored snapshot (upsert).
 func TestPersistSearchSessionUpserts(t *testing.T) {
 	initTestSessionDB(t)

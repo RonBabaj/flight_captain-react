@@ -2,17 +2,12 @@ package search
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 )
-
-// ErrProviderSkipped marks providers that intentionally did not run (e.g. Kiwi on open-jaw).
-// SearchAll ignores these when deciding whether the overall search failed.
-var ErrProviderSkipped = errors.New("provider skipped for this itinerary type")
 
 // Registry holds enabled flight providers and runs multi-provider search.
 type Registry struct {
@@ -167,7 +162,7 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 	return out
 }
 
-// AllFailed returns true when every provider that actually ran reported an error and there are no results.
+// AllFailed returns true when every provider reported an error and there are no results.
 func (m MultiSearchResult) AllFailed() bool {
 	if len(m.Results) > 0 {
 		return false
@@ -175,47 +170,10 @@ func (m MultiSearchResult) AllFailed() bool {
 	if len(m.Stats) == 0 {
 		return true
 	}
-	attempted := 0
-	failed := 0
 	for _, s := range m.Stats {
-		if isSkippedProviderErr(s.Err) {
-			continue
-		}
-		attempted++
-		if s.Err != "" {
-			failed++
+		if s.Err == "" {
+			return false
 		}
 	}
-	if attempted == 0 {
-		return true
-	}
-	return failed == attempted
-}
-
-func isSkippedProviderErr(errMsg string) bool {
-	return strings.Contains(errMsg, ErrProviderSkipped.Error())
-}
-
-// FailureMessage returns a user-facing error when SearchAll produced no results.
-func (m MultiSearchResult) FailureMessage() string {
-	for _, s := range m.Stats {
-		if s.Err == "" || isSkippedProviderErr(s.Err) {
-			continue
-		}
-		if strings.Contains(s.Err, "no flights found for") {
-			return s.Err
-		}
-		if strings.Contains(s.Err, "outbound search failed") {
-			return "No flights found for the outbound leg. Try different dates or airports."
-		}
-		if strings.Contains(s.Err, "rate limited") {
-			return "Flight search is temporarily rate limited. Please try again in a minute."
-		}
-	}
-	for _, s := range m.Stats {
-		if s.Err != "" && !isSkippedProviderErr(s.Err) {
-			return s.Err
-		}
-	}
-	return "flight search failed"
+	return true
 }
