@@ -568,6 +568,21 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'מסלול מדויק נמצא',
     ru: 'Точное совпадение маршрута',
   },
+  via_vendor: {
+    en: 'via {vendor}',
+    he: 'דרך {vendor}',
+    ru: 'через {vendor}',
+  },
+  price_mismatch_warning: {
+    en: 'Checkout price may differ from the search quote. Confirm the fare on the partner site before paying.',
+    he: 'מחיר בקופה עשוי להיות שונה מהצעת החיפוש. ודאו את המחיר באתר השותף לפני התשלום.',
+    ru: 'Цена при оплате может отличаться от результата поиска. Проверьте тариф на сайте партнёра перед оплатой.',
+  },
+  checkout_price: {
+    en: 'Checkout price',
+    he: 'מחיר בקופה',
+    ru: 'Цена при оплате',
+  },
   best_matching_price: {
     en: 'Best matching price found',
     he: 'מחיר מתאים נמצא',

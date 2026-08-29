@@ -2414,19 +2414,33 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 	}
 
 	if !split && googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
-		u, err := googleFlights2Provider.ResolvePartnerBookingURL(ctx, option.BookingToken, currency)
-		if err == nil && normalizeProviderBookingURL(u) != "" {
-			log.Printf("[BOOKING] resolved partner URL from booking_token")
-			return u
-		}
-		if err != nil {
-			log.Printf("[BOOKING] booking_token resolve failed: %v", err)
+		quote := quoteBindingFromOption(session, option, -1)
+		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, option.BookingToken, currency, quote); err == nil {
+			if u := normalizeProviderBookingURL(resolved.URL); u != "" {
+				log.Printf("[BOOKING] resolved quoted partner URL from booking_token provider=%s", resolved.Provider)
+				return u
+			}
+		} else {
+			log.Printf("[BOOKING] quoted booking_token resolve failed: %v", err)
 		}
 	}
 
 	if !split && googleFlights2Provider != nil {
 		origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
 		if origin != "" && dest != "" && dep != "" {
+			quote := quoteBindingFromOption(session, option, -1)
+			sreq := search.SearchRequest{
+				Origin: origin, Destination: dest, DepartureDate: dep, ReturnDate: ret,
+				Adults: adults, Currency: currency, CabinClass: "ECONOMY",
+			}
+			if option != nil && option.ItineraryFingerprint != "" {
+				if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, option.ItineraryFingerprint, currency, quote); err == nil {
+					if u := normalizeProviderBookingURL(resolved.URL); u != "" {
+						log.Printf("[BOOKING] resolved quoted partner URL from fingerprint provider=%s", resolved.Provider)
+						return u
+					}
+				}
+			}
 			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults)
 			if err == nil && normalizeProviderBookingURL(u) != "" {
 				log.Printf("[BOOKING] resolved partner URL from route search %s→%s %s", origin, dest, dep)

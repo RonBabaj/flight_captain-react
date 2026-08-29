@@ -49,3 +49,29 @@ func TestGF2PartnerOfferFromURL_acceptsHTTPS(t *testing.T) {
 		t.Fatalf("domain=%q", offer.Domain)
 	}
 }
+
+func TestQuoteBindingFromOption_usesOriginalWhenEstimate(t *testing.T) {
+	opt := &FlightOption{
+		Price:           MonetaryAmount{Amount: 720, Currency: "USD"},
+		PriceIsEstimate: true,
+		OriginalPrice:   &MonetaryAmount{Amount: 600, Currency: "USD"},
+		DeepLink:        "https://www.kayak.com/book",
+	}
+	q := quoteBindingFromOption(nil, opt, -1)
+	if q.Amount != 600 || q.DeepLink == "" {
+		t.Fatalf("quote=%+v", q)
+	}
+}
+
+func TestAttachQuotedPriceMeta_detectsMismatch(t *testing.T) {
+	price := 1000.0
+	resp := BookingResolveResponse{
+		Found: true,
+		Offer: &PublicBookingOffer{Price: &price, Currency: "USD"},
+	}
+	opt := &FlightOption{Price: MonetaryAmount{Amount: 600, Currency: "USD"}}
+	out := attachQuotedPriceMeta(resp, nil, opt, -1)
+	if !out.PriceMismatch {
+		t.Fatal("expected price mismatch")
+	}
+}

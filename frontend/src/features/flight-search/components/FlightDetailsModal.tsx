@@ -241,12 +241,22 @@ export function FlightDetailsModal({
           <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
         ) : null}
         {success && resolved?.offer ? (
-          <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
-            {t('exact_itinerary_matched')}
-            {resolved.offer.provider || resolved.offer.domain
-              ? ` · ${resolved.offer.provider || resolved.offer.domain}`
-              : ''}
-          </Text>
+          <>
+            <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
+              {t('exact_itinerary_matched')}
+              {resolved.offer.provider || resolved.offer.domain
+                ? ` · ${resolved.offer.provider || resolved.offer.domain}`
+                : ''}
+              {resolved.offer.price != null && resolved.offer.currency ? (
+                ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}`
+              ) : null}
+            </Text>
+            {resolved.priceMismatch ? (
+              <Text style={[s.verifyError, { color: theme.error || '#b45309' }]}>
+                {resolved.message || t('price_mismatch_warning')}
+              </Text>
+            ) : null}
+          </>
         ) : null}
         {error ? (
           <Text style={[s.verifyError, { color: theme.textMuted }]}>
@@ -495,6 +505,11 @@ export function FlightDetailsModal({
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
                     {option.source === 'kiwi' ? t('source_kiwi') : option.source === 'googleflights2' ? t('source_googleflights2') : option.source}
+                    {option.vendorName ? ` · ${option.vendorName}` : ''}
+                  </Text>
+                ) : option.vendorName ? (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
+                    {t('via_vendor').replace('{vendor}', option.vendorName)}
                   </Text>
                 ) : null}
                 {breakdownParts.length > 0 && (
