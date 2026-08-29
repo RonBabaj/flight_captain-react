@@ -13,6 +13,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
+import { countByStopsFilter } from '../../../utils/itineraryStops';
 
 interface FiltersPanelProps {
   filters: SearchFilters;
@@ -61,8 +62,15 @@ export function FiltersPanel({
     onFiltersChange({ airlines: list });
   };
 
-  const stopsLabel = (max: number | null) =>
-    max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
+  const stopCounts = useMemo(() => countByStopsFilter(results), [results]);
+
+  const stopsLabel = (max: number | null) => {
+    const base =
+      max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
+    const count =
+      max === null ? stopCounts.any : max === 0 ? stopCounts.direct : max === 1 ? stopCounts.one : stopCounts.twoPlus;
+    return noResults ? base : `${base} (${count})`;
+  };
 
   const SectionHeader = ({ title, open, toggle }: { title: string; open: boolean; toggle: () => void }) => (
     <TouchableOpacity style={[f.secHeader, { borderBottomColor: theme.cardBorder }]} onPress={toggle} activeOpacity={0.6}>
