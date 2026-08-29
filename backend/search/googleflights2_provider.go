@@ -187,10 +187,15 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
-	// For round-trip: search outbound and return separately (one-way each), then combine legs
-	// so every result has both legs with full route data.
+	// Round-trip: native GF2 RT for classic routes; decomposed one-ways for open-jaw / extra legs.
 	if req.ReturnDate != "" {
-		results, err := p.searchRoundTrip(ctx, req)
+		var results []ProviderResult
+		var err error
+		if IsOpenJaw(req) || HasExtraLegs(req) {
+			results, err = p.searchRoundTrip(ctx, req)
+		} else {
+			results, err = p.doSearch(ctx, req)
+		}
 		if err != nil {
 			errLog = err.Error()
 			return nil, err
@@ -257,7 +262,7 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 
 	batches := make([][]ProviderResult, 0, len(steps))
 	for i, step := range steps {
-		res, err := p.doSearch(ctx, step.req)
+		res, err := p.searchLegCached(ctx, step.req)
 		if err != nil || len(res) == 0 {
 			if i == 0 {
 				if IsOpenJaw(req) || len(extras) > 0 {
@@ -280,6 +285,22 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 		idPrefix = "gf2oj"
 	}
 	return CombineOneWayBatches(batches, idPrefix), nil
+}
+
+// searchLegCached runs a one-way GF2 search with the same in-memory cache as Search().
+func (p *GoogleFlights2Provider) searchLegCached(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	cacheKey := p.buildCacheKey(req)
+	if cached, ok := p.cache.get(cacheKey); ok && len(cached) > 0 {
+		return cached, nil
+	}
+	res, err := p.doSearch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 0 {
+		p.cache.set(cacheKey, res)
+	}
+	return res, nil
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
@@ -1342,6 +1363,11 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			depTime.IsZero(), arrTime.IsZero(), rawDep, rawDep, rawArr, rawArr, rawDepT, rawDepT, rawArrT, rawArrT, departureDate)
 	}
 
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
+	}
+
 	return &Segment{
 		From:                  from,
 		To:                    to,
@@ -1382,6 +1408,14 @@ func gf2OperatingFlightNumber(s map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+func gf2NormalizeSegmentIdentity(carrier, flightNum string) (string, string) {
+	code, fn := ResolveFlightIdentity(carrier, flightNum)
+	if code != "" {
+		carrier = code
+	}
+	return carrier, fn
 }
 
 func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
@@ -1429,6 +1463,11 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
 	}
 
+	carrier, flightNum = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
+	}
+
 	return &Segment{
 		From:                  from,
 		To:                    to,
@@ -1456,17 +1495,23 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 	if m == nil {
 		return ""
 	}
-	for _, key := range []string{"booking_token", "bookingToken", "departure_token", "token"} {
-		if s, ok := m[key].(string); ok && strings.TrimSpace(s) != "" {
-			// Prefer booking_token-shaped values; skip bare URLs.
+	for _, key := range []string{"booking_token", "bookingToken"} {
+		if s, ok := m[key].(string); ok {
 			v := strings.TrimSpace(s)
-			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
-				continue
+			if v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+				return v
 			}
-			if key == "token" && len(v) < 12 {
-				continue
-			}
-			return v
+		}
+	}
+	// GF2 sometimes nests the bookable token under offer/booking/tokens.
+	// Never treat departure_token as bookable — getBookingDetails rejects it.
+	for _, nest := range []string{"booking", "offer", "tokens", "purchase"} {
+		child, _ := m[nest].(map[string]interface{})
+		if child == nil {
+			continue
+		}
+		if tok := extractGF2BookingToken(child); tok != "" {
+			return tok
 		}
 	}
 	return ""
@@ -1474,56 +1519,16 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 
 // ResolvePartnerBookingURL turns a GF2 search booking_token into a partner checkout URL
 // (the site Google Flights redirects to) via getBookingDetails → getBookingURL.
+// Prefer ResolveQuotedPartnerBooking when the search fare amount is known.
 func (p *GoogleFlights2Provider) ResolvePartnerBookingURL(ctx context.Context, bookingToken, currency string) (string, error) {
-	if p == nil {
-		return "", fmt.Errorf("google flights provider not configured")
-	}
-	token := strings.TrimSpace(bookingToken)
-	if token == "" {
-		return "", fmt.Errorf("missing booking token")
-	}
-	if currency == "" {
-		currency = "USD"
-	}
-	if !p.limiter.allow() {
-		return "", fmt.Errorf("flight search rate limited; try again in a minute")
-	}
-
-	detailsURL := fmt.Sprintf("https://%s/api/v1/getBookingDetails?%s", p.host, url.Values{
-		"booking_token": {token},
-		"currency":      {currency},
-		"language_code": {"en-US"},
-		"country_code":  {"US"},
-	}.Encode())
-
-	detailsBody, err := p.doGF2GET(ctx, detailsURL)
+	resolved, err := p.ResolveQuotedPartnerBooking(ctx, bookingToken, currency, QuoteBinding{})
 	if err != nil {
 		return "", err
 	}
-
-	partnerToken, directURL := extractGF2PartnerBookingToken(detailsBody)
-	if directURL != "" {
-		return directURL, nil
+	if resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+		return "", fmt.Errorf("empty booking URL")
 	}
-	if partnerToken == "" {
-		return "", fmt.Errorf("no partner booking token in getBookingDetails")
-	}
-
-	bookingURLReq := fmt.Sprintf("https://%s/api/v1/getBookingURL?%s", p.host, url.Values{
-		"token": {partnerToken},
-	}.Encode())
-	if !p.limiter.allow() {
-		return "", fmt.Errorf("flight search rate limited; try again in a minute")
-	}
-	urlBody, err := p.doGF2GET(ctx, bookingURLReq)
-	if err != nil {
-		return "", err
-	}
-	out := extractGF2BookingURL(urlBody)
-	if out == "" {
-		return "", fmt.Errorf("empty booking URL from getBookingURL")
-	}
-	return out, nil
+	return resolved.URL, nil
 }
 
 func (p *GoogleFlights2Provider) doGF2GET(ctx context.Context, fullURL string) ([]byte, error) {
@@ -1614,6 +1619,19 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 		return "", fmt.Errorf("no booking_token in route search")
 	}
 	return p.ResolvePartnerBookingURL(ctx, token, currency)
+}
+
+// ResolvePartnerBookingForFingerprint re-runs GF2 search and resolves the partner checkout URL
+// for the result whose itinerary fingerprint matches wantFP.
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string) (string, error) {
+	resolved, err := p.ResolveQuotedPartnerBookingForFingerprint(ctx, req, wantItin, currency, QuoteBinding{})
+	if err != nil {
+		return "", err
+	}
+	if resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+		return "", fmt.Errorf("empty booking URL")
+	}
+	return resolved.URL, nil
 }
 
 func isLikelyPartnerCheckoutURL(u string) bool {

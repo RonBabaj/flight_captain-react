@@ -51,6 +51,15 @@ func TestCombineOneWayBatches(t *testing.T) {
 	if out[0].DeepLink != "" || out[0].BookingToken != "" {
 		t.Fatalf("combined itinerary must not keep a single-leg booking link, got deep=%q token=%q", out[0].DeepLink, out[0].BookingToken)
 	}
+	if len(out[0].LegBookingTokens) != 3 || out[0].LegBookingTokens[0] != "tok-a1" || out[0].LegBookingTokens[2] != "tok-c2" {
+		t.Fatalf("LegBookingTokens=%v", out[0].LegBookingTokens)
+	}
+	if len(out[0].LegDeepLinks) != 3 || out[0].LegDeepLinks[0] != "https://example.com/a1" || out[0].LegDeepLinks[2] != "https://example.com/c2" {
+		t.Fatalf("LegDeepLinks=%v", out[0].LegDeepLinks)
+	}
+	if len(out[0].LegPrices) != 3 || out[0].LegPrices[0] != 100 || out[0].LegPrices[2] != 70 {
+		t.Fatalf("LegPrices=%v", out[0].LegPrices)
+	}
 	if out[0].Legs[1].Segments[0].From != "BER" || out[0].Legs[1].Segments[0].To != "PRG" {
 		t.Fatalf("middle leg = %+v", out[0].Legs[1])
 	}
