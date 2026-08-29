@@ -797,7 +797,9 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)
 	if multi.AllFailed() {
 		log.Printf("[SEARCH] all providers failed stats=%+v", multi.Stats)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "flight search failed"})
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": multi.FailureMessage(),
+		})
 		return
 	}
 	if len(multi.Results) == 0 {

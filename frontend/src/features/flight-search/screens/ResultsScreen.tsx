@@ -558,6 +558,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const departureDate = (base.departureDate ?? '').trim();
     if (!origin || !destination || !departureDate) return;
 
+    if (isDynamicDestinationsSearch(base) && !(base.returnDate ?? '').trim()) {
+      searchActions.setError(t('choose_return_date'));
+      searchActions.setSession(null, null, 'FAILED');
+      return;
+    }
+
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
 
