@@ -19,41 +19,27 @@ function lastSeg(leg?: FlightLeg) {
   return segs?.length ? segs[segs.length - 1] : undefined;
 }
 
-/** True when two legs form a classic A→B / B→A round trip (single ticket UX). */
-export function isClassicRoundTripLegs(legs: FlightLeg[]): boolean {
-  if (legs.length !== 2) return false;
-  const outOrig = (firstSeg(legs[0])?.from?.code || '').toUpperCase();
-  const outDest = (lastSeg(legs[0])?.to?.code || '').toUpperCase();
-  const inOrig = (firstSeg(legs[1])?.from?.code || '').toUpperCase();
-  const inDest = (lastSeg(legs[1])?.to?.code || '').toUpperCase();
-  return !!(outOrig && outDest && inOrig && inDest && outDest === inOrig && inDest === outOrig);
-}
-
 export function isSplitBookingItinerary(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
-  const legs = option?.legs ?? [];
-
   const extra = (searchParams?.extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),
   );
   if (extra.length > 0) return true;
 
+  const legs = option?.legs ?? [];
   if (legs.length > 2) return true;
 
-  // Leg topology wins over stale URL/store open-jaw params.
-  if (isClassicRoundTripLegs(legs)) return false;
+  const dest = (searchParams?.destination || '').trim().toUpperCase();
+  const retOrig = (searchParams?.returnOrigin || '').trim().toUpperCase();
+  if (retOrig && dest && retOrig !== dest) return true;
 
   if (legs.length === 2) {
     const outDest = (lastSeg(legs[0])?.to?.code || '').toUpperCase();
     const inOrig = (firstSeg(legs[1])?.from?.code || '').toUpperCase();
     if (outDest && inOrig && outDest !== inOrig) return true;
   }
-
-  const dest = (searchParams?.destination || '').trim().toUpperCase();
-  const retOrig = (searchParams?.returnOrigin || '').trim().toUpperCase();
-  if (retOrig && dest && retOrig !== dest) return true;
 
   return false;
 }
@@ -122,30 +108,4 @@ export function buildShareUrlWithOptionId(
   } catch {
     return '';
   }
-}
-
-/** Strip open-jaw fields unless this is a dynamic-destinations / open-jaw search. */
-export function sanitizeStandardSearchPayload(
-  payload: CreateSearchSessionRequest,
-): CreateSearchSessionRequest {
-  const dest = (payload.destination || '').trim().toUpperCase();
-  const retOrig = (payload.returnOrigin || '').trim().toUpperCase();
-  const hasExtra = (payload.extraLegs ?? []).some(
-    (l) => (l.origin || '').trim() && (l.destination || '').trim(),
-  );
-  const isOpenJaw = !!(retOrig && dest && retOrig !== dest);
-  if (!isOpenJaw && !hasExtra) {
-    const { returnOrigin, returnDestination, extraLegs, ...rest } = payload;
-    return rest as CreateSearchSessionRequest;
-  }
-  return payload;
-}
-
-/** Classic one-way / round-trip payload with open-jaw and extra-leg fields removed. */
-export function classicSearchPayload(
-  base: CreateSearchSessionRequest,
-  overrides: Partial<CreateSearchSessionRequest> = {},
-): CreateSearchSessionRequest {
-  const { returnOrigin, returnDestination, extraLegs, ...rest } = base;
-  return { ...rest, ...overrides };
 }
