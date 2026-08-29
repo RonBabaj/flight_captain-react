@@ -1,59 +1,59 @@
 # Graph Report - workspace  (2026-08-29)
 
 ## Corpus Check
-- 199 files · ~189,471 words
+- 201 files · ~194,784 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1614 nodes · 4231 edges · 76 communities (72 shown, 4 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 325 edges (avg confidence: 0.85)
+- 1676 nodes · 4456 edges · 75 communities (71 shown, 4 thin omitted)
+- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 369 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1e286fff`
+- Built from commit: `1addb653`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- googleflights2_provider.go
+- BookingOffer
 - RootNavigator.tsx
 - FlightDetailsModal.tsx
 - Issue
-- providers.go
+- ProviderResult
 - MonthDealsScreen.tsx
 - dependencies
 - useTheme
 - Features
 - net/http.Request
-- ExploreScreen.tsx
+- googleflights2_provider.go
 - booking_resolve.go
-- ResultsScreen.tsx
+- affiliate.go
 - compilerOptions
 - canonical.go
-- data/airports.ts
+- runtime_config.go
 - LocaleContext.tsx
-- flyfix.ts
+- initTestAuthDB
 - server.go
-- gf2_deals.go
+- context.Context
 - qa_runner.py
 - ApiClient
-- placeSearch.ts
+- ExploreScreen.tsx
 - TestResult
 - ResponseValidator
 - Registry
-- ProviderResult
+- DedupeProviderResults
 - expo
 - config_loader.py
 - ThemeContext.tsx
-- handleExplore
+- exploreBuildRowsAndQueue
 - backend_api_contracts.md
 - testing.T
-- TopNavMenu.tsx
-- api.ts
+- SortBar.tsx
+- skyscanner.ts
 - ValidationIssue
 - Backend QA Automation Tool
 - KiwiApifyProvider
-- kiwi_apify_provider.go
+- time.Time
 - search.ts
 - DynamicDestinationsFormContent.tsx
 - models.py
@@ -65,25 +65,24 @@
 - __init__.py
 - flightcaptainweb
 - loadSearchSession
-- client.ts
-- ResultsScreen
+- ErrorBoundary
+- ResultsScreen.tsx
 - itinerary.go
-- context.Context
+- gf2Cache
 - CalendarModal.tsx
-- HubRouteSummaryModal.tsx
-- VerifyCandidate
+- affiliate.ts
+- matcher_test.go
 - CanonicalSegment
-- types/index.ts
+- client.ts
 - itinerary_test.go
 - App.tsx
-- auth.ts
-- extract.go
-- searcher.go
 - AuthContext.tsx
+- DatePickerCalendar.tsx
+- searcher.go
+- TestApplySoftStrictBaggage
 - RuntimeConfigContext.tsx
 - dealsCache.ts
-- IsOpenJaw
-- DateRangePicker.tsx
+- TestExtractCarrierCodes
 - SelectBestOffer
 - ValidateBookingURL
 - DraggableBottomSheet.tsx
@@ -94,108 +93,108 @@
 3. `ProviderResult` - 39 edges
 4. `MonthDealsScreen()` - 36 edges
 5. `ResultsScreen()` - 34 edges
-6. `TestResult` - 29 edges
-7. `CanonicalItinerary` - 27 edges
-8. `ExploreScreen()` - 27 edges
-9. `VerifyCandidate()` - 26 edges
-10. `writeJSON()` - 25 edges
+6. `VerifyCandidate()` - 30 edges
+7. `CanonicalItinerary` - 30 edges
+8. `TestResult` - 29 edges
+9. `ExploreScreen()` - 27 edges
+10. `CanonicalSegment` - 25 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `VerifyCandidate()` --calls--> `extractPrice()`  [INFERRED]
-  backend/bookingmatch/verify.go → backend/bookingmatch/extract.go
-- `scoreSegment()` --calls--> `textContainsAirport()`  [INFERRED]
-  backend/bookingmatch/verify.go → backend/bookingmatch/extract.go
-- `handleOutBooking()` --calls--> `ResolveProvider()`  [INFERRED]
+- `handleAffiliateProvider()` --calls--> `ResolveProvider()`  [INFERRED]
   backend/server.go → backend/affiliate.go
-- `handleOutBooking()` --calls--> `RecordClick()`  [INFERRED]
+- `RecordClick()` --calls--> `randomID()`  [INFERRED]
+  backend/affiliate.go → backend/server.go
+- `handleAffiliateClicksSummary()` --calls--> `GetClicksSummary()`  [INFERRED]
   backend/server.go → backend/affiliate.go
 - `GetSessionAndOption()` --calls--> `loadSearchSession()`  [INFERRED]
   backend/affiliate.go → backend/server.go
+- `handleBookingResolve()` --calls--> `GetSessionAndOption()`  [INFERRED]
+  backend/booking_resolve.go → backend/affiliate.go
 
 ## Import Cycles
 - None detected.
 
-## Communities (76 total, 4 thin omitted)
+## Communities (75 total, 4 thin omitted)
 
-### Community 0 - "googleflights2_provider.go"
-Cohesion: 0.08
-Nodes (55): findBookingOptionsArray(), firstPartnerURLInMap(), firstStringByKeys(), GoogleFlights2Provider, QuoteBinding, hostFromURL(), parseGF2BookingOptions(), PricesMatchQuote() (+47 more)
+### Community 0 - "BookingOffer"
+Cohesion: 0.06
+Nodes (65): allocateLegQuoteAmount(), applySearchQuoteToOffer(), attachQuotedPriceMeta(), bookingMatchPriceNormalizer(), flightLegDurationMinutes(), gf2PartnerOfferFromQuoteURL(), gf2PartnerOfferFromResolved(), gf2PartnerOfferFromURL() (+57 more)
 
 ### Community 1 - "RootNavigator.tsx"
-Cohesion: 0.08
-Nodes (22): ErrorBoundary, Props, s, State, LandingScreen(), Nav, styles, DynamicDestinationsStack() (+14 more)
+Cohesion: 0.10
+Nodes (27): LandingScreen(), Nav, styles, useIsMobile(), DynamicDestinationsStack(), Stack, MonthDealsStack(), Stack (+19 more)
 
 ### Community 2 - "FlightDetailsModal.tsx"
-Cohesion: 0.09
-Nodes (36): AffiliateProvider, AffiliateProviderResponse, ClicksByProvider, ClicksSummaryResponse, getAffiliateProvider(), getClicksSummary(), getOutboundLink(), OutboundLinkResponse (+28 more)
+Cohesion: 0.22
+Nodes (16): BookingResolveRequest, BookingResolveResponse, BookingResolveStatus, isSafeBookingUrl(), PublicBookingOffer, resolveBookingOffer(), cabinLabel(), FlightDetailsModal() (+8 more)
 
 ### Community 3 - "Issue"
 Cohesion: 0.10
 Nodes (29): Issue, relPathForDisplay(), RunPlainNodeSyntaxCheck(), RunTypeScriptCheck(), truncateRunes(), filterPythonModelFieldFalsePositives(), leadingSpaceLen(), shouldDropPythonUnusedVar() (+21 more)
 
-### Community 4 - "providers.go"
-Cohesion: 0.17
-Nodes (18): TestCombineOneWayBatches(), TestCombineOneWayBatches_emptyBatch(), TestCompleteExtraLegs(), TestExtraLegsFingerprint(), TestHasExtraLegs(), TestAttachCanonicalIdentityAll_combineOneWay(), cloneLegs(), CombineOneWayBatches() (+10 more)
+### Community 4 - "ProviderResult"
+Cohesion: 0.11
+Nodes (29): TestCombineOneWayBatches(), TestCombineOneWayBatches_emptyBatch(), TestCompleteExtraLegs(), TestExtraLegsFingerprint(), TestHasExtraLegs(), TestAttachCanonicalIdentityAll_combineOneWay(), TestIsOpenJaw(), TestResolveReturnAirports_classic() (+21 more)
 
 ### Community 5 - "MonthDealsScreen.tsx"
-Cohesion: 0.10
-Nodes (35): MonthDealsFormContent(), buildDealsPositioningSignature(), dealBestScore(), fl, fmtDur(), formatDealDate(), hfm, HUB_AIRPORTS (+27 more)
+Cohesion: 0.09
+Nodes (38): CheaperCitiesOption, Props, s, buildDealsPositioningSignature(), dealBestScore(), fl, fmtDur(), formatDealDate() (+30 more)
 
 ### Community 6 - "dependencies"
 Cohesion: 0.04
 Nodes (44): @babel/core, expo, @expo/metro-runtime, expo-status-bar, dependencies, expo, @expo/metro-runtime, expo-status-bar (+36 more)
 
 ### Community 7 - "useTheme"
-Cohesion: 0.12
-Nodes (31): s, SearchSummaryBar(), SearchSummaryBarProps, useAuth(), useLocale(), useRuntimeConfigActions(), AdminRuntimeConfigPanel(), ConfigFieldRow() (+23 more)
+Cohesion: 0.10
+Nodes (40): EditSearchModal(), HubRouteSummaryModal(), s, SearchSummaryBar(), SearchSummaryBarProps, SearchLoadingOverlay(), useAuth(), useLocale() (+32 more)
 
 ### Community 8 - "Features"
 Cohesion: 0.06
 Nodes (33): AdSense & consent (CMP), Affiliate setup (optional), Backend, Booking Redirect, Cheaper departure cities (positioning optimizer), Environment, Environment, Explore (Anywhere) (+25 more)
 
 ### Community 9 - "net/http.Request"
-Cohesion: 0.06
-Nodes (82): BuildRedirectURL(), getAffiliateID(), GetClicksSummary(), getOTAProvider(), GetSessionAndOption(), FlightOption, SearchSession, SearchSessionResultsResponse (+74 more)
+Cohesion: 0.16
+Nodes (36): authUserJSON(), bearerTokenFromRequest(), bootstrapAdminUser(), createAuthSession(), envFlagTrue(), handleAuthChangePassword(), handleAuthLogout(), handleAuthMe() (+28 more)
 
-### Community 10 - "ExploreScreen.tsx"
-Cohesion: 0.15
-Nodes (25): getAirportEntry(), c, countryFlag(), d, DestCard(), ExploreScreen(), ExploreScreenProps, fmtDate() (+17 more)
+### Community 10 - "googleflights2_provider.go"
+Cohesion: 0.19
+Nodes (28): TestExtractGF2Leg_SingleSegment_DepartArriveDiffer(), TestExtractGF2Leg_TimeOnly_NoDateHint(), TestExtractGF2Leg_TimeOnly_WithDateHint(), TestParseGF2Time_AcceptsFullDateTime(), TestParseGF2Time_RejectsTimeOnly(), buildGF2ResultFromItinerary(), extractGF2BookingToken(), extractGF2DurationMinutes() (+20 more)
 
 ### Community 11 - "booking_resolve.go"
-Cohesion: 0.13
-Nodes (32): acquireBookingResolveSlot(), beginInflightResolve(), bookingResolveCacheKey(), bookingResolveMaxConcurrentFromEnv(), cacheTTLForStatus(), canonicalItineraryForOption(), countVerifiedExactOffers(), envDurationMinutes() (+24 more)
+Cohesion: 0.10
+Nodes (41): acquireBookingResolveSlot(), beginInflightResolve(), bookingResolveCacheKey(), bookingResolveMaxConcurrentFromEnv(), cacheTTLForStatus(), canonicalItineraryForOption(), countVerifiedExactOffers(), envDurationMinutes() (+33 more)
 
-### Community 12 - "ResultsScreen.tsx"
-Cohesion: 0.13
-Nodes (23): DynamicDestinationsFormContent(), defaultParams, DynamicDestinationsScreen(), Nav, styles, bestScore(), CheapestOption, defaultFormParams (+15 more)
+### Community 12 - "affiliate.go"
+Cohesion: 0.15
+Nodes (23): BuildRedirectURL(), getAffiliateID(), GetClicksSummary(), getOTAProvider(), GetSessionAndOption(), FlightOption, SearchSession, SearchSessionResultsResponse (+15 more)
 
 ### Community 13 - "compilerOptions"
 Cohesion: 0.08
 Nodes (23): compilerOptions, baseUrl, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+15 more)
 
 ### Community 14 - "canonical.go"
-Cohesion: 0.12
-Nodes (35): FlightOption, SearchSession, quoteBindingFromOption(), FlightOption, openJawOption(), TestBookingLinkModeDefaultsToGoogle(), TestBookingRouteFromSessionOption_splitOmitsReturn(), TestBuildGoogleFlightsFallbackFromParams() (+27 more)
+Cohesion: 0.15
+Nodes (29): FlightOption, openJawOption(), TestBookingLinkModeDefaultsToGoogle(), TestBookingRouteFromSessionOption_splitOmitsReturn(), TestBuildGoogleFlightsFallbackFromParams(), TestBuildOneWayLegBookingURL(), TestBuildSkyscannerPrefillURL_oneWay(), TestBuildSkyscannerPrefillURL_roundTrip() (+21 more)
 
-### Community 15 - "data/airports.ts"
-Cohesion: 0.14
-Nodes (16): AIRPORT_DICTIONARY, AIRPORT_ONLY_DICTIONARY, FULL_PLACE_DICTIONARY, lower(), matchesQuery(), PLACE_SEARCH_LIMIT, rankResult(), searchAirportsLocal() (+8 more)
+### Community 15 - "runtime_config.go"
+Cohesion: 0.22
+Nodes (16): adminAccessConfigured(), configRangeError, adminTokenConfigured(), defaultRuntimeConfig(), errConfigOutOfRange(), getRuntimeConfig(), handleAdminRuntimeConfig(), initRuntimeConfigStore() (+8 more)
 
 ### Community 16 - "LocaleContext.tsx"
-Cohesion: 0.19
-Nodes (13): EditSearchModal(), EditSearchModalProps, s, getStorage(), languageToLocale(), loadSaved(), LocaleContext, LocaleContextValue (+5 more)
+Cohesion: 0.15
+Nodes (15): EditSearchModalProps, s, HubRouteLeg, HubRouteSummaryModalProps, s, getStorage(), languageToLocale(), loadSaved() (+7 more)
 
-### Community 17 - "flyfix.ts"
-Cohesion: 0.25
-Nodes (8): apiPost(), FlyfixInsightsGroup, FlyfixIssue, FlyfixRefinedReport, FlyfixSummary, refineIssues(), RefineIssuesRequestBody, cancelSearchSession()
+### Community 17 - "initTestAuthDB"
+Cohesion: 0.23
+Nodes (15): handleAuthLogin(), initAuthStore(), initTestAuthDB(), randomTestPassword(), TestAuthLoginAndChangePassword(), TestAuthRegister(), TestAuthUserManagement(), TestBootstrapAdminPasswordSync() (+7 more)
 
 ### Community 18 - "server.go"
-Cohesion: 0.05
-Nodes (75): AirportCityResult, AirportCitySearchResponse, AirportCityType, AirportLike, CanonicalFingerprint(), Carrier, CarrierCodes, CreateSearchSessionRequest (+67 more)
+Cohesion: 0.07
+Nodes (60): AirportCityResult, AirportCitySearchResponse, AirportCityType, AirportLike, CanonicalFingerprint(), Carrier, CarrierCodes, CreateSearchSessionRequest (+52 more)
 
-### Community 19 - "gf2_deals.go"
-Cohesion: 0.19
-Nodes (21): exploreDestRow, FullRoundTrip, attachReturnLegKeepPrice(), ensureRoundTripLegs(), exploreDestRowsToMaps(), gf2ExploreResolveDeps(), gf2ExploreSearchOneDestination(), gf2OneRoundTrip() (+13 more)
+### Community 19 - "context.Context"
+Cohesion: 0.13
+Nodes (30): mergeExplorePriceRows(), exploreSessionKey(), getExploreSession(), newExploreSessionID(), putExploreSession(), exploreDestRow, exploreSession, FullRoundTrip (+22 more)
 
 ### Community 20 - "qa_runner.py"
 Cohesion: 0.14
@@ -205,9 +204,9 @@ Nodes (13): Namespace, Path, Any, Reporting helpers for test execution results.,
 Cohesion: 0.14
 Nodes (12): ApiClient, Any, HTTP client utilities for executing API test cases., Parse JSON response when possible without raising., Sleep using exponential backoff., Executes HTTP requests with retry and timing support., Close the underlying requests session., Execute one test case and return a populated result. (+4 more)
 
-### Community 22 - "placeSearch.ts"
-Cohesion: 0.19
-Nodes (29): getAirportDisplayName(), getAirportNameByCode(), getCityDisplayName(), byCode, COUNTRY_DIRECTORY, CountryEntry, getCountryDisplayName(), getCountryEntry() (+21 more)
+### Community 22 - "ExploreScreen.tsx"
+Cohesion: 0.05
+Nodes (88): getMonthDeals(), ExploreResponse, getExploreDestinations(), GetExploreDestinationsParams, AIRPORT_DICTIONARY, AIRPORT_ONLY_DICTIONARY, FULL_PLACE_DICTIONARY, getAirportDisplayName() (+80 more)
 
 ### Community 23 - "TestResult"
 Cohesion: 0.18
@@ -221,9 +220,9 @@ Nodes (5): Any, Applies status, schema, and consistency checks., Run all checks 
 Cohesion: 0.20
 Nodes (7): MultiSearchResult, isSkippedProviderErr(), NewRegistryFromEnv(), parseProviderNames(), GoogleFlights2Provider, Provider, Registry
 
-### Community 26 - "ProviderResult"
-Cohesion: 0.10
-Nodes (20): DedupeProviderResults(), ItineraryFingerprint(), mergeSelfTransfer(), TotalStops(), uniqueStrings(), newGF2Cache(), AttachCanonicalIdentityAll(), TestDedupeKeepsCheaper() (+12 more)
+### Community 26 - "DedupeProviderResults"
+Cohesion: 0.21
+Nodes (9): DedupeProviderResults(), ItineraryFingerprint(), mergeSelfTransfer(), TotalStops(), uniqueStrings(), AttachCanonicalIdentityAll(), TestDedupeKeepsCheaper(), TestItineraryFingerprintStable() (+1 more)
 
 ### Community 27 - "expo"
 Cohesion: 0.13
@@ -235,27 +234,27 @@ Nodes (13): _as_str(), load_test_cases(), _normalize_bool(), _normalize_dict(), 
 
 ### Community 29 - "ThemeContext.tsx"
 Cohesion: 0.13
-Nodes (18): getPhrasesForLanguage(), SEARCH_BUTTON_PHRASES, SEARCH_PROGRESS_PHRASES, s, SearchProgressBanner(), SearchProgressBannerProps, ExtraLeg, Props (+10 more)
+Nodes (17): getPhrasesForLanguage(), SEARCH_BUTTON_PHRASES, SEARCH_PROGRESS_PHRASES, s, SearchProgressBanner(), SearchProgressBannerProps, ExtraLeg, Props (+9 more)
 
-### Community 30 - "handleExplore"
-Cohesion: 0.10
-Nodes (26): airportCoord, exploreEstimateInCurrency(), exploreEstimateRTPriceUSD(), explorePriceCacheGet(), explorePriceCacheIsFresh(), explorePriceCacheKey(), explorePriceCachePut(), getAirportCoord() (+18 more)
+### Community 30 - "exploreBuildRowsAndQueue"
+Cohesion: 0.13
+Nodes (17): airportCoord, exploreEstimateInCurrency(), exploreEstimateRTPriceUSD(), explorePriceCacheGet(), explorePriceCacheIsFresh(), explorePriceCacheKey(), explorePriceCachePut(), getAirportCoord() (+9 more)
 
 ### Community 31 - "backend_api_contracts.md"
 Cohesion: 0.17
 Nodes (11): 1.1 Create Search Session, 1.2 Get Search Session Status & Results, 1.3 Cancel Search Session (Optional, MVP+), 1. Flight Search Sessions, 2.1 Get Monthly Deals, 2. Monthly Deals API, 3.1 Search Airports & Cities, 3. Airport & City Autocomplete (+3 more)
 
 ### Community 32 - "testing.T"
-Cohesion: 0.14
-Nodes (23): TestApifyErrorMessage(), TestBuildActorInputSolidcodeOnly(), TestDetectSelfTransfer(), TestKiwiApifyTimeout(), TestParseKiwiApifyItemsSolidcodeShape(), TestParseKiwiEmptyAndInvalid(), TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(), TestRegistrySearchAllPartialFailure() (+15 more)
+Cohesion: 0.11
+Nodes (28): TestFlightNumbersEquivalent_leadingZeros(), TestAttachReturnLegKeepPrice(), TestEnsureRoundTripLegs_nilSafe(), TestEnsureRoundTripLegs_noOpWhenTwoLegs(), parseKiwiApifyItems(), TestApifyErrorMessage(), TestBuildActorInputSolidcodeOnly(), TestDetectSelfTransfer() (+20 more)
 
-### Community 33 - "TopNavMenu.tsx"
-Cohesion: 0.10
-Nodes (21): ICONS, KEYS, s, SortBar(), SortBarProps, SortOption, MobileNavRow(), NavIconName (+13 more)
+### Community 33 - "SortBar.tsx"
+Cohesion: 0.33
+Nodes (6): ICONS, KEYS, s, SortBarProps, SortOption, SortField
 
-### Community 34 - "api.ts"
-Cohesion: 0.13
-Nodes (14): AirportCityType, AirportLike, ANYWHERE_CODE, BaggageClass, Carrier, COUNTRY_DEST_PREFIX, ExplorePriceSource, FareBreakdown (+6 more)
+### Community 34 - "skyscanner.ts"
+Cohesion: 0.44
+Nodes (8): FlightLeg, BookingHop, bookingHopsFromOption(), firstSeg(), isClassicRoundTripLegs(), isoDatePrefix(), isSplitBookingItinerary(), lastSeg()
 
 ### Community 35 - "ValidationIssue"
 Cohesion: 0.18
@@ -266,28 +265,28 @@ Cohesion: 0.18
 Nodes (10): Backend QA Automation Tool, Features, If the run feels slow or “stuck”, Notes, Optional AI Setup (Ollama), Output, Project Structure, Run (+2 more)
 
 ### Community 37 - "KiwiApifyProvider"
-Cohesion: 0.22
-Nodes (6): apifyErrorMessage(), flattenKiwiItems(), NewKiwiApifyProvider(), stringField(), truncateStr(), KiwiApifyProvider
+Cohesion: 0.20
+Nodes (8): apifyErrorMessage(), flattenKiwiItems(), NewKiwiApifyProvider(), stringField(), truncateStr(), sync.RWMutex, KiwiApifyProvider, kiwiCache
 
-### Community 38 - "kiwi_apify_provider.go"
-Cohesion: 0.32
-Nodes (15): asArray(), collectCarriers(), detectSelfTransfer(), extractKiwiLegs(), firstFloat(), firstString(), kiwiSegmentFromMap(), mapsToSegments() (+7 more)
+### Community 38 - "time.Time"
+Cohesion: 0.30
+Nodes (16): asArray(), collectCarriers(), detectSelfTransfer(), extractKiwiLegs(), firstFloat(), firstString(), kiwiSegmentFromMap(), mapsToSegments() (+8 more)
 
 ### Community 39 - "search.ts"
-Cohesion: 0.32
-Nodes (11): CachedResult, fetchFresh(), getFromStorage(), getSearchSessionResults(), getStorage(), paramsMatch(), resultsCache, setToStorage() (+3 more)
+Cohesion: 0.13
+Nodes (22): apiPost(), FlyfixInsightsGroup, FlyfixIssue, FlyfixRefinedReport, FlyfixSummary, refineIssues(), RefineIssuesRequestBody, CachedResult (+14 more)
 
 ### Community 40 - "DynamicDestinationsFormContent.tsx"
-Cohesion: 0.13
-Nodes (26): AppIcon(), AppIconLibrary, AppIconProps, styles, FormHeroHeader(), FormHeroHeaderProps, styles, formCardStyles (+18 more)
+Cohesion: 0.10
+Nodes (35): AppIcon(), AppIconLibrary, AppIconProps, styles, FormHeroHeader(), FormHeroHeaderProps, styles, formCardStyles (+27 more)
 
 ### Community 41 - "models.py"
 Cohesion: 0.25
 Nodes (5): Core data models for the API QA runner., Set completion timestamp., Return an ISO-8601 UTC timestamp., utc_now_iso(), Validation rules for API responses.
 
 ### Community 42 - "CanonicalItinerary"
-Cohesion: 0.17
-Nodes (15): defaultBookingMatchRunner(), elapsedMs(), logMatchEvent(), BookingOffer, MatchResult, MatchItinerary(), NewResolver(), truncateStr() (+7 more)
+Cohesion: 0.19
+Nodes (11): elapsedMs(), logMatchEvent(), MatchResult, countVerifiedPricedOffers(), MatchItinerary(), truncateStr(), CanonicalItinerary, MatchEvent (+3 more)
 
 ### Community 43 - "Fly-Fix – Frontend"
 Cohesion: 0.29
@@ -298,92 +297,88 @@ Cohesion: 0.33
 Nodes (5): __dirname, dist, indexHtml, indexPath, SPA_ROUTES
 
 ### Community 45 - "FlightResultCard.tsx"
-Cohesion: 0.12
-Nodes (27): AIRLINE_NAMES, getAirlineName(), AIRLINE_FULL_NAMES, NOTE: This is a starter subset of IATA airlines., f, FiltersPanel(), FiltersPanelProps, FlightDetailsModalProps (+19 more)
+Cohesion: 0.09
+Nodes (36): DisplayPrice(), DisplayPriceProps, AIRLINE_NAMES, getAirlineName(), AIRLINE_FULL_NAMES, NOTE: This is a starter subset of IATA airlines., f, FiltersPanelProps (+28 more)
 
 ### Community 53 - "loadSearchSession"
 Cohesion: 0.22
 Nodes (22): loadSearchSession(), TestLoadSearchSession_Expiry(), searchSessionTTL(), startSearchSessionCleanup(), cleanupPersistedSessions(), SearchSessionResultsResponse, importLegacyJSONSessions(), initSessionStore() (+14 more)
 
-### Community 54 - "client.ts"
-Cohesion: 0.36
-Nodes (8): apiRequest(), apiUrl(), isLocalHostname(), IMPORTANT: Expo/Metro statically inlines EXPO_PUBLIC_* only when accessed via, resolveApiBase(), adminAuthHeaders(), fetchAdminRuntimeConfig(), saveAdminRuntimeConfig()
+### Community 54 - "ErrorBoundary"
+Cohesion: 0.15
+Nodes (4): ErrorBoundary, Props, s, State
 
-### Community 55 - "ResultsScreen"
-Cohesion: 0.13
-Nodes (29): createSearchSession(), currentGeneration(), delay(), findCheapestOptionForParams(), ResultsScreen(), defaultParams, SearchFormScreen(), styles (+21 more)
+### Community 55 - "ResultsScreen.tsx"
+Cohesion: 0.09
+Nodes (48): defaultParams, DynamicDestinationsScreen(), Nav, styles, bestScore(), CheapestOption, currentGeneration(), defaultFormParams (+40 more)
 
 ### Community 56 - "itinerary.go"
-Cohesion: 0.20
-Nodes (20): operatingFlightForMatch(), BuildCanonicalItinerary(), canonicalSegmentFromProvider(), FingerprintDebugString(), isIATACarrierCode(), flightNumbersEquivalent(), ResultMatchesItinerary(), segmentsLooselyMatch() (+12 more)
+Cohesion: 0.23
+Nodes (18): operatingFlightForMatch(), BuildCanonicalItinerary(), canonicalSegmentFromProvider(), FingerprintDebugString(), isIATACarrierCode(), flightNumbersEquivalent(), ResultMatchesItinerary(), segmentsLooselyMatch() (+10 more)
 
-### Community 57 - "context.Context"
-Cohesion: 0.24
-Nodes (7): GoogleFlights2Provider, newGF2RateLimiter(), NewGoogleFlights2Provider(), truncateGF2(), context.Context, gf2RateLimiter, SearchRequest
+### Community 57 - "gf2Cache"
+Cohesion: 0.22
+Nodes (7): newGF2Cache(), newGF2RateLimiter(), NewGoogleFlights2Provider(), TestOpenJaw_usesDecomposedSearchPath(), TestSearchLegCached_usesCache(), gf2Cache, gf2CacheEntry
 
 ### Community 58 - "CalendarModal.tsx"
 Cohesion: 0.38
 Nodes (6): buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS
 
-### Community 59 - "HubRouteSummaryModal.tsx"
-Cohesion: 0.17
-Nodes (13): DisplayPrice(), DisplayPriceProps, HubRouteLeg, HubRouteSummaryModal(), HubRouteSummaryModalProps, s, CheaperCitiesOption, CheaperCitiesSection() (+5 more)
+### Community 59 - "affiliate.ts"
+Cohesion: 0.27
+Nodes (9): AffiliateProvider, AffiliateProviderResponse, ClicksByProvider, ClicksSummaryResponse, getAffiliateProvider(), getClicksSummary(), getOutboundLink(), OutboundLinkResponse (+1 more)
 
-### Community 60 - "VerifyCandidate"
-Cohesion: 0.26
-Nodes (20): classifyURLType(), cfgTest(), TestClassifyURLType_genericVsExact(), testConnectingTLVJFK(), TestGenerateQueries_connecting(), TestGenerateQueries_direct(), testItineraryOS860(), TestResolver_pipeline_exactMatch() (+12 more)
+### Community 60 - "matcher_test.go"
+Cohesion: 0.17
+Nodes (30): classifyURLType(), extractPrice(), cfgTest(), TestClassifyURLType_genericVsExact(), testConnectingTLVJFK(), TestExtractPrice_euroPrefixNotArrivalTime(), TestGenerateQueries_connecting(), TestGenerateQueries_direct() (+22 more)
 
 ### Community 61 - "CanonicalSegment"
-Cohesion: 0.26
-Nodes (16): textContainsAny(), timeMatches(), connectingFlightQueries(), directFlightQueries(), GenerateQueries(), minutesOfDay(), segmentArrTimeVariants(), segmentDateISO() (+8 more)
+Cohesion: 0.18
+Nodes (26): extractFlightNumbers(), flightNumberInText(), flightNumbersEquivalent(), splitFlightDesignator(), textContainsAirport(), textContainsAny(), timeMatches(), connectingFlightQueries() (+18 more)
 
-### Community 62 - "types/index.ts"
-Cohesion: 0.11
-Nodes (22): searchAirports(), apiGet(), getDealsRange(), GetDealsRangeParams, getMonthDeals(), GetMonthDealsParams, ExploreResponse, getExploreDestinations() (+14 more)
+### Community 62 - "client.ts"
+Cohesion: 0.18
+Nodes (14): searchAirports(), apiGet(), apiRequest(), apiUrl(), isLocalHostname(), IMPORTANT: Expo/Metro statically inlines EXPO_PUBLIC_* only when accessed via, resolveApiBase(), getDealsRange() (+6 more)
 
 ### Community 63 - "itinerary_test.go"
-Cohesion: 0.22
-Nodes (14): AttachCanonicalIdentity(), segTLVJFK(), TestCanonicalItineraryFingerprint_connectingFlight(), TestCanonicalItineraryFingerprint_differentFlightsDoNotCollide(), TestCanonicalItineraryFingerprint_directFlight(), TestCanonicalItineraryFingerprint_excludesPrice(), TestCanonicalItineraryFingerprint_formattingStable(), TestCanonicalItineraryFingerprint_gf2AirlineNameStable() (+6 more)
+Cohesion: 0.23
+Nodes (14): AttachCanonicalIdentity(), segTLVJFK(), TestCanonicalItineraryFingerprint_connectingFlight(), TestCanonicalItineraryFingerprint_differentFlightsDoNotCollide(), TestCanonicalItineraryFingerprint_directFlight(), TestCanonicalItineraryFingerprint_formattingStable(), TestCanonicalItineraryFingerprint_gf2AirlineNameStable(), TestCanonicalItineraryFingerprint_missingOptionalFields() (+6 more)
 
 ### Community 64 - "App.tsx"
-Cohesion: 0.18
-Nodes (12): App(), linking, RTLWrapper(), API_BASE, useExchangeRates(), ThemeProvider(), convertPrice(), CURRENCY_SYMBOLS (+4 more)
-
-### Community 65 - "auth.ts"
-Cohesion: 0.29
-Nodes (13): authHeaders(), AuthUser, changePassword(), createUser(), deleteUser(), fetchAuthMe(), fetchUsers(), LoginResponse (+5 more)
-
-### Community 66 - "extract.go"
 Cohesion: 0.19
-Nodes (10): corpusText(), domainFromURL(), extractFlightNumbers(), extractPrice(), flightNumberInText(), textContainsAirport(), parseSerpAPIResults(), truncate() (+2 more)
+Nodes (12): App(), linking, RTLWrapper(), API_BASE, getRuntimeConfig(), useExchangeRates(), ThemeProvider(), CURRENCY_SYMBOLS (+4 more)
+
+### Community 65 - "AuthContext.tsx"
+Cohesion: 0.16
+Nodes (24): authHeaders(), AuthUser, changePassword(), createUser(), deleteUser(), fetchAuthMe(), fetchUsers(), LoginResponse (+16 more)
+
+### Community 66 - "DatePickerCalendar.tsx"
+Cohesion: 0.36
+Nodes (7): DatePickerCalendar(), DatePickerCalendarProps, getNext14Dates(), getRangeStartEnd(), styles, WEEKDAYS, DayDeal
 
 ### Community 67 - "searcher.go"
-Cohesion: 0.27
-Nodes (12): DefaultConfig(), envInt(), NewPageFetcher(), NewSerpAPISearcher(), NewWebSearcherFromConfig(), stripHTMLTags(), Config, PageFetcher (+4 more)
+Cohesion: 0.14
+Nodes (22): defaultBookingMatchRunner(), corpusText(), domainFromURL(), NewResolver(), collectSerpAPIResultMaps(), DefaultConfig(), envInt(), NewPageFetcher() (+14 more)
 
-### Community 68 - "AuthContext.tsx"
-Cohesion: 0.25
-Nodes (12): loginWithPassword(), registerAccount(), AdminAuthProvider, applyUser(), AuthContext, AuthContextValue, AuthProvider(), clearUser() (+4 more)
+### Community 68 - "TestApplySoftStrictBaggage"
+Cohesion: 0.52
+Nodes (6): applySoftStrictBaggage(), makeOfferWithBags(), makeOfferWithMissingBags(), TestApplySoftStrictBaggage(), TestClassifyOfferBaggage(), classifyOfferBaggage()
 
 ### Community 69 - "RuntimeConfigContext.tsx"
-Cohesion: 0.23
-Nodes (10): fetchRuntimeConfig(), setRuntimeConfigStore(), RuntimeConfigContext, RuntimeConfigContextValue, RuntimeConfigProvider(), DEFAULT_RUNTIME_CONFIG, RUNTIME_CONFIG_FIELDS, RuntimeConfig (+2 more)
+Cohesion: 0.19
+Nodes (14): adminAuthHeaders(), fetchAdminRuntimeConfig(), fetchRuntimeConfig(), saveAdminRuntimeConfig(), setRuntimeConfigStore(), RuntimeConfigContext, RuntimeConfigContextValue, RuntimeConfigProvider() (+6 more)
 
 ### Community 70 - "dealsCache.ts"
-Cohesion: 0.30
-Nodes (13): CachedDealsResults, clearPendingDealsParams(), DealsParams, dealsParamsFingerprint(), getCachedDealsResults(), getLocalStorage(), getPendingDealsParams(), getSessionStorage() (+5 more)
+Cohesion: 0.23
+Nodes (16): DealsState, MonthDealsResponse, CachedDealsResults, clearPendingDealsParams(), DealsParams, dealsParamsFingerprint(), getCachedDealsResults(), getLocalStorage() (+8 more)
 
-### Community 71 - "IsOpenJaw"
-Cohesion: 0.29
-Nodes (8): TestIsOpenJaw(), TestResolveReturnAirports_classic(), TestResolveReturnAirports_openJaw(), TestSanitizeStandardSearchRequest(), IsOpenJaw(), ResolveReturnAirports(), TestClassicRoundTrip_usesNativeSearchPath(), TestOpenJaw_usesDecomposedSearchPath()
-
-### Community 72 - "DateRangePicker.tsx"
-Cohesion: 0.33
-Nodes (9): useRuntimeConfig(), buildMonthDays(), DateRangePicker(), DateRangePickerProps, getMonthStart(), monthStartForYmd(), parseYmdUtc(), styles (+1 more)
+### Community 71 - "TestExtractCarrierCodes"
+Cohesion: 0.83
+Nodes (3): makeOfferWithCarriers(), TestExtractCarrierCodes(), TestPrimaryDisplayCarrier()
 
 ### Community 73 - "SelectBestOffer"
-Cohesion: 0.25
-Nodes (8): TestSelectBestOffer_conflictingCandidatesPicksBest(), TestSelectBestOffer_missingPrice(), TestSelectBestOffer_multipleMatching(), TestSelectBestOffer_prefersPriceAmongSameURLType(), TestSelectBestOffer_rejectsGenericSearchURL(), TestSelectBestOffer_rejectsUnverified(), SelectBestOffer(), urlTypeRank()
+Cohesion: 0.20
+Nodes (10): floatPtr(), TestSelectBestOffer_cheapestOTAOverAirline(), TestSelectBestOffer_conflictingCandidatesPicksCheapest(), TestSelectBestOffer_missingPrice(), TestSelectBestOffer_multipleMatching(), TestSelectBestOffer_prefersPriceAmongSameURLType(), TestSelectBestOffer_prefersQuoteMatchingPrice(), TestSelectBestOffer_rejectsGenericSearchURL() (+2 more)
 
 ### Community 74 - "ValidateBookingURL"
 Cohesion: 0.39
@@ -397,17 +392,17 @@ Nodes (6): TestValidateBookingURL_acceptsHTTPS(), TestValidateBookingURL_rejects
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ProviderResult` connect `ProviderResult` to `googleflights2_provider.go`, `providers.go`, `KiwiApifyProvider`, `kiwi_apify_provider.go`, `CanonicalItinerary`, `server.go`, `gf2_deals.go`, `itinerary.go`, `context.Context`, `itinerary_test.go`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `resolveBookingRedirectURL()` connect `canonical.go` to `itinerary.go`, `net/http.Request`, `server.go`, `context.Context`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **Why does `CanonicalSegment` connect `CanonicalSegment` to `itinerary.go`, `CanonicalItinerary`, `server.go`?**
+- **Why does `ProviderResult` connect `ProviderResult` to `testing.T`, `KiwiApifyProvider`, `time.Time`, `googleflights2_provider.go`, `CanonicalItinerary`, `server.go`, `context.Context`, `itinerary.go`, `gf2Cache`, `DedupeProviderResults`, `itinerary_test.go`?**
+  _High betweenness centrality (0.017) - this node is a cross-community bridge._
+- **Why does `CanonicalItinerary` connect `CanonicalItinerary` to `BookingOffer`, `searcher.go`, `ProviderResult`, `booking_resolve.go`, `server.go`, `context.Context`, `itinerary.go`, `matcher_test.go`, `CanonicalSegment`?**
+  _High betweenness centrality (0.017) - this node is a cross-community bridge._
+- **Why does `handleFlyFixRefineIssues()` connect `net/http.Request` to `testing.T`, `Issue`?**
   _High betweenness centrality (0.011) - this node is a cross-community bridge._
 - **What connects `ClicksByProvider`, `BookingResolveRequest`, `exploreLiveCandidate` to the rest of the system?**
   _279 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `googleflights2_provider.go` be split into smaller, more focused modules?**
-  _Cohesion score 0.0798611111111111 - nodes in this community are weakly interconnected._
+- **Should `BookingOffer` be split into smaller, more focused modules?**
+  _Cohesion score 0.05754385964912281 - nodes in this community are weakly interconnected._
 - **Should `RootNavigator.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.08232118758434548 - nodes in this community are weakly interconnected._
-- **Should `FlightDetailsModal.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.09390243902439024 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09672830725462304 - nodes in this community are weakly interconnected._
+- **Should `Issue` be split into smaller, more focused modules?**
+  _Cohesion score 0.1036036036036036 - nodes in this community are weakly interconnected._
