@@ -13,7 +13,8 @@ import (
 var (
 	flightNumPattern = regexp.MustCompile(`(?i)\b([A-Z]{2})\s*(\d{1,4})\b`)
 	priceUSD         = regexp.MustCompile(`(?i)\$\s*([\d,]+(?:\.\d{2})?)`)
-	priceEUR         = regexp.MustCompile(`(?i)([\d,]+(?:\.\d{2})?)\s*(?:EUR|€)`)
+	priceEURPrefix   = regexp.MustCompile(`(?i)€\s*([\d,]+(?:\.\d{2})?)`)
+	priceEURSuffix   = regexp.MustCompile(`(?i)\b([\d,]+(?:\.\d{2})?)\s+EUR\b`)
 	priceGBP         = regexp.MustCompile(`(?i)£\s*([\d,]+(?:\.\d{2})?)`)
 )
 
@@ -52,7 +53,7 @@ func extractPrice(text string) (amount float64, currency string, ok bool) {
 			return v, "USD", true
 		}
 	}
-	if m := priceEUR.FindStringSubmatch(text); len(m) > 1 {
+	if m := priceEURPrefix.FindStringSubmatch(text); len(m) > 1 {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
 			return v, "EUR", true
 		}
@@ -60,6 +61,11 @@ func extractPrice(text string) (amount float64, currency string, ok bool) {
 	if m := priceGBP.FindStringSubmatch(text); len(m) > 1 {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
 			return v, "GBP", true
+		}
+	}
+	if m := priceEURSuffix.FindStringSubmatch(text); len(m) > 1 {
+		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
+			return v, "EUR", true
 		}
 	}
 	return 0, "", false

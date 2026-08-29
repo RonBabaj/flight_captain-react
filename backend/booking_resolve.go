@@ -139,6 +139,9 @@ func defaultBookingMatchRunner(ctx context.Context, it search.CanonicalItinerary
 	if !cfg.Enabled || cfg.SerpAPIKey == "" {
 		return nil, errBookingSearchUnavailable
 	}
+	cfg.PriceNormalizer = func(amount float64, from, to string) (float64, string) {
+		return convertPrice(amount, from, to)
+	}
 	return bookingmatch.NewResolver(cfg).Match(ctx, it)
 }
 
@@ -363,26 +366,8 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
 	start := time.Now()
-
-	if gf2Offer := resolveGF2PartnerOffer(ctx, session, option, fp, legIndex); gf2Offer != nil {
-		offer := publicOfferFromMatch(gf2Offer, false)
-		if offer != nil {
-			resp := BookingResolveResponse{
-				Found:                true,
-				Status:               BookingResolveVerified,
-				ItineraryFingerprint: fp,
-				Offer:                offer,
-			}
-			logBookingResolve(bookingResolveLogEvent{
-				Event:                "resolve_verified_gf2",
-				ItineraryFingerprint: fp,
-				Status:               resp.Status,
-				Provider:             offer.Provider,
-				DurationMs:           time.Since(start).Milliseconds(),
-			})
-			return resp
-		}
-	}
+	_ = session
+	_ = option
 
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
@@ -416,7 +401,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			Found:                false,
 			Status:               BookingResolveNotFound,
 			ItineraryFingerprint: fp,
-			Message:              "No verified booking page found for this exact itinerary.",
+			Message:              "No verified booking offer found yet",
 		}
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                "resolve_not_found",

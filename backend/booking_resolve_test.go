@@ -171,3 +171,58 @@ func TestHandleBookingResolve_invalidItinerary(t *testing.T) {
 		t.Fatalf("status=%d", rec.Code)
 	}
 }
+
+func TestRunBookingMatch_doesNotBypassWithGF2DeepLink(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 14, 30, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 17, 5, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	tripPrice := 137.0
+
+	oldRunner := bookingMatchRunner
+	defer func() { bookingMatchRunner = oldRunner }()
+	webSearchCalled := false
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		webSearchCalled = true
+		return &bookingmatch.MatchResult{
+			ItineraryFingerprint: fp,
+			BestOffer: &bookingmatch.BookingOffer{
+				Domain:             "trip.com",
+				URL:                "https://trip.com/book/OS860",
+				URLType:            bookingmatch.URLTypeExactBooking,
+				Price:              &tripPrice,
+				Currency:           "EUR",
+				MatchScore:         90,
+				VerificationStatus: bookingmatch.StatusVerifiedExact,
+				CheckedAt:          time.Now().UTC(),
+			},
+		}, nil
+	}
+
+	opt := &FlightOption{
+		DeepLink: "https://www.austrian.com/en/book-flight/checkout",
+		Price:    MonetaryAmount{Amount: 158, Currency: "EUR"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "EUR"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1)
+	if !webSearchCalled {
+		t.Fatal("expected web search matcher to run")
+	}
+	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "trip.com" {
+		t.Fatalf("expected trip.com from web search, got %+v", resp.Offer)
+	}
+}

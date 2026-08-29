@@ -12,9 +12,10 @@ import (
 
 // Resolver runs the booking matcher pipeline for one canonical itinerary.
 type Resolver struct {
-	Searcher WebSearcher
-	Fetcher  *PageFetcher
-	Config   Config
+	Searcher        WebSearcher
+	Fetcher         *PageFetcher
+	Config          Config
+	PriceNormalizer PriceNormalizer
 }
 
 func NewResolver(cfg Config) *Resolver {
@@ -24,9 +25,10 @@ func NewResolver(cfg Config) *Resolver {
 		fetcher = NewPageFetcher(cfg)
 	}
 	return &Resolver{
-		Searcher: searcher,
-		Fetcher:  fetcher,
-		Config:   cfg,
+		Searcher:        searcher,
+		Fetcher:         fetcher,
+		Config:          cfg,
+		PriceNormalizer: cfg.PriceNormalizer,
 	}
 }
 
@@ -47,6 +49,15 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 		ItineraryFingerprint: fp,
 	}
 
+	route, flightNums, depDate := itineraryDebugFields(it)
+	logMatchEvent(MatchEvent{
+		Event:                "itinerary",
+		ItineraryFingerprint: fp,
+		FlightNumbers:        flightNums,
+		Route:                route,
+		DepartureDate:        depDate,
+	})
+
 	queries := GenerateQueries(it, cfg.MaxQueries)
 	result.Queries = queries
 	if len(queries) == 0 {
@@ -59,6 +70,11 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 		return result, fmt.Errorf("no search queries generated for itinerary")
 	}
 
+	logMatchEvent(MatchEvent{
+		Event:                "search_queries",
+		ItineraryFingerprint: fp,
+		Queries:              queries,
+	})
 	for _, q := range queries {
 		r.log(result, "query: %s", q)
 	}
@@ -116,6 +132,14 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 				h.Domain = domainFromURL(h.URL)
 			}
 			candidates = append(candidates, h)
+			logMatchEvent(MatchEvent{
+				Event:                "search_result",
+				ItineraryFingerprint: fp,
+				Query:                q,
+				SearchResultTitle:    truncateStr(h.Title, 120),
+				SearchResultDomain:   h.Domain,
+				CandidateURL:         h.URL,
+			})
 			r.log(result, "candidate url=%s domain=%s title=%q", h.URL, h.Domain, truncateStr(h.Title, 80))
 		}
 		if len(candidates) >= cfg.MaxCandidates {
@@ -130,30 +154,59 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 	for _, c := range candidates {
 		offer := VerifyCandidate(it, c, cfg)
 		offers = append(offers, offer)
-		r.log(result, "verified url=%s score=%d status=%s reason=%s",
-			c.URL, offer.MatchScore, offer.VerificationStatus, offer.RejectionReason)
+		ev := MatchEvent{
+			Event:                "candidate_verification",
+			ItineraryFingerprint: fp,
+			CandidateURL:         c.URL,
+			CandidateDomain:      c.Domain,
+			MatchScore:           offer.MatchScore,
+			VerificationStatus:   string(offer.VerificationStatus),
+			RejectionReason:      offer.RejectionReason,
+		}
+		if offer.Price != nil {
+			ev.ExtractedPrice = offer.Price
+			ev.ExtractedCurrency = offer.Currency
+			logMatchEvent(MatchEvent{
+				Event:                "price_extraction",
+				ItineraryFingerprint: fp,
+				CandidateDomain:      c.Domain,
+				CandidateURL:         c.URL,
+				ExtractedPrice:       offer.Price,
+				ExtractedCurrency:    offer.Currency,
+			})
+		}
+		logMatchEvent(ev)
+		r.log(result, "verified url=%s score=%d status=%s reason=%s price=%v %s",
+			c.URL, offer.MatchScore, offer.VerificationStatus, offer.RejectionReason, offer.Price, offer.Currency)
 		if offer.VerificationStatus != StatusVerifiedExact {
 			rejected++
-			logMatchEvent(MatchEvent{
-				Event:                "candidate_rejected",
-				ItineraryFingerprint: fp,
-				CandidateURL:         c.URL,
-				CandidateDomain:      c.Domain,
-				MatchScore:           offer.MatchScore,
-				VerificationStatus:   string(offer.VerificationStatus),
-				RejectionReason:      offer.RejectionReason,
-			})
 		}
 	}
 
 	if r.Fetcher != nil && cfg.MaxPagesToFetch > 0 {
-		offers = r.refineWithPageFetch(ctx, it, offers, candidates, cfg, result)
+		offers = r.refineWithPageFetch(ctx, it, offers, candidates, cfg, result, fp)
 	}
 
 	result.Offers = offers
-	result.BestOffer = SelectBestOffer(offers)
+	verifiedPriced := countVerifiedPricedOffers(offers)
+	result.BestOffer = SelectBestOffer(offers, r.PriceNormalizer)
 
 	if result.BestOffer != nil {
+		reason := "cheapest verified offer with reliable price"
+		logMatchEvent(MatchEvent{
+			Event:                "final_selection",
+			ItineraryFingerprint: fp,
+			CandidatesFound:      len(candidates),
+			CandidatesRejected:   rejected,
+			VerifiedOffers:       verifiedPriced,
+			SelectedProvider:     result.BestOffer.Domain,
+			SelectedURLType:      string(result.BestOffer.URLType),
+			SelectedPrice:        result.BestOffer.Price,
+			SelectedCurrency:     result.BestOffer.Currency,
+			SelectionReason:      reason,
+			MatchScore:           result.BestOffer.MatchScore,
+			DurationMs:           elapsedMs(start),
+		})
 		logMatchEvent(MatchEvent{
 			Event:                "match_success",
 			ItineraryFingerprint: fp,
@@ -164,24 +217,54 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 			SelectedURLType:      string(result.BestOffer.URLType),
 			DurationMs:           elapsedMs(start),
 		})
-		r.log(result, "selected offer url=%s type=%s score=%d price=%v",
-			result.BestOffer.URL, result.BestOffer.URLType, result.BestOffer.MatchScore, result.BestOffer.Price)
+		r.log(result, "selected offer provider=%s url=%s type=%s score=%d price=%v %s reason=%s",
+			result.BestOffer.Domain, result.BestOffer.URL, result.BestOffer.URLType,
+			result.BestOffer.MatchScore, result.BestOffer.Price, result.BestOffer.Currency, reason)
 	} else {
 		logMatchEvent(MatchEvent{
 			Event:                "match_not_found",
 			ItineraryFingerprint: fp,
 			CandidatesFound:      len(candidates),
 			CandidatesRejected:   rejected,
-			FailureReason:        "no verified exact offer",
+			VerifiedOffers:       verifiedPriced,
+			FailureReason:        "no verified priced booking offer",
 			DurationMs:           elapsedMs(start),
 		})
-		r.log(result, "no verified exact offer found among %d candidates", len(candidates))
+		r.log(result, "no verified priced booking offer among %d candidates (%d verified+priced)",
+			len(candidates), verifiedPriced)
 	}
 
 	return result, nil
 }
 
-func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalItinerary, offers []BookingOffer, candidates []SearchCandidate, cfg Config, result *MatchResult) []BookingOffer {
+func countVerifiedPricedOffers(offers []BookingOffer) int {
+	n := 0
+	for _, o := range offers {
+		if o.VerificationStatus == StatusVerifiedExact && o.Price != nil && *o.Price > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+func itineraryDebugFields(it search.CanonicalItinerary) (route string, flightNums []string, depDate string) {
+	if len(it.Segments) == 0 {
+		return "", nil, ""
+	}
+	first := it.Segments[0]
+	last := it.Segments[len(it.Segments)-1]
+	route = search.NormalizeAirportCode(first.From) + " → " + search.NormalizeAirportCode(last.To)
+	for _, seg := range it.Segments {
+		_, fn := segmentIdentity(seg)
+		if fn != "" {
+			flightNums = append(flightNums, fn)
+		}
+	}
+	depDate = segmentDateISO(first)
+	return route, flightNums, depDate
+}
+
+func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalItinerary, offers []BookingOffer, candidates []SearchCandidate, cfg Config, result *MatchResult, fp string) []BookingOffer {
 	type idxScore struct {
 		i int
 		s int
@@ -221,7 +304,27 @@ func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalI
 		fetched++
 		c.PageText = text
 		newOffer := VerifyCandidate(it, c, cfg)
-		r.log(result, "re-verified after fetch url=%s score=%d status=%s", o.URL, newOffer.MatchScore, newOffer.VerificationStatus)
+		logMatchEvent(MatchEvent{
+			Event:                "candidate_verification",
+			ItineraryFingerprint: fp,
+			CandidateURL:         c.URL,
+			CandidateDomain:      c.Domain,
+			MatchScore:           newOffer.MatchScore,
+			VerificationStatus:   string(newOffer.VerificationStatus),
+			RejectionReason:      newOffer.RejectionReason,
+		})
+		if newOffer.Price != nil {
+			logMatchEvent(MatchEvent{
+				Event:                "price_extraction",
+				ItineraryFingerprint: fp,
+				CandidateDomain:      c.Domain,
+				CandidateURL:         c.URL,
+				ExtractedPrice:       newOffer.Price,
+				ExtractedCurrency:    newOffer.Currency,
+			})
+		}
+		r.log(result, "re-verified after fetch url=%s score=%d status=%s price=%v",
+			o.URL, newOffer.MatchScore, newOffer.VerificationStatus, newOffer.Price)
 		offers[idx.i] = newOffer
 	}
 	return offers

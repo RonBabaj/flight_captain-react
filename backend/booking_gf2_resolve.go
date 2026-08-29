@@ -10,8 +10,9 @@ import (
 	"flightcaptainweb/search"
 )
 
-// resolveGF2PartnerOffer uses Google Flights partner checkout for the exact selected fare,
-// bound to the search quote (price + deep link) so checkout matches what we displayed.
+// resolveGF2PartnerOffer resolves GF2 partner checkout URLs for legacy redirect flows
+// (e.g. /api/out/booking). It is NOT used by POST /api/booking/resolve, which always
+// runs the web-search bookingmatcher pipeline.
 func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, fp string, legIndex int) *bookingmatch.BookingOffer {
 	if googleFlights2Provider == nil || option == nil || fp == "" {
 		return nil
