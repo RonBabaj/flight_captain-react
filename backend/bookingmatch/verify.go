@@ -159,6 +159,31 @@ func routeDateTimeVerified(checks []segmentCheck, segs []search.CanonicalSegment
 	return true
 }
 
+// legEndToEndVerified accepts OTA snippets that describe the whole bookable leg (e.g. TLV→VIE via Zurich)
+// without requiring every connection segment's departure time in the text.
+func legEndToEndVerified(checks []segmentCheck, segs []search.CanonicalSegment, rawText string) bool {
+	if len(segs) < 2 || len(checks) != len(segs) {
+		return false
+	}
+	first := checks[0]
+	last := checks[len(checks)-1]
+	if !first.fromOK || !last.toOK || !first.dateOK {
+		return false
+	}
+	if !segs[0].DepartureTime.IsZero() && !first.depTimeOK {
+		return false
+	}
+	if !segs[len(segs)-1].ArrivalTime.IsZero() && !last.arrTimeOK {
+		return false
+	}
+	for _, chk := range checks {
+		if chk.flightNumOK {
+			return true
+		}
+	}
+	return len(extractFlightNumbers(strings.ToUpper(rawText))) == 0
+}
+
 // verifyExactEligibility returns "" when the candidate qualifies as verified exact.
 func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegment, total, threshold int, urlType URLType, rawText string) string {
 	if urlType == URLTypeGenericSearch {
@@ -166,11 +191,18 @@ func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegmen
 	}
 	for i, chk := range checks {
 		if !chk.dateOK && !segs[i].DepartureTime.IsZero() {
+			// OTA snippets usually cite the outbound date only; skip connection-segment date checks.
+			if len(segs) > 1 && i > 0 {
+				continue
+			}
 			return "departure date not established in candidate text"
 		}
 	}
 
 	// OTA pages often omit flight numbers but include route, date, and times.
+	if legEndToEndVerified(checks, segs, rawText) && !conflictingFlightNumberInText(rawText, segs) {
+		return ""
+	}
 	if routeDateTimeVerified(checks, segs) && !conflictingFlightNumberInText(rawText, segs) {
 		return ""
 	}
@@ -218,8 +250,19 @@ func conflictingFlightNumberInText(rawText string, segs []search.CanonicalSegmen
 				break
 			}
 		}
-		if !matched {
-			return true
+		if matched {
+			continue
+		}
+		// Ignore unrelated carriers (ads); conflict only when same carrier, different flight number.
+		fc, _, ok := splitFlightDesignator(f)
+		if !ok {
+			continue
+		}
+		for _, seg := range segs {
+			carrier, _ := segmentIdentity(seg)
+			if carrier == fc {
+				return true
+			}
 		}
 	}
 	return false

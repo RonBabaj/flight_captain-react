@@ -8,7 +8,7 @@ import (
 	"flightcaptainweb/search"
 )
 
-const maxQueriesDefault = 5
+const maxQueriesDefault = 8
 
 // airportCityNames maps IATA codes to city names for richer search queries.
 var airportCityNames = map[string]string{
@@ -18,10 +18,11 @@ var airportCityNames = map[string]string{
 	"DXB": "Dubai", "SIN": "Singapore", "HND": "Tokyo", "NRT": "Tokyo",
 	"LAX": "Los Angeles", "ORD": "Chicago", "MIA": "Miami", "BOS": "Boston",
 	"ZRH": "Zurich", "MUC": "Munich", "CPH": "Copenhagen", "OSL": "Oslo",
-	"IST": "Istanbul", "CAI": "Cairo", "BKK": "Bangkok", "SYD": "Sydney",
+	"SZG": "Salzburg", "IST": "Istanbul", "CAI": "Cairo", "BKK": "Bangkok", "SYD": "Sydney",
 }
 
 // GenerateQueries builds targeted web search queries from a canonical itinerary.
+// For split dynamic-destination legs, segs is one bookable leg (e.g. TLV→VIE with connections).
 func GenerateQueries(it search.CanonicalItinerary, maxQueries int) []string {
 	if maxQueries <= 0 {
 		maxQueries = maxQueriesDefault
@@ -45,6 +46,18 @@ func GenerateQueries(it search.CanonicalItinerary, maxQueries int) []string {
 		queries = append(queries, q)
 	}
 
+	// Priority 1: end-to-end leg route (OTA pages target the full TLV→VIE ticket, not each hop).
+	legRouteCap := 4
+	if len(segs) == 1 {
+		legRouteCap = 2 // leave budget for flight-number queries on direct legs
+	}
+	for i, q := range legRouteQueries(segs) {
+		if i >= legRouteCap {
+			break
+		}
+		add(q)
+	}
+
 	if len(segs) == 1 {
 		for _, q := range directFlightQueries(segs[0]) {
 			add(q)
@@ -53,7 +66,6 @@ func GenerateQueries(it search.CanonicalItinerary, maxQueries int) []string {
 		for _, q := range connectingFlightQueries(segs) {
 			add(q)
 		}
-		// Per-segment queries help SerpAPI surface airline/OTA pages for connections.
 		for _, seg := range segs {
 			for _, q := range directFlightQueries(seg) {
 				add(q)
@@ -61,11 +73,54 @@ func GenerateQueries(it search.CanonicalItinerary, maxQueries int) []string {
 		}
 	}
 
-	out := queries
-	if len(out) > maxQueries {
-		out = out[:maxQueries]
+	if len(queries) > maxQueries {
+		queries = queries[:maxQueries]
 	}
-	return out
+	return queries
+}
+
+// legRouteQueries builds searches for the overall bookable leg (first origin → last destination).
+func legRouteQueries(segs []search.CanonicalSegment) []string {
+	if len(segs) == 0 {
+		return nil
+	}
+	first := segs[0]
+	last := segs[len(segs)-1]
+	from := search.NormalizeAirportCode(first.From)
+	to := search.NormalizeAirportCode(last.To)
+	date := segmentDateISO(first)
+
+	addQuoted := func(parts ...string) string {
+		var b strings.Builder
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if b.Len() > 0 {
+				b.WriteByte(' ')
+			}
+			fmt.Fprintf(&b, "%q", p)
+		}
+		return b.String()
+	}
+
+	var qs []string
+	if date != "" {
+		qs = append(qs, addQuoted(from, to, date, "book flight"))
+		qs = append(qs, addQuoted(from, to, date, "flights"))
+		qs = append(qs, addQuoted(from, to, date, "price"))
+	}
+	qs = append(qs, addQuoted(from, to, "book flight"))
+	if cityFrom, ok := airportCityNames[from]; ok {
+		if cityTo, ok2 := airportCityNames[to]; ok2 {
+			if date != "" {
+				qs = append(qs, addQuoted(cityFrom, cityTo, date, "book flight"))
+			}
+			qs = append(qs, addQuoted(cityFrom, cityTo, "flights"))
+		}
+	}
+	return qs
 }
 
 func directFlightQueries(seg search.CanonicalSegment) []string {
@@ -90,26 +145,21 @@ func directFlightQueries(seg search.CanonicalSegment) []string {
 		return b.String()
 	}
 
-	qs = append(qs, addQuoted(fn, from, to))
 	if fn != "" {
+		qs = append(qs, addQuoted(fn, from, to))
 		qs = append(qs, strings.TrimSpace(fn+" "+from+" "+to))
 	}
 	if cityFrom, ok := airportCityNames[from]; ok {
-		if cityTo, ok2 := airportCityNames[to]; ok2 {
+		if cityTo, ok2 := airportCityNames[to]; ok2 && fn != "" {
 			qs = append(qs, addQuoted(fn, cityFrom, cityTo))
 		}
 	}
-	if date != "" {
+	if date != "" && fn != "" {
 		qs = append(qs, addQuoted(fn, from, to, date))
 		qs = append(qs, addQuoted(fn, from, to, date, "book flight"))
-		qs = append(qs, addQuoted(from, to, date, "book flight"))
-		qs = append(qs, addQuoted(from, to, date, "flights"))
 	}
 	if carrier != "" && fn != "" {
 		qs = append(qs, addQuoted(carrier, fn, from, to, "book"))
-	}
-	if carrier != "" && carrier != fn {
-		qs = append(qs, addQuoted(carrier, fn, from, to, "book flight"))
 	}
 	return qs
 }
@@ -148,11 +198,13 @@ func connectingFlightQueries(segs []search.CanonicalSegment) []string {
 	}
 
 	var qs []string
-	parts := append(append([]string{}, flightNums...), from, to)
-	qs = append(qs, addQuoted(parts...))
-	if date != "" {
-		partsWithDate := append(append([]string{}, flightNums...), from, to, date)
-		qs = append(qs, addQuoted(partsWithDate...))
+	if len(flightNums) > 0 {
+		parts := append(append([]string{}, flightNums...), from, to)
+		qs = append(qs, addQuoted(parts...))
+		if date != "" {
+			partsWithDate := append(append([]string{}, flightNums...), from, to, date)
+			qs = append(qs, addQuoted(partsWithDate...))
+		}
 	}
 	if len(segs) == 2 {
 		_, fn1 := segmentIdentity(segs[0])
@@ -206,7 +258,6 @@ func segmentDateVariants(seg search.CanonicalSegment) []string {
 		t.Format("2/1/2006"),
 		t.Format("02/01/06"),
 	}
-	// Connecting segments may appear on adjacent calendar days in snippets.
 	for _, delta := range []int{-1, 1} {
 		adj := t.AddDate(0, 0, delta)
 		variants = append(variants,

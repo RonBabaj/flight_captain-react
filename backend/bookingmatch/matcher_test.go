@@ -243,13 +243,19 @@ func TestGenerateQueries_gf2AirlineNameIdentity(t *testing.T) {
 
 func TestGenerateQueries_connecting(t *testing.T) {
 	it := testConnectingTLVJFK()
-	qs := GenerateQueries(it, 5)
+	qs := GenerateQueries(it, 8)
 	if len(qs) == 0 {
 		t.Fatal("expected queries")
 	}
-	combined := qs[0]
-	if !strings.Contains(combined, "LH687") || !strings.Contains(combined, "LH400") {
-		t.Fatalf("connecting query: %q", combined)
+	foundCombined := false
+	for _, q := range qs {
+		if strings.Contains(q, "LH687") && strings.Contains(q, "LH400") {
+			foundCombined = true
+			break
+		}
+	}
+	if !foundCombined {
+		t.Fatalf("expected combined flight-number query in set, got %v", qs)
 	}
 }
 
@@ -422,6 +428,48 @@ func TestFlightNumbersEquivalent_leadingZeros(t *testing.T) {
 	}
 	if flightNumbersEquivalent("OS860", "OS861") {
 		t.Fatal("different numbers must not match")
+	}
+}
+
+func TestGenerateQueries_prioritizesEndToEndLegRoute(t *testing.T) {
+	it := testConnectingTLVJFK()
+	qs := GenerateQueries(it, 8)
+	if len(qs) == 0 {
+		t.Fatal("expected queries")
+	}
+	if !strings.Contains(qs[0], "TLV") || !strings.Contains(qs[0], "JFK") {
+		t.Fatalf("first query should be end-to-end leg route, got %q", qs[0])
+	}
+	if strings.Contains(qs[0], "LH687") {
+		t.Fatalf("leg route query should not lead with segment flight number, got %q", qs[0])
+	}
+}
+
+func TestVerifyCandidate_connectingLegEndToEnd(t *testing.T) {
+	dep1 := time.Date(2027, 1, 7, 18, 20, 0, 0, time.UTC)
+	arr1 := time.Date(2027, 1, 7, 21, 50, 0, 0, time.UTC)
+	dep2 := time.Date(2027, 1, 8, 12, 40, 0, 0, time.UTC)
+	arr2 := time.Date(2027, 1, 8, 14, 0, 0, 0, time.UTC)
+	s1 := search.CanonicalSegment{
+		From: "TLV", To: "ZRH",
+		DepartureTime: dep1, ArrivalTime: arr1,
+		MarketingCarrier: "LY", FlightNumber: "LY343",
+	}
+	s2 := search.CanonicalSegment{
+		From: "ZRH", To: "VIE",
+		DepartureTime: dep2, ArrivalTime: arr2,
+		MarketingCarrier: "OS", FlightNumber: "OS134",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{s1, s2}}
+	c := SearchCandidate{
+		URL:     "https://www.trip.com/flights/tlv-vie",
+		Snippet: "Tel Aviv to Vienna January 7, 2027 departs 18:20 arrives 14:00 via Zurich",
+		Domain:  "trip.com",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus != StatusVerifiedExact {
+		t.Fatalf("expected connecting leg end-to-end verify, got %s reason=%s score=%d",
+			offer.VerificationStatus, offer.RejectionReason, offer.MatchScore)
 	}
 }
 
