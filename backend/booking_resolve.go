@@ -69,6 +69,9 @@ type bookingResolveLogEvent struct {
 	Event                string `json:"event"`
 	SessionID            string `json:"sessionId,omitempty"`
 	OptionID             string `json:"optionId,omitempty"`
+	LegIndex             *int   `json:"legIndex,omitempty"`
+	LegRoute             string `json:"legRoute,omitempty"`
+	SegmentCount         int    `json:"segmentCount,omitempty"`
 	ItineraryFingerprint string `json:"itineraryFingerprint,omitempty"`
 	Status               string `json:"status,omitempty"`
 	Provider             string `json:"provider,omitempty"`
@@ -365,6 +368,14 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
 	start := time.Now()
+	legRoute := legRouteLabel(it)
+	logBookingResolve(bookingResolveLogEvent{
+		Event:                "match_start",
+		ItineraryFingerprint: fp,
+		LegIndex:             intPtrOrNil(legIndex),
+		LegRoute:             legRoute,
+		SegmentCount:         len(it.Segments),
+	})
 
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
@@ -544,4 +555,21 @@ func mustCanonicalForLog(option *FlightOption, legIndex int) search.CanonicalIti
 		return search.CanonicalItinerary{}
 	}
 	return it
+}
+
+func legRouteLabel(it search.CanonicalItinerary) string {
+	if len(it.Segments) == 0 {
+		return ""
+	}
+	first := it.Segments[0]
+	last := it.Segments[len(it.Segments)-1]
+	return search.NormalizeAirportCode(first.From) + "→" + search.NormalizeAirportCode(last.To)
+}
+
+func intPtrOrNil(legIndex int) *int {
+	if legIndex < 0 {
+		return nil
+	}
+	v := legIndex
+	return &v
 }
