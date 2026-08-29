@@ -159,10 +159,10 @@ func routeDateTimeVerified(checks []segmentCheck, segs []search.CanonicalSegment
 	return true
 }
 
-// legEndToEndVerified accepts OTA snippets that describe the whole bookable leg (e.g. TLV→VIE via Zurich)
-// without requiring every connection segment's departure time in the text.
+// legEndToEndVerified accepts OTA snippets that describe the whole bookable leg (origin→destination)
+// with outbound date and end times, without requiring every connection segment's departure time.
 func legEndToEndVerified(checks []segmentCheck, segs []search.CanonicalSegment, rawText string) bool {
-	if len(segs) < 2 || len(checks) != len(segs) {
+	if len(segs) == 0 || len(checks) != len(segs) {
 		return false
 	}
 	first := checks[0]
@@ -175,6 +175,9 @@ func legEndToEndVerified(checks []segmentCheck, segs []search.CanonicalSegment, 
 	}
 	if !segs[len(segs)-1].ArrivalTime.IsZero() && !last.arrTimeOK {
 		return false
+	}
+	if len(segs) == 1 {
+		return true
 	}
 	for _, chk := range checks {
 		if chk.flightNumOK {

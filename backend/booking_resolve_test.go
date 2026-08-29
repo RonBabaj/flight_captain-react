@@ -226,3 +226,77 @@ func TestRunBookingMatch_doesNotBypassWithGF2DeepLink(t *testing.T) {
 		t.Fatalf("expected trip.com from web search, got %+v", resp.Offer)
 	}
 }
+
+func TestRunBookingMatch_fallsBackToGF2WhenWebSearchEmpty(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	gf2Price := 180.0
+
+	oldRunner := bookingMatchRunner
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
+
+	webSearchCalled := false
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		webSearchCalled = true
+		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
+	}
+	gf2Called := false
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, fingerprint string, legIndex int) *bookingmatch.BookingOffer {
+		gf2Called = true
+		if fingerprint != fp || legIndex != 0 {
+			t.Fatalf("gf2 fallback fingerprint=%s legIndex=%d", fingerprint, legIndex)
+		}
+		return &bookingmatch.BookingOffer{
+			Domain:             "mytrip.com",
+			URL:                "https://mytrip.com/checkout/tlv-vie",
+			URLType:            bookingmatch.URLTypeExactBooking,
+			Price:              &gf2Price,
+			Currency:           "USD",
+			MatchScore:         95,
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+			CheckedAt:          time.Now().UTC(),
+		}
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 360, Currency: "USD"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+			}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC),
+				MarketingCarrier: Carrier{Code: "LH"}, FlightNumber: "LH1263",
+			}}},
+		},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	if !webSearchCalled || !gf2Called {
+		t.Fatalf("webSearch=%v gf2=%v", webSearchCalled, gf2Called)
+	}
+	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
+		t.Fatalf("expected GF2 fallback offer, got %+v", resp)
+	}
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+}
