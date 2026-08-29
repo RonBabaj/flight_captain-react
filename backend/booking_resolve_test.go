@@ -122,6 +122,15 @@ func TestHandleBookingResolve_notFound(t *testing.T) {
 	}
 }
 
+func TestCacheTTLForStatus_doesNotCacheMisses(t *testing.T) {
+	if cacheTTLForStatus(BookingResolveNotFound) != 0 {
+		t.Fatal("not_found must not be negatively cached")
+	}
+	if cacheTTLForStatus(BookingResolveVerified) <= 0 {
+		t.Fatal("verified offers should remain cached")
+	}
+}
+
 func TestHandleBookingResolve_searchUnavailable(t *testing.T) {
 	oldRunner := bookingMatchRunner
 	defer func() { bookingMatchRunner = oldRunner }()
@@ -169,5 +178,195 @@ func TestHandleBookingResolve_invalidItinerary(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d", rec.Code)
+	}
+}
+
+func TestRunBookingMatch_stillRunsWebSearchWhenSearchQuoteExists(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 14, 30, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 17, 5, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	tripPrice := 137.0
+
+	oldRunner := bookingMatchRunner
+	defer func() { bookingMatchRunner = oldRunner }()
+	webSearchCalled := false
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		webSearchCalled = true
+		return &bookingmatch.MatchResult{
+			ItineraryFingerprint: fp,
+			BestOffer: &bookingmatch.BookingOffer{
+				Domain:             "trip.com",
+				URL:                "https://trip.com/book/OS860",
+				URLType:            bookingmatch.URLTypeExactBooking,
+				Price:              &tripPrice,
+				Currency:           "EUR",
+				MatchScore:         90,
+				VerificationStatus: bookingmatch.StatusVerifiedExact,
+				CheckedAt:          time.Now().UTC(),
+			},
+		}, nil
+	}
+
+	opt := &FlightOption{
+		DeepLink: "https://www.austrian.com/en/book-flight/checkout",
+		Price:    MonetaryAmount{Amount: 158, Currency: "EUR"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "EUR"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1)
+	if !webSearchCalled {
+		t.Fatal("expected web search matcher to run")
+	}
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected a verified offer, got %+v", resp)
+	}
+	if resp.Offer.Domain != "austrian.com" {
+		t.Fatalf("quote-matching search partner should win over a cheaper non-matching web hit, got %+v", resp.Offer)
+	}
+}
+
+func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	gf2Price := 180.0
+
+	oldRunner := bookingMatchRunner
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
+
+	webSearchCalled := false
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		webSearchCalled = true
+		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
+	}
+	gf2Called := false
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+		gf2Called = true
+		if search.CanonicalItineraryFingerprint(wantItin) != fp || legIndex != 0 {
+			t.Fatalf("search partner fingerprint=%s legIndex=%d", search.CanonicalItineraryFingerprint(wantItin), legIndex)
+		}
+		return &bookingmatch.BookingOffer{
+			Domain:             "mytrip.com",
+			URL:                "https://mytrip.com/checkout/tlv-vie",
+			URLType:            bookingmatch.URLTypeExactBooking,
+			Price:              &gf2Price,
+			Currency:           "USD",
+			MatchScore:         95,
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+			CheckedAt:          time.Now().UTC(),
+		}
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 360, Currency: "USD"},
+		LegBookingTokens: []string{"tok-outbound", "tok-return"},
+		LegDeepLinks:     []string{"https://mytrip.com/checkout/tlv-vie", "https://example.com/return"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+			}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC),
+				MarketingCarrier: Carrier{Code: "LH"}, FlightNumber: "LH1263",
+			}}},
+		},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	if !webSearchCalled || !gf2Called {
+		t.Fatalf("webSearch=%v searchPartner=%v", webSearchCalled, gf2Called)
+	}
+	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
+		t.Fatalf("expected search-quote partner offer, got %+v", resp)
+	}
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+}
+
+func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	gf2Price := 180.0
+
+	oldRunner := bookingMatchRunner
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
+
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+		return &bookingmatch.BookingOffer{
+			Domain:             "mytrip.com",
+			URL:                "https://mytrip.com/checkout/tlv-vie",
+			URLType:            bookingmatch.URLTypeExactBooking,
+			Price:              &gf2Price,
+			Currency:           "USD",
+			MatchScore:         95,
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+			CheckedAt:          time.Now().UTC(),
+		}
+	}
+
+	opt := &FlightOption{
+		Price:            MonetaryAmount{Amount: 360, Currency: "USD"},
+		LegBookingTokens: []string{"tok-outbound"},
+		LegDeepLinks:     []string{"https://mytrip.com/checkout/tlv-vie"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
+		t.Fatalf("expected persisted search-quote offer when web search errors, got %+v", resp)
 	}
 }

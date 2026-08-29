@@ -867,22 +867,16 @@
     "ast_hash": "af713e2d8098f8d29fb080f73cc5bef5",
     "semantic_hash": ""
   },
-  "backend/booking_quote.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.664495,
-    "ast_hash": "8b28ce85704febc643a4f641a1d910ba",
-    "semantic_hash": ""
-  },
   "backend/booking_resolve.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6644962,
-    "ast_hash": "42f0e10111e7c80ee87c0fd038f093bc",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8684905,
+    "ast_hash": "43e769467faf8abb3d60ec3a92fd8a50",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.664497,
-    "ast_hash": "9a35f4b01d4834c539a25e87b838f0de",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8684924,
+    "ast_hash": "22f44fc399a280506b1abcd40d9f87c6",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -892,21 +886,21 @@
     "semantic_hash": ""
   },
   "backend/bookingmatch/extract.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6644983,
-    "ast_hash": "4bbd1e18e6ebd8f4bba43f88750abb72",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685145,
+    "ast_hash": "3bbc728352b673ed575f89df6b44f65a",
     "semantic_hash": ""
   },
   "backend/bookingmatch/matcher_test.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.664499,
-    "ast_hash": "f54b946d9e745a31f819615ee943a453",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685155,
+    "ast_hash": "7b329c9cf341cf0d4de4158fe312ae4b",
     "semantic_hash": ""
   },
   "backend/bookingmatch/observe.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6645,
-    "ast_hash": "1f300ea9f822b0c306009e9da0bcd74d",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685164,
+    "ast_hash": "0386f4662ec255d3400aacc20e2418ac",
     "semantic_hash": ""
   },
   "backend/bookingmatch/offer.go": {
@@ -916,27 +910,27 @@
     "semantic_hash": ""
   },
   "backend/bookingmatch/query.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6645012,
-    "ast_hash": "44b6c882c5525affae5b7d7b38a9d1d3",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685358,
+    "ast_hash": "933f3a5e20e18aecaf35932c9926ebc0",
     "semantic_hash": ""
   },
   "backend/bookingmatch/resolver.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.664502,
-    "ast_hash": "143b7fa0ab95a4d7b0ccf6bfc31c3193",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.868537,
+    "ast_hash": "4eccd1b16e105baa886484526a11296c",
     "semantic_hash": ""
   },
   "backend/bookingmatch/searcher.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6645026,
-    "ast_hash": "c1d2b61cd37ccaa70ff32f3a2ee07108",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685377,
+    "ast_hash": "d5c21201b6c151aeff9783e4633d3a1c",
     "semantic_hash": ""
   },
   "backend/bookingmatch/select.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.6645033,
-    "ast_hash": "ff6b11b6b549af61df0935d8966d8942",
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8685384,
+    "ast_hash": "286d488de7bddb7e0b4b463514fad49f",
     "semantic_hash": ""
   },
   "backend/bookingmatch/urlsafe.go": {
@@ -952,9 +946,9 @@
     "semantic_hash": ""
   },
   "backend/bookingmatch/verify.go": {
-    "mtime": 1788042989.0909262,
-    "seen": 1788043035.664505,
-    "ast_hash": "65322e7309b8aca43756d2e4400085cb",
+    "mtime": 1788043570.963751,
+    "seen": 1788043586.8685725,
+    "ast_hash": "af6c87bf9f18f29cd29666630041a6ee",
     "semantic_hash": ""
   },
   "backend/runtime_config.go": {
@@ -1213,6 +1207,24 @@
     "mtime": 1788042991.0669162,
     "seen": 1788043035.6646128,
     "ast_hash": "145cc1a756c090f92dd20f983692b0c4",
+    "semantic_hash": ""
+  },
+  "backend/booking_gf2_resolve.go": {
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8684874,
+    "ast_hash": "aaff2619295b1f6036a6d1b957f36070",
+    "semantic_hash": ""
+  },
+  "backend/booking_gf2_resolve_test.go": {
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.868489,
+    "ast_hash": "17ee563371baed947daa8a473265201d",
+    "semantic_hash": ""
+  },
+  "backend/booking_resolve_legs_test.go": {
+    "mtime": 1788043570.9597511,
+    "seen": 1788043586.8684914,
+    "ast_hash": "a48c09cbcba73d11616e56a9462ee1d1",
     "semantic_hash": ""
   }
 }
