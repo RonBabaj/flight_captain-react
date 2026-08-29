@@ -13,11 +13,8 @@ import (
 var (
 	flightNumPattern = regexp.MustCompile(`(?i)\b([A-Z]{2})\s*(\d{1,4})\b`)
 	priceUSD         = regexp.MustCompile(`(?i)\$\s*([\d,]+(?:\.\d{2})?)`)
-	priceEURPrefix   = regexp.MustCompile(`(?i)€\s*([\d,]+(?:\.\d{2})?)`)
-	priceEURSuffix   = regexp.MustCompile(`(?i)\b([\d,]+(?:\.\d{2})?)\s+EUR\b`)
+	priceEUR         = regexp.MustCompile(`(?i)([\d,]+(?:\.\d{2})?)\s*(?:EUR|€)`)
 	priceGBP         = regexp.MustCompile(`(?i)£\s*([\d,]+(?:\.\d{2})?)`)
-	priceILSPrefix   = regexp.MustCompile(`(?i)₪\s*([\d,]+(?:\.\d{2})?)`)
-	priceILSSuffix   = regexp.MustCompile(`(?i)\b([\d,]+(?:\.\d{2})?)\s*(?:ILS|NIS|₪)\b`)
 )
 
 // corpusText combines searchable text from a candidate.
@@ -55,7 +52,7 @@ func extractPrice(text string) (amount float64, currency string, ok bool) {
 			return v, "USD", true
 		}
 	}
-	if m := priceEURPrefix.FindStringSubmatch(text); len(m) > 1 {
+	if m := priceEUR.FindStringSubmatch(text); len(m) > 1 {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
 			return v, "EUR", true
 		}
@@ -63,21 +60,6 @@ func extractPrice(text string) (amount float64, currency string, ok bool) {
 	if m := priceGBP.FindStringSubmatch(text); len(m) > 1 {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
 			return v, "GBP", true
-		}
-	}
-	if m := priceILSPrefix.FindStringSubmatch(text); len(m) > 1 {
-		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
-			return v, "ILS", true
-		}
-	}
-	if m := priceILSSuffix.FindStringSubmatch(text); len(m) > 1 {
-		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
-			return v, "ILS", true
-		}
-	}
-	if m := priceEURSuffix.FindStringSubmatch(text); len(m) > 1 {
-		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
-			return v, "EUR", true
 		}
 	}
 	return 0, "", false
@@ -183,41 +165,18 @@ func flightNumberInText(text, want string) bool {
 	}
 	found := extractFlightNumbers(strings.ToUpper(text))
 	for _, f := range found {
-		if flightNumbersEquivalent(want, f) {
+		if f == want {
 			return true
 		}
 	}
 	if len(want) >= 3 {
 		carrier := want[:2]
-		num := strings.TrimLeft(want[2:], "0")
-		if num != "" && strings.Contains(strings.ToUpper(text), carrier+" "+num) {
+		num := strings.TrimPrefix(strings.TrimPrefix(want[2:], "0"), "0")
+		if strings.Contains(strings.ToUpper(text), carrier+" "+num) {
 			return true
 		}
 	}
 	return strings.Contains(strings.ToUpper(text), want)
-}
-
-func flightNumbersEquivalent(a, b string) bool {
-	a = strings.ToUpper(strings.TrimSpace(a))
-	b = strings.ToUpper(strings.TrimSpace(b))
-	if a == b {
-		return true
-	}
-	ac, an, aok := splitFlightDesignator(a)
-	bc, bn, bok := splitFlightDesignator(b)
-	if !aok || !bok || ac != bc {
-		return false
-	}
-	return strings.TrimLeft(an, "0") == strings.TrimLeft(bn, "0")
-}
-
-func splitFlightDesignator(fn string) (carrier, num string, ok bool) {
-	fn = strings.ToUpper(strings.TrimSpace(fn))
-	m := flightNumPattern.FindStringSubmatch(fn)
-	if len(m) < 3 {
-		return "", "", false
-	}
-	return m[1], m[2], true
 }
 
 func timeMatches(text string, seg search.CanonicalSegment, dep bool) bool {

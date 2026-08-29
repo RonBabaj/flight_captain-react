@@ -127,7 +127,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	AttachCanonicalIdentityAll(results)
 	for i := range results {
 		r := &results[i]
-		if r.ItineraryFingerprint != wantFP && !ResultMatchesItinerary(wantItin, *r) {
+		if r.ItineraryFingerprint != wantFP {
 			continue
 		}
 		matchQuote := QuoteBinding{
