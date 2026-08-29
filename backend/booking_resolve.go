@@ -92,6 +92,7 @@ var (
 	bookingResolveNegativeTTL  = 5 * time.Minute
 	bookingResolveSem          chan struct{}
 	bookingMatchRunner         = defaultBookingMatchRunner
+	bookingGF2Resolver         = resolveGF2PartnerOffer
 )
 
 func init() {
@@ -409,6 +410,21 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		matchResult.BestOffer = bookingmatch.SelectBestOffer(matchResult.Offers, bookingMatchPriceNormalizer(), quote)
 	}
 
+	usedGF2Fallback := false
+	if matchResult.BestOffer == nil {
+		if gf2 := bookingGF2Resolver(ctx, session, option, fp, legIndex); gf2 != nil {
+			matchResult.BestOffer = gf2
+			usedGF2Fallback = true
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "gf2_partner_fallback",
+				ItineraryFingerprint: fp,
+				LegIndex:             intPtrOrNil(legIndex),
+				LegRoute:             legRoute,
+				Provider:             gf2.Domain,
+			})
+		}
+	}
+
 	var extractedBeforeQuote *float64
 	if matchResult.BestOffer != nil {
 		q := quoteBindingFromOption(session, option, legIndex)
@@ -448,7 +464,9 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		})
 		return resp
 	}
-	if extractedBeforeQuote == nil {
+	if usedGF2Fallback {
+		offer.PriceLabel = "google_flights_partner"
+	} else if extractedBeforeQuote == nil {
 		offer.PriceLabel = "search_quote"
 	}
 

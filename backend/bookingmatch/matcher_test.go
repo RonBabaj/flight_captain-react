@@ -473,6 +473,34 @@ func TestVerifyCandidate_connectingLegEndToEnd(t *testing.T) {
 	}
 }
 
+func TestVerifyCandidate_szgTlvConnectingLegEndToEnd(t *testing.T) {
+	dep1 := time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC)
+	arr1 := time.Date(2027, 1, 14, 17, 50, 0, 0, time.UTC)
+	dep2 := time.Date(2027, 1, 14, 19, 30, 0, 0, time.UTC)
+	arr2 := time.Date(2027, 1, 15, 2, 35, 0, 0, time.UTC)
+	s1 := search.CanonicalSegment{
+		From: "SZG", To: "FRA",
+		DepartureTime: dep1, ArrivalTime: arr1,
+		MarketingCarrier: "LH", FlightNumber: "LH1263",
+	}
+	s2 := search.CanonicalSegment{
+		From: "FRA", To: "TLV",
+		DepartureTime: dep2, ArrivalTime: arr2,
+		MarketingCarrier: "LH", FlightNumber: "LH690",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{s1, s2}}
+	c := SearchCandidate{
+		URL:     "https://www.expedia.com/flights/szg-tlv",
+		Snippet: "Salzburg to Tel Aviv January 14, 2027 departs 16:45 arrives 02:35 via Frankfurt",
+		Domain:  "expedia.com",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus != StatusVerifiedExact {
+		t.Fatalf("expected SZG→TLV connecting verify, got %s reason=%s score=%d",
+			offer.VerificationStatus, offer.RejectionReason, offer.MatchScore)
+	}
+}
+
 func TestGenerateQueries_includesRouteDateBookQuery(t *testing.T) {
 	it := testItineraryOS860()
 	qs := GenerateQueries(it, 10)
