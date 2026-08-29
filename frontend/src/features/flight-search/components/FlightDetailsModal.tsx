@@ -12,13 +12,11 @@ import {
   Alert,
   Share,
   useWindowDimensions,
-  Animated,
-  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
-import { SheetDragHandle, useDraggableSheetHeight } from '../../../components/DraggableBottomSheet';
 import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
@@ -115,26 +113,46 @@ export function FlightDetailsModal({
 }: FlightDetailsModalProps) {
   const { theme } = useTheme();
   const { t, isRTL, language, currency: displayCurrency } = useLocale();
-  const [resolveLoading, setResolveLoading] = useState(false);
-  const [resolveLegIndex, setResolveLegIndex] = useState<number | null>(null);
-  const [bookingResolve, setBookingResolve] = useState<BookingResolveResponse | null>(null);
+  const [legResolves, setLegResolves] = useState<Record<string, BookingResolveResponse>>({});
+  const [resolveLoadingKey, setResolveLoadingKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { width, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isNarrow = width < 600;
-  const { heightAnim, panHandlers } = useDraggableSheetHeight(
-    windowHeight,
-    isNarrow && visible,
-    option?.id,
-  );
+  const useFullScreen = isNarrow;
 
   const splitBooking = isSplitBookingItinerary(option, searchParams);
   const hops = option ? bookingHopsFromOption(option) : [];
 
+  const resolveStorageKey = (legIndex?: number) =>
+    legIndex != null && legIndex >= 0 ? String(legIndex) : 'full';
+
   useEffect(() => {
-    setBookingResolve(null);
-    setResolveLegIndex(null);
-    setResolveLoading(false);
+    setLegResolves({});
+    setResolveLoadingKey(null);
   }, [option?.id, sessionId]);
+
+  useEffect(() => {
+    if (!visible || !option || !sessionId) return;
+    const keysToResolve = splitBooking && hops.length > 0
+      ? hops.map((hop) => hop.legIndex)
+      : [undefined];
+    for (const legIndex of keysToResolve) {
+      const key = resolveStorageKey(legIndex);
+      void (async () => {
+        try {
+          const res = await resolveBookingOffer(
+            sessionId,
+            option.id,
+            legIndex != null && legIndex >= 0 ? legIndex : undefined,
+          );
+          setLegResolves((prev) => ({ ...prev, [key]: res }));
+        } catch {
+          // User can still tap Book / Try again manually.
+        }
+      })();
+    }
+  }, [visible, option?.id, sessionId, splitBooking, hops.length]);
 
   const handleShare = async () => {
     if (!option) return;
@@ -192,29 +210,30 @@ export function FlightDetailsModal({
 
   const handleBookThisFlight = async (legIndex?: number) => {
     if (!option || !sessionId) return;
-    const idx = legIndex ?? null;
-    if (bookingResolve?.found && resolveLegIndex === idx) {
+    const key = resolveStorageKey(legIndex);
+    const existing = legResolves[key];
+    if (existing?.found && existing.offer?.url && isSafeBookingUrl(existing.offer.url)) {
+      await openUrlInNewTab(existing.offer.url);
       return;
     }
-    setResolveLoading(true);
-    setResolveLegIndex(idx);
-    setBookingResolve(null);
+    setResolveLoadingKey(key);
     try {
       const res = await resolveBookingOffer(
         sessionId,
         option.id,
         legIndex != null && legIndex >= 0 ? legIndex : undefined,
+        !!existing && !existing.found,
       );
-      setBookingResolve(res);
+      setLegResolves((prev) => ({ ...prev, [key]: res }));
     } catch {
       Alert.alert('Error', t('booking_search_unavailable'));
     } finally {
-      setResolveLoading(false);
+      setResolveLoadingKey(null);
     }
   };
 
-  const handleOpenVerifiedBooking = async () => {
-    const url = bookingResolve?.offer?.url;
+  const handleOpenVerifiedBooking = async (offer?: BookingResolveResponse['offer']) => {
+    const url = offer?.url ?? legResolves.full?.offer?.url;
     if (!url || !isSafeBookingUrl(url)) {
       Alert.alert('Cannot open link', 'This booking link is not valid.');
       return;
@@ -225,54 +244,129 @@ export function FlightDetailsModal({
     }
   };
 
-  const renderVerifiedOfferPanel = () => {
-    if (!bookingResolve) return null;
-    if (bookingResolve.found && bookingResolve.offer) {
-      const offer = bookingResolve.offer;
-      const priceLabelKey =
-        offer.priceLabel === 'cheapest_matching_offer'
-          ? 'cheapest_matching_offer'
-          : offer.priceLabel === 'best_matching_price'
-            ? 'best_matching_price'
-            : null;
-      const { amount: offerAmt, currency: offerCur } =
-        offer.price != null && offer.currency
-          ? getDisplayPrice(offer.price, offer.currency, displayCurrency)
-          : { amount: 0, currency: displayCurrency };
-      const offerSym = getCurrencySymbol(offerCur);
-      return (
-        <View style={[s.verifyPanel, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
-          <Text style={[s.verifyTitle, { color: theme.text }]}>{t('exact_itinerary_matched')}</Text>
-          {offer.price != null ? (
-            <Text style={[s.verifyPrice, { color: theme.primary }]}>
-              {offerSym} {offerAmt.toFixed(0)} · {offer.provider || offer.domain}
+  const renderBookingAction = (storageKey: string, legIndex?: number) => {
+    const resolved = legResolves[storageKey];
+    const loading = resolveLoadingKey === storageKey;
+    const success = !!(resolved?.found && resolved.offer);
+    const error = resolved && !resolved.found;
+
+    const btnLabel = loading
+      ? null
+      : success
+        ? t('open_booking_site')
+        : error
+          ? t('try_again')
+          : t('book_this_flight');
+
+    return (
+      <>
+        {loading ? (
+          <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
+        ) : null}
+        {success && resolved?.offer ? (
+          <>
+            <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
+              {t('exact_itinerary_matched')}
+              {resolved.offer.provider || resolved.offer.domain
+                ? ` · ${resolved.offer.provider || resolved.offer.domain}`
+                : ''}
+              {resolved.offer.price != null && resolved.offer.currency ? (
+                ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}${
+                  resolved.offer.priceLabel === 'search_quote' ? ` (${t('search_quote_price')})` : ''
+                }`
+              ) : null}
             </Text>
+            {resolved.priceMismatch ? (
+              <Text style={[s.verifyError, { color: theme.error || '#b45309' }]}>
+                {resolved.message || t('price_mismatch_warning')}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+        {error ? (
+          <Text style={[s.verifyError, { color: theme.textMuted }]}>
+            {resolved?.status === 'search_unavailable' || resolved?.status === 'timeout'
+              ? t('booking_search_unavailable')
+              : resolved?.message || t('no_verified_booking')}
+          </Text>
+        ) : null}
+        <TouchableOpacity
+          style={[s.bookBtn, success && s.bookBtnCompact, { backgroundColor: theme.primary }]}
+          onPress={() => (success ? handleOpenVerifiedBooking(resolved?.offer) : handleBookThisFlight(legIndex))}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={[s.verifyMeta, { color: theme.text }]}>{offer.provider || offer.domain}</Text>
+            <Text style={s.bookBtnText}>{btnLabel}</Text>
           )}
-          {priceLabelKey ? (
-            <Text style={[s.verifyMeta, { color: theme.textMuted }]}>{t(priceLabelKey)}</Text>
-          ) : null}
-          <TouchableOpacity
-            style={[s.bookBtn, s.bookBtnSpaced, { backgroundColor: theme.primary }]}
-            onPress={handleOpenVerifiedBooking}
-          >
-            <Text style={s.bookBtnText}>{t('open_booking_site')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    if (!bookingResolve.found) {
-      const msg =
-        bookingResolve.status === 'search_unavailable' || bookingResolve.status === 'timeout'
-          ? t('booking_search_unavailable')
-          : bookingResolve.message || t('no_verified_booking');
-      return (
-        <Text style={[s.verifyError, { color: theme.textMuted }]}>{msg}</Text>
-      );
-    }
-    return null;
+        </TouchableOpacity>
+      </>
+    );
   };
+
+  const renderBookingFooter = () => (
+    <View style={[s.footer, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
+      {splitBooking && hops.length > 0 ? (
+        <>
+          <Text style={[s.splitHint, { color: theme.textMuted }]}>{t('split_booking_hint')}</Text>
+          {hops.length > 1 && useFullScreen ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.legBookingRow}
+            >
+              {hops.map((hop) => {
+                const key = resolveStorageKey(hop.legIndex);
+                return (
+                  <View
+                    key={hop.legIndex}
+                    style={[
+                      s.legBookingCard,
+                      s.legBookingCardHorizontal,
+                      { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+                    ]}
+                  >
+                    <Text style={[s.legRoute, { color: theme.text }]}>
+                      {hop.origin} → {hop.destination}
+                    </Text>
+                    <Text style={[s.legDate, { color: theme.textMuted }]}>{hop.date}</Text>
+                    {renderBookingAction(key, hop.legIndex)}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={s.legBookingList}>
+              {hops.map((hop) => {
+                const key = resolveStorageKey(hop.legIndex);
+                return (
+                  <View
+                    key={hop.legIndex}
+                    style={[s.legBookingCard, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}
+                  >
+                    <Text style={[s.legRoute, { color: theme.text }]}>
+                      {hop.origin} → {hop.destination}
+                    </Text>
+                    <Text style={[s.legDate, { color: theme.textMuted }]}>{hop.date}</Text>
+                    {renderBookingAction(key, hop.legIndex)}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          {!useFullScreen ? (
+            <Text style={[s.bookThisHint, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
+          ) : null}
+          {renderBookingAction('full')}
+        </>
+      )}
+      <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+    </View>
+  );
 
   if (!option) return null;
 
@@ -346,26 +440,26 @@ export function FlightDetailsModal({
   const firstSegCabin = option.legs?.[0]?.segments?.[0]?.cabinClass;
   const cabinStr = cabinLabel(firstSegCabin, t);
 
-  const containerStyle = isNarrow
-    ? [s.card, s.cardSheet, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, height: heightAnim }]
+  const containerStyle = useFullScreen
+    ? [
+        s.card,
+        s.cardFullScreen,
+        {
+          backgroundColor: theme.cardBg,
+          borderColor: theme.cardBorder,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          maxHeight: windowHeight,
+        },
+      ]
     : [s.card, s.cardCentered, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }];
 
-  const CardContainer = isNarrow ? Animated.View : View;
-
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[s.overlay, isNarrow && s.overlaySheet]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+    <Modal visible={visible} transparent animationType={useFullScreen ? 'slide' : 'fade'} onRequestClose={onClose}>
+      <View style={[s.overlay, useFullScreen && s.overlayFullScreen]}>
+        {!useFullScreen ? <Pressable style={StyleSheet.absoluteFill} onPress={onClose} /> : null}
 
-        <CardContainer style={containerStyle}>
-          {isNarrow ? (
-            <View
-              {...panHandlers}
-              style={[s.dragZone, Platform.OS === 'web' && s.dragZoneWeb]}
-            >
-              <SheetDragHandle color={theme.textMuted} />
-            </View>
-          ) : null}
+        <View style={containerStyle}>
           {/* ── Header ── */}
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
             <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
@@ -390,10 +484,10 @@ export function FlightDetailsModal({
           </View>
 
           <ScrollView
-            style={isNarrow ? s.scrollSheet : s.scroll}
+            style={s.scrollBody}
             contentContainerStyle={s.scrollContent}
-            bounces={false}
             showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
           >
             {/* ── Summary row (price + meta; RTL swaps sides) ── */}
             <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
@@ -436,6 +530,11 @@ export function FlightDetailsModal({
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
                     {option.source === 'kiwi' ? t('source_kiwi') : option.source === 'googleflights2' ? t('source_googleflights2') : option.source}
+                    {option.vendorName ? ` · ${option.vendorName}` : ''}
+                  </Text>
+                ) : option.vendorName ? (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
+                    {t('via_vendor').replace('{vendor}', option.vendorName)}
                   </Text>
                 ) : null}
                 {breakdownParts.length > 0 && (
@@ -567,112 +666,38 @@ export function FlightDetailsModal({
                 </View>
               );
             })}
+            {/* ── Available sellers ── */}
+            {option.sellerOptions && option.sellerOptions.length > 0 && (
+              <View style={[s.sellersBlockInline, { borderTopColor: theme.cardBorder }]}>
+                <Text style={[s.sellersTitle, { color: theme.text }]}>{t('available_sellers')}</Text>
+                {option.sellerOptions.map((seller, idx) => (
+                  <View key={idx} style={[s.sellerRow, { borderColor: theme.cardBorder }]}>
+                    <View style={s.sellerInfo}>
+                      <Text style={[s.sellerCarrier, { color: theme.text }]}>
+                        {seller.carrierCode ? (getAirlineName(seller.carrierCode) || seller.carrierCode) : seller.provider || seller.vendorName || '—'}
+                      </Text>
+                      <Text style={[s.sellerMeta, { color: theme.textMuted }]}>
+                        {getCurrencySymbol(seller.price.currency)} {seller.price.amount.toFixed(0)}
+                        {seller.vendorName ? ` · ${seller.vendorName}` : ''}
+                      </Text>
+                    </View>
+                    {seller.bookingUrl ? (
+                      <TouchableOpacity
+                        style={[s.sellerBookBtn, { backgroundColor: theme.controlBg }]}
+                        onPress={() => Linking.openURL(seller.bookingUrl!)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[s.sellerBookText, { color: theme.primary }]}>{t('book_now')}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
           </ScrollView>
 
-          {/* ── Available sellers (same flight, other carriers/providers) ── */}
-          {option.sellerOptions && option.sellerOptions.length > 0 && (
-            <View style={[s.sellersBlock, { borderTopColor: theme.cardBorder }]}>
-              <Text style={[s.sellersTitle, { color: theme.text }]}>{t('available_sellers')}</Text>
-              {option.sellerOptions.map((seller, idx) => (
-                <View key={idx} style={[s.sellerRow, { borderColor: theme.cardBorder }]}>
-                  <View style={s.sellerInfo}>
-                    <Text style={[s.sellerCarrier, { color: theme.text }]}>
-                      {seller.carrierCode ? (getAirlineName(seller.carrierCode) || seller.carrierCode) : seller.provider || seller.vendorName || '—'}
-                    </Text>
-                    <Text style={[s.sellerMeta, { color: theme.textMuted }]}>
-                      {getCurrencySymbol(seller.price.currency)} {seller.price.amount.toFixed(0)}
-                      {seller.vendorName ? ` · ${seller.vendorName}` : ''}
-                    </Text>
-                  </View>
-                  {seller.bookingUrl ? (
-                    <TouchableOpacity
-                      style={[s.sellerBookBtn, { backgroundColor: theme.controlBg }]}
-                      onPress={() => Linking.openURL(seller.bookingUrl!)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[s.sellerBookText, { color: theme.primary }]}>{t('book_now')}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* ── Footer ── */}
-          <View style={[s.footer, { borderTopColor: theme.cardBorder }]}>
-            {splitBooking && hops.length > 0 ? (
-              <>
-                <Text style={[s.splitHint, { color: theme.text }]}>{t('split_booking_hint')}</Text>
-                {hops.map((hop, idx) => {
-                  const legResolving = resolveLoading && resolveLegIndex === hop.legIndex;
-                  const legResolved =
-                    bookingResolve && resolveLegIndex === hop.legIndex ? bookingResolve : null;
-                  return (
-                    <View key={hop.legIndex} style={idx > 0 ? s.hopBlock : undefined}>
-                      <Text style={[s.legHopLabel, { color: theme.textMuted }]}>
-                        {hop.origin} → {hop.destination} · {hop.date}
-                      </Text>
-                      <TouchableOpacity
-                        style={[s.bookBtn, { backgroundColor: theme.primary }]}
-                        onPress={() => handleBookThisFlight(hop.legIndex)}
-                        disabled={resolveLoading}
-                      >
-                        {legResolving ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Text style={s.bookBtnText}>{t('book_this_flight')}</Text>
-                        )}
-                      </TouchableOpacity>
-                      {legResolving ? (
-                        <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
-                      ) : null}
-                      {legResolved ? (
-                        legResolved.found && legResolved.offer ? (
-                          <View style={[s.verifyPanel, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
-                            <Text style={[s.verifyTitle, { color: theme.text }]}>{t('exact_itinerary_matched')}</Text>
-                            <TouchableOpacity
-                              style={[s.bookBtn, s.bookBtnSpaced, { backgroundColor: theme.primary }]}
-                              onPress={async () => {
-                                const u = legResolved.offer?.url;
-                                if (u && isSafeBookingUrl(u)) await openUrlInNewTab(u);
-                              }}
-                            >
-                              <Text style={s.bookBtnText}>{t('open_booking_site')}</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <Text style={[s.verifyError, { color: theme.textMuted }]}>
-                            {legResolved.message || t('no_verified_booking')}
-                          </Text>
-                        )
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                <Text style={[s.bookThisHint, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
-                <TouchableOpacity
-                  style={[s.bookBtn, { backgroundColor: theme.primary }]}
-                  onPress={() => handleBookThisFlight()}
-                  disabled={resolveLoading}
-                >
-                  {resolveLoading && resolveLegIndex === null ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={s.bookBtnText}>{t('book_this_flight')}</Text>
-                  )}
-                </TouchableOpacity>
-                {resolveLoading && resolveLegIndex === null ? (
-                  <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
-                ) : null}
-                {renderVerifiedOfferPanel()}
-              </>
-            )}
-            <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
-          </View>
-        </CardContainer>
+          {renderBookingFooter()}
+        </View>
       </View>
     </Modal>
   );
@@ -688,23 +713,22 @@ const s = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
-  overlaySheet: {
-    justifyContent: 'flex-end',
+  overlayFullScreen: {
+    justifyContent: 'flex-start',
     alignItems: 'stretch',
-    paddingHorizontal: 0,
-    paddingTop: 24,
-    paddingBottom: 0,
+    padding: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   card: {
     borderWidth: 1,
     overflow: 'hidden',
     flexDirection: 'column',
   },
-  cardSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  cardFullScreen: {
+    flex: 1,
     width: '100%',
-    alignSelf: 'stretch',
+    borderWidth: 0,
+    borderRadius: 0,
   },
   cardCentered: {
     borderRadius: 20,
@@ -713,21 +737,14 @@ const s = StyleSheet.create({
     maxWidth: 520,
   },
 
-  dragZone: {
-    alignItems: 'stretch',
-  },
-  dragZoneWeb: {
-    cursor: 'grab',
-    touchAction: 'none',
-  } as object,
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
+    paddingTop: 4,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', flexShrink: 1, marginRight: 8 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -735,9 +752,8 @@ const s = StyleSheet.create({
   shareBtn: { padding: 4 },
   sharedText: { fontSize: 13, fontWeight: '600' },
 
-  scroll: {},
-  scrollSheet: { flex: 1, minHeight: 0 },
-  scrollContent: { padding: 20, paddingBottom: 8 },
+  scrollBody: { flex: 1, minHeight: 0 },
+  scrollContent: { padding: 20, paddingBottom: 24 },
 
   summaryRow: {
     flexDirection: 'row',
@@ -788,11 +804,10 @@ const s = StyleSheet.create({
   segDetails: { alignItems: 'center', marginBottom: 8 },
   segDetailText: { fontSize: 12, textAlign: 'center' },
 
-  sellersBlock: {
+  sellersBlockInline: {
     borderTopWidth: 1,
-    paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 12,
+    marginTop: 8,
   },
   sellersTitle: {
     fontSize: 14,
@@ -827,14 +842,19 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
   },
   bookBtn: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 48,
+    marginTop: 10,
+  },
+  bookBtnCompact: {
+    minHeight: 44,
+    paddingVertical: 12,
   },
   bookBtnSpaced: { marginTop: 8 },
-  bookBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   secondaryBtn: {
     marginTop: 8,
     paddingVertical: 12,
@@ -845,7 +865,8 @@ const s = StyleSheet.create({
   },
   secondaryBtnText: { fontSize: 15, fontWeight: '600' },
   bookThisHint: { fontSize: 13, lineHeight: 18, marginBottom: 10, textAlign: 'center' },
-  resolveHint: { fontSize: 13, marginTop: 8, textAlign: 'center' },
+  resolveHint: { fontSize: 12, marginBottom: 6, textAlign: 'center' },
+  legMatchedLine: { fontSize: 12, marginBottom: 4, textAlign: 'center' },
   verifyPanel: {
     marginTop: 12,
     padding: 12,
@@ -855,9 +876,20 @@ const s = StyleSheet.create({
   verifyTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   verifyPrice: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
   verifyMeta: { fontSize: 13, marginBottom: 4 },
-  verifyError: { fontSize: 13, marginTop: 10, textAlign: 'center', lineHeight: 18 },
-  hopBlock: { marginTop: 16 },
-  legHopLabel: { fontSize: 13, marginBottom: 6, fontWeight: '600' },
-  splitHint: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginBottom: 10, textAlign: 'center' },
-  disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },
+  verifyError: { fontSize: 12, marginTop: 8, marginBottom: 4, textAlign: 'center', lineHeight: 17 },
+  legBookingList: { gap: 10 },
+  legBookingRow: { gap: 10, paddingBottom: 4 },
+  legBookingCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+  },
+  legBookingCardHorizontal: {
+    width: 260,
+    flexShrink: 0,
+  },
+  legRoute: { fontSize: 15, fontWeight: '700' },
+  legDate: { fontSize: 13, marginTop: 2, marginBottom: 4 },
+  splitHint: { fontSize: 12, lineHeight: 17, marginBottom: 12, textAlign: 'center' },
+  disclaimer: { marginTop: 14, fontSize: 11, textAlign: 'center', lineHeight: 15 },
 });

@@ -18,12 +18,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy over SSH
+        id: ssh1
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 60s
+          timeout: 180s
           command_timeout: 15m
           script: |
             set -euo pipefail
@@ -37,17 +39,44 @@ jobs:
             docker compose up -d
 
       - name: Wait before SSH retry
-        if: failure()
-        run: sleep 30
+        if: steps.ssh1.outcome == 'failure'
+        run: sleep 45
 
       - name: Deploy over SSH (retry)
-        if: failure()
+        id: ssh2
+        if: steps.ssh1.outcome == 'failure'
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 60s
+          timeout: 180s
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            cd /opt/apps/flight_captain-react
+            git pull origin main
+            cd frontend
+            npm ci
+            EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
+            cd ..
+            docker compose build --no-cache
+            docker compose up -d
+
+      - name: Wait before second SSH retry
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure'
+        run: sleep 90
+
+      - name: Deploy over SSH (second retry)
+        id: ssh3
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 180s
           command_timeout: 15m
           script: |
             set -euo pipefail
