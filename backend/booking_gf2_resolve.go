@@ -14,7 +14,7 @@ import (
 // using preserved GF2 booking tokens and deep links. For open-jaw itineraries each leg
 // keeps its own token from CombineOneWayBatches instead of losing them at merge time.
 func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
-	if googleFlights2Provider == nil || option == nil {
+	if option == nil {
 		return nil
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
@@ -33,13 +33,14 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	token := legBookingToken(option, legIndex)
 	deepLink := legDeepLink(option, legIndex)
 
+	// Search-time checkout URL is enough — no live GF2 call required.
 	if deepLink != "" {
 		if offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote); offer != nil {
 			return offer
 		}
 	}
 
-	if token != "" {
+	if token != "" && googleFlights2Provider != nil {
 		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, token, currency, quote); err == nil {
 			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
 				return offer
@@ -48,10 +49,12 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	}
 
 	// Re-search only when search-time token/deeplink were not preserved (e.g. legacy session).
-	sreq := searchRequestFromSession(session, option, legIndex)
-	if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
-		if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
-			return offer
+	if googleFlights2Provider != nil {
+		sreq := searchRequestFromSession(session, option, legIndex)
+		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
+			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
+				return offer
+			}
 		}
 	}
 

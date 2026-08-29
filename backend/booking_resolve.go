@@ -391,28 +391,40 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
-		resp := BookingResolveResponse{
-			Found:                false,
-			ItineraryFingerprint: fp,
-			Message:              "Booking search is temporarily unavailable.",
-		}
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			resp.Status = BookingResolveTimeout
-			resp.Message = "Booking search timed out. Please try again."
-		} else if errors.Is(err, errBookingSearchUnavailable) {
-			resp.Status = BookingResolveSearchUnavailable
-			resp.Message = "Exact-flight booking search is not configured on this server."
+		if searchPartnerOffer != nil {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "web_search_failed_using_search_quote",
+				ItineraryFingerprint: fp,
+				LegIndex:             intPtrOrNil(legIndex),
+				LegRoute:             legRoute,
+				Provider:             searchPartnerOffer.Domain,
+				FailureReason:        err.Error(),
+			})
+			matchResult = &bookingmatch.MatchResult{ItineraryFingerprint: fp}
 		} else {
-			resp.Status = BookingResolveSearchUnavailable
+			resp := BookingResolveResponse{
+				Found:                false,
+				ItineraryFingerprint: fp,
+				Message:              "Booking search is temporarily unavailable.",
+			}
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				resp.Status = BookingResolveTimeout
+				resp.Message = "Booking search timed out. Please try again."
+			} else if errors.Is(err, errBookingSearchUnavailable) {
+				resp.Status = BookingResolveSearchUnavailable
+				resp.Message = "Exact-flight booking search is not configured on this server."
+			} else {
+				resp.Status = BookingResolveSearchUnavailable
+			}
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_failed",
+				ItineraryFingerprint: fp,
+				Status:               resp.Status,
+				DurationMs:           time.Since(start).Milliseconds(),
+				FailureReason:        err.Error(),
+			})
+			return resp
 		}
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_failed",
-			ItineraryFingerprint: fp,
-			Status:               resp.Status,
-			DurationMs:           time.Since(start).Milliseconds(),
-			FailureReason:        err.Error(),
-		})
-		return resp
 	}
 
 	candidateOffers := make([]bookingmatch.BookingOffer, 0, len(matchResult.Offers)+1)

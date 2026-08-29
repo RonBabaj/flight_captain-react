@@ -172,7 +172,7 @@ func TestHandleBookingResolve_invalidItinerary(t *testing.T) {
 	}
 }
 
-func TestRunBookingMatch_doesNotBypassWithGF2DeepLink(t *testing.T) {
+func TestRunBookingMatch_stillRunsWebSearchWhenSearchQuoteExists(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 14, 30, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 17, 5, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -222,8 +222,11 @@ func TestRunBookingMatch_doesNotBypassWithGF2DeepLink(t *testing.T) {
 	if !webSearchCalled {
 		t.Fatal("expected web search matcher to run")
 	}
-	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "trip.com" {
-		t.Fatalf("expected trip.com from web search, got %+v", resp.Offer)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected a verified offer, got %+v", resp)
+	}
+	if resp.Offer.Domain != "austrian.com" {
+		t.Fatalf("quote-matching search partner should win over a cheaper non-matching web hit, got %+v", resp.Offer)
 	}
 }
 
@@ -300,5 +303,61 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	}
 	if resp.Offer.PriceLabel != "google_flights_partner" {
 		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+}
+
+func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	gf2Price := 180.0
+
+	oldRunner := bookingMatchRunner
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
+
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+		return &bookingmatch.BookingOffer{
+			Domain:             "mytrip.com",
+			URL:                "https://mytrip.com/checkout/tlv-vie",
+			URLType:            bookingmatch.URLTypeExactBooking,
+			Price:              &gf2Price,
+			Currency:           "USD",
+			MatchScore:         95,
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+			CheckedAt:          time.Now().UTC(),
+		}
+	}
+
+	opt := &FlightOption{
+		Price:            MonetaryAmount{Amount: 360, Currency: "USD"},
+		LegBookingTokens: []string{"tok-outbound"},
+		LegDeepLinks:     []string{"https://mytrip.com/checkout/tlv-vie"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
+		t.Fatalf("expected persisted search-quote offer when web search errors, got %+v", resp)
 	}
 }
