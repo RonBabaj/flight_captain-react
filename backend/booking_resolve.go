@@ -378,6 +378,17 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		SegmentCount:         len(it.Segments),
 	})
 
+	searchPartnerOffer := bookingGF2Resolver(ctx, session, option, it, legIndex)
+	if searchPartnerOffer != nil {
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "search_quote_partner",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Provider:             searchPartnerOffer.Domain,
+		})
+	}
+
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
 		resp := BookingResolveResponse{
@@ -404,26 +415,25 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
-	verifiedCount := countVerifiedExactOffers(matchResult.Offers)
-	quote := quoteBindingForMatch(session, option, legIndex)
+	candidateOffers := make([]bookingmatch.BookingOffer, 0, len(matchResult.Offers)+1)
+	if searchPartnerOffer != nil {
+		candidateOffers = append(candidateOffers, *searchPartnerOffer)
+	}
 	if len(matchResult.Offers) > 0 {
-		matchResult.BestOffer = bookingmatch.SelectBestOffer(matchResult.Offers, bookingMatchPriceNormalizer(), quote)
+		candidateOffers = append(candidateOffers, matchResult.Offers...)
+	} else if matchResult.BestOffer != nil {
+		candidateOffers = append(candidateOffers, *matchResult.BestOffer)
 	}
 
-	usedGF2Fallback := false
-	if matchResult.BestOffer == nil {
-		if gf2 := bookingGF2Resolver(ctx, session, option, fp, legIndex); gf2 != nil {
-			matchResult.BestOffer = gf2
-			usedGF2Fallback = true
-			logBookingResolve(bookingResolveLogEvent{
-				Event:                "gf2_partner_fallback",
-				ItineraryFingerprint: fp,
-				LegIndex:             intPtrOrNil(legIndex),
-				LegRoute:             legRoute,
-				Provider:             gf2.Domain,
-			})
-		}
+	verifiedCount := countVerifiedExactOffers(candidateOffers)
+	quote := quoteBindingForMatch(session, option, legIndex)
+	var bestOffer *bookingmatch.BookingOffer
+	if len(candidateOffers) > 0 {
+		bestOffer = bookingmatch.SelectBestOffer(candidateOffers, bookingMatchPriceNormalizer(), quote)
 	}
+	matchResult.BestOffer = bestOffer
+
+	fromSearchPartner := searchPartnerOffer != nil && bestOffer != nil && bestOffer.URL == searchPartnerOffer.URL
 
 	var extractedBeforeQuote *float64
 	if matchResult.BestOffer != nil {
@@ -464,7 +474,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		})
 		return resp
 	}
-	if usedGF2Fallback {
+	if fromSearchPartner {
 		offer.PriceLabel = "google_flights_partner"
 	} else if extractedBeforeQuote == nil {
 		offer.PriceLabel = "search_quote"

@@ -215,6 +215,8 @@ type FlightOption struct {
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
 	BookingToken          string           `json:"-"`                               // GF2 booking_token; resolved to partner URL on Book
+	LegBookingTokens      []string         `json:"-"`                               // per-leg GF2 tokens for split/open-jaw itineraries
+	LegDeepLinks          []string         `json:"-"`                               // per-leg partner checkout URLs for split/open-jaw
 	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
@@ -1246,6 +1248,8 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
 			BookingToken:          pr.BookingToken,
+			LegBookingTokens:      append([]string(nil), pr.LegBookingTokens...),
+			LegDeepLinks:          append([]string(nil), pr.LegDeepLinks...),
 			VendorName:            pr.VendorName,
 			SelfTransfer:          pr.SelfTransfer,
 		}
@@ -2436,7 +2440,13 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 				Adults: adults, Currency: currency, CabinClass: "ECONOMY",
 			}
 			if option != nil && option.ItineraryFingerprint != "" {
-				if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, option.ItineraryFingerprint, currency, quote); err == nil {
+				wantItin := search.CanonicalItinerary{}
+				if option.CanonicalItinerary != nil {
+					wantItin = *option.CanonicalItinerary
+				} else {
+					wantItin = search.BuildCanonicalItinerary(providerResultFromFlightOption(option))
+				}
+				if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, wantItin, currency, quote); err == nil {
 					if u := normalizeProviderBookingURL(resolved.URL); u != "" {
 						log.Printf("[BOOKING] resolved quoted partner URL from fingerprint provider=%s", resolved.Provider)
 						return u
