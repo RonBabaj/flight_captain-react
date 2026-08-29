@@ -16,6 +16,8 @@ var (
 	priceEURPrefix   = regexp.MustCompile(`(?i)€\s*([\d,]+(?:\.\d{2})?)`)
 	priceEURSuffix   = regexp.MustCompile(`(?i)\b([\d,]+(?:\.\d{2})?)\s+EUR\b`)
 	priceGBP         = regexp.MustCompile(`(?i)£\s*([\d,]+(?:\.\d{2})?)`)
+	priceILSPrefix   = regexp.MustCompile(`(?i)₪\s*([\d,]+(?:\.\d{2})?)`)
+	priceILSSuffix   = regexp.MustCompile(`(?i)\b([\d,]+(?:\.\d{2})?)\s*(?:ILS|NIS|₪)\b`)
 )
 
 // corpusText combines searchable text from a candidate.
@@ -61,6 +63,16 @@ func extractPrice(text string) (amount float64, currency string, ok bool) {
 	if m := priceGBP.FindStringSubmatch(text); len(m) > 1 {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
 			return v, "GBP", true
+		}
+	}
+	if m := priceILSPrefix.FindStringSubmatch(text); len(m) > 1 {
+		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
+			return v, "ILS", true
+		}
+	}
+	if m := priceILSSuffix.FindStringSubmatch(text); len(m) > 1 {
+		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
+			return v, "ILS", true
 		}
 	}
 	if m := priceEURSuffix.FindStringSubmatch(text); len(m) > 1 {

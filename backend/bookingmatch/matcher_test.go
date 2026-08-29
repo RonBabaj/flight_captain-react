@@ -145,7 +145,7 @@ func TestSelectBestOffer_multipleMatching(t *testing.T) {
 		{URL: "https://airline.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &price199, Currency: "USD"},
 		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 95, VerificationStatus: StatusVerifiedExact, Price: floatPtr(99)},
 	}
-	best := SelectBestOffer(offers, testPriceNormalizer)
+	best := SelectBestOffer(offers, testPriceNormalizer, nil)
 	if best == nil {
 		t.Fatal("expected best offer")
 	}
@@ -161,7 +161,7 @@ func TestSelectBestOffer_prefersPriceAmongSameURLType(t *testing.T) {
 		{URL: "https://ota.com/book/a", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &high},
 		{URL: "https://ota.com/book/b", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &low},
 	}
-	best := SelectBestOffer(offers, testPriceNormalizer)
+	best := SelectBestOffer(offers, testPriceNormalizer, nil)
 	if best == nil || best.Price == nil || *best.Price != low {
 		t.Fatalf("expected cheaper offer, got %v", best)
 	}
@@ -169,10 +169,25 @@ func TestSelectBestOffer_prefersPriceAmongSameURLType(t *testing.T) {
 
 func TestSelectBestOffer_missingPrice(t *testing.T) {
 	offers := []BookingOffer{
-		{URL: "https://airline.com/book", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact},
+		{URL: "https://airline.com/book", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Domain: "airline.com"},
 	}
-	if SelectBestOffer(offers, testPriceNormalizer) != nil {
-		t.Fatal("verified offer without price must not be selected")
+	best := SelectBestOffer(offers, testPriceNormalizer, nil)
+	if best == nil || best.Domain != "airline.com" {
+		t.Fatalf("expected verified offer without extracted price as fallback, got %v", best)
+	}
+}
+
+func TestSelectBestOffer_prefersQuoteMatchingPrice(t *testing.T) {
+	cheapMismatch := 100.0
+	expensiveMatch := 200.0
+	quote := QuoteBinding{Amount: 198, Currency: "USD"}
+	offers := []BookingOffer{
+		{Domain: "cheap.com", URL: "https://cheap.com/book", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &cheapMismatch, Currency: "USD"},
+		{Domain: "matched.com", URL: "https://matched.com/book", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &expensiveMatch, Currency: "USD"},
+	}
+	best := SelectBestOffer(offers, testPriceNormalizer, &quote)
+	if best == nil || best.Domain != "matched.com" {
+		t.Fatalf("expected quote-matching offer, got %+v", best)
 	}
 }
 
@@ -180,7 +195,7 @@ func TestSelectBestOffer_rejectsUnverified(t *testing.T) {
 	offers := []BookingOffer{
 		{URL: "https://x.com", MatchScore: 99, VerificationStatus: StatusPartial},
 	}
-	if SelectBestOffer(offers, testPriceNormalizer) != nil {
+	if SelectBestOffer(offers, testPriceNormalizer, nil) != nil {
 		t.Fatal("unverified must not be selected")
 	}
 }
@@ -345,7 +360,7 @@ func TestSelectBestOffer_rejectsGenericSearchURL(t *testing.T) {
 	offers := []BookingOffer{
 		{URL: "https://google.com/search?q=flights", URLType: URLTypeGenericSearch, MatchScore: 99, VerificationStatus: StatusVerifiedExact},
 	}
-	if SelectBestOffer(offers, testPriceNormalizer) != nil {
+	if SelectBestOffer(offers, testPriceNormalizer, nil) != nil {
 		t.Fatal("generic search URL must not be selected")
 	}
 }
@@ -434,7 +449,7 @@ func TestSelectBestOffer_conflictingCandidatesPicksCheapest(t *testing.T) {
 		{URL: "https://ota-a.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 88, VerificationStatus: StatusVerifiedExact, Price: &high, Currency: "USD"},
 		{URL: "https://ota-b.com/book/checkout", URLType: URLTypeExactBooking, MatchScore: 92, VerificationStatus: StatusVerifiedExact, Price: &low, Currency: "USD"},
 	}
-	best := SelectBestOffer(offers, testPriceNormalizer)
+	best := SelectBestOffer(offers, testPriceNormalizer, nil)
 	if best == nil || best.Price == nil || *best.Price != low {
 		t.Fatalf("expected cheapest offer, got %+v", best)
 	}
@@ -449,7 +464,7 @@ func TestSelectBestOffer_cheapestOTAOverAirline(t *testing.T) {
 		{Domain: "expedia.com", URL: "https://www.expedia.com/flights/OS860", URLType: URLTypeExactBooking, MatchScore: 91, VerificationStatus: StatusVerifiedExact, Price: &expedia, Currency: "EUR"},
 		{Domain: "austrian.com", URL: "https://www.austrian.com/en/book-flight/checkout", URLType: URLTypeExactBooking, MatchScore: 95, VerificationStatus: StatusVerifiedExact, Price: &austrian, Currency: "EUR"},
 	}
-	best := SelectBestOffer(offers, testPriceNormalizer)
+	best := SelectBestOffer(offers, testPriceNormalizer, nil)
 	if best == nil {
 		t.Fatal("expected best offer")
 	}

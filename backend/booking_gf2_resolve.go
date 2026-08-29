@@ -64,20 +64,56 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 }
 
 func quoteBindingFromOption(session *SearchSession, option *FlightOption, legIndex int) search.QuoteBinding {
-	_ = session
-	_ = legIndex
 	q := search.QuoteBinding{}
 	if option == nil {
 		return q
 	}
-	q.Amount = option.Price.Amount
-	q.Currency = option.Price.Currency
+	amount := option.Price.Amount
+	currency := option.Price.Currency
 	if option.OriginalPrice != nil && option.PriceIsEstimate {
-		q.Amount = option.OriginalPrice.Amount
-		q.Currency = option.OriginalPrice.Currency
+		amount = option.OriginalPrice.Amount
+		currency = option.OriginalPrice.Currency
 	}
+	if legIndex >= 0 && len(option.Legs) > 1 {
+		amount = allocateLegQuoteAmount(option, legIndex, amount)
+	}
+	q.Amount = amount
+	q.Currency = currency
 	q.DeepLink = normalizeProviderBookingURL(option.DeepLink)
 	return q
+}
+
+func allocateLegQuoteAmount(option *FlightOption, legIndex int, totalAmount float64) float64 {
+	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) || totalAmount <= 0 {
+		return totalAmount
+	}
+	totalDur := option.DurationMinutes
+	if totalDur <= 0 {
+		for _, leg := range option.Legs {
+			totalDur += flightLegDurationMinutes(leg)
+		}
+	}
+	legDur := flightLegDurationMinutes(option.Legs[legIndex])
+	if totalDur <= 0 || legDur <= 0 {
+		return totalAmount / float64(len(option.Legs))
+	}
+	return totalAmount * (float64(legDur) / float64(totalDur))
+}
+
+func flightLegDurationMinutes(leg FlightLeg) int {
+	if len(leg.Segments) == 0 {
+		return 0
+	}
+	first := leg.Segments[0].DepartureTime
+	last := leg.Segments[len(leg.Segments)-1].ArrivalTime
+	if !first.IsZero() && !last.IsZero() && last.After(first) {
+		return int(last.Sub(first).Minutes())
+	}
+	total := 0
+	for _, s := range leg.Segments {
+		total += s.DurationMinutes
+	}
+	return total
 }
 
 func gf2PartnerOfferFromQuoteURL(rawURL, fp string, quote search.QuoteBinding) *bookingmatch.BookingOffer {
@@ -206,7 +242,7 @@ func searchRequestFromSession(session *SearchSession, option *FlightOption, legI
 	return req
 }
 
-func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int) BookingResolveResponse {
+func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int, extractedPrice *float64) BookingResolveResponse {
 	if option == nil {
 		return resp
 	}
@@ -216,11 +252,56 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		resp.QuotedPrice = &amt
 		resp.QuotedCurrency = q.Currency
 	}
-	if resp.Offer != nil && resp.Offer.Price != nil && q.Amount > 0 {
-		resp.PriceMismatch = !search.PricesMatchQuote(q.Amount, *resp.Offer.Price)
-		if resp.PriceMismatch {
+	if resp.Offer == nil || q.Amount <= 0 {
+		return resp
+	}
+	comparePrice := extractedPrice
+	if comparePrice == nil {
+		comparePrice = resp.Offer.Price
+	}
+	if comparePrice != nil && *comparePrice > 0 {
+		actual := *comparePrice
+		actualCur := resp.Offer.Currency
+		if actualCur != "" && q.Currency != "" && actualCur != q.Currency {
+			actual, _ = convertPrice(actual, actualCur, q.Currency)
+		}
+		if !search.PricesMatchQuote(q.Amount, actual) {
+			resp.PriceMismatch = true
 			resp.Message = "Checkout price may differ from the search quote. Verify on the partner site before paying."
 		}
 	}
 	return resp
+}
+
+func applySearchQuoteToOffer(offer *bookingmatch.BookingOffer, quote search.QuoteBinding) (extractedBeforeFill *float64) {
+	if offer == nil {
+		return nil
+	}
+	if offer.Price != nil {
+		p := *offer.Price
+		return &p
+	}
+	if quote.Amount <= 0 {
+		return nil
+	}
+	p := quote.Amount
+	offer.Price = &p
+	if quote.Currency != "" {
+		offer.Currency = quote.Currency
+	}
+	return nil
+}
+
+func bookingMatchPriceNormalizer() bookingmatch.PriceNormalizer {
+	return func(amount float64, from, to string) (float64, string) {
+		return convertPrice(amount, from, to)
+	}
+}
+
+func quoteBindingForMatch(session *SearchSession, option *FlightOption, legIndex int) *bookingmatch.QuoteBinding {
+	q := quoteBindingFromOption(session, option, legIndex)
+	if q.Amount <= 0 {
+		return nil
+	}
+	return &bookingmatch.QuoteBinding{Amount: q.Amount, Currency: q.Currency}
 }

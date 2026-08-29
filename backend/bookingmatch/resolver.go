@@ -189,7 +189,7 @@ func (r *Resolver) Match(ctx context.Context, it search.CanonicalItinerary) (*Ma
 
 	result.Offers = offers
 	verifiedPriced := countVerifiedPricedOffers(offers)
-	result.BestOffer = SelectBestOffer(offers, r.PriceNormalizer)
+	result.BestOffer = SelectBestOffer(offers, r.PriceNormalizer, nil)
 
 	if result.BestOffer != nil {
 		reason := "cheapest verified offer with reliable price"
@@ -271,7 +271,11 @@ func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalI
 	}
 	var toFetch []idxScore
 	for i, o := range offers {
-		if o.VerificationStatus == StatusVerifiedExact {
+		if o.VerificationStatus == StatusVerifiedExact && o.Price != nil && *o.Price > 0 {
+			continue
+		}
+		if o.VerificationStatus == StatusVerifiedExact && o.Price == nil {
+			toFetch = append(toFetch, idxScore{i, o.MatchScore + 100})
 			continue
 		}
 		if o.MatchScore >= 50 {

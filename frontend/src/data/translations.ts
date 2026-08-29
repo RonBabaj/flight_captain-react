@@ -593,8 +593,13 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'ההצעה הזולה ביותר למסלול זה',
     ru: 'Самое дешёвое подходящее предложение',
   },
+  search_quote_price: {
+    en: 'search quote',
+    he: 'מחיר חיפוש',
+    ru: 'цена из поиска',
+  },
   no_verified_booking: {
-    en: 'No verified booking page found for this exact itinerary.',
+    en: 'No verified booking offer found yet',
     he: 'לא נמצא דף הזמנה מאומת למסלול המדויק.',
     ru: 'Не найдена проверенная страница бронирования для этого маршрута.',
   },

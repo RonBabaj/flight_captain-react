@@ -342,7 +342,6 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 	}
 
 	resp := runBookingMatch(ctx, session, option, it, fp, legIndex)
-	resp = attachQuotedPriceMeta(resp, session, option, legIndex)
 	waitEntry.resp = &resp
 	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
 		setCachedBookingResolve(cacheKey, resp, ttl)
@@ -366,8 +365,6 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
 	start := time.Now()
-	_ = session
-	_ = option
 
 	matchResult, err := bookingMatchRunner(ctx, it)
 	if err != nil {
@@ -396,6 +393,17 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	verifiedCount := countVerifiedExactOffers(matchResult.Offers)
+	quote := quoteBindingForMatch(session, option, legIndex)
+	if len(matchResult.Offers) > 0 {
+		matchResult.BestOffer = bookingmatch.SelectBestOffer(matchResult.Offers, bookingMatchPriceNormalizer(), quote)
+	}
+
+	var extractedBeforeQuote *float64
+	if matchResult.BestOffer != nil {
+		q := quoteBindingFromOption(session, option, legIndex)
+		extractedBeforeQuote = applySearchQuoteToOffer(matchResult.BestOffer, q)
+	}
+
 	if matchResult.BestOffer == nil {
 		resp := BookingResolveResponse{
 			Found:                false,
@@ -429,6 +437,9 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		})
 		return resp
 	}
+	if extractedBeforeQuote == nil {
+		offer.PriceLabel = "search_quote"
+	}
 
 	resp := BookingResolveResponse{
 		Found:                true,
@@ -436,6 +447,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		ItineraryFingerprint: fp,
 		Offer:                offer,
 	}
+	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 	logBookingResolve(bookingResolveLogEvent{
 		Event:                "resolve_verified",
 		ItineraryFingerprint: fp,
@@ -443,7 +455,6 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		Provider:             offer.Provider,
 		DurationMs:           time.Since(start).Milliseconds(),
 	})
-	_ = legIndex
 	return resp
 }
 

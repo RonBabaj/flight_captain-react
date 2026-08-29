@@ -63,6 +63,29 @@ func TestQuoteBindingFromOption_usesOriginalWhenEstimate(t *testing.T) {
 	}
 }
 
+func TestAllocateLegQuoteAmount_splitOpenJaw(t *testing.T) {
+	dep1 := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr1 := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	dep2 := time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC)
+	arr2 := time.Date(2027, 1, 14, 17, 50, 0, 0, time.UTC)
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 1000, Currency: "ILS"},
+		DurationMinutes: 600,
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{DepartureTime: dep1, ArrivalTime: arr1, DurationMinutes: 165}}},
+			{Segments: []FlightSegment{{DepartureTime: dep2, ArrivalTime: arr2, DurationMinutes: 65}}},
+		},
+	}
+	leg0 := allocateLegQuoteAmount(opt, 0, opt.Price.Amount)
+	leg1 := allocateLegQuoteAmount(opt, 1, opt.Price.Amount)
+	if leg0 <= 0 || leg1 <= 0 || leg0+leg1 > 1000+1 {
+		t.Fatalf("leg quotes=%v %v", leg0, leg1)
+	}
+	if leg0 <= leg1 {
+		t.Fatalf("outbound leg should get larger quote share, got %v vs %v", leg0, leg1)
+	}
+}
+
 func TestAttachQuotedPriceMeta_detectsMismatch(t *testing.T) {
 	price := 1000.0
 	resp := BookingResolveResponse{
@@ -70,7 +93,7 @@ func TestAttachQuotedPriceMeta_detectsMismatch(t *testing.T) {
 		Offer: &PublicBookingOffer{Price: &price, Currency: "USD"},
 	}
 	opt := &FlightOption{Price: MonetaryAmount{Amount: 600, Currency: "USD"}}
-	out := attachQuotedPriceMeta(resp, nil, opt, -1)
+	out := attachQuotedPriceMeta(resp, nil, opt, -1, &price)
 	if !out.PriceMismatch {
 		t.Fatal("expected price mismatch")
 	}

@@ -19,7 +19,7 @@ export interface PublicBookingOffer {
   price?: number;
   currency?: string;
   matchConfidence: number;
-  priceLabel?: 'best_matching_price' | 'cheapest_matching_offer';
+  priceLabel?: 'best_matching_price' | 'cheapest_matching_offer' | 'search_quote';
   checkedAt: string;
 }
 
