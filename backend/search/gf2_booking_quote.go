@@ -86,11 +86,11 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 
 // ResolveQuotedPartnerBookingForFingerprint re-searches GF2 and resolves checkout for the
 // matching itinerary using that result's quote (price + deep link + token).
-func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantFP, currency string, quote QuoteBinding) (*ResolvedPartnerBooking, error) {
+func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string, quote QuoteBinding) (*ResolvedPartnerBooking, error) {
 	if p == nil {
 		return nil, fmt.Errorf("google flights provider not configured")
 	}
-	wantFP = strings.TrimSpace(wantFP)
+	wantFP := CanonicalItineraryFingerprint(wantItin)
 	if wantFP == "" {
 		return nil, fmt.Errorf("missing itinerary fingerprint")
 	}
@@ -107,7 +107,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	AttachCanonicalIdentityAll(results)
 	for i := range results {
 		r := &results[i]
-		if r.ItineraryFingerprint != wantFP {
+		if r.ItineraryFingerprint != wantFP && !ResultMatchesItinerary(wantItin, *r) {
 			continue
 		}
 		matchQuote := QuoteBinding{

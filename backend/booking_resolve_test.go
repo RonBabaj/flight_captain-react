@@ -227,7 +227,7 @@ func TestRunBookingMatch_doesNotBypassWithGF2DeepLink(t *testing.T) {
 	}
 }
 
-func TestRunBookingMatch_fallsBackToGF2WhenWebSearchEmpty(t *testing.T) {
+func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -255,10 +255,10 @@ func TestRunBookingMatch_fallsBackToGF2WhenWebSearchEmpty(t *testing.T) {
 		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
 	}
 	gf2Called := false
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, fingerprint string, legIndex int) *bookingmatch.BookingOffer {
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
 		gf2Called = true
-		if fingerprint != fp || legIndex != 0 {
-			t.Fatalf("gf2 fallback fingerprint=%s legIndex=%d", fingerprint, legIndex)
+		if search.CanonicalItineraryFingerprint(wantItin) != fp || legIndex != 0 {
+			t.Fatalf("search partner fingerprint=%s legIndex=%d", search.CanonicalItineraryFingerprint(wantItin), legIndex)
 		}
 		return &bookingmatch.BookingOffer{
 			Domain:             "mytrip.com",
@@ -274,6 +274,8 @@ func TestRunBookingMatch_fallsBackToGF2WhenWebSearchEmpty(t *testing.T) {
 
 	opt := &FlightOption{
 		Price: MonetaryAmount{Amount: 360, Currency: "USD"},
+		LegBookingTokens: []string{"tok-outbound", "tok-return"},
+		LegDeepLinks:     []string{"https://mytrip.com/checkout/tlv-vie", "https://example.com/return"},
 		Legs: []FlightLeg{
 			{Segments: []FlightSegment{{
 				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
@@ -291,10 +293,10 @@ func TestRunBookingMatch_fallsBackToGF2WhenWebSearchEmpty(t *testing.T) {
 
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
 	if !webSearchCalled || !gf2Called {
-		t.Fatalf("webSearch=%v gf2=%v", webSearchCalled, gf2Called)
+		t.Fatalf("webSearch=%v searchPartner=%v", webSearchCalled, gf2Called)
 	}
 	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
-		t.Fatalf("expected GF2 fallback offer, got %+v", resp)
+		t.Fatalf("expected search-quote partner offer, got %+v", resp)
 	}
 	if resp.Offer.PriceLabel != "google_flights_partner" {
 		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)

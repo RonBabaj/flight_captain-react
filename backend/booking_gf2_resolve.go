@@ -10,11 +10,15 @@ import (
 	"flightcaptainweb/search"
 )
 
-// resolveGF2PartnerOffer resolves GF2 partner checkout URLs for legacy redirect flows
-// (e.g. /api/out/booking). It is NOT used by POST /api/booking/resolve, which always
-// runs the web-search bookingmatcher pipeline.
-func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, fp string, legIndex int) *bookingmatch.BookingOffer {
-	if googleFlights2Provider == nil || option == nil || fp == "" {
+// resolveGF2PartnerOffer resolves checkout for the exact fare shown in search results
+// using preserved GF2 booking tokens and deep links. For open-jaw itineraries each leg
+// keeps its own token from CombineOneWayBatches instead of losing them at merge time.
+func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+	if googleFlights2Provider == nil || option == nil {
+		return nil
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	if fp == "" {
 		return nil
 	}
 	if legIndex < 0 && itineraryIsSplit(session, option) {
@@ -26,41 +30,58 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 		currency = session.Params.CurrencyOrDefault()
 	}
 	quote := quoteBindingFromOption(session, option, legIndex)
+	token := legBookingToken(option, legIndex)
+	deepLink := legDeepLink(option, legIndex)
 
-	// Search-time deep link is tied to the quoted fare — prefer it over re-resolving to another seller.
-	if legIndex < 0 && quote.DeepLink != "" {
-		if offer := gf2PartnerOfferFromQuoteURL(quote.DeepLink, fp, quote); offer != nil {
+	if deepLink != "" {
+		if offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote); offer != nil {
 			return offer
 		}
 	}
 
-	if legIndex < 0 && strings.TrimSpace(option.BookingToken) != "" {
-		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, option.BookingToken, currency, quote); err == nil {
+	if token != "" {
+		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, token, currency, quote); err == nil {
 			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
 				return offer
 			}
 		}
 	}
 
+	// Re-search only when search-time token/deeplink were not preserved (e.g. legacy session).
 	sreq := searchRequestFromSession(session, option, legIndex)
-	if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, fp, currency, quote); err == nil {
+	if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
 		if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
 			return offer
 		}
 	}
 
-	if legIndex >= 0 && legIndex < len(option.Legs) {
-		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
-		adults := 1
-		if session != nil && session.Params.Adults > 0 {
-			adults = session.Params.Adults
-		}
-		if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, "", currency, adults); err == nil {
-			return gf2PartnerOfferFromQuoteURL(u, fp, quote)
-		}
-	}
-
 	return nil
+}
+
+func legBookingToken(option *FlightOption, legIndex int) string {
+	if option == nil {
+		return ""
+	}
+	if legIndex >= 0 {
+		if legIndex < len(option.LegBookingTokens) {
+			return strings.TrimSpace(option.LegBookingTokens[legIndex])
+		}
+		return ""
+	}
+	return strings.TrimSpace(option.BookingToken)
+}
+
+func legDeepLink(option *FlightOption, legIndex int) string {
+	if option == nil {
+		return ""
+	}
+	if legIndex >= 0 {
+		if legIndex < len(option.LegDeepLinks) {
+			return normalizeProviderBookingURL(option.LegDeepLinks[legIndex])
+		}
+		return ""
+	}
+	return normalizeProviderBookingURL(option.DeepLink)
 }
 
 func quoteBindingFromOption(session *SearchSession, option *FlightOption, legIndex int) search.QuoteBinding {
@@ -79,7 +100,7 @@ func quoteBindingFromOption(session *SearchSession, option *FlightOption, legInd
 	}
 	q.Amount = amount
 	q.Currency = currency
-	q.DeepLink = normalizeProviderBookingURL(option.DeepLink)
+	q.DeepLink = legDeepLink(option, legIndex)
 	return q
 }
 

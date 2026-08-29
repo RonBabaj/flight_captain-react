@@ -1617,8 +1617,8 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 
 // ResolvePartnerBookingForFingerprint re-runs GF2 search and resolves the partner checkout URL
 // for the result whose itinerary fingerprint matches wantFP.
-func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantFP, currency string) (string, error) {
-	resolved, err := p.ResolveQuotedPartnerBookingForFingerprint(ctx, req, wantFP, currency, QuoteBinding{})
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string) (string, error) {
+	resolved, err := p.ResolveQuotedPartnerBookingForFingerprint(ctx, req, wantItin, currency, QuoteBinding{})
 	if err != nil {
 		return "", err
 	}
