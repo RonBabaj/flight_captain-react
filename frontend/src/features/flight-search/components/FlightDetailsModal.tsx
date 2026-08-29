@@ -248,7 +248,9 @@ export function FlightDetailsModal({
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
                 : ''}
               {resolved.offer.price != null && resolved.offer.currency ? (
-                ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}`
+                ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}${
+                  resolved.offer.priceLabel === 'search_quote' ? ` (${t('search_quote_price')})` : ''
+                }`
               ) : null}
             </Text>
             {resolved.priceMismatch ? (
