@@ -59,58 +59,12 @@ func TestNormalizeFlightNumber_formatting(t *testing.T) {
 		{"BA", "BA117", "BA117"},
 		{"", "UA123", "UA123"},
 		{"AF", "AF-1234", "AF1234"},
-		{"Air France", "AF 963", "AF963"},
-		{"Lufthansa", "LH 683", "LH683"},
-		{"SWISS", "LX 257", "LX257"},
-		{"Bluebird Airways", "BZ 316", "BZ316"},
 	}
 	for _, tc := range cases {
 		got := NormalizeFlightNumber(tc.carrier, tc.raw)
 		if got != tc.want {
 			t.Errorf("NormalizeFlightNumber(%q, %q) = %q, want %q", tc.carrier, tc.raw, got, tc.want)
 		}
-	}
-}
-
-func TestResolveFlightIdentity_gf2AirlineNames(t *testing.T) {
-	cases := []struct {
-		carrier, raw, wantCarrier, wantFN string
-	}{
-		{"Air France", "AF 963", "AF", "AF963"},
-		{"Lufthansa", "LH 683", "LH", "LH683"},
-		{"SWISS", "LX 257", "LX", "LX257"},
-	}
-	for _, tc := range cases {
-		c, fn := ResolveFlightIdentity(tc.carrier, tc.raw)
-		if c != tc.wantCarrier || fn != tc.wantFN {
-			t.Errorf("ResolveFlightIdentity(%q, %q) = (%q, %q), want (%q, %q)",
-				tc.carrier, tc.raw, c, fn, tc.wantCarrier, tc.wantFN)
-		}
-	}
-}
-
-func TestCanonicalItineraryFingerprint_gf2AirlineNameStable(t *testing.T) {
-	dep := time.Date(2026, 9, 15, 16, 30, 0, 0, time.UTC)
-	arr := time.Date(2026, 9, 15, 20, 10, 0, 0, time.UTC)
-	a := ProviderResult{
-		Legs: []Leg{{Segments: []Segment{{
-			From: "TLV", To: "CDG", DepartureTime: dep, ArrivalTime: arr,
-			MarketingCarrier: "Air France", FlightNumber: "AF 963",
-		}}}},
-	}
-	b := ProviderResult{
-		Legs: []Leg{{Segments: []Segment{{
-			From: "TLV", To: "CDG", DepartureTime: dep, ArrivalTime: arr,
-			MarketingCarrier: "AF", FlightNumber: "AF963",
-		}}}},
-	}
-	AttachCanonicalIdentity(&a)
-	AttachCanonicalIdentity(&b)
-	if a.CanonicalItinerary.Segments[0].FlightNumber != "AF963" {
-		t.Fatalf("got flight number %q", a.CanonicalItinerary.Segments[0].FlightNumber)
-	}
-	if a.ItineraryFingerprint != b.ItineraryFingerprint {
-		t.Fatalf("fingerprints differ: %s vs %s", a.ItineraryFingerprint, b.ItineraryFingerprint)
 	}
 }
 

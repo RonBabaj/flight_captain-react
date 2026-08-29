@@ -16,7 +16,6 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { maxStopsPerLeg, formatStopsLabel } from '../../../utils/itineraryStops';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -126,9 +125,8 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
   const dep = fmtTime(summary?.departureTime) || '—';
   const arr = fmtTime(summary?.arrivalTime) || '—';
   const dur = fmtDuration(summary?.durationMinutes ?? 0);
-  const legCount = option.legs?.length ?? 0;
-  const worstLegStops = maxStopsPerLeg(option);
-  const stopsText = formatStopsLabel(worstLegStops, t, legCount);
+  const stops = summary?.stopsCount ?? Math.max(0, segments.length - 1);
+  const stopsText = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
 
   // Full route paths including all layover airports
   const sep = isRTL ? ' ← ' : ' → ';
@@ -243,11 +241,11 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           {/* Duration + Stops */}
           <View style={[c.metaRow, ...row()]}>
             <Text style={[c.metaText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>{dur}</Text>
-            <View style={[c.stopsChip, worstLegStops === 0 ? { backgroundColor: theme.isDark ? '#064e3b' : '#d1fae5' } : { backgroundColor: theme.controlBg }]}>
+            <View style={[c.stopsChip, stops === 0 ? { backgroundColor: theme.isDark ? '#064e3b' : '#d1fae5' } : { backgroundColor: theme.controlBg }]}>
               <Text
                 style={[
                   c.stopsChipText,
-                  worstLegStops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text },
+                  stops === 0 ? { color: theme.isDark ? '#6ee7b7' : '#065f46' } : { color: theme.text },
                   isRTL && { textAlign: 'center' },
                 ]}
               >
@@ -287,11 +285,7 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           ) : null}
           {option.source === 'kiwi' || option.vendorName ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-              {option.vendorName
-                ? t('via_vendor').replace('{vendor}', option.vendorName)
-                : option.source === 'kiwi'
-                  ? t('source_kiwi')
-                  : option.vendorName}
+              {option.source === 'kiwi' ? t('source_kiwi') : option.vendorName}
             </Text>
           ) : null}
           {perPassengerStr ? (

@@ -214,11 +214,8 @@ type FlightOption struct {
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
-	BookingToken          string           `json:"bookingToken,omitempty"`          // GF2 booking_token; persisted for booking resolve
-	LegBookingTokens      []string         `json:"legBookingTokens,omitempty"`      // per-leg GF2 tokens for split/open-jaw itineraries
-	LegDeepLinks          []string         `json:"legDeepLinks,omitempty"`          // per-leg partner checkout URLs for split/open-jaw
-	LegPrices             []float64        `json:"legPrices,omitempty"`             // per-leg one-way fares for split/open-jaw
-	BookingURL            string           `json:"bookingUrl,omitempty"`            // normalized internal booking URL used by /api/out/booking
+	BookingToken          string           `json:"-"`                               // GF2 booking_token; resolved to partner URL on Book
+	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
 	SelfTransferWarning   string           `json:"selfTransferWarning,omitempty"`   // user-facing warning when SelfTransfer
@@ -273,14 +270,7 @@ func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	if ok {
 		return resp, true
 	}
-	persisted, found := loadPersistedSession(id)
-	if !found {
-		return SearchSessionResultsResponse{}, false
-	}
-	sessionsMu.Lock()
-	sessions[id] = persisted
-	sessionsMu.Unlock()
-	return persisted, true
+	return loadPersistedSession(id)
 }
 
 func startSearchSessionCleanup() {
@@ -776,7 +766,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	sreq := search.SanitizeStandardSearchRequest(search.SearchRequest{
+	sreq := search.SearchRequest{
 		Origin:            req.Origin,
 		Destination:       req.Destination,
 		DepartureDate:     req.DepartureDate,
@@ -791,25 +781,12 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Children:          req.ChildrenOrDefault(),
 		Infants:           req.Infants,
 		Currency:          req.CurrencyOrDefault(),
-	})
-	// Persist sanitized params on the session so clients do not inherit stale open-jaw fields.
-	req.ReturnOrigin = sreq.ReturnOrigin
-	req.ReturnDestination = sreq.ReturnDestination
-	if len(sreq.ExtraLegs) == 0 {
-		req.ExtraLegs = nil
-	} else {
-		req.ExtraLegs = make([]ExtraSearchLeg, len(sreq.ExtraLegs))
-		for i, l := range sreq.ExtraLegs {
-			req.ExtraLegs[i] = ExtraSearchLeg{Origin: l.Origin, Destination: l.Destination, Date: l.Date}
-		}
 	}
 
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)
 	if multi.AllFailed() {
 		log.Printf("[SEARCH] all providers failed stats=%+v", multi.Stats)
-		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"error": multi.FailureMessage(),
-		})
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "flight search failed"})
 		return
 	}
 	if len(multi.Results) == 0 {
@@ -1009,26 +986,7 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[SESSION_GET] id=%s status=%s results=%d ua=%q", id, resp.Session.Status, len(resp.Results), truncateUA(r.UserAgent(), 80))
-	writeJSON(w, http.StatusOK, sanitizeSessionForClient(resp))
-}
-
-// sanitizeSessionForClient copies a session snapshot and removes booking tokens /
-// internal checkout URLs so GET /api/search/sessions/{id} does not expose them.
-// persistSearchSession still stores the unsanitized snapshot for booking resolve.
-func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionResultsResponse {
-	out := resp
-	if len(resp.Results) == 0 {
-		return out
-	}
-	out.Results = append([]FlightOption(nil), resp.Results...)
-	for i := range out.Results {
-		out.Results[i].BookingToken = ""
-		out.Results[i].LegBookingTokens = nil
-		out.Results[i].LegDeepLinks = nil
-		out.Results[i].BookingURL = ""
-		// Keep LegPrices — they are fares, not checkout secrets.
-	}
-	return out
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func truncateUA(s string, max int) string {
@@ -1275,9 +1233,6 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
 			BookingToken:          pr.BookingToken,
-			LegBookingTokens:      append([]string(nil), pr.LegBookingTokens...),
-			LegDeepLinks:          append([]string(nil), pr.LegDeepLinks...),
-			LegPrices:             append([]float64(nil), pr.LegPrices...),
 			VendorName:            pr.VendorName,
 			SelfTransfer:          pr.SelfTransfer,
 		}
@@ -2448,39 +2403,19 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 	}
 
 	if !split && googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
-		quote := quoteBindingFromOption(session, option, -1)
-		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, option.BookingToken, currency, quote); err == nil {
-			if u := normalizeProviderBookingURL(resolved.URL); u != "" {
-				log.Printf("[BOOKING] resolved quoted partner URL from booking_token provider=%s", resolved.Provider)
-				return u
-			}
-		} else {
-			log.Printf("[BOOKING] quoted booking_token resolve failed: %v", err)
+		u, err := googleFlights2Provider.ResolvePartnerBookingURL(ctx, option.BookingToken, currency)
+		if err == nil && normalizeProviderBookingURL(u) != "" {
+			log.Printf("[BOOKING] resolved partner URL from booking_token")
+			return u
+		}
+		if err != nil {
+			log.Printf("[BOOKING] booking_token resolve failed: %v", err)
 		}
 	}
 
 	if !split && googleFlights2Provider != nil {
 		origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
 		if origin != "" && dest != "" && dep != "" {
-			quote := quoteBindingFromOption(session, option, -1)
-			sreq := search.SearchRequest{
-				Origin: origin, Destination: dest, DepartureDate: dep, ReturnDate: ret,
-				Adults: adults, Currency: currency, CabinClass: "ECONOMY",
-			}
-			if option != nil && option.ItineraryFingerprint != "" {
-				wantItin := search.CanonicalItinerary{}
-				if option.CanonicalItinerary != nil {
-					wantItin = *option.CanonicalItinerary
-				} else {
-					wantItin = search.BuildCanonicalItinerary(providerResultFromFlightOption(option))
-				}
-				if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, wantItin, currency, quote); err == nil {
-					if u := normalizeProviderBookingURL(resolved.URL); u != "" {
-						log.Printf("[BOOKING] resolved quoted partner URL from fingerprint provider=%s", resolved.Provider)
-						return u
-					}
-				}
-			}
 			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults)
 			if err == nil && normalizeProviderBookingURL(u) != "" {
 				log.Printf("[BOOKING] resolved partner URL from route search %s→%s %s", origin, dest, dep)

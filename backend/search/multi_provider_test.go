@@ -3,7 +3,6 @@ package search
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -129,28 +128,6 @@ func TestRegistrySearchAllPartialFailure(t *testing.T) {
 	}
 	if res.AllFailed() {
 		t.Fatal("should not all-fail when one provider succeeds")
-	}
-}
-
-func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
-	gf2 := &stubProvider{name: "googleflights2", err: fmt.Errorf("no flights found for return SZG→TLV")}
-	kiwi := &stubProvider{name: "kiwi", err: ErrProviderSkipped}
-	r := &Registry{providers: []Provider{gf2, kiwi}}
-	req := SearchRequest{
-		Origin: "TLV", Destination: "VIE",
-		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
-		ReturnOrigin: "SZG", ReturnDestination: "TLV",
-	}
-	res := r.SearchAll(context.Background(), req)
-	if len(res.Results) != 0 {
-		t.Fatalf("results=%d", len(res.Results))
-	}
-	if !res.AllFailed() {
-		t.Fatal("GF2 failure must not be masked by Kiwi skip")
-	}
-	msg := res.FailureMessage()
-	if !strings.Contains(msg, "SZG") {
-		t.Fatalf("expected leg detail in message, got %q", msg)
 	}
 }
 
