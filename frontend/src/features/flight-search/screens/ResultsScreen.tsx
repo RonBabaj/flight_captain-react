@@ -44,6 +44,7 @@ import {
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { classicSearchPayload } from '../../../utils/skyscanner';
+import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
@@ -952,16 +953,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const filtered = useMemo(() => {
     let list = results;
     if (filters.maxStops != null) {
-      list = list.filter((opt) => {
-        // Use max stops per leg (not sum), so a 2-stop outbound + 2-stop return = 2 max, not 4
-        const maxPerLeg = opt.legs.length > 0
-          ? Math.max(...opt.legs.map((leg) => Math.max(0, leg.segments.length - 1)))
-          : 0;
-        if (filters.maxStops === 0) return maxPerLeg === 0;       // Direct only
-        if (filters.maxStops === 1) return maxPerLeg === 1;       // Exactly 1 stop
-        if (filters.maxStops === 2) return maxPerLeg >= 2;        // 2+ stops
-        return true;
-      });
+      list = list.filter((opt) => matchesStopsFilter(opt, filters.maxStops));
     }
     if (filters.airlines.length > 0) {
       const set = new Set(filters.airlines.map((c) => c.toUpperCase()));
@@ -1275,7 +1267,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 {t('no_flights_match')}
               </Text>
               <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                {t('try_filters')}
+                {filters.maxStops === 0
+                  ? t('no_direct_flights_tip')
+                  : t('try_filters')}
               </Text>
             </View>
           ) : null

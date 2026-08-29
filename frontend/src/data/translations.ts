@@ -502,6 +502,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   link_expired_invalid: { en: 'This link has expired or is invalid. Please start a new search.', he: 'הקישור פג תוקף או אינו תקין. אנא התחל חיפוש חדש.', ru: 'Ссылка устарела или недействительна. Начните новый поиск.' },
   run_search_again: { en: 'Run this search again', he: 'הפעל את החיפוש שוב', ru: 'Повторить этот поиск' },
   try_filters: { en: 'Try changing stops or airlines in Filters.', he: 'נסה לשנות עצירות או חברות במסננים.', ru: 'Попробуйте изменить пересадки или авиакомпании в фильтрах.' },
+  no_direct_flights_tip: {
+    en: 'No nonstop options for every leg of this trip. Clear the Direct filter or try different dates.',
+    he: 'אין טיסות ישירות לכל קטע במסלול. בטל את מסנן "ישיר" או נסה תאריכים אחרים.',
+    ru: 'Нет прямых рейсов на каждый участок маршрута. Снимите фильтр «Прямой» или попробуйте другие даты.',
+  },
   fill_origin_destination_dates: { en: 'Fill origin, destination and dates.', he: 'מלא מוצא, יעד ותאריכים.', ru: 'Укажите пункты вылета, прилёта и даты.' },
   choose_return_date: { en: 'Choose return date.', he: 'בחר תאריך חזרה.', ru: 'Выберите дату возврата.' },
   please_fill_origin_destination: { en: 'Please fill origin, destination and departure date.', he: 'מלא מוצא, יעד ותאריך יציאה.', ru: 'Укажите пункты вылета, прилёта и дату.' },
