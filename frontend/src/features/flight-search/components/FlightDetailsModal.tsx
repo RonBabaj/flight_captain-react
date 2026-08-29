@@ -222,6 +222,7 @@ export function FlightDetailsModal({
         sessionId,
         option.id,
         legIndex != null && legIndex >= 0 ? legIndex : undefined,
+        !!existing && !existing.found,
       );
       setLegResolves((prev) => ({ ...prev, [key]: res }));
     } catch {

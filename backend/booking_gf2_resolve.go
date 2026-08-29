@@ -98,7 +98,9 @@ func quoteBindingFromOption(session *SearchSession, option *FlightOption, legInd
 		amount = option.OriginalPrice.Amount
 		currency = option.OriginalPrice.Currency
 	}
-	if legIndex >= 0 && len(option.Legs) > 1 {
+	if legIndex >= 0 && legIndex < len(option.LegPrices) && option.LegPrices[legIndex] > 0 {
+		amount = option.LegPrices[legIndex]
+	} else if legIndex >= 0 && len(option.Legs) > 1 {
 		amount = allocateLegQuoteAmount(option, legIndex, amount)
 	}
 	q.Amount = amount

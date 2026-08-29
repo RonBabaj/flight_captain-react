@@ -188,6 +188,7 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 				next.ID = fmt.Sprintf("%s_%d", idPrefix, i)
 				next.LegBookingTokens = []string{strings.TrimSpace(r.BookingToken)}
 				next.LegDeepLinks = []string{strings.TrimSpace(r.DeepLink)}
+				next.LegPrices = []float64{r.Price.Amount}
 				next.BookingToken = ""
 				next.DeepLink = ""
 			} else {
@@ -198,6 +199,7 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 				next.ID = fmt.Sprintf("%s_%d", cur.ID, i)
 				next.LegBookingTokens = append(append([]string(nil), cur.LegBookingTokens...), strings.TrimSpace(r.BookingToken))
 				next.LegDeepLinks = append(append([]string(nil), cur.LegDeepLinks...), strings.TrimSpace(r.DeepLink))
+				next.LegPrices = append(append([]float64(nil), cur.LegPrices...), r.Price.Amount)
 				next.BookingToken = ""
 				next.DeepLink = ""
 			}
@@ -244,6 +246,7 @@ type ProviderResult struct {
 	BookingToken          string // GF2 booking_token for partner checkout resolution
 	LegBookingTokens      []string // per-leg GF2 tokens after open-jaw OW combine (parallel to Legs)
 	LegDeepLinks          []string // per-leg partner checkout URLs (parallel to Legs)
+	LegPrices             []float64 // per-leg one-way fares (parallel to Legs)
 	VendorName            string // kayak/expedia/kiwi etc if present
 	FareConditions        string
 	SelfTransfer          bool                   // separate tickets / virtual interlining

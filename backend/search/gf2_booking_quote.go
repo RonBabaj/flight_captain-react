@@ -71,8 +71,28 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 		return p.resolveGF2BookingOption(ctx, picked, currency)
 	}
 
+	// Some GF2 payloads put the partner checkout URL outside booking_options.
+	if _, directURL := extractGF2PartnerBookingToken(detailsBody); isLikelyPartnerCheckoutURL(directURL) {
+		return &ResolvedPartnerBooking{
+			URL:      directURL,
+			Price:    quote.Amount,
+			Currency: firstNonEmpty(quote.Currency, currency),
+			Provider: providerFromURL(directURL),
+		}, nil
+	}
+
 	// Honor the search-time deep link when booking_options don't include a price match.
 	if u := strings.TrimSpace(quote.DeepLink); u != "" && isLikelyPartnerCheckoutURL(u) {
+		return &ResolvedPartnerBooking{
+			URL:      u,
+			Price:    quote.Amount,
+			Currency: firstNonEmpty(quote.Currency, currency),
+			Provider: providerFromURL(u),
+		}, nil
+	}
+
+	// getBookingURL accepts the search booking_token on some GF2 plans.
+	if u, err := p.resolvePartnerTokenToURL(ctx, token); err == nil && isLikelyPartnerCheckoutURL(u) {
 		return &ResolvedPartnerBooking{
 			URL:      u,
 			Price:    quote.Amount,

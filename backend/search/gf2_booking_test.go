@@ -19,6 +19,16 @@ func TestExtractGF2BookingToken(t *testing.T) {
 	if extractGF2BookingToken(map[string]interface{}{"token": "short"}) != "" {
 		t.Fatal("should skip short generic token")
 	}
+	if extractGF2BookingToken(map[string]interface{}{"departure_token": "dep-only-not-bookable"}) != "" {
+		t.Fatal("departure_token must not be treated as a booking_token")
+	}
+	nested := extractGF2BookingToken(map[string]interface{}{
+		"departure_token": "dep-only",
+		"booking":         map[string]interface{}{"booking_token": fakeToken},
+	})
+	if nested != fakeToken {
+		t.Fatalf("nested booking_token=%q", nested)
+	}
 }
 
 func TestExtractGF2BookingURL(t *testing.T) {

@@ -1495,17 +1495,23 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 	if m == nil {
 		return ""
 	}
-	for _, key := range []string{"booking_token", "bookingToken", "departure_token", "token"} {
-		if s, ok := m[key].(string); ok && strings.TrimSpace(s) != "" {
-			// Prefer booking_token-shaped values; skip bare URLs.
+	for _, key := range []string{"booking_token", "bookingToken"} {
+		if s, ok := m[key].(string); ok {
 			v := strings.TrimSpace(s)
-			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
-				continue
+			if v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+				return v
 			}
-			if key == "token" && len(v) < 12 {
-				continue
-			}
-			return v
+		}
+	}
+	// GF2 sometimes nests the bookable token under offer/booking/tokens.
+	// Never treat departure_token as bookable — getBookingDetails rejects it.
+	for _, nest := range []string{"booking", "offer", "tokens", "purchase"} {
+		child, _ := m[nest].(map[string]interface{})
+		if child == nil {
+			continue
+		}
+		if tok := extractGF2BookingToken(child); tok != "" {
+			return tok
 		}
 	}
 	return ""

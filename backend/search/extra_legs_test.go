@@ -57,6 +57,9 @@ func TestCombineOneWayBatches(t *testing.T) {
 	if len(out[0].LegDeepLinks) != 3 || out[0].LegDeepLinks[0] != "https://example.com/a1" || out[0].LegDeepLinks[2] != "https://example.com/c2" {
 		t.Fatalf("LegDeepLinks=%v", out[0].LegDeepLinks)
 	}
+	if len(out[0].LegPrices) != 3 || out[0].LegPrices[0] != 100 || out[0].LegPrices[2] != 70 {
+		t.Fatalf("LegPrices=%v", out[0].LegPrices)
+	}
 	if out[0].Legs[1].Segments[0].From != "BER" || out[0].Legs[1].Segments[0].To != "PRG" {
 		t.Fatalf("middle leg = %+v", out[0].Legs[1])
 	}

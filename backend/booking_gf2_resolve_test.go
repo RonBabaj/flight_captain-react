@@ -100,6 +100,18 @@ func TestQuoteBindingFromOption_usesOriginalWhenEstimate(t *testing.T) {
 	}
 }
 
+func TestQuoteBindingFromOption_usesStoredLegPrice(t *testing.T) {
+	opt := &FlightOption{
+		Price:     MonetaryAmount{Amount: 1000, Currency: "USD"},
+		LegPrices: []float64{180, 220},
+		Legs:      []FlightLeg{{}, {}},
+	}
+	q := quoteBindingFromOption(nil, opt, 0)
+	if q.Amount != 180 {
+		t.Fatalf("expected stored one-way fare 180, got %v", q.Amount)
+	}
+}
+
 func TestAllocateLegQuoteAmount_splitOpenJaw(t *testing.T) {
 	dep1 := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
 	arr1 := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
