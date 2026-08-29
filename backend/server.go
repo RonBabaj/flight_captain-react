@@ -217,6 +217,7 @@ type FlightOption struct {
 	BookingToken          string           `json:"bookingToken,omitempty"`          // GF2 booking_token; persisted for booking resolve
 	LegBookingTokens      []string         `json:"legBookingTokens,omitempty"`      // per-leg GF2 tokens for split/open-jaw itineraries
 	LegDeepLinks          []string         `json:"legDeepLinks,omitempty"`          // per-leg partner checkout URLs for split/open-jaw
+	LegPrices             []float64        `json:"legPrices,omitempty"`             // per-leg one-way fares for split/open-jaw
 	BookingURL            string           `json:"bookingUrl,omitempty"`            // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
@@ -1025,6 +1026,7 @@ func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionRe
 		out.Results[i].LegBookingTokens = nil
 		out.Results[i].LegDeepLinks = nil
 		out.Results[i].BookingURL = ""
+		// Keep LegPrices — they are fares, not checkout secrets.
 	}
 	return out
 }
@@ -1275,6 +1277,7 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			BookingToken:          pr.BookingToken,
 			LegBookingTokens:      append([]string(nil), pr.LegBookingTokens...),
 			LegDeepLinks:          append([]string(nil), pr.LegDeepLinks...),
+			LegPrices:             append([]float64(nil), pr.LegPrices...),
 			VendorName:            pr.VendorName,
 			SelfTransfer:          pr.SelfTransfer,
 		}

@@ -33,6 +33,7 @@ type BookingResolveRequest struct {
 	SessionID string `json:"sessionId"`
 	OptionID  string `json:"optionId"`
 	LegIndex  *int   `json:"legIndex,omitempty"`
+	Force     bool   `json:"force,omitempty"`
 }
 
 // PublicBookingOffer is the client-facing verified booking offer (no internal search details).
@@ -221,7 +222,9 @@ func cacheTTLForStatus(status string) time.Duration {
 	case BookingResolveVerified:
 		return bookingResolveCacheTTL
 	case BookingResolveNotFound:
-		return bookingResolveNegativeTTL
+		// Do not cache misses. Try again must re-resolve; a 5-minute negative
+		// cache made booking look permanently broken after the first failure.
+		return 0
 	default:
 		return 0
 	}
@@ -547,19 +550,21 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 		legIndex = *req.LegIndex
 	}
 
-	if cached, ok := getCachedBookingResolve(bookingResolveCacheKey(
-		search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex)), legIndex)); ok {
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_request",
-			SessionID:            sessionID,
-			OptionID:             optionID,
-			ItineraryFingerprint: cached.ItineraryFingerprint,
-			Status:               cached.Status,
-			CacheHit:             true,
-			DurationMs:           time.Since(start).Milliseconds(),
-		})
-		writeJSON(w, http.StatusOK, cached)
-		return
+	if !req.Force {
+		if cached, ok := getCachedBookingResolve(bookingResolveCacheKey(
+			search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex)), legIndex)); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_request",
+				SessionID:            sessionID,
+				OptionID:             optionID,
+				ItineraryFingerprint: cached.ItineraryFingerprint,
+				Status:               cached.Status,
+				CacheHit:             true,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			writeJSON(w, http.StatusOK, cached)
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)

@@ -122,6 +122,15 @@ func TestHandleBookingResolve_notFound(t *testing.T) {
 	}
 }
 
+func TestCacheTTLForStatus_doesNotCacheMisses(t *testing.T) {
+	if cacheTTLForStatus(BookingResolveNotFound) != 0 {
+		t.Fatal("not_found must not be negatively cached")
+	}
+	if cacheTTLForStatus(BookingResolveVerified) <= 0 {
+		t.Fatal("verified offers should remain cached")
+	}
+}
+
 func TestHandleBookingResolve_searchUnavailable(t *testing.T) {
 	oldRunner := bookingMatchRunner
 	defer func() { bookingMatchRunner = oldRunner }()

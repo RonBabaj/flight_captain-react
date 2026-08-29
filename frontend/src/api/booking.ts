@@ -38,6 +38,7 @@ export interface BookingResolveRequest {
   sessionId: string;
   optionId: string;
   legIndex?: number;
+  force?: boolean;
 }
 
 /** Resolve a verified web booking offer for the exact itinerary (server loads canonical identity). */
@@ -45,11 +46,15 @@ export async function resolveBookingOffer(
   sessionId: string,
   optionId: string,
   legIndex?: number,
+  force?: boolean,
 ): Promise<BookingResolveResponse> {
   const base = getApiBase();
   const body: BookingResolveRequest = { sessionId, optionId };
   if (legIndex != null && legIndex >= 0) {
     body.legIndex = legIndex;
+  }
+  if (force) {
+    body.force = true;
   }
   const res = await fetch(`${base}/api/booking/resolve`, {
     method: 'POST',
