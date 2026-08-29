@@ -9,11 +9,13 @@ import (
 )
 
 type segmentCheck struct {
-	score         int
-	flightNumOK   bool
-	dateOK        bool
-	fromOK        bool
-	toOK          bool
+	score             int
+	flightNumOK       bool
+	dateOK            bool
+	fromOK            bool
+	toOK              bool
+	depTimeOK         bool
+	arrTimeOK         bool
 	requiresFlightNum bool
 }
 
@@ -68,6 +70,9 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 	if len(segs) > 1 && segmentOrderMatches(rawText, segs) {
 		total += 10
 	}
+	if routeDateTimeVerified(checks, segs) {
+		total += 15
+	}
 	if total > 100 {
 		total = 100
 	}
@@ -78,7 +83,7 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 		threshold = 70
 	}
 
-	reason := verifyExactEligibility(checks, segs, total, threshold, offer.URLType)
+	reason := verifyExactEligibility(checks, segs, total, threshold, offer.URLType, rawText)
 	switch reason {
 	case "":
 		offer.VerificationStatus = StatusVerifiedExact
@@ -99,7 +104,6 @@ func scoreSegment(seg search.CanonicalSegment, rawText string, segMax int) segme
 	_, fn := segmentIdentity(seg)
 	chk := segmentCheck{requiresFlightNum: fn != ""}
 
-	// Flight number — heavily weighted (50% of segment score).
 	if fn != "" {
 		if flightNumberInText(rawText, fn) {
 			chk.flightNumOK = true
@@ -110,7 +114,6 @@ func scoreSegment(seg search.CanonicalSegment, rawText string, segMax int) segme
 		}
 	}
 
-	// Airports (15% each).
 	if chk.fromOK = textContainsAirport(rawText, seg.From); chk.fromOK {
 		chk.score += segMax * 15 / 100
 	}
@@ -118,16 +121,14 @@ func scoreSegment(seg search.CanonicalSegment, rawText string, segMax int) segme
 		chk.score += segMax * 15 / 100
 	}
 
-	// Date — mandatory for exact match (15%).
 	if chk.dateOK = textContainsAny(rawText, segmentDateVariants(seg)); chk.dateOK {
 		chk.score += segMax * 15 / 100
 	}
 
-	// Departure / arrival times (5% each).
-	if timeMatches(rawText, seg, true) {
+	if chk.depTimeOK = timeMatches(rawText, seg, true); chk.depTimeOK {
 		chk.score += segMax * 5 / 100
 	}
-	if timeMatches(rawText, seg, false) {
+	if chk.arrTimeOK = timeMatches(rawText, seg, false); chk.arrTimeOK {
 		chk.score += segMax * 5 / 100
 	}
 
@@ -146,8 +147,20 @@ func operatingFlightForMatch(seg search.CanonicalSegment) string {
 	return search.NormalizeFlightNumber(op, seg.FlightNumber)
 }
 
+func routeDateTimeVerified(checks []segmentCheck, segs []search.CanonicalSegment) bool {
+	for i, chk := range checks {
+		if !chk.fromOK || !chk.toOK || !chk.dateOK {
+			return false
+		}
+		if !segs[i].DepartureTime.IsZero() && !chk.depTimeOK {
+			return false
+		}
+	}
+	return true
+}
+
 // verifyExactEligibility returns "" when the candidate qualifies as verified exact.
-func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegment, total, threshold int, urlType URLType) string {
+func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegment, total, threshold int, urlType URLType, rawText string) string {
 	if urlType == URLTypeGenericSearch {
 		return "generic search page cannot be an exact-flight booking"
 	}
@@ -155,6 +168,14 @@ func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegmen
 		if !chk.dateOK && !segs[i].DepartureTime.IsZero() {
 			return "departure date not established in candidate text"
 		}
+	}
+
+	// OTA pages often omit flight numbers but include route, date, and times.
+	if routeDateTimeVerified(checks, segs) && !conflictingFlightNumberInText(rawText, segs) {
+		return ""
+	}
+
+	for _, chk := range checks {
 		if chk.requiresFlightNum && !chk.flightNumOK {
 			return "flight number not established in candidate text"
 		}
@@ -171,6 +192,37 @@ func verifyExactEligibility(checks []segmentCheck, segs []search.CanonicalSegmen
 		return "partial"
 	}
 	return ""
+}
+
+// conflictingFlightNumberInText returns true when snippet mentions a flight number that is not equivalent to any itinerary segment.
+func conflictingFlightNumberInText(rawText string, segs []search.CanonicalSegment) bool {
+	found := extractFlightNumbers(strings.ToUpper(rawText))
+	if len(found) == 0 {
+		return false
+	}
+	want := map[string]struct{}{}
+	for _, seg := range segs {
+		_, fn := segmentIdentity(seg)
+		if fn != "" {
+			want[fn] = struct{}{}
+		}
+		if op := operatingFlightForMatch(seg); op != "" {
+			want[op] = struct{}{}
+		}
+	}
+	for _, f := range found {
+		matched := false
+		for w := range want {
+			if flightNumbersEquivalent(w, f) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
+	return false
 }
 
 // segmentOrderMatches checks flight numbers appear in itinerary order in text.

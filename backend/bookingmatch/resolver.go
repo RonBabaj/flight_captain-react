@@ -278,7 +278,7 @@ func (r *Resolver) refineWithPageFetch(ctx context.Context, it search.CanonicalI
 			toFetch = append(toFetch, idxScore{i, o.MatchScore + 100})
 			continue
 		}
-		if o.MatchScore >= 50 {
+		if o.MatchScore >= 40 {
 			toFetch = append(toFetch, idxScore{i, o.MatchScore})
 		}
 	}

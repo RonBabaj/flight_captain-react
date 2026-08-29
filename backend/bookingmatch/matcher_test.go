@@ -395,6 +395,50 @@ func TestVerifyCandidate_mandatoryDate(t *testing.T) {
 	}
 }
 
+func TestVerifyCandidate_otaRouteDateTimeWithoutFlightNumber(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{Segments: []search.CanonicalSegment{seg}}
+	c := SearchCandidate{
+		URL:     "https://www.trip.com/flights/tlv-vie",
+		Snippet: "Tel Aviv to Vienna January 7, 2027 departs 17:40 arrives 20:25 from ₪450",
+		Domain:  "trip.com",
+	}
+	offer := VerifyCandidate(it, c, cfgTest())
+	if offer.VerificationStatus != StatusVerifiedExact {
+		t.Fatalf("expected verified exact via route+date+time, got %s reason=%s score=%d",
+			offer.VerificationStatus, offer.RejectionReason, offer.MatchScore)
+	}
+}
+
+func TestFlightNumbersEquivalent_leadingZeros(t *testing.T) {
+	if !flightNumbersEquivalent("OS860", "OS0860") {
+		t.Fatal("leading zero variants should match")
+	}
+	if flightNumbersEquivalent("OS860", "OS861") {
+		t.Fatal("different numbers must not match")
+	}
+}
+
+func TestGenerateQueries_includesRouteDateBookQuery(t *testing.T) {
+	it := testItineraryOS860()
+	qs := GenerateQueries(it, 10)
+	found := false
+	for _, q := range qs {
+		if strings.Contains(q, "TLV") && strings.Contains(q, "VIE") && strings.Contains(q, "book flight") && !strings.Contains(q, "OS860") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected route+date book query without flight number, got %v", qs)
+	}
+}
+
 func TestVerifyCandidate_codeshareOperatingNumber(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 12, 30, 0, 0, time.UTC)
