@@ -214,10 +214,10 @@ type FlightOption struct {
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
-	BookingToken          string           `json:"-"`                               // GF2 booking_token; resolved to partner URL on Book
-	LegBookingTokens      []string         `json:"-"`                               // per-leg GF2 tokens for split/open-jaw itineraries
-	LegDeepLinks          []string         `json:"-"`                               // per-leg partner checkout URLs for split/open-jaw
-	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
+	BookingToken          string           `json:"bookingToken,omitempty"`          // GF2 booking_token; persisted for booking resolve
+	LegBookingTokens      []string         `json:"legBookingTokens,omitempty"`      // per-leg GF2 tokens for split/open-jaw itineraries
+	LegDeepLinks          []string         `json:"legDeepLinks,omitempty"`          // per-leg partner checkout URLs for split/open-jaw
+	BookingURL            string           `json:"bookingUrl,omitempty"`            // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
 	SelfTransferWarning   string           `json:"selfTransferWarning,omitempty"`   // user-facing warning when SelfTransfer
@@ -272,7 +272,14 @@ func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	if ok {
 		return resp, true
 	}
-	return loadPersistedSession(id)
+	persisted, found := loadPersistedSession(id)
+	if !found {
+		return SearchSessionResultsResponse{}, false
+	}
+	sessionsMu.Lock()
+	sessions[id] = persisted
+	sessionsMu.Unlock()
+	return persisted, true
 }
 
 func startSearchSessionCleanup() {
@@ -1001,7 +1008,25 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[SESSION_GET] id=%s status=%s results=%d ua=%q", id, resp.Session.Status, len(resp.Results), truncateUA(r.UserAgent(), 80))
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, sanitizeSessionForClient(resp))
+}
+
+// sanitizeSessionForClient copies a session snapshot and removes booking tokens /
+// internal checkout URLs so GET /api/search/sessions/{id} does not expose them.
+// persistSearchSession still stores the unsanitized snapshot for booking resolve.
+func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionResultsResponse {
+	out := resp
+	if len(resp.Results) == 0 {
+		return out
+	}
+	out.Results = append([]FlightOption(nil), resp.Results...)
+	for i := range out.Results {
+		out.Results[i].BookingToken = ""
+		out.Results[i].LegBookingTokens = nil
+		out.Results[i].LegDeepLinks = nil
+		out.Results[i].BookingURL = ""
+	}
+	return out
 }
 
 func truncateUA(s string, max int) string {

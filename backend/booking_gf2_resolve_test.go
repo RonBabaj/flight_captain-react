@@ -1,9 +1,46 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"flightcaptainweb/search"
 )
+
+func TestResolveGF2PartnerOffer_usesPersistedLegDeepLinkWithoutProvider(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "OS", FlightNumber: "OS860",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	opt := &FlightOption{
+		Price:        MonetaryAmount{Amount: 360, Currency: "USD"},
+		LegDeepLinks: []string{"https://mytrip.com/checkout/tlv-vie", "https://mytrip.com/checkout/szg-tlv"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+			}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+			}}},
+		},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	offer := resolveGF2PartnerOffer(context.Background(), sess, opt, it, 0)
+	if offer == nil || offer.URL != "https://mytrip.com/checkout/tlv-vie" {
+		t.Fatalf("expected persisted leg deep link, got %+v", offer)
+	}
+}
 
 func TestSearchRequestFromSession_singleLegOverride(t *testing.T) {
 	dep := time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC)
