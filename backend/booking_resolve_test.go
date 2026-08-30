@@ -601,3 +601,4 @@ func TestRunBookingMatch_prefersAirlineDirectOverCheaperOTAWhenOTAAboveQuote(t *
 		t.Fatalf("expected elal over cheaper budgetair when OTA exceeds quote, got %+v", resp.Offer)
 	}
 }
+
