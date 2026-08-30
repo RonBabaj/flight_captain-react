@@ -146,10 +146,57 @@ func defaultBookingMatchRunner(ctx context.Context, it search.CanonicalItinerary
 	if !cfg.Enabled || cfg.SerpAPIKey == "" {
 		return nil, errBookingSearchUnavailable
 	}
-	cfg.PriceNormalizer = func(amount float64, from, to string) (float64, string) {
-		return convertPrice(amount, from, to)
-	}
+	cfg.PriceNormalizer = bookingMatchPriceNormalizer()
 	return bookingmatch.NewResolver(cfg).Match(ctx, it)
+}
+
+func webBookingMatchEnabled() bool {
+	cfg := bookingmatch.DefaultConfig()
+	return cfg.Enabled && cfg.SerpAPIKey != ""
+}
+
+func collectVerifiedBookingOffers(gf2 *bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
+	var out []bookingmatch.BookingOffer
+	seen := map[string]struct{}{}
+	add := func(o bookingmatch.BookingOffer) {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if o.URLType == bookingmatch.URLTypeGenericSearch {
+			return
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			return
+		}
+		key := strings.ToLower(strings.TrimSpace(o.URL))
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, o)
+	}
+	if gf2 != nil {
+		add(*gf2)
+	}
+	if match != nil {
+		for _, o := range match.Offers {
+			add(o)
+		}
+		if match.BestOffer != nil {
+			add(*match.BestOffer)
+		}
+	}
+	return out
+}
+
+func bookingOfferSameURL(a, b *bookingmatch.BookingOffer) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(a.URL), strings.TrimSpace(b.URL))
 }
 
 var errBookingSearchUnavailable = errors.New("web search not configured")
@@ -288,16 +335,6 @@ func publicOfferFromMatch(o *bookingmatch.BookingOffer, hadMultipleVerified bool
 	}
 }
 
-func countVerifiedExactOffers(offers []bookingmatch.BookingOffer) int {
-	n := 0
-	for _, o := range offers {
-		if o.VerificationStatus == bookingmatch.StatusVerifiedExact {
-			n++
-		}
-	}
-	return n
-}
-
 func acquireBookingResolveSlot(ctx context.Context) error {
 	select {
 	case bookingResolveSem <- struct{}{}:
@@ -405,50 +442,84 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
 	start := time.Now()
 	legRoute := legRouteLabel(it)
+	q := quoteBindingFromOption(session, option, legIndex)
+	normalize := bookingMatchPriceNormalizer()
 
-	// GF2 partner checkout first — direct airline/OTA links (pre-#78 behavior).
-	if gf2Offer := bookingGF2Resolver(ctx, session, option, it, legIndex, segmentIndex); gf2Offer != nil {
-		q := quoteBindingFromOption(session, option, legIndex)
-		extractedBeforeQuote := applySearchQuoteToOffer(gf2Offer, q)
-		offer := publicOfferFromMatch(gf2Offer, false)
-		if offer != nil {
-			offer.PriceLabel = "google_flights_partner"
-			resp := BookingResolveResponse{
-				Found:                true,
-				Status:               BookingResolveVerified,
-				ItineraryFingerprint: fp,
-				Offer:                offer,
+	var (
+		gf2Offer    *bookingmatch.BookingOffer
+		matchResult *bookingmatch.MatchResult
+		matchErr    error
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gf2Offer = bookingGF2Resolver(ctx, session, option, it, legIndex, segmentIndex)
+	}()
+
+	if webBookingMatchEnabled() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			matchResult, matchErr = bookingMatchRunner(ctx, it)
+		}()
+	}
+
+	wg.Wait()
+
+	offers := collectVerifiedBookingOffers(gf2Offer, matchResult)
+	if len(offers) > 0 {
+		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
+		if best != nil {
+			extractedBeforeQuote := applySearchQuoteToOffer(best, q)
+			hadMultiple := len(offers) > 1
+			offer := publicOfferFromMatch(best, hadMultiple)
+			if offer != nil {
+				if hadMultiple {
+					offer.PriceLabel = "cheapest_matching_offer"
+				} else if bookingOfferSameURL(best, gf2Offer) {
+					offer.PriceLabel = "google_flights_partner"
+				} else if extractedBeforeQuote == nil {
+					offer.PriceLabel = "search_quote"
+				}
+				event := "resolve_verified"
+				if hadMultiple {
+					event = "resolve_verified_cheapest"
+				} else if bookingOfferSameURL(best, gf2Offer) {
+					event = "resolve_verified_gf2"
+				}
+				resp := BookingResolveResponse{
+					Found:                true,
+					Status:               BookingResolveVerified,
+					ItineraryFingerprint: fp,
+					Offer:                offer,
+				}
+				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
+				logBookingResolve(bookingResolveLogEvent{
+					Event:                event,
+					ItineraryFingerprint: fp,
+					LegIndex:             intPtrOrNil(legIndex),
+					LegRoute:             legRoute,
+					Status:               resp.Status,
+					Provider:             offer.Provider,
+					DurationMs:           time.Since(start).Milliseconds(),
+				})
+				return resp
 			}
-			resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
-			logBookingResolve(bookingResolveLogEvent{
-				Event:                "resolve_verified_gf2",
-				ItineraryFingerprint: fp,
-				LegIndex:             intPtrOrNil(legIndex),
-				LegRoute:             legRoute,
-				Status:               resp.Status,
-				Provider:             offer.Provider,
-				DurationMs:           time.Since(start).Milliseconds(),
-			})
-			return resp
 		}
 	}
 
-	// SerpAPI web search only when GF2 partner checkout could not produce a link.
-	var matchResult *bookingmatch.MatchResult
-	var err error
-	if googleFlights2Provider == nil {
-		matchResult, err = bookingMatchRunner(ctx, it)
-	}
-	if err != nil {
+	if matchErr != nil && len(offers) == 0 {
 		resp := BookingResolveResponse{
 			Found:                false,
 			ItineraryFingerprint: fp,
 			Message:              "Booking search is temporarily unavailable.",
 		}
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		if errors.Is(matchErr, context.DeadlineExceeded) || errors.Is(matchErr, context.Canceled) {
 			resp.Status = BookingResolveTimeout
 			resp.Message = "Booking search timed out. Please try again."
-		} else if errors.Is(err, errBookingSearchUnavailable) {
+		} else if errors.Is(matchErr, errBookingSearchUnavailable) {
 			resp.Status = BookingResolveSearchUnavailable
 			resp.Message = "Exact-flight booking search is not configured on this server."
 		} else {
@@ -461,93 +532,49 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			LegRoute:             legRoute,
 			Status:               resp.Status,
 			DurationMs:           time.Since(start).Milliseconds(),
-			FailureReason:        err.Error(),
+			FailureReason:        matchErr.Error(),
 		})
 		return resp
 	}
 
-	if matchResult == nil || matchResult.BestOffer == nil {
-		if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" {
-			if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
-				offer := publicOfferFromMatch(gf2Prefill, false)
-				if offer != nil {
-					offer.PriceLabel = "search_prefill"
-					offer.MatchConfidence = 0
-					resp := BookingResolveResponse{
-						Found:                true,
-						Status:               BookingResolveVerified,
-						ItineraryFingerprint: fp,
-						Offer:                offer,
-						Message:              "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying.",
-					}
-					logBookingResolve(bookingResolveLogEvent{
-						Event:                "resolve_verified_prefill",
-						ItineraryFingerprint: fp,
-						LegIndex:             intPtrOrNil(legIndex),
-						LegRoute:             legRoute,
-						Status:               resp.Status,
-						Provider:             offer.Provider,
-						DurationMs:           time.Since(start).Milliseconds(),
-					})
-					return resp
+	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" {
+		if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
+			offer := publicOfferFromMatch(gf2Prefill, false)
+			if offer != nil {
+				offer.PriceLabel = "search_prefill"
+				offer.MatchConfidence = 0
+				resp := BookingResolveResponse{
+					Found:                true,
+					Status:               BookingResolveVerified,
+					ItineraryFingerprint: fp,
+					Offer:                offer,
+					Message:              "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying.",
 				}
+				logBookingResolve(bookingResolveLogEvent{
+					Event:                "resolve_verified_prefill",
+					ItineraryFingerprint: fp,
+					LegIndex:             intPtrOrNil(legIndex),
+					LegRoute:             legRoute,
+					Status:               resp.Status,
+					Provider:             offer.Provider,
+					DurationMs:           time.Since(start).Milliseconds(),
+				})
+				return resp
 			}
 		}
-		resp := BookingResolveResponse{
-			Found:                false,
-			Status:               BookingResolveNotFound,
-			ItineraryFingerprint: fp,
-			Message:              "No verified booking offer found yet",
-		}
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_not_found",
-			ItineraryFingerprint: fp,
-			LegIndex:             intPtrOrNil(legIndex),
-			LegRoute:             legRoute,
-			Status:               resp.Status,
-			DurationMs:           time.Since(start).Milliseconds(),
-		})
-		return resp
 	}
-
-	verifiedCount := countVerifiedExactOffers(matchResult.Offers)
-	q := quoteBindingFromOption(session, option, legIndex)
-	extractedBeforeQuote := applySearchQuoteToOffer(matchResult.BestOffer, q)
-	offer := publicOfferFromMatch(matchResult.BestOffer, verifiedCount > 1)
-	if offer == nil {
-		resp := BookingResolveResponse{
-			Found:                false,
-			Status:               BookingResolveNotFound,
-			ItineraryFingerprint: fp,
-			Message:              "No safe verified booking URL found for this exact itinerary.",
-		}
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_unsafe_url",
-			ItineraryFingerprint: fp,
-			Status:               resp.Status,
-			DurationMs:           time.Since(start).Milliseconds(),
-			FailureReason:        "verified offer failed URL validation",
-		})
-		return resp
-	}
-	if extractedBeforeQuote == nil {
-		offer.PriceLabel = "search_quote"
-	}
-
 	resp := BookingResolveResponse{
-		Found:                true,
-		Status:               BookingResolveVerified,
+		Found:                false,
+		Status:               BookingResolveNotFound,
 		ItineraryFingerprint: fp,
-		Offer:                offer,
+		Message:              "No verified booking offer found yet",
 	}
-	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 	logBookingResolve(bookingResolveLogEvent{
-		Event:                "resolve_verified",
+		Event:                "resolve_not_found",
 		ItineraryFingerprint: fp,
 		LegIndex:             intPtrOrNil(legIndex),
 		LegRoute:             legRoute,
 		Status:               resp.Status,
-		Provider:             offer.Provider,
 		DurationMs:           time.Since(start).Milliseconds(),
 	})
 	return resp

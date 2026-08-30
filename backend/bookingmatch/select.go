@@ -159,3 +159,62 @@ func SelectBestOffer(offers []BookingOffer, normalize PriceNormalizer, quote *Qu
 	best := unpriced[0].offer
 	return &best
 }
+
+// SelectCheapestVerifiedOffer picks the lowest-price verified exact booking URL.
+// Unpriced verified offers are kept only when no priced candidate exists.
+func SelectCheapestVerifiedOffer(offers []BookingOffer, normalize PriceNormalizer) *BookingOffer {
+	compareCurr := DefaultCompareCurrency
+
+	var verified []BookingOffer
+	for _, o := range offers {
+		if o.VerificationStatus != StatusVerifiedExact {
+			continue
+		}
+		if o.URLType == URLTypeGenericSearch {
+			continue
+		}
+		if err := ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
+		verified = append(verified, o)
+	}
+	if len(verified) == 0 {
+		return nil
+	}
+
+	var priced, unpriced []offerCandidate
+	for _, o := range verified {
+		c := offerCandidate{offer: o}
+		if np, ok := normalizedOfferPrice(o, compareCurr, normalize); ok {
+			c.hasPrice = true
+			c.normPrice = np
+			priced = append(priced, c)
+		} else {
+			unpriced = append(unpriced, c)
+		}
+	}
+
+	sortByCheapest := func(list []offerCandidate) {
+		sort.SliceStable(list, func(i, j int) bool {
+			a, b := list[i], list[j]
+			if a.hasPrice && b.hasPrice && a.normPrice != b.normPrice {
+				return a.normPrice < b.normPrice
+			}
+			ra, rb := urlTypeRank(a.offer.URLType), urlTypeRank(b.offer.URLType)
+			if ra != rb {
+				return ra < rb
+			}
+			return a.offer.MatchScore > b.offer.MatchScore
+		})
+	}
+
+	if len(priced) > 0 {
+		sortByCheapest(priced)
+		best := priced[0].offer
+		return &best
+	}
+
+	sortByCheapest(unpriced)
+	best := unpriced[0].offer
+	return &best
+}
