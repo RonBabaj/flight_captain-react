@@ -451,6 +451,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   search_deals: { en: 'Search deals', he: 'חפש דילים', ru: 'Искать предложения' },
   view_details: { en: 'View details', he: 'פרטים', ru: 'Подробнее' },
   close: { en: 'Close', he: 'סגור', ru: 'Закрыть' },
+  clear_field: { en: 'Clear', he: 'נקה', ru: 'Очистить' },
   done: { en: 'Done', he: 'סיום', ru: 'Готово' },
   select_dates: { en: 'Select dates', he: 'בחר תאריכים', ru: 'Выберите даты' },
   select_date: { en: 'Select date', he: 'בחר תאריך', ru: 'Выберите дату' },

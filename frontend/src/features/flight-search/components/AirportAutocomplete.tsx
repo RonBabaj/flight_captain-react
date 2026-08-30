@@ -51,7 +51,7 @@ export function AirportAutocomplete({
   countryMode = 'none',
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
-  const { language, t } = useLocale();
+  const { language, t, isRTL } = useLocale();
   const [query, setQuery] = useState(value);
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,6 +147,14 @@ export function AirportAutocomplete({
       'anywhere'.startsWith(query.trim().toLowerCase()) ||
       'everywhere'.startsWith(query.trim().toLowerCase()));
 
+  const showClear = query.length > 0;
+
+  const handleClear = () => {
+    setQuery('');
+    onChange('');
+    setShowList(false);
+  };
+
   const listVisible = showList && (
     (showAnywhere && queryMatchesAnywhere) ||
     (query.trim().length >= MIN_CHARS && results.length > 0)
@@ -159,6 +167,7 @@ export function AirportAutocomplete({
         <TextInput
           style={[
             styles.input,
+            showClear && (isRTL ? styles.inputWithClearRtl : styles.inputWithClear),
             {
               backgroundColor: theme.inputBg,
               borderColor: theme.inputBorder,
@@ -179,6 +188,17 @@ export function AirportAutocomplete({
             setShowList(false);
           }}
         />
+        {showClear ? (
+          <TouchableOpacity
+            style={[styles.clearBtn, isRTL ? styles.clearBtnRtl : styles.clearBtnLtr]}
+            onPress={handleClear}
+            hitSlop={8}
+            accessibilityLabel={t('clear_field')}
+            accessibilityRole="button"
+          >
+            <AppIcon name="close" size={18} color={theme.textMuted} fallbackText="×" />
+          </TouchableOpacity>
+        ) : null}
       </View>
       {query.trim().length > 0 && query.trim().length < MIN_CHARS && !queryMatchesAnywhere && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
@@ -274,6 +294,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 18,
   },
+  inputWithClear: { paddingRight: 44 },
+  inputWithClearRtl: { paddingLeft: 44 },
+  clearBtn: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  clearBtnLtr: { right: 0 },
+  clearBtnRtl: { left: 0 },
   hint: { fontSize: 13, marginTop: 6 },
   dropdownWrap: { marginTop: 8, zIndex: 1000, elevation: 8 },
   dropdownCard: {
