@@ -38,6 +38,14 @@ export interface BookingResolveResponse {
   quotedCurrency?: string;
   priceMismatch?: boolean;
   candidatesConsidered?: number;
+  alternatives?: PublicBookingAlternative[];
+}
+
+export interface PublicBookingAlternative {
+  provider: string;
+  domain: string;
+  price?: number;
+  currency?: string;
 }
 
 export interface BookingResolveRequest {

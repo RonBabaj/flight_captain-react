@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -91,8 +92,11 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
 		offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote)
 		if offer != nil && gf2OffersHavePrice(offers) {
-			offer.Price = nil
-			offer.Currency = ""
+			carrier := marketingCarrierForLegIndex(option, legIndex)
+			if !airlineDomainForCarrier(offer.Domain, carrier) {
+				offer.Price = nil
+				offer.Currency = ""
+			}
 		}
 		addOffer(offer)
 	}
@@ -101,11 +105,21 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 			if u := normalizeProviderBookingURL(raw); u != "" && search.IsLikelyPartnerCheckoutURL(u) {
 				offer := gf2PartnerOfferFromQuoteURL(u, fp, quote)
 				if offer != nil && gf2OffersHavePrice(offers) {
-					offer.Price = nil
-					offer.Currency = ""
+					carrier := marketingCarrierForLegIndex(option, legIndex)
+					if !airlineDomainForCarrier(offer.Domain, carrier) {
+						offer.Price = nil
+						offer.Currency = ""
+					}
 				}
 				addOffer(offer)
 			}
+		}
+	}
+
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	if carrier != "" && !offersIncludeAirlineDirect(offers, carrier) {
+		if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+			addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
 		}
 	}
 
@@ -269,6 +283,177 @@ func partnerDomainMatchesCarrier(domain, carrier string) bool {
 		}
 	}
 	return true
+}
+
+// airlineDomainForCarrier is true when domain belongs to the marketing carrier's own booking site.
+func airlineDomainForCarrier(domain, carrier string) bool {
+	domain = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(domain), "www."))
+	carrier = strings.ToUpper(strings.TrimSpace(carrier))
+	if domain == "" || carrier == "" {
+		return false
+	}
+	checks := []struct{ carrier, domain string }{
+		{"LY", "elal.co.il"},
+		{"LY", "elal.com"},
+		{"OS", "austrian.com"},
+		{"LH", "lufthansa.com"},
+		{"LX", "swiss.com"},
+		{"BA", "britishairways.com"},
+		{"AF", "airfrance.com"},
+		{"KL", "klm.com"},
+		{"UA", "united.com"},
+		{"AA", "aa.com"},
+		{"DL", "delta.com"},
+		{"FR", "ryanair.com"},
+		{"W6", "wizzair.com"},
+	}
+	for _, chk := range checks {
+		if carrier == chk.carrier && strings.Contains(domain, chk.domain) {
+			return true
+		}
+	}
+	return false
+}
+
+func marketingCarrierForLegIndex(option *FlightOption, legIndex int) string {
+	if legIndex >= 0 {
+		return marketingCarrierForLeg(option, legIndex)
+	}
+	if option == nil || len(option.Legs) == 0 {
+		return ""
+	}
+	return marketingCarrierForLeg(option, 0)
+}
+
+func offersIncludeAirlineDirect(offers []bookingmatch.BookingOffer, carrier string) bool {
+	for _, o := range offers {
+		if airlineDomainForCarrier(o.Domain, carrier) || airlineDomainForCarrier(o.Provider, carrier) {
+			return true
+		}
+	}
+	return false
+}
+
+// preferAirlineDirectOverOTAAboveQuote picks airline checkout when the cheapest OTA exceeds the search quote.
+func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offers []bookingmatch.BookingOffer, quote search.QuoteBinding, carrier string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	if best == nil || quote.Amount <= 0 || carrier == "" {
+		return best
+	}
+	if airlineDomainForCarrier(best.Domain, carrier) || airlineDomainForCarrier(best.Provider, carrier) {
+		return best
+	}
+	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
+	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) {
+		return best
+	}
+
+	var airlinePick *bookingmatch.BookingOffer
+	var airlinePrice float64
+	hasAirlinePrice := false
+	for i := range offers {
+		o := &offers[i]
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			continue
+		}
+		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		if np, ok := normalizedGF2OfferPrice(*o, normalize); ok {
+			if !hasAirlinePrice || np < airlinePrice {
+				airlinePick = o
+				airlinePrice = np
+				hasAirlinePrice = true
+			}
+		} else if airlinePick == nil {
+			airlinePick = o
+		}
+	}
+	if airlinePick == nil {
+		return best
+	}
+	if hasAirlinePrice && airlinePrice >= otaPrice {
+		return best
+	}
+	return airlinePick
+}
+
+func normalizedGF2OfferPrice(o bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer) (float64, bool) {
+	if o.Price == nil || *o.Price <= 0 {
+		return 0, false
+	}
+	from := o.Currency
+	if from == "" {
+		from = bookingmatch.DefaultCompareCurrency
+	}
+	if normalize == nil {
+		return *o.Price, true
+	}
+	amount, cur := normalize(*o.Price, from, bookingmatch.DefaultCompareCurrency)
+	if amount <= 0 {
+		return 0, false
+	}
+	if cur == "" {
+		cur = bookingmatch.DefaultCompareCurrency
+	}
+	return amount, true
+}
+
+func publicAlternativesFromOffers(offers []bookingmatch.BookingOffer, best *bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer, limit int) []PublicBookingAlternative {
+	if best == nil || limit <= 0 {
+		return nil
+	}
+	bestURL := strings.ToLower(strings.TrimSpace(best.URL))
+	type altCandidate struct {
+		alt   PublicBookingAlternative
+		price float64
+		has   bool
+	}
+	var cands []altCandidate
+	for _, o := range offers {
+		if strings.ToLower(strings.TrimSpace(o.URL)) == bestURL {
+			continue
+		}
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			continue
+		}
+		alt := PublicBookingAlternative{
+			Provider: strings.TrimSpace(o.Provider),
+			Domain:   strings.TrimSpace(o.Domain),
+			Currency: o.Currency,
+		}
+		if alt.Provider == "" {
+			alt.Provider = alt.Domain
+		}
+		c := altCandidate{alt: alt}
+		if o.Price != nil {
+			p := *o.Price
+			alt.Price = &p
+			c.alt = alt
+			if np, ok := normalizedGF2OfferPrice(o, normalize); ok {
+				c.price = np
+				c.has = true
+			}
+		}
+		cands = append(cands, c)
+	}
+	sort.SliceStable(cands, func(i, j int) bool {
+		a, b := cands[i], cands[j]
+		if a.has && b.has && a.price != b.price {
+			return a.price < b.price
+		}
+		if a.has != b.has {
+			return a.has
+		}
+		return strings.ToLower(a.alt.Domain) < strings.ToLower(b.alt.Domain)
+	})
+	if len(cands) > limit {
+		cands = cands[:limit]
+	}
+	out := make([]PublicBookingAlternative, len(cands))
+	for i, c := range cands {
+		out[i] = c.alt
+	}
+	return out
 }
 
 func quoteBindingFromOption(session *SearchSession, option *FlightOption, legIndex int) search.QuoteBinding {
