@@ -283,31 +283,29 @@ export function FlightResultCard({
             </Text>
           ))}
           {isRoundTrip && returnRouteStr ? (
-            <>
-              {returnSummary ? (
-                <LegScheduleBlock
-                  summary={returnSummary}
-                  routeStr={returnRouteStr}
-                  routeColor={theme.textMuted}
-                  showTimes
-                  t={t}
-                  theme={theme}
-                  isRTL={isRTL}
-                />
-              ) : (
-                <Text
-                  style={[
-                    c.route,
-                    { color: missingReturnLeg ? theme.error || '#b45309' : theme.textMuted },
-                    isRTL && { textAlign: 'right' },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {returnRouteStr}
-                  {missingReturnLeg ? ` (${t('return_leg_unavailable')})` : ''}
-                </Text>
-              )}
-            </>
+            returnSummary ? (
+              <LegScheduleBlock
+                summary={returnSummary}
+                routeStr={returnRouteStr}
+                routeColor={theme.textMuted}
+                showTimes
+                t={t}
+                theme={theme}
+                isRTL={isRTL}
+              />
+            ) : (
+              <Text
+                style={[
+                  c.route,
+                  { color: missingReturnLeg ? theme.error || '#b45309' : theme.textMuted },
+                  isRTL && { textAlign: 'right' },
+                ]}
+                numberOfLines={1}
+              >
+                {returnRouteStr}
+                {missingReturnLeg ? ` (${t('return_leg_unavailable')})` : ''}
+              </Text>
+            )
           ) : null}
           {outboundDate ? (
             <Text style={[c.dateStr, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
