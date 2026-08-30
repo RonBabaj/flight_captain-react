@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
-  TextInput,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { AppIcon } from '../../../components/AppIcon';
 import { getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
 import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
@@ -51,7 +51,7 @@ export function AirportAutocomplete({
   countryMode = 'none',
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
-  const { language, t, isRTL } = useLocale();
+  const { language, t } = useLocale();
   const [query, setQuery] = useState(value);
   const [showList, setShowList] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,14 +147,6 @@ export function AirportAutocomplete({
       'anywhere'.startsWith(query.trim().toLowerCase()) ||
       'everywhere'.startsWith(query.trim().toLowerCase()));
 
-  const showClear = query.length > 0;
-
-  const handleClear = () => {
-    setQuery('');
-    onChange('');
-    setShowList(false);
-  };
-
   const listVisible = showList && (
     (showAnywhere && queryMatchesAnywhere) ||
     (query.trim().length >= MIN_CHARS && results.length > 0)
@@ -163,43 +155,33 @@ export function AirportAutocomplete({
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          style={[
-            styles.input,
-            showClear && (isRTL ? styles.inputWithClearRtl : styles.inputWithClear),
-            {
-              backgroundColor: theme.inputBg,
-              borderColor: theme.inputBorder,
-              color: theme.text,
-            },
-          ]}
-          placeholder={placeholder ?? t('city_country_or_airport')}
-          placeholderTextColor={theme.textMuted}
-          value={query}
-          onChangeText={(text) => {
-            setQuery(text);
-            setShowList(true);
-          }}
-          onFocus={() => setShowList(true)}
-          onBlur={() => tryResolveTypedQuery()}
-          onSubmitEditing={() => {
-            tryResolveTypedQuery();
-            setShowList(false);
-          }}
-        />
-        {showClear ? (
-          <TouchableOpacity
-            style={[styles.clearBtn, isRTL ? styles.clearBtnRtl : styles.clearBtnLtr]}
-            onPress={handleClear}
-            hitSlop={8}
-            accessibilityLabel={t('clear_field')}
-            accessibilityRole="button"
-          >
-            <AppIcon name="close" size={18} color={theme.textMuted} fallbackText="×" />
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      <ClearableTextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.inputBg,
+            borderColor: theme.inputBorder,
+            color: theme.text,
+          },
+        ]}
+        placeholder={placeholder ?? t('city_country_or_airport')}
+        placeholderTextColor={theme.textMuted}
+        value={query}
+        onChangeText={(text) => {
+          setQuery(text);
+          setShowList(true);
+        }}
+        onClear={() => {
+          onChange('');
+          setShowList(false);
+        }}
+        onFocus={() => setShowList(true)}
+        onBlur={() => tryResolveTypedQuery()}
+        onSubmitEditing={() => {
+          tryResolveTypedQuery();
+          setShowList(false);
+        }}
+      />
       {query.trim().length > 0 && query.trim().length < MIN_CHARS && !queryMatchesAnywhere && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
           {t('type_min_chars').replace('{n}', String(MIN_CHARS))}
@@ -286,7 +268,6 @@ export function AirportAutocomplete({
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  inputWrap: { position: 'relative' },
   input: {
     borderWidth: 1,
     borderRadius: 12,
@@ -294,17 +275,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 18,
   },
-  inputWithClear: { paddingRight: 44 },
-  inputWithClearRtl: { paddingLeft: 44 },
-  clearBtn: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  clearBtnLtr: { right: 0 },
-  clearBtnRtl: { left: 0 },
   hint: { fontSize: 13, marginTop: 6 },
   dropdownWrap: { marginTop: 8, zIndex: 1000, elevation: 8 },
   dropdownCard: {

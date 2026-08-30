@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -62,11 +62,12 @@ export function LoginForm({
       <Text style={[styles.title, { color: theme.text }]}>{t('auth_login_title')}</Text>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>{t('auth_login_subtitle')}</Text>
       <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_email_label')}</Text>
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={email}
         onChangeText={setEmail}
         placeholder={t('auth_email_placeholder')}
@@ -77,11 +78,12 @@ export function LoginForm({
         textContentType="username"
       />
       <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_password_label')}</Text>
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={password}
         onChangeText={setPassword}
         placeholder={t('auth_password_placeholder')}
@@ -167,11 +169,12 @@ export function RegisterForm({
       <Text style={[styles.title, { color: theme.text }]}>{t('auth_register_title')}</Text>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>{t('auth_register_subtitle')}</Text>
       <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_email_label')}</Text>
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={email}
         onChangeText={setEmail}
         placeholder={t('auth_email_placeholder')}
@@ -180,11 +183,12 @@ export function RegisterForm({
         keyboardType="email-address"
       />
       <Text style={[styles.label, { color: theme.textMuted }]}>{t('auth_password_label')}</Text>
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={password}
         onChangeText={setPassword}
         placeholder={t('auth_new_password_placeholder')}
@@ -192,11 +196,12 @@ export function RegisterForm({
         secureTextEntry
         autoCapitalize="none"
       />
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         placeholder={t('auth_confirm_password_placeholder')}
@@ -270,11 +275,12 @@ export function ChangePasswordForm({ compact }: { compact?: boolean }) {
     >
       <Text style={[styles.title, { color: theme.text }]}>{t('auth_change_password_title')}</Text>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>{t('auth_change_password_subtitle')}</Text>
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={currentPassword}
         onChangeText={setCurrentPassword}
         placeholder={t('auth_current_password_placeholder')}
@@ -282,11 +288,12 @@ export function ChangePasswordForm({ compact }: { compact?: boolean }) {
         secureTextEntry
         autoCapitalize="none"
       />
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={newPassword}
         onChangeText={setNewPassword}
         placeholder={t('auth_new_password_placeholder')}
@@ -294,11 +301,12 @@ export function ChangePasswordForm({ compact }: { compact?: boolean }) {
         secureTextEntry
         autoCapitalize="none"
       />
-      <TextInput
+      <ClearableTextInput
         style={[
           styles.input,
           { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
+        containerStyle={styles.inputContainer}
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         placeholder={t('auth_confirm_password_placeholder')}
@@ -341,8 +349,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 15,
-    marginBottom: 8,
   },
+  inputContainer: { marginBottom: 8 },
   primaryBtn: {
     borderRadius: 10,
     paddingHorizontal: 18,

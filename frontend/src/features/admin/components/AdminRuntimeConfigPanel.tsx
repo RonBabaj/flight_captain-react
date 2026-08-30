@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -56,7 +56,7 @@ function ConfigFieldRow({
       <Text style={[styles.fieldLabel, { color: theme.text }]}>{t(field.labelKey)}</Text>
       <Text style={[styles.fieldDesc, { color: theme.textMuted }]}>{t(field.descriptionKey)}</Text>
       <View style={styles.fieldInputRow}>
-        <TextInput
+        <ClearableTextInput
           style={[
             styles.fieldInput,
             {
@@ -65,6 +65,7 @@ function ConfigFieldRow({
               backgroundColor: theme.cardBg,
             },
           ]}
+          containerStyle={styles.fieldInputWrap}
           value={text}
           keyboardType="numeric"
           onChangeText={(raw) => {
@@ -245,8 +246,8 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   fieldDesc: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
   fieldInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fieldInputWrap: { flex: 1 },
   fieldInput: {
-    flex: 1,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,

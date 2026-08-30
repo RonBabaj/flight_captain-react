@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
-  TextInput,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { AppIcon } from '../../../components/AppIcon';
 import { searchAirportsLocal } from '../../../data/airports';
 import { useTheme } from '../../../theme/ThemeContext';
@@ -58,16 +58,18 @@ export function AirportInput({ label, value, onChange, placeholder }: Props) {
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
-          placeholder={placeholder}
-          value={query}
-          onChangeText={text => setQuery(text)}
-          placeholderTextColor={theme.textMuted}
-          onFocus={openPopup}
-        />
-      </View>
+      <ClearableTextInput
+        style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text }]}
+        placeholder={placeholder}
+        value={query}
+        onChangeText={(text) => setQuery(text)}
+        onClear={() => {
+          onChange('');
+          setShowList(false);
+        }}
+        placeholderTextColor={theme.textMuted}
+        onFocus={openPopup}
+      />
 
       {listVisible && (
         <View style={styles.inlineListWrap}>
@@ -122,7 +124,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  inputWrap: { position: 'relative' },
   input: {
     borderWidth: 1,
     borderRadius: 12,
