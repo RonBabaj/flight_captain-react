@@ -128,7 +128,12 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 		}
 		if injectAirline {
 			if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
-				addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
+				if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
+					// Affiliate templates are search forms, not GF2-verified checkout deeplinks.
+					offer.URLType = bookingmatch.URLTypeExactSearch
+					offer.VerificationStatus = bookingmatch.StatusPartial
+					addOffer(offer)
+				}
 			}
 		}
 	}
@@ -368,6 +373,9 @@ func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offer
 		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
 			continue
 		}
+		if isAffiliateTemplateBookingURL(o.URL) {
+			continue
+		}
 		if np, ok := normalizedGF2OfferPrice(*o, normalize); ok {
 			if !hasAirlinePrice || np < airlinePrice {
 				airlinePick = o
@@ -384,6 +392,65 @@ func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offer
 	// Meta OTAs above the search quote are often marked up; airline direct is the better path
 	// even when GF2 shows a higher airline price (checkout may match search/Skyscanner).
 	return airlinePick
+}
+
+// isAffiliateTemplateBookingURL is true for synthetic airline search URLs built from provider templates
+// (not live GF2 partner checkout deeplinks). El Al rejects these with "Request is not allowed."
+func isAffiliateTemplateBookingURL(raw string) bool {
+	u := strings.ToLower(strings.TrimSpace(raw))
+	if u == "" || strings.Contains(u, "/checkout") {
+		return false
+	}
+	if strings.Contains(u, "elal") && strings.Contains(u, "/booking/flights") && strings.Contains(u, "origin=") {
+		return true
+	}
+	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {
+		return true
+	}
+	return false
+}
+
+// skyscannerOfferWhenOTAMarkedUp returns a Skyscanner prefill offer when the cheapest verified checkout
+// exceeds the search quote and there is no real airline direct checkout deeplink.
+func skyscannerOfferWhenOTAMarkedUp(session *SearchSession, option *FlightOption, fp string, legIndex, segmentIndex int, best *bookingmatch.BookingOffer, offers []bookingmatch.BookingOffer, quote search.QuoteBinding, carrier string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	if best == nil || quote.Amount <= 0 {
+		return nil
+	}
+	if airlineDomainForCarrier(best.Domain, carrier) || airlineDomainForCarrier(best.Provider, carrier) {
+		return nil
+	}
+	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
+	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) || otaPrice <= quote.Amount {
+		return nil
+	}
+	for i := range offers {
+		o := &offers[i]
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact || o.URLType != bookingmatch.URLTypeExactBooking {
+			continue
+		}
+		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		if isAffiliateTemplateBookingURL(o.URL) {
+			continue
+		}
+		return nil
+	}
+	sky := BuildSkyscannerLegPrefillURL(session, option, legIndex, segmentIndex)
+	if sky == "" {
+		return nil
+	}
+	offer := gf2PartnerOfferFromURL(sky, fp)
+	if offer == nil {
+		return nil
+	}
+	offer.URLType = bookingmatch.URLTypeExactSearch
+	p := quote.Amount
+	offer.Price = &p
+	if quote.Currency != "" {
+		offer.Currency = quote.Currency
+	}
+	return offer
 }
 
 func normalizedGF2OfferPrice(o bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer) (float64, bool) {

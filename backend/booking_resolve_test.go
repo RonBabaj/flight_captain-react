@@ -602,3 +602,62 @@ func TestRunBookingMatch_prefersAirlineDirectOverCheaperOTAWhenOTAAboveQuote(t *
 	}
 }
 
+func TestRunBookingMatch_prefersSkyscannerWhenOTAMarkedUpWithoutAirlineCheckout(t *testing.T) {
+	dep := time.Date(2027, 1, 14, 19, 5, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "SZG", To: "TLV",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LY", FlightNumber: "LY5194",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	budgetair := 324.0
+
+	oldGF2 := bookingGF2OffersResolver
+	defer func() { bookingGF2OffersResolver = oldGF2 }()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{
+			{
+				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &budgetair, Currency: "USD",
+				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			},
+		}
+	}
+
+	opt := &FlightOption{
+		Price:     MonetaryAmount{Amount: 465, Currency: "USD"},
+		LegPrices: []float64{288},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY5194",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected verified offer, got %+v", resp)
+	}
+	if !strings.Contains(resp.Offer.URL, "skyscanner.net") {
+		t.Fatalf("expected Skyscanner fallback over marked-up budgetair, got %+v", resp.Offer)
+	}
+	if resp.Offer.PriceLabel != "search_prefill" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+}
+
+func TestIsAffiliateTemplateBookingURL(t *testing.T) {
+	if !isAffiliateTemplateBookingURL("https://book.elal.com/en/booking/flights?origin=SZG&destination=TLV&departureDate=2027-01-14") {
+		t.Fatal("expected elal template URL")
+	}
+	if isAffiliateTemplateBookingURL("https://booking.elal.co.il/checkout/szg-tlv") {
+		t.Fatal("checkout deeplink is not a template")
+	}
+}
+

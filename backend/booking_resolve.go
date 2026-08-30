@@ -511,6 +511,33 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
 		carrier := marketingCarrierForLegIndex(option, legIndex)
 		best = preferAirlineDirectOverOTAAboveQuote(best, offers, q, carrier, normalize)
+		if skyOffer := skyscannerOfferWhenOTAMarkedUp(session, option, fp, legIndex, segmentIndex, best, offers, q, carrier, normalize); skyOffer != nil {
+			hadMultiple := len(offers) > 1
+			offer := publicOfferFromMatch(skyOffer, hadMultiple)
+			if offer != nil {
+				offer.PriceLabel = "search_prefill"
+				offer.MatchConfidence = 0
+				resp := BookingResolveResponse{
+					Found:                true,
+					Status:               BookingResolveVerified,
+					ItineraryFingerprint: fp,
+					Offer:                offer,
+					Message:              "Partner checkout exceeds the search price. Opens Skyscanner to compare sellers — verify the fare before paying.",
+					CandidatesConsidered: len(offers),
+				}
+				logBookingResolve(bookingResolveLogEvent{
+					Event:                "resolve_verified_skyscanner_fallback",
+					ItineraryFingerprint: fp,
+					LegIndex:             intPtrOrNil(legIndex),
+					LegRoute:             legRoute,
+					Status:               resp.Status,
+					Provider:             offer.Provider,
+					CandidateCount:       len(offers),
+					DurationMs:           time.Since(start).Milliseconds(),
+				})
+				return resp
+			}
+		}
 		if best != nil {
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
 			extractedBeforeQuote := (*float64)(nil)
