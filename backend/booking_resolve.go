@@ -80,6 +80,7 @@ type bookingResolveLogEvent struct {
 	Provider             string `json:"provider,omitempty"`
 	DurationMs           int64  `json:"durationMs,omitempty"`
 	CacheHit             bool   `json:"cacheHit,omitempty"`
+	CandidateCount       int    `json:"candidateCount,omitempty"`
 	FailureReason        string `json:"failureReason,omitempty"`
 }
 
@@ -516,6 +517,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 					LegRoute:             legRoute,
 					Status:               resp.Status,
 					Provider:             offer.Provider,
+					CandidateCount:       len(offers),
 					DurationMs:           time.Since(start).Milliseconds(),
 				})
 				return resp

@@ -353,17 +353,17 @@ func (p *GoogleFlights2Provider) enrichResultsPartnerLinks(ctx context.Context, 
 		if !p.allowBooking() {
 			return
 		}
-		quote := QuoteBinding{
-			Amount:   r.Price.Amount,
-			Currency: r.Price.Currency,
-		}
-		resolved, err := p.ResolveQuotedPartnerBooking(ctx, tok, currency, quote)
-		if err != nil || resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+		partners, err := p.ResolveAllPartnerBookingsFromToken(ctx, tok, currency)
+		if err != nil || len(partners) == 0 {
 			continue
 		}
-		r.DeepLink = resolved.URL
-		if strings.TrimSpace(r.VendorName) == "" && strings.TrimSpace(resolved.Provider) != "" {
-			r.VendorName = resolved.Provider
+		cheapest := SelectCheapestResolvedPartner(partners)
+		if cheapest == nil || strings.TrimSpace(cheapest.URL) == "" {
+			continue
+		}
+		r.DeepLink = cheapest.URL
+		if strings.TrimSpace(r.VendorName) == "" && strings.TrimSpace(cheapest.Provider) != "" {
+			r.VendorName = cheapest.Provider
 		}
 	}
 }

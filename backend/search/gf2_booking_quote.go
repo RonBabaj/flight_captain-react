@@ -154,6 +154,33 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsFromToken(ctx context.
 	return nil, fmt.Errorf("no partner bookings resolved from token")
 }
 
+// SelectCheapestResolvedPartner picks the lowest-price resolved partner booking.
+func SelectCheapestResolvedPartner(partners []ResolvedPartnerBooking) *ResolvedPartnerBooking {
+	if len(partners) == 0 {
+		return nil
+	}
+	bestIdx := 0
+	bestPrice := math.MaxFloat64
+	hasPrice := false
+	for i, p := range partners {
+		price := p.Price
+		if price <= 0 {
+			continue
+		}
+		hasPrice = true
+		if price < bestPrice {
+			bestPrice = price
+			bestIdx = i
+		}
+	}
+	if hasPrice {
+		p := partners[bestIdx]
+		return &p
+	}
+	p := partners[0]
+	return &p
+}
+
 func (p *GoogleFlights2Provider) resolveAllGF2BookingOptions(ctx context.Context, options []gf2BookingOption, currency string) ([]ResolvedPartnerBooking, error) {
 	valid := make([]gf2BookingOption, 0, len(options))
 	for _, o := range options {
