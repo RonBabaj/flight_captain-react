@@ -41,3 +41,41 @@ func ValidateBookingURL(raw string) error {
 	}
 	return nil
 }
+
+// IsNonBookableDomain reports tracker/info sites that must never be one-tap checkout targets.
+func IsNonBookableDomain(domain string) bool {
+	d := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(domain), "www."))
+	if d == "" {
+		return false
+	}
+	blocklist := []string{
+		"flightradar24.com",
+		"flightaware.com",
+		"planefinder.net",
+		"radarbox.com",
+		"wikipedia.org",
+		"wikidata.org",
+		"reddit.com",
+		"youtube.com",
+		"twitter.com",
+		"x.com",
+		"facebook.com",
+	}
+	for _, b := range blocklist {
+		if d == b || strings.HasSuffix(d, "."+b) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsCheckoutBookingURL is true for partner checkout deeplinks (not flight search/info pages).
+func IsCheckoutBookingURL(raw string) bool {
+	if err := ValidateBookingURL(raw); err != nil {
+		return false
+	}
+	if IsNonBookableDomain(domainFromURL(raw)) {
+		return false
+	}
+	return classifyURLType(raw) == URLTypeExactBooking
+}

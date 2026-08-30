@@ -2,6 +2,7 @@ package bookingmatch
 
 import (
 	"sort"
+	"strings"
 
 	"flightcaptainweb/search"
 )
@@ -200,11 +201,17 @@ func SelectCheapestVerifiedOffer(offers []BookingOffer, normalize PriceNormalize
 			if a.hasPrice && b.hasPrice && a.normPrice != b.normPrice {
 				return a.normPrice < b.normPrice
 			}
+			if a.hasPrice != b.hasPrice {
+				return a.hasPrice
+			}
 			ra, rb := urlTypeRank(a.offer.URLType), urlTypeRank(b.offer.URLType)
 			if ra != rb {
 				return ra < rb
 			}
-			return a.offer.MatchScore > b.offer.MatchScore
+			if a.offer.MatchScore != b.offer.MatchScore {
+				return a.offer.MatchScore > b.offer.MatchScore
+			}
+			return strings.ToLower(a.offer.Domain) < strings.ToLower(b.offer.Domain)
 		})
 	}
 

@@ -61,15 +61,30 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	}
 
 	if token != "" && googleFlights2Provider != nil {
-		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsFromToken(ctx, token, currency); err == nil {
+		if resolved, err := resolveAllPartnerBookingsFromTokenWithRetry(ctx, token, currency); err == nil {
 			addResolved(resolved)
 		}
 	}
 
-	if googleFlights2Provider != nil {
+	supplementGF2Partners := func() {
+		if googleFlights2Provider == nil {
+			return
+		}
 		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForFingerprint(ctx, sreq, it, currency, quote); err == nil {
 			addResolved(resolved)
+		}
+	}
+
+	// Live re-search when the token returned nothing, or when checkout prices exceed the search quote
+	// (stale tokens often omit the current cheapest seller).
+	if len(offers) == 0 {
+		supplementGF2Partners()
+	} else if quote.Amount > 0 {
+		if best := bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer()); best != nil && best.Price != nil && *best.Price > 0 {
+			if !search.PricesMatchQuote(quote.Amount, *best.Price) {
+				supplementGF2Partners()
+			}
 		}
 	}
 
@@ -521,4 +536,23 @@ func resolveLegBookingRedirectURL(ctx context.Context, session *SearchSession, o
 		}
 	}
 	return bookingPrefillURL(session, option, legIndex, -1)
+}
+
+func resolveAllPartnerBookingsFromTokenWithRetry(ctx context.Context, token, currency string) ([]search.ResolvedPartnerBooking, error) {
+	if googleFlights2Provider == nil {
+		return nil, nil
+	}
+	resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsFromToken(ctx, token, currency)
+	if err == nil && len(resolved) > 0 {
+		return resolved, nil
+	}
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "rate limited") {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(300 * time.Millisecond):
+		}
+		return googleFlights2Provider.ResolveAllPartnerBookingsFromToken(ctx, token, currency)
+	}
+	return resolved, err
 }

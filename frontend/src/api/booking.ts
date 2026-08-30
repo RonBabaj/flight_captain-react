@@ -37,6 +37,7 @@ export interface BookingResolveResponse {
   quotedPrice?: number;
   quotedCurrency?: string;
   priceMismatch?: boolean;
+  candidatesConsidered?: number;
 }
 
 export interface BookingResolveRequest {

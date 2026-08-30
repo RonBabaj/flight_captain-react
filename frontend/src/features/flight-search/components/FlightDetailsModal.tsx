@@ -143,7 +143,7 @@ export function FlightDetailsModal({
             sessionId,
             option.id,
             legIndex != null && legIndex >= 0 ? legIndex : undefined,
-            undefined,
+            true,
             segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
           );
           setLegResolves((prev) => ({ ...prev, [key]: res }));
@@ -287,7 +287,9 @@ export function FlightDetailsModal({
             <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
               {isPrefill
                 ? t('search_prefill_hint')
-                : t('exact_itinerary_matched')}
+                : resolved.offer.priceLabel === 'cheapest_matching_offer'
+                  ? t('cheapest_matching_offer')
+                  : t('exact_itinerary_matched')}
               {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
                 : isPrefill && resolved.offer.domain
