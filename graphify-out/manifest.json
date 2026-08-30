@@ -868,15 +868,15 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1788082556.537845,
-    "seen": 1788082574.8973165,
-    "ast_hash": "11c4ed416a2753a2264909fcc8902166",
+    "mtime": 1788082830.1637125,
+    "seen": 1788082844.034485,
+    "ast_hash": "1b0d5eab45b38a747d8a148fde329594",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1788044231.1646624,
-    "seen": 1788082574.897318,
-    "ast_hash": "22f44fc399a280506b1abcd40d9f87c6",
+    "mtime": 1788082830.951706,
+    "seen": 1788082844.0345032,
+    "ast_hash": "778f82dba7dc7317927c13307f96d0c8",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -1210,9 +1210,9 @@
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve.go": {
-    "mtime": 1788044231.1646624,
-    "seen": 1788082574.8973136,
-    "ast_hash": "aaff2619295b1f6036a6d1b957f36070",
+    "mtime": 1788082830.1677127,
+    "seen": 1788082844.0344656,
+    "ast_hash": "7dc1f3f10941a59b030a5bd7a53e661f",
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve_test.go": {
