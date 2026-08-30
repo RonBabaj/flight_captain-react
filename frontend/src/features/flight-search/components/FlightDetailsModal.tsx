@@ -24,6 +24,7 @@ import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
+import { displayAirlineLabel, hasMultipleAirlines } from '../../../utils/displayAirlines';
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
@@ -408,7 +409,8 @@ export function FlightDetailsModal({
     || option.validatingAirlines?.[0]
     || option.legs?.[0]?.segments?.find((s) => s.marketingCarrier?.code)?.marketingCarrier?.code
     || '';
-  const airlineName = (carrierCode ? getAirlineName(carrierCode) : '') || carrierCode || '';
+  const airlineName = displayAirlineLabel(option) || (carrierCode ? getAirlineName(carrierCode) || carrierCode : '');
+  const multiAirline = hasMultipleAirlines(option);
 
   const passengers = passengerCount && passengerCount > 0 ? passengerCount : 1;
   // API price is per passenger. Total = pricePerPassenger * passengerCount.
@@ -563,9 +565,9 @@ export function FlightDetailsModal({
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
                     {option.source === 'kiwi' ? t('source_kiwi') : option.source === 'googleflights2' ? t('source_googleflights2') : option.source}
-                    {option.vendorName ? ` · ${option.vendorName}` : ''}
+                    {option.vendorName && !multiAirline ? ` · ${option.vendorName}` : ''}
                   </Text>
-                ) : option.vendorName ? (
+                ) : option.vendorName && !multiAirline ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
                     {t('via_vendor').replace('{vendor}', option.vendorName)}
                   </Text>

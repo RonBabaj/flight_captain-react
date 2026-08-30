@@ -109,6 +109,17 @@ func TestCombineOneWayBatches_openJawReturnDiversity(t *testing.T) {
 	if !hasDirectLY {
 		t.Fatalf("expected direct LY SZG→TLV return in open-jaw results, got %d combos", len(out))
 	}
+	for _, r := range out {
+		if len(r.Legs) < 2 {
+			continue
+		}
+		if r.Legs[0].Segments[0].MarketingCarrier == "OS" && r.Legs[1].Segments[0].MarketingCarrier == "LY" {
+			if len(r.ValidatingAirlines) < 2 || r.ValidatingAirlines[0] != "OS" || r.ValidatingAirlines[1] != "LY" {
+				t.Fatalf("open-jaw should list both carriers, got %v", r.ValidatingAirlines)
+			}
+			break
+		}
+	}
 }
 
 func TestCombineOneWayBatches_emptyBatch(t *testing.T) {

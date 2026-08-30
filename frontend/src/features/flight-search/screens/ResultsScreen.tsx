@@ -45,6 +45,7 @@ import {
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { classicSearchPayload } from '../../../utils/skyscanner';
 import { matchesStopsFilter } from '../../../utils/itineraryStops';
+import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
@@ -964,12 +965,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (filters.airlines.length > 0) {
       const set = new Set(filters.airlines.map((c) => c.toUpperCase()));
       list = list.filter((opt) => {
-        const primary =
-          opt.primaryDisplayCarrier ||
-          opt.validatingAirlines?.[0] ||
-          opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
-        if (!primary) return false;
-        return set.has(primary.toUpperCase());
+        const carriers = distinctMarketingCarriers(opt);
+        if (carriers.length === 0) return false;
+        return carriers.some((code) => set.has(code));
       });
     }
     if (filters.maxDurationMinutes != null) {
