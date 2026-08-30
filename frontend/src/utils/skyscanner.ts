@@ -63,21 +63,62 @@ export interface BookingHop {
   destination: string;
   date: string;
   legIndex: number;
+  /** Set when this hop is one segment of a multi-airline connecting leg. */
+  segmentIndex?: number;
+  carrier?: string;
+}
+
+function segmentCarrierCode(seg?: FlightLeg['segments'][0]): string {
+  return (seg?.marketingCarrier?.code || '').toUpperCase();
+}
+
+/** True when connecting segments use different marketing carriers (separate tickets). */
+export function legNeedsSegmentSplit(leg?: FlightLeg): boolean {
+  const segs = leg?.segments ?? [];
+  if (segs.length <= 1) return false;
+  const carriers = segs.map((s) => segmentCarrierCode(s)).filter(Boolean);
+  if (carriers.length <= 1) return false;
+  const first = carriers[0];
+  return carriers.some((c) => c !== first);
 }
 
 export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
   const hops: BookingHop[] = [];
-  (option.legs ?? []).forEach((leg, i) => {
+  (option.legs ?? []).forEach((leg, legIndex) => {
+    if (legNeedsSegmentSplit(leg)) {
+      (leg.segments ?? []).forEach((seg, segmentIndex) => {
+        const origin = (seg.from?.code || '').toUpperCase();
+        const destination = (seg.to?.code || '').toUpperCase();
+        const date = isoDatePrefix(seg.departureTime);
+        const carrier = segmentCarrierCode(seg);
+        if (origin && destination && date) {
+          hops.push({ origin, destination, date, legIndex, segmentIndex, carrier });
+        }
+      });
+      return;
+    }
     const first = firstSeg(leg);
     const last = lastSeg(leg);
     const origin = (first?.from?.code || '').toUpperCase();
     const destination = (last?.to?.code || '').toUpperCase();
     const date = isoDatePrefix(first?.departureTime);
     if (origin && destination && date) {
-      hops.push({ origin, destination, date, legIndex: i });
+      hops.push({ origin, destination, date, legIndex });
     }
   });
   return hops;
+}
+
+/** Per-hop booking cards when itinerary is split or segments need separate tickets. */
+export function needsPerHopBooking(
+  option?: { legs?: FlightLeg[] } | null,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): boolean {
+  if (isSplitBookingItinerary(option, searchParams)) return true;
+  const legCount = option?.legs?.length ?? 0;
+  if (legCount === 0) return false;
+  const hops = bookingHopsFromOption(option as FlightOption);
+  return hops.length > legCount;
 }
 
 /** Build a shareable URL for a specific flight including search params for session recovery. */

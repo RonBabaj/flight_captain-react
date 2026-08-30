@@ -19,7 +19,12 @@ export interface PublicBookingOffer {
   price?: number;
   currency?: string;
   matchConfidence: number;
-  priceLabel?: 'best_matching_price' | 'cheapest_matching_offer' | 'search_quote';
+  priceLabel?:
+    | 'best_matching_price'
+    | 'cheapest_matching_offer'
+    | 'search_quote'
+    | 'search_prefill'
+    | 'google_flights_partner';
   checkedAt: string;
 }
 
@@ -38,6 +43,7 @@ export interface BookingResolveRequest {
   sessionId: string;
   optionId: string;
   legIndex?: number;
+  segmentIndex?: number;
   force?: boolean;
 }
 
@@ -47,11 +53,15 @@ export async function resolveBookingOffer(
   optionId: string,
   legIndex?: number,
   force?: boolean,
+  segmentIndex?: number,
 ): Promise<BookingResolveResponse> {
   const base = getApiBase();
   const body: BookingResolveRequest = { sessionId, optionId };
   if (legIndex != null && legIndex >= 0) {
     body.legIndex = legIndex;
+  }
+  if (segmentIndex != null && segmentIndex >= 0) {
+    body.segmentIndex = segmentIndex;
   }
   if (force) {
     body.force = true;

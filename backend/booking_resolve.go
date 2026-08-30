@@ -30,10 +30,11 @@ const (
 
 // BookingResolveRequest identifies a flight option to match via web search.
 type BookingResolveRequest struct {
-	SessionID string `json:"sessionId"`
-	OptionID  string `json:"optionId"`
-	LegIndex  *int   `json:"legIndex,omitempty"`
-	Force     bool   `json:"force,omitempty"`
+	SessionID    string `json:"sessionId"`
+	OptionID     string `json:"optionId"`
+	LegIndex     *int   `json:"legIndex,omitempty"`
+	SegmentIndex *int   `json:"segmentIndex,omitempty"`
+	Force        bool   `json:"force,omitempty"`
 }
 
 // PublicBookingOffer is the client-facing verified booking offer (no internal search details).
@@ -71,6 +72,7 @@ type bookingResolveLogEvent struct {
 	SessionID            string `json:"sessionId,omitempty"`
 	OptionID             string `json:"optionId,omitempty"`
 	LegIndex             *int   `json:"legIndex,omitempty"`
+	SegmentIndex         *int   `json:"segmentIndex,omitempty"`
 	LegRoute             string `json:"legRoute,omitempty"`
 	SegmentCount         int    `json:"segmentCount,omitempty"`
 	ItineraryFingerprint string `json:"itineraryFingerprint,omitempty"`
@@ -152,9 +154,30 @@ func defaultBookingMatchRunner(ctx context.Context, it search.CanonicalItinerary
 
 var errBookingSearchUnavailable = errors.New("web search not configured")
 
-func canonicalItineraryForOption(option *FlightOption, legIndex int) (search.CanonicalItinerary, error) {
+func canonicalItineraryForOption(option *FlightOption, legIndex int, segmentIndex int) (search.CanonicalItinerary, error) {
 	if option == nil {
 		return search.CanonicalItinerary{}, fmt.Errorf("missing option")
+	}
+	if legIndex >= 0 && segmentIndex >= 0 {
+		if legIndex >= len(option.Legs) {
+			return search.CanonicalItinerary{}, fmt.Errorf("legIndex out of range")
+		}
+		segs := option.Legs[legIndex].Segments
+		if segmentIndex >= len(segs) {
+			return search.CanonicalItinerary{}, fmt.Errorf("segmentIndex out of range")
+		}
+		single := &FlightOption{
+			Legs:   []FlightLeg{{Segments: []FlightSegment{segs[segmentIndex]}}},
+			Source: option.Source,
+			Price:  option.Price,
+		}
+		pr := providerResultFromFlightOption(single)
+		sub := search.BuildCanonicalItinerary(pr)
+		if len(sub.Segments) == 0 {
+			return search.CanonicalItinerary{}, fmt.Errorf("segment has no identity")
+		}
+		sub.StopsCount = 0
+		return sub, nil
 	}
 	// Always rebuild from leg segments so booking uses corrected flight identity
 	// (stored canonicalItinerary may predate carrier/name normalization fixes).
@@ -186,9 +209,12 @@ func canonicalItineraryForOption(option *FlightOption, legIndex int) (search.Can
 	return sub, nil
 }
 
-func bookingResolveCacheKey(fp string, legIndex int) string {
+func bookingResolveCacheKey(fp string, legIndex int, segmentIndex int) string {
 	if legIndex < 0 {
 		return fp
+	}
+	if segmentIndex >= 0 {
+		return fmt.Sprintf("%s:leg:%d:seg:%d", fp, legIndex, segmentIndex)
 	}
 	return fmt.Sprintf("%s:leg:%d", fp, legIndex)
 }
@@ -288,8 +314,8 @@ func releaseBookingResolveSlot() {
 	}
 }
 
-func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int, force bool) BookingResolveResponse {
-	it, err := canonicalItineraryForOption(option, legIndex)
+func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int, segmentIndex int, force bool) BookingResolveResponse {
+	it, err := canonicalItineraryForOption(option, legIndex, segmentIndex)
 	if err != nil {
 		return BookingResolveResponse{
 			Found:   false,
@@ -298,7 +324,7 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 		}
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
-	cacheKey := bookingResolveCacheKey(fp, legIndex)
+	cacheKey := bookingResolveCacheKey(fp, legIndex, segmentIndex)
 	if !force {
 		if cached, ok := getCachedBookingResolve(cacheKey); ok {
 			return cached
@@ -354,7 +380,7 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 		}
 	}
 
-	resp := runBookingMatch(ctx, session, option, it, fp, legIndex)
+	resp := runBookingMatch(ctx, session, option, it, fp, legIndex, segmentIndex)
 	waitEntry.resp = &resp
 	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
 		setCachedBookingResolve(cacheKey, resp, ttl)
@@ -376,12 +402,12 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 	bookingResolveInflight.Delete(key)
 }
 
-func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int) BookingResolveResponse {
+func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
 	start := time.Now()
 	legRoute := legRouteLabel(it)
 
 	// GF2 partner checkout first — direct airline/OTA links (pre-#78 behavior).
-	if gf2Offer := bookingGF2Resolver(ctx, session, option, it, legIndex); gf2Offer != nil {
+	if gf2Offer := bookingGF2Resolver(ctx, session, option, it, legIndex, segmentIndex); gf2Offer != nil {
 		q := quoteBindingFromOption(session, option, legIndex)
 		extractedBeforeQuote := applySearchQuoteToOffer(gf2Offer, q)
 		offer := publicOfferFromMatch(gf2Offer, false)
@@ -441,17 +467,18 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	if matchResult == nil || matchResult.BestOffer == nil {
-		if prefill := bookingPrefillURL(session, option, legIndex); prefill != "" {
+		if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" {
 			if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
 				offer := publicOfferFromMatch(gf2Prefill, false)
 				if offer != nil {
 					offer.PriceLabel = "search_prefill"
+					offer.MatchConfidence = 0
 					resp := BookingResolveResponse{
 						Found:                true,
 						Status:               BookingResolveVerified,
 						ItineraryFingerprint: fp,
 						Offer:                offer,
-						Message:              "Direct partner link unavailable. Opening a prefilled search — verify fare before paying.",
+						Message:              "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying.",
 					}
 					logBookingResolve(bookingResolveLogEvent{
 						Event:                "resolve_verified_prefill",
@@ -563,10 +590,14 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	if req.LegIndex != nil {
 		legIndex = *req.LegIndex
 	}
+	segmentIndex := -1
+	if req.SegmentIndex != nil {
+		segmentIndex = *req.SegmentIndex
+	}
 
 	if !req.Force {
 		if cached, ok := getCachedBookingResolve(bookingResolveCacheKey(
-			search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex)), legIndex)); ok {
+			search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex, segmentIndex)), legIndex, segmentIndex)); ok {
 			logBookingResolve(bookingResolveLogEvent{
 				Event:                "resolve_request",
 				SessionID:            sessionID,
@@ -584,7 +615,7 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)
 	defer cancel()
 
-	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex, req.Force)
+	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex, segmentIndex, req.Force)
 	statusCode := http.StatusOK
 	if out.Status == BookingResolveInvalidItinerary {
 		statusCode = http.StatusBadRequest
@@ -608,8 +639,8 @@ func providerFromOffer(o *PublicBookingOffer) string {
 	return o.Provider
 }
 
-func mustCanonicalForLog(option *FlightOption, legIndex int) search.CanonicalItinerary {
-	it, err := canonicalItineraryForOption(option, legIndex)
+func mustCanonicalForLog(option *FlightOption, legIndex int, segmentIndex int) search.CanonicalItinerary {
+	it, err := canonicalItineraryForOption(option, legIndex, segmentIndex)
 	if err != nil {
 		return search.CanonicalItinerary{}
 	}

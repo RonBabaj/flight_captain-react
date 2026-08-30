@@ -231,7 +231,7 @@ func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
 	}
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "EUR"}}
 
-	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1)
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1, -1)
 	if webSearchCalled {
 		t.Fatal("GF2 partner link should win without running web search")
 	}
@@ -274,7 +274,7 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
 	}
 	gf2Called := false
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
 		gf2Called = true
 		if search.CanonicalItineraryFingerprint(wantItin) != fp || legIndex != 0 {
 			t.Fatalf("search partner fingerprint=%s legIndex=%d", search.CanonicalItineraryFingerprint(wantItin), legIndex)
@@ -310,7 +310,7 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	}
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
 
-	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
 	if webSearchCalled {
 		t.Fatal("GF2 partner offer should return before web search")
 	}
@@ -350,7 +350,7 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
 	}
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
 		return &bookingmatch.BookingOffer{
 			Domain:             "mytrip.com",
 			URL:                "https://mytrip.com/checkout/tlv-vie",
@@ -375,7 +375,7 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 	}
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
 
-	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
 	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
 		t.Fatalf("expected persisted search-quote offer when web search errors, got %+v", resp)
 	}

@@ -28,6 +28,7 @@ import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
   isSplitBookingItinerary,
+  needsPerHopBooking,
 } from '../../../utils/skyscanner';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
@@ -122,10 +123,19 @@ export function FlightDetailsModal({
   const useFullScreen = isNarrow;
 
   const splitBooking = isSplitBookingItinerary(option, searchParams);
+  const perHopBooking = needsPerHopBooking(option, searchParams);
   const hops = option ? bookingHopsFromOption(option) : [];
 
-  const resolveStorageKey = (legIndex?: number) =>
-    legIndex != null && legIndex >= 0 ? String(legIndex) : 'full';
+  const resolveStorageKey = (legIndex?: number, segmentIndex?: number) => {
+    if (segmentIndex != null && segmentIndex >= 0) {
+      return `${legIndex ?? 0}:seg:${segmentIndex}`;
+    }
+    if (legIndex != null && legIndex >= 0) return String(legIndex);
+    return 'full';
+  };
+
+  const hopStorageKey = (hop: (typeof hops)[0]) =>
+    resolveStorageKey(hop.legIndex, hop.segmentIndex);
 
   useEffect(() => {
     setLegResolves({});
@@ -134,17 +144,19 @@ export function FlightDetailsModal({
 
   useEffect(() => {
     if (!visible || !option || !sessionId) return;
-    const keysToResolve = splitBooking && hops.length > 0
-      ? hops.map((hop) => hop.legIndex)
-      : [undefined];
-    for (const legIndex of keysToResolve) {
-      const key = resolveStorageKey(legIndex);
+    const keysToResolve = perHopBooking && hops.length > 0
+      ? hops.map((hop) => ({ legIndex: hop.legIndex, segmentIndex: hop.segmentIndex }))
+      : [{ legIndex: undefined, segmentIndex: undefined }];
+    for (const { legIndex, segmentIndex } of keysToResolve) {
+      const key = resolveStorageKey(legIndex, segmentIndex);
       void (async () => {
         try {
           const res = await resolveBookingOffer(
             sessionId,
             option.id,
             legIndex != null && legIndex >= 0 ? legIndex : undefined,
+            undefined,
+            segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
           );
           setLegResolves((prev) => ({ ...prev, [key]: res }));
         } catch {
@@ -152,7 +164,7 @@ export function FlightDetailsModal({
         }
       })();
     }
-  }, [visible, option?.id, sessionId, splitBooking, hops.length]);
+  }, [visible, option?.id, sessionId, perHopBooking, hops.length]);
 
   const handleShare = async () => {
     if (!option) return;
@@ -208,9 +220,9 @@ export function FlightDetailsModal({
     }
   };
 
-  const handleBookThisFlight = async (legIndex?: number) => {
+  const handleBookThisFlight = async (legIndex?: number, segmentIndex?: number) => {
     if (!option || !sessionId) return;
-    const key = resolveStorageKey(legIndex);
+    const key = resolveStorageKey(legIndex, segmentIndex);
     const existing = legResolves[key];
     if (existing?.found && existing.offer?.url && isSafeBookingUrl(existing.offer.url)) {
       await openUrlInNewTab(existing.offer.url);
@@ -223,6 +235,7 @@ export function FlightDetailsModal({
         option.id,
         legIndex != null && legIndex >= 0 ? legIndex : undefined,
         !!existing && !existing.found,
+        segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
       );
       setLegResolves((prev) => ({ ...prev, [key]: res }));
     } catch {
@@ -244,16 +257,19 @@ export function FlightDetailsModal({
     }
   };
 
-  const renderBookingAction = (storageKey: string, legIndex?: number) => {
+  const renderBookingAction = (storageKey: string, legIndex?: number, segmentIndex?: number) => {
     const resolved = legResolves[storageKey];
     const loading = resolveLoadingKey === storageKey;
     const success = !!(resolved?.found && resolved.offer);
     const error = resolved && !resolved.found;
+    const isPrefill = resolved?.offer?.priceLabel === 'search_prefill';
 
     const btnLabel = loading
       ? null
       : success
-        ? t('open_booking_site')
+        ? isPrefill
+          ? t('open_flight_search')
+          : t('open_booking_site')
         : error
           ? t('try_again')
           : t('book_this_flight');
@@ -266,16 +282,25 @@ export function FlightDetailsModal({
         {success && resolved?.offer ? (
           <>
             <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
-              {t('exact_itinerary_matched')}
-              {resolved.offer.provider || resolved.offer.domain
+              {isPrefill
+                ? t('search_prefill_hint')
+                : t('exact_itinerary_matched')}
+              {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
-                : ''}
-              {resolved.offer.price != null && resolved.offer.currency ? (
+                : isPrefill && resolved.offer.domain
+                  ? ` · ${resolved.offer.domain}`
+                  : ''}
+              {!isPrefill && resolved.offer.price != null && resolved.offer.currency ? (
                 ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}${
                   resolved.offer.priceLabel === 'search_quote' ? ` (${t('search_quote_price')})` : ''
                 }`
               ) : null}
             </Text>
+            {isPrefill && resolved.message ? (
+              <Text style={[s.verifyError, { color: theme.textMuted }]}>
+                {resolved.message}
+              </Text>
+            ) : null}
             {resolved.priceMismatch ? (
               <Text style={[s.verifyError, { color: theme.error || '#b45309' }]}>
                 {resolved.message || t('price_mismatch_warning')}
@@ -292,7 +317,7 @@ export function FlightDetailsModal({
         ) : null}
         <TouchableOpacity
           style={[s.bookBtn, success && s.bookBtnCompact, { backgroundColor: theme.primary }]}
-          onPress={() => (success ? handleOpenVerifiedBooking(resolved?.offer) : handleBookThisFlight(legIndex))}
+          onPress={() => (success ? handleOpenVerifiedBooking(resolved?.offer) : handleBookThisFlight(legIndex, segmentIndex))}
           disabled={loading}
         >
           {loading ? (
@@ -307,9 +332,11 @@ export function FlightDetailsModal({
 
   const renderBookingFooter = () => (
     <View style={[s.footer, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
-      {splitBooking && hops.length > 0 ? (
+      {perHopBooking && hops.length > 0 ? (
         <>
-          <Text style={[s.splitHint, { color: theme.textMuted }]}>{t('split_booking_hint')}</Text>
+          <Text style={[s.splitHint, { color: theme.textMuted }]}>
+            {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
+          </Text>
           {hops.length > 1 && useFullScreen ? (
             <ScrollView
               horizontal
@@ -317,10 +344,10 @@ export function FlightDetailsModal({
               contentContainerStyle={s.legBookingRow}
             >
               {hops.map((hop) => {
-                const key = resolveStorageKey(hop.legIndex);
+                const key = hopStorageKey(hop);
                 return (
                   <View
-                    key={hop.legIndex}
+                    key={key}
                     style={[
                       s.legBookingCard,
                       s.legBookingCardHorizontal,
@@ -330,8 +357,11 @@ export function FlightDetailsModal({
                     <Text style={[s.legRoute, { color: theme.text }]}>
                       {hop.origin} → {hop.destination}
                     </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>{hop.date}</Text>
-                    {renderBookingAction(key, hop.legIndex)}
+                    <Text style={[s.legDate, { color: theme.textMuted }]}>
+                      {hop.date}
+                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
+                    </Text>
+                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex)}
                   </View>
                 );
               })}
@@ -339,17 +369,20 @@ export function FlightDetailsModal({
           ) : (
             <View style={s.legBookingList}>
               {hops.map((hop) => {
-                const key = resolveStorageKey(hop.legIndex);
+                const key = hopStorageKey(hop);
                 return (
                   <View
-                    key={hop.legIndex}
+                    key={key}
                     style={[s.legBookingCard, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}
                   >
                     <Text style={[s.legRoute, { color: theme.text }]}>
                       {hop.origin} → {hop.destination}
                     </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>{hop.date}</Text>
-                    {renderBookingAction(key, hop.legIndex)}
+                    <Text style={[s.legDate, { color: theme.textMuted }]}>
+                      {hop.date}
+                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
+                    </Text>
+                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex)}
                   </View>
                 );
               })}

@@ -36,7 +36,7 @@ func TestResolveGF2PartnerOffer_usesPersistedLegDeepLinkWithoutProvider(t *testi
 	}
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
 
-	offer := resolveGF2PartnerOffer(context.Background(), sess, opt, it, 0)
+	offer := resolveGF2PartnerOffer(context.Background(), sess, opt, it, 0, -1)
 	if offer == nil || offer.URL != "https://mytrip.com/checkout/tlv-vie" {
 		t.Fatalf("expected persisted leg deep link, got %+v", offer)
 	}
@@ -59,7 +59,7 @@ func TestSearchRequestFromSession_singleLegOverride(t *testing.T) {
 			}},
 		}},
 	}
-	req := searchRequestFromSession(sess, opt, 0)
+	req := searchRequestFromSession(sess, opt, 0, -1)
 	if req.Origin != "TLV" || req.Destination != "CDG" || req.DepartureDate != "2026-09-15" {
 		t.Fatalf("leg override failed: %+v", req)
 	}
