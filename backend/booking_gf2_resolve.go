@@ -66,7 +66,7 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 		}
 	}
 
-	if len(offers) == 0 && googleFlights2Provider != nil {
+	if googleFlights2Provider != nil {
 		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForFingerprint(ctx, sreq, it, currency, quote); err == nil {
 			addResolved(resolved)
@@ -74,12 +74,22 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	}
 
 	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
-		addOffer(gf2PartnerOfferFromQuoteURL(deepLink, fp, quote))
+		offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote)
+		if offer != nil && gf2OffersHavePrice(offers) {
+			offer.Price = nil
+			offer.Currency = ""
+		}
+		addOffer(offer)
 	}
 	if legIndex < 0 && !split {
 		for _, raw := range []string{option.BookingURL, option.DeepLink} {
 			if u := normalizeProviderBookingURL(raw); u != "" && search.IsLikelyPartnerCheckoutURL(u) {
-				addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
+				offer := gf2PartnerOfferFromQuoteURL(u, fp, quote)
+				if offer != nil && gf2OffersHavePrice(offers) {
+					offer.Price = nil
+					offer.Currency = ""
+				}
+				addOffer(offer)
 			}
 		}
 	}
@@ -103,6 +113,15 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	}
 
 	return dedupeGF2PartnerOffers(offers)
+}
+
+func gf2OffersHavePrice(offers []bookingmatch.BookingOffer) bool {
+	for _, o := range offers {
+		if o.Price != nil && *o.Price > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveGF2PartnerOffer returns the cheapest GF2 partner offer for redirect-style flows.

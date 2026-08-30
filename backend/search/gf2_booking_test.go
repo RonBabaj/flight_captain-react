@@ -79,6 +79,19 @@ func TestPricesMatchQuote(t *testing.T) {
 	}
 }
 
+func TestSelectCheapestResolvedPartner(t *testing.T) {
+	high := 324.0
+	low := 289.0
+	partners := []ResolvedPartnerBooking{
+		{URL: "https://www.budgetair.com/checkout", Price: high, Provider: "budgetair.com"},
+		{URL: "https://www.trip.com/book", Price: low, Provider: "trip.com"},
+	}
+	best := SelectCheapestResolvedPartner(partners)
+	if best == nil || best.Provider != "trip.com" || best.Price != low {
+		t.Fatalf("expected trip.com cheapest, got %+v", best)
+	}
+}
+
 func TestSelectBookingOptionForQuote_prefersPriceMatch(t *testing.T) {
 	options := []gf2BookingOption{
 		{URL: "https://www.lufthansa.com/book", Price: 1000, Provider: "lufthansa.com"},
