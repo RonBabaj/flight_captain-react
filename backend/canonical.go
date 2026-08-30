@@ -86,13 +86,19 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 	}
 }
 
-// bookingPrefillURL returns a search prefill URL for one leg or the whole itinerary when partner checkout fails.
-func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int) string {
+// bookingPrefillURL returns a search prefill URL for one leg/segment or the whole itinerary when partner checkout fails.
+func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) string {
 	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
-		if u := BuildOneWayLegBookingURL(session, option, legIndex); u != "" {
+		if u := buildLegOrSegmentBookingURL(session, option, legIndex, segmentIndex); u != "" {
 			return u
 		}
-		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
+		leg := option.Legs[legIndex]
+		var origin, dest, dep string
+		if segmentIndex >= 0 && segmentIndex < len(leg.Segments) {
+			origin, dest, dep = routeFromFlightSegment(leg.Segments[segmentIndex])
+		} else {
+			origin, dest, dep = routeFromFlightLeg(leg)
+		}
 		if origin != "" && dest != "" {
 			cabin := ""
 			adults := 1
@@ -136,6 +142,15 @@ func routeFromFlightLeg(leg FlightLeg) (origin, dest, dep string) {
 	dest = lastAirport(leg)
 	if !leg.Segments[0].DepartureTime.IsZero() {
 		dep = leg.Segments[0].DepartureTime.Format("2006-01-02")
+	}
+	return
+}
+
+func routeFromFlightSegment(seg FlightSegment) (origin, dest, dep string) {
+	origin = strings.ToUpper(strings.TrimSpace(seg.From.Code))
+	dest = strings.ToUpper(strings.TrimSpace(seg.To.Code))
+	if !seg.DepartureTime.IsZero() {
+		dep = seg.DepartureTime.Format("2006-01-02")
 	}
 	return
 }
@@ -215,6 +230,21 @@ func buildGoogleFlightsPrefillURL(origin, dest, dep, ret string) string {
 	return "https://www.google.com/travel/flights?q=" + url.QueryEscape(q)
 }
 
+func buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, flightNum string) string {
+	q := fmt.Sprintf("Flights to %s from %s", dest, origin)
+	if dep != "" {
+		q += " " + dep
+	}
+	carrier = strings.ToUpper(strings.TrimSpace(carrier))
+	flightNum = strings.TrimSpace(flightNum)
+	if carrier != "" && flightNum != "" {
+		q += " " + carrier + " " + flightNum
+	} else if carrier != "" {
+		q += " " + carrier
+	}
+	return "https://www.google.com/travel/flights?q=" + url.QueryEscape(q)
+}
+
 func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int) string {
 	origin = strings.ToLower(strings.TrimSpace(origin))
 	dest = strings.ToLower(strings.TrimSpace(dest))
@@ -265,15 +295,16 @@ func BuildSkyscannerFallbackFromParams(origin, destination, departureDate, retur
 	return buildSkyscannerPrefillURL(origin, destination, departureDate, returnDate, "", 1)
 }
 
-// BuildOneWayLegBookingURL is a Skyscanner one-way prefill for a single hop of a split itinerary.
+// BuildOneWayLegBookingURL is a one-way search prefill for a single hop of a split itinerary.
 func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legIdx int) string {
+	return buildLegOrSegmentBookingURL(session, option, legIdx, -1)
+}
+
+func buildLegOrSegmentBookingURL(session *SearchSession, option *FlightOption, legIdx int, segIdx int) string {
 	if option == nil || legIdx < 0 || legIdx >= len(option.Legs) {
 		return ""
 	}
-	origin, dest, dep := routeFromFlightLeg(option.Legs[legIdx])
-	if origin == "" || dest == "" {
-		return ""
-	}
+	leg := option.Legs[legIdx]
 	cabin := ""
 	adults := 1
 	if session != nil {
@@ -282,7 +313,26 @@ func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legI
 			adults = session.Params.Adults
 		}
 	}
-	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	if segIdx >= 0 && segIdx < len(leg.Segments) {
+		seg := leg.Segments[segIdx]
+		origin, dest, dep := routeFromFlightSegment(seg)
+		if origin == "" || dest == "" {
+			return ""
+		}
+		if bookingLinkMode() == BookingModeSkyscannerPrefill {
+			return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+		}
+		carrier := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+		return buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, seg.FlightNumber)
+	}
+	origin, dest, dep := routeFromFlightLeg(leg)
+	if origin == "" || dest == "" {
+		return ""
+	}
+	if bookingLinkMode() == BookingModeSkyscannerPrefill {
+		return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	}
+	return buildGoogleFlightsPrefillURL(origin, dest, dep, "")
 }
 
 // BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.

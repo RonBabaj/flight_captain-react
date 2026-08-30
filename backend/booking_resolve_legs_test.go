@@ -25,7 +25,7 @@ func TestCanonicalItineraryForOption_isolatesSplitLegs(t *testing.T) {
 		},
 	}
 
-	leg0, err := canonicalItineraryForOption(opt, 0)
+	leg0, err := canonicalItineraryForOption(opt, 0, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestCanonicalItineraryForOption_isolatesSplitLegs(t *testing.T) {
 		t.Fatalf("leg0=%+v", leg0.Segments)
 	}
 
-	leg1, err := canonicalItineraryForOption(opt, 1)
+	leg1, err := canonicalItineraryForOption(opt, 1, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,12 +41,32 @@ func TestCanonicalItineraryForOption_isolatesSplitLegs(t *testing.T) {
 		t.Fatalf("leg1=%+v", leg1.Segments)
 	}
 
+	seg0, err := canonicalItineraryForOption(opt, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seg0.Segments) != 1 || seg0.Segments[0].From != "TLV" || seg0.Segments[0].To != "ZRH" {
+		t.Fatalf("segment0=%+v", seg0.Segments)
+	}
+	seg1, err := canonicalItineraryForOption(opt, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seg1.Segments) != 1 || seg1.Segments[0].From != "ZRH" || seg1.Segments[0].To != "VIE" {
+		t.Fatalf("segment1=%+v", seg1.Segments)
+	}
+
 	fp0 := search.CanonicalItineraryFingerprint(leg0)
 	fp1 := search.CanonicalItineraryFingerprint(leg1)
-	if fp0 == fp1 {
-		t.Fatal("split legs must have distinct fingerprints")
+	fpSeg0 := search.CanonicalItineraryFingerprint(seg0)
+	fpSeg1 := search.CanonicalItineraryFingerprint(seg1)
+	if fp0 == fp1 || fpSeg0 == fpSeg1 || fpSeg0 == fp0 {
+		t.Fatal("split legs and segments must have distinct fingerprints")
 	}
 	if legRouteLabel(leg0) != "TLV→VIE" || legRouteLabel(leg1) != "SZG→TLV" {
 		t.Fatalf("routes=%s %s", legRouteLabel(leg0), legRouteLabel(leg1))
+	}
+	if legRouteLabel(seg0) != "TLV→ZRH" || legRouteLabel(seg1) != "ZRH→VIE" {
+		t.Fatalf("segment routes=%s %s", legRouteLabel(seg0), legRouteLabel(seg1))
 	}
 }

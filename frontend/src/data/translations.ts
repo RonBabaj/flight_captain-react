@@ -635,6 +635,21 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'כרטיסים נפרדים — הזמינו כל קטע למטה.',
     ru: 'Отдельные билеты — забронируйте каждый сегмент ниже.',
   },
+  multi_ticket_hint: {
+    en: 'Different airlines on this connection — book each flight separately below.',
+    he: 'חברות תעופה שונות בחיבור זה — הזמינו כל טיסה בנפרד למטה.',
+    ru: 'Разные авиакомпании на стыковке — забронируйте каждый рейс отдельно ниже.',
+  },
+  search_prefill_hint: {
+    en: 'Opens a prefilled flight search',
+    he: 'פותח חיפוש טיסות עם נתונים מוכנים',
+    ru: 'Откроется поиск с заполненными параметрами',
+  },
+  open_flight_search: {
+    en: 'Search flights',
+    he: 'חפש טיסות',
+    ru: 'Искать рейсы',
+  },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',
     he: 'כל רגל הוא חיפוש כיוון אחד נפרד. פתחו חיפוש Fly-Fix חדש לכל טיסה.',

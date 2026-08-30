@@ -13,7 +13,7 @@ import (
 // resolveGF2PartnerOffer resolves checkout for the exact fare shown in search results
 // using preserved GF2 booking tokens and deep links. For open-jaw itineraries each leg
 // keeps its own token from CombineOneWayBatches instead of losing them at merge time.
-func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int) *bookingmatch.BookingOffer {
+func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
 	if option == nil {
 		return nil
 	}
@@ -66,7 +66,7 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 
 	// Re-search only when search-time token/deeplink were not preserved (e.g. legacy session).
 	if googleFlights2Provider != nil {
-		sreq := searchRequestFromSession(session, option, legIndex)
+		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
 			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
 				return offer
@@ -77,8 +77,12 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	// Live GF2 route search → partner checkout (round-trip when legIndex < 0, one-way per leg otherwise).
 	if googleFlights2Provider != nil {
 		var origin, dest, dep, ret string
-		if legIndex >= 0 && legIndex < len(option.Legs) {
-			origin, dest, dep = routeFromFlightLeg(option.Legs[legIndex])
+		if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
+			if segmentIndex >= 0 && segmentIndex < len(option.Legs[legIndex].Segments) {
+				origin, dest, dep = routeFromFlightSegment(option.Legs[legIndex].Segments[segmentIndex])
+			} else {
+				origin, dest, dep = routeFromFlightLeg(option.Legs[legIndex])
+			}
 		} else {
 			origin, dest, dep, ret = bookingRouteFromSessionOption(session, option)
 		}
@@ -253,7 +257,7 @@ func providerDomainFromURL(raw string) string {
 	return strings.TrimPrefix(parsed.Hostname(), "www.")
 }
 
-func searchRequestFromSession(session *SearchSession, option *FlightOption, legIndex int) search.SearchRequest {
+func searchRequestFromSession(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) search.SearchRequest {
 	req := search.SearchRequest{
 		Adults:     1,
 		Currency:   "USD",
@@ -286,10 +290,17 @@ func searchRequestFromSession(session *SearchSession, option *FlightOption, legI
 		req = search.SanitizeStandardSearchRequest(req)
 	}
 	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
-		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
-		req.Origin = origin
-		req.Destination = dest
-		req.DepartureDate = dep
+		if segmentIndex >= 0 && segmentIndex < len(option.Legs[legIndex].Segments) {
+			origin, dest, dep := routeFromFlightSegment(option.Legs[legIndex].Segments[segmentIndex])
+			req.Origin = origin
+			req.Destination = dest
+			req.DepartureDate = dep
+		} else {
+			origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
+			req.Origin = origin
+			req.Destination = dest
+			req.DepartureDate = dep
+		}
 		req.ReturnDate = ""
 		req.ReturnOrigin = ""
 		req.ReturnDestination = ""
@@ -371,11 +382,11 @@ func resolveLegBookingRedirectURL(ctx context.Context, session *SearchSession, o
 	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
 		return ""
 	}
-	it, err := canonicalItineraryForOption(option, legIndex)
+	it, err := canonicalItineraryForOption(option, legIndex, -1)
 	if err == nil {
-		if offer := resolveGF2PartnerOffer(ctx, session, option, it, legIndex); offer != nil && strings.TrimSpace(offer.URL) != "" {
+		if offer := resolveGF2PartnerOffer(ctx, session, option, it, legIndex, -1); offer != nil && strings.TrimSpace(offer.URL) != "" {
 			return offer.URL
 		}
 	}
-	return bookingPrefillURL(session, option, legIndex)
+	return bookingPrefillURL(session, option, legIndex, -1)
 }
