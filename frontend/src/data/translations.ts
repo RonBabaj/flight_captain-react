@@ -522,6 +522,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   },
   flight_leg: { en: 'Flight', he: 'טיסה', ru: 'Рейс' },
   layover_in: { en: 'Layover in', he: 'המתנה ב־', ru: 'Пересадка в' },
+  layover_short: { en: '{duration} in {airport}', he: '{duration} ב־{airport}', ru: '{duration} в {airport}' },
   stop_at: { en: 'stop at', he: 'עצירה ב־', ru: 'пересадка в' },
   stops_at: { en: 'stops at', he: 'עצירות ב־', ru: 'пересадки в' },
   partner_site: { en: 'partner site', he: 'אתר שותף', ru: 'сайт партнёра' },
