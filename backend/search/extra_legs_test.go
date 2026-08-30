@@ -65,6 +65,52 @@ func TestCombineOneWayBatches(t *testing.T) {
 	}
 }
 
+func TestCombineOneWayBatches_openJawReturnDiversity(t *testing.T) {
+	leg := func(from, to, carrier, fn string, stops int) Leg {
+		segs := []Segment{{From: from, To: to, MarketingCarrier: carrier, FlightNumber: fn}}
+		if stops > 0 {
+			segs = []Segment{
+				{From: from, To: "FRA", MarketingCarrier: "LH", FlightNumber: "LH100"},
+				{From: "FRA", To: to, MarketingCarrier: "LH", FlightNumber: "LH200"},
+			}
+		}
+		return Leg{Segments: segs}
+	}
+	oneWay := func(id string, price float64, l Leg) ProviderResult {
+		return ProviderResult{
+			ID:              id,
+			Price:           Monetary{Currency: "EUR", Amount: price},
+			DurationMinutes: 120,
+			Legs:            []Leg{l},
+		}
+	}
+	outbound := oneWay("out", 100, leg("TLV", "VIE", "OS", "OS860", 0))
+	cheapReturn := oneWay("ret-lh", 50, leg("SZG", "TLV", "LH", "LH1267", 1))
+	directReturn := oneWay("ret-ly", 200, leg("SZG", "TLV", "LY", "LY5194", 0))
+
+	out := CombineOneWayBatches([][]ProviderResult{
+		{outbound},
+		{cheapReturn, directReturn},
+	}, "gf2oj")
+	if len(out) == 0 {
+		t.Fatal("expected combined results")
+	}
+	hasDirectLY := false
+	for _, r := range out {
+		if len(r.Legs) < 2 {
+			continue
+		}
+		segs := r.Legs[1].Segments
+		if len(segs) == 1 && segs[0].MarketingCarrier == "LY" && segs[0].From == "SZG" && segs[0].To == "TLV" {
+			hasDirectLY = true
+			break
+		}
+	}
+	if !hasDirectLY {
+		t.Fatalf("expected direct LY SZG→TLV return in open-jaw results, got %d combos", len(out))
+	}
+}
+
 func TestCombineOneWayBatches_emptyBatch(t *testing.T) {
 	if got := CombineOneWayBatches([][]ProviderResult{{}, {{ID: "x"}}}, "x"); got != nil {
 		t.Fatalf("empty batch should yield nil, got %d", len(got))

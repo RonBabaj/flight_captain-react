@@ -166,10 +166,14 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 	maxPer := extraLegMaxPerBatch(n)
 	trimmed := make([][]ProviderResult, n)
 	for i, b := range batches {
-		if len(b) > maxPer {
-			trimmed[i] = b[:maxPer]
+		sorted := append([]ProviderResult(nil), b...)
+		sort.Slice(sorted, func(a, b int) bool {
+			return sorted[a].Price.Amount < sorted[b].Price.Amount
+		})
+		if len(sorted) > maxPer {
+			trimmed[i] = sorted[:maxPer]
 		} else {
-			trimmed[i] = b
+			trimmed[i] = sorted
 		}
 	}
 	const maxOut = 40
@@ -192,28 +196,132 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 				next.BookingToken = ""
 				next.DeepLink = ""
 			} else {
-				next = cur
-				next.Legs = append(cloneLegs(cur.Legs), cloneLegs(r.Legs)...)
-				next.Price.Amount = cur.Price.Amount + r.Price.Amount
-				next.DurationMinutes = cur.DurationMinutes + r.DurationMinutes
-				next.ID = fmt.Sprintf("%s_%d", cur.ID, i)
-				next.LegBookingTokens = append(append([]string(nil), cur.LegBookingTokens...), strings.TrimSpace(r.BookingToken))
-				next.LegDeepLinks = append(append([]string(nil), cur.LegDeepLinks...), strings.TrimSpace(r.DeepLink))
-				next.LegPrices = append(append([]float64(nil), cur.LegPrices...), r.Price.Amount)
-				next.BookingToken = ""
-				next.DeepLink = ""
+				next = mergeProviderLeg(cur, r, i, idPrefix)
 			}
 			walk(idx+1, next)
 		}
 	}
 	walk(0, ProviderResult{})
+	acc = finalizeCombinedBatches(acc, trimmed, idPrefix, maxOut)
+	return AttachCanonicalIdentityAll(acc)
+}
+
+func mergeProviderLeg(cur, r ProviderResult, rIdx int, idPrefix string) ProviderResult {
+	next := cur
+	next.Legs = append(cloneLegs(cur.Legs), cloneLegs(r.Legs)...)
+	next.Price.Amount = cur.Price.Amount + r.Price.Amount
+	next.DurationMinutes = cur.DurationMinutes + r.DurationMinutes
+	next.ID = fmt.Sprintf("%s_%d", cur.ID, rIdx)
+	next.LegBookingTokens = append(append([]string(nil), cur.LegBookingTokens...), strings.TrimSpace(r.BookingToken))
+	next.LegDeepLinks = append(append([]string(nil), cur.LegDeepLinks...), strings.TrimSpace(r.DeepLink))
+	next.LegPrices = append(append([]float64(nil), cur.LegPrices...), r.Price.Amount)
+	next.BookingToken = ""
+	next.DeepLink = ""
+	return next
+}
+
+// finalizeCombinedBatches keeps the cheapest combinations but reserves slots so distinct
+// return (last-batch) options — e.g. a direct El Al SZG→TLV — are not crowded out by
+// slightly cheaper connecting fares on every open-jaw result row.
+func finalizeCombinedBatches(acc []ProviderResult, trimmed [][]ProviderResult, idPrefix string, maxOut int) []ProviderResult {
 	sort.Slice(acc, func(i, j int) bool {
 		return acc[i].Price.Amount < acc[j].Price.Amount
 	})
-	if len(acc) > maxOut {
-		acc = acc[:maxOut]
+	if len(trimmed) != 2 || len(acc) == 0 {
+		if len(acc) > maxOut {
+			return acc[:maxOut]
+		}
+		return acc
 	}
-	return AttachCanonicalIdentityAll(acc)
+
+	const minCheapest = 28
+	seen := map[string]struct{}{}
+	var out []ProviderResult
+	add := func(r ProviderResult) {
+		if len(out) >= maxOut {
+			return
+		}
+		it := BuildCanonicalItinerary(r)
+		k := CanonicalItineraryFingerprint(it)
+		if k == "" {
+			return
+		}
+		if _, ok := seen[k]; ok {
+			return
+		}
+		seen[k] = struct{}{}
+		out = append(out, r)
+	}
+
+	for i := 0; i < len(acc) && len(out) < minCheapest; i++ {
+		add(acc[i])
+	}
+
+	lastBatch := trimmed[len(trimmed)-1]
+	cheapestOutbound := trimmed[0][0]
+	returnSeen := map[string]struct{}{}
+	for _, ret := range lastBatch {
+		if len(out) >= maxOut {
+			break
+		}
+		rk := providerResultLegKey(ret)
+		if rk == "" {
+			continue
+		}
+		if _, ok := returnSeen[rk]; ok {
+			continue
+		}
+		returnSeen[rk] = struct{}{}
+		combined := mergeProviderLeg(cheapestOutbound, ret, 0, idPrefix)
+		combined.ID = fmt.Sprintf("%s_div_%s", idPrefix, rk)
+		add(combined)
+	}
+	// Ensure direct flights on the return batch appear when GF2 offers them.
+	for _, ret := range lastBatch {
+		if len(out) >= maxOut {
+			break
+		}
+		if legStopCount(ret) > 0 {
+			continue
+		}
+		combined := mergeProviderLeg(cheapestOutbound, ret, 0, idPrefix)
+		combined.ID = fmt.Sprintf("%s_direct_%s", idPrefix, providerResultLegKey(ret))
+		add(combined)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Price.Amount < out[j].Price.Amount
+	})
+	if len(out) > maxOut {
+		out = out[:maxOut]
+	}
+	return out
+}
+
+func providerResultLegKey(r ProviderResult) string {
+	var parts []string
+	for _, leg := range r.Legs {
+		for _, s := range leg.Segments {
+			parts = append(parts, fmt.Sprintf("%s-%s-%s-%s",
+				strings.ToUpper(strings.TrimSpace(s.From)),
+				strings.ToUpper(strings.TrimSpace(s.To)),
+				strings.ToUpper(strings.TrimSpace(s.MarketingCarrier)),
+				strings.TrimSpace(s.FlightNumber),
+			))
+		}
+	}
+	return strings.Join(parts, "|")
+}
+
+func legStopCount(r ProviderResult) int {
+	stops := 0
+	for _, leg := range r.Legs {
+		n := len(leg.Segments)
+		if n > 1 {
+			stops += n - 1
+		}
+	}
+	return stops
 }
 
 // Monetary holds currency and amount.
