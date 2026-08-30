@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -125,7 +125,7 @@ export function FlightDetailsModal({
 
   const splitBooking = isSplitBookingItinerary(option, searchParams);
   const perHopBooking = needsPerHopBooking(option, searchParams);
-  const hops = option ? bookingHopsFromOption(option) : [];
+  const hops = useMemo(() => (option ? bookingHopsFromOption(option) : []), [option]);
 
   const resolveStorageKey = (legIndex?: number, segmentIndex?: number) => {
     if (segmentIndex != null && segmentIndex >= 0) {
@@ -165,7 +165,7 @@ export function FlightDetailsModal({
         }
       })();
     }
-  }, [visible, option?.id, sessionId, perHopBooking, hops.length]);
+  }, [visible, option?.id, sessionId, perHopBooking, hops]);
 
   const handleShare = async () => {
     if (!option) return;

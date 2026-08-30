@@ -42,6 +42,35 @@ func TestResolveGF2PartnerOffer_usesPersistedLegDeepLinkWithoutProvider(t *testi
 	}
 }
 
+func TestLegDeepLink_rejectsWrongAirlineDirectCheckout(t *testing.T) {
+	opt := &FlightOption{
+		LegDeepLinks: []string{"https://booking.elal.co.il/checkout", "https://booking.elal.co.il/return"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "OS"}}}},
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "LY"}}}},
+		},
+	}
+	if got := legDeepLink(opt, 0); got != "" {
+		t.Fatalf("outbound OS leg must not use El Al checkout, got %q", got)
+	}
+	if got := legDeepLink(opt, 1); got != "https://booking.elal.co.il/return" {
+		t.Fatalf("return LY leg should keep El Al checkout, got %q", got)
+	}
+}
+
+func TestLegDeepLink_rejectsMisalignedPartnerArrays(t *testing.T) {
+	opt := &FlightOption{
+		LegDeepLinks: []string{"https://booking.elal.co.il/only-return"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "OS"}}}},
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "LY"}}}},
+		},
+	}
+	if got := legDeepLink(opt, 0); got != "" {
+		t.Fatalf("misaligned arrays must not bind leg 0 to index 0 return URL, got %q", got)
+	}
+}
+
 func TestSearchRequestFromSession_singleLegOverride(t *testing.T) {
 	dep := time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC)
 	sess := &SearchSession{

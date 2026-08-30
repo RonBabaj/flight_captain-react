@@ -58,8 +58,10 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 
 	if token != "" && googleFlights2Provider != nil {
 		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, token, currency, quote); err == nil {
-			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
-				return offer
+			if resolved != nil && resolvedPartnerURLMatchesLeg(option, legIndex, resolved.URL) {
+				if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
+					return offer
+				}
 			}
 		}
 	}
@@ -68,8 +70,10 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	if googleFlights2Provider != nil {
 		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
-			if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
-				return offer
+			if resolved != nil && (legIndex < 0 || resolvedPartnerURLMatchesLeg(option, legIndex, resolved.URL)) {
+				if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
+					return offer
+				}
 			}
 		}
 	}
@@ -103,10 +107,10 @@ func legBookingToken(option *FlightOption, legIndex int) string {
 		return ""
 	}
 	if legIndex >= 0 {
-		if legIndex < len(option.LegBookingTokens) {
-			return strings.TrimSpace(option.LegBookingTokens[legIndex])
+		if !legPartnerArraysAligned(option) || legIndex >= len(option.LegBookingTokens) {
+			return ""
 		}
-		return ""
+		return strings.TrimSpace(option.LegBookingTokens[legIndex])
 	}
 	return strings.TrimSpace(option.BookingToken)
 }
@@ -116,12 +120,94 @@ func legDeepLink(option *FlightOption, legIndex int) string {
 		return ""
 	}
 	if legIndex >= 0 {
-		if legIndex < len(option.LegDeepLinks) {
-			return normalizeProviderBookingURL(option.LegDeepLinks[legIndex])
+		if !legPartnerArraysAligned(option) || legIndex >= len(option.LegDeepLinks) {
+			return ""
 		}
-		return ""
+		u := normalizeProviderBookingURL(option.LegDeepLinks[legIndex])
+		if u == "" {
+			return ""
+		}
+		if !resolvedPartnerURLMatchesLeg(option, legIndex, u) {
+			return ""
+		}
+		return u
 	}
 	return normalizeProviderBookingURL(option.DeepLink)
+}
+
+// legPartnerArraysAligned requires per-leg partner metadata to line up with Legs[].
+// Misaligned arrays caused open-jaw leg 0 to reuse leg 1's El Al checkout URL.
+func legPartnerArraysAligned(option *FlightOption) bool {
+	if option == nil {
+		return false
+	}
+	n := len(option.Legs)
+	if n == 0 {
+		return false
+	}
+	if len(option.LegDeepLinks) > 0 && len(option.LegDeepLinks) != n {
+		return false
+	}
+	if len(option.LegBookingTokens) > 0 && len(option.LegBookingTokens) != n {
+		return false
+	}
+	return true
+}
+
+func marketingCarrierForLeg(option *FlightOption, legIndex int) string {
+	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
+		return ""
+	}
+	for _, seg := range option.Legs[legIndex].Segments {
+		if c := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code)); c != "" {
+			return c
+		}
+	}
+	return ""
+}
+
+func resolvedPartnerURLMatchesLeg(option *FlightOption, legIndex int, rawURL string) bool {
+	if rawURL == "" || option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
+		return false
+	}
+	carrier := marketingCarrierForLeg(option, legIndex)
+	if carrier == "" {
+		return true
+	}
+	return partnerDomainMatchesCarrier(providerDomainFromURL(rawURL), carrier)
+}
+
+func partnerDomainMatchesCarrier(domain, carrier string) bool {
+	domain = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(domain), "www."))
+	carrier = strings.ToUpper(strings.TrimSpace(carrier))
+	if domain == "" || carrier == "" {
+		return true
+	}
+	// Reject known airline-direct checkout domains that belong to a different carrier.
+	type carrierDomain struct {
+		carrier string
+		domain  string
+	}
+	checks := []carrierDomain{
+		{"LY", "elal.co.il"},
+		{"OS", "austrian.com"},
+		{"LH", "lufthansa.com"},
+		{"LX", "swiss.com"},
+		{"BA", "britishairways.com"},
+		{"AF", "airfrance.com"},
+		{"KL", "klm.com"},
+		{"UA", "united.com"},
+		{"AA", "aa.com"},
+		{"DL", "delta.com"},
+		{"FR", "ryanair.com"},
+		{"W6", "wizzair.com"},
+	}
+	for _, chk := range checks {
+		if strings.Contains(domain, chk.domain) && carrier != chk.carrier {
+			return false
+		}
+	}
+	return true
 }
 
 func quoteBindingFromOption(session *SearchSession, option *FlightOption, legIndex int) search.QuoteBinding {
