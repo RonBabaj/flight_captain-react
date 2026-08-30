@@ -117,9 +117,19 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	}
 
 	carrier := marketingCarrierForLegIndex(option, legIndex)
-	if carrier != "" && !offersIncludeAirlineDirect(offers, carrier) {
-		if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
-			addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
+	if carrier != "" {
+		injectAirline := !offersIncludeAirlineDirect(offers, carrier)
+		if !injectAirline && quote.Amount > 0 {
+			if best := bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer()); best != nil && best.Price != nil && *best.Price > 0 {
+				if !airlineDomainForCarrier(best.Domain, carrier) && !search.PricesMatchQuote(quote.Amount, *best.Price) {
+					injectAirline = true
+				}
+			}
+		}
+		if injectAirline {
+			if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+				addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
+			}
 		}
 	}
 
@@ -343,7 +353,7 @@ func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offer
 		return best
 	}
 	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
-	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) {
+	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) || otaPrice <= quote.Amount {
 		return best
 	}
 
@@ -371,9 +381,8 @@ func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offer
 	if airlinePick == nil {
 		return best
 	}
-	if hasAirlinePrice && airlinePrice >= otaPrice {
-		return best
-	}
+	// Meta OTAs above the search quote are often marked up; airline direct is the better path
+	// even when GF2 shows a higher airline price (checkout may match search/Skyscanner).
 	return airlinePick
 }
 
