@@ -41,6 +41,11 @@ func VerifyCandidate(it search.CanonicalItinerary, c SearchCandidate, cfg Config
 		offer.RejectionReason = "unsafe or malformed URL"
 		return offer
 	}
+	if IsNonBookableDomain(c.Domain) {
+		offer.VerificationStatus = StatusRejected
+		offer.RejectionReason = "non-bookable domain"
+		return offer
+	}
 
 	if amount, cur, ok := extractPrice(rawText); ok {
 		offer.Price = &amount

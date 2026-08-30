@@ -31,3 +31,21 @@ func TestValidateBookingURL_rejectsEmpty(t *testing.T) {
 		t.Fatal("expected rejection")
 	}
 }
+
+func TestIsNonBookableDomain_blocksFlightRadar(t *testing.T) {
+	if !IsNonBookableDomain("flightradar24.com") {
+		t.Fatal("flightradar24 must be blocked")
+	}
+	if IsNonBookableDomain("trip.com") {
+		t.Fatal("trip.com should be bookable")
+	}
+}
+
+func TestIsCheckoutBookingURL_rejectsFlightSearchPages(t *testing.T) {
+	if IsCheckoutBookingURL("https://www.flightradar24.com/data/flights/lh5194") {
+		t.Fatal("flightradar must not be checkout")
+	}
+	if !IsCheckoutBookingURL("https://www.trip.com/flights/checkout") {
+		t.Fatal("expected trip checkout")
+	}
+}

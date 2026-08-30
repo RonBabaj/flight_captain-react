@@ -60,6 +60,7 @@ type BookingResolveResponse struct {
 	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
 	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
 	PriceMismatch        bool                `json:"priceMismatch,omitempty"`
+	CandidatesConsidered int                 `json:"candidatesConsidered,omitempty"`
 }
 
 type bookingResolveCacheEntry struct {
@@ -106,6 +107,12 @@ func init() {
 	}
 	if v := envDurationMinutes("BOOKING_RESOLVE_NEGATIVE_CACHE_TTL_MIN", 5); v > 0 {
 		bookingResolveNegativeTTL = v
+	}
+	cfg := bookingmatch.DefaultConfig()
+	if cfg.Enabled && cfg.SerpAPIKey != "" {
+		log.Printf("[BOOKING_RESOLVE] web search matcher enabled (engine=%s)", cfg.SerpAPIEngine)
+	} else {
+		log.Printf("[BOOKING_RESOLVE] web search matcher disabled — set SERPAPI_API_KEY to race OTAs for cheapest checkout")
 	}
 }
 
@@ -164,6 +171,12 @@ func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookin
 			return
 		}
 		if o.URLType == bookingmatch.URLTypeGenericSearch {
+			return
+		}
+		if o.URLType == bookingmatch.URLTypeExactSearch {
+			return
+		}
+		if bookingmatch.IsNonBookableDomain(o.Domain) || bookingmatch.IsNonBookableDomain(o.Provider) {
 			return
 		}
 		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
@@ -306,6 +319,9 @@ func setCachedBookingResolve(key string, resp BookingResolveResponse, ttl time.D
 func cacheTTLForStatus(status string) time.Duration {
 	switch status {
 	case BookingResolveVerified:
+		if webBookingMatchEnabled() {
+			return 5 * time.Minute
+		}
 		return bookingResolveCacheTTL
 	case BookingResolveNotFound:
 		// Do not cache misses. Try again must re-resolve; a 5-minute negative
@@ -485,9 +501,15 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	if len(offers) > 0 {
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
 		if best != nil {
-			extractedBeforeQuote := applySearchQuoteToOffer(best, q)
-			hadMultiple := len(offers) > 1
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
+			extractedBeforeQuote := (*float64)(nil)
+			if fromGF2 {
+				extractedBeforeQuote = applySearchQuoteToOffer(best, q)
+			} else if best.Price != nil {
+				p := *best.Price
+				extractedBeforeQuote = &p
+			}
+			hadMultiple := len(offers) > 1
 			offer := publicOfferFromMatch(best, hadMultiple)
 			if offer != nil {
 				if hadMultiple {
@@ -508,6 +530,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 					Status:               BookingResolveVerified,
 					ItineraryFingerprint: fp,
 					Offer:                offer,
+					CandidatesConsidered: len(offers),
 				}
 				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 				logBookingResolve(bookingResolveLogEvent{

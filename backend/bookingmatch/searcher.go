@@ -30,10 +30,14 @@ type Config struct {
 
 // DefaultConfig loads configuration from environment variables.
 func DefaultConfig() Config {
-	enabled := strings.EqualFold(strings.TrimSpace(os.Getenv("WEB_SEARCH_ENABLED")), "true")
 	key := strings.TrimSpace(os.Getenv("SERPAPI_API_KEY"))
 	if key == "" {
 		key = strings.TrimSpace(os.Getenv("WEB_SEARCH_API_KEY"))
+	}
+	enabled := strings.EqualFold(strings.TrimSpace(os.Getenv("WEB_SEARCH_ENABLED")), "true")
+	if !enabled && key != "" && !strings.EqualFold(strings.TrimSpace(os.Getenv("WEB_SEARCH_ENABLED")), "false") {
+		// Auto-enable when a SerpAPI key is configured unless explicitly disabled.
+		enabled = true
 	}
 	engine := strings.TrimSpace(os.Getenv("SERPAPI_ENGINE"))
 	if engine == "" {

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"sort"
 	"strings"
+	"time"
 )
 
 // QuoteBinding ties checkout to the fare amount shown in search results.
@@ -192,10 +194,24 @@ func (p *GoogleFlights2Provider) resolveAllGF2BookingOptions(ctx context.Context
 		return nil, nil
 	}
 
+	sort.SliceStable(valid, func(i, j int) bool {
+		pi, pj := valid[i].Price, valid[j].Price
+		if pi <= 0 && pj <= 0 {
+			return false
+		}
+		if pi <= 0 {
+			return false
+		}
+		if pj <= 0 {
+			return true
+		}
+		return pi < pj
+	})
+
 	seen := map[string]struct{}{}
 	out := make([]ResolvedPartnerBooking, 0, len(valid))
 	for i := range valid {
-		resolved, err := p.resolveGF2BookingOption(ctx, &valid[i], currency)
+		resolved, err := p.resolveGF2BookingOptionWithRetry(ctx, &valid[i], currency)
 		if err != nil || resolved == nil {
 			continue
 		}
@@ -327,6 +343,22 @@ func (p *GoogleFlights2Provider) fetchBookingDetails(ctx context.Context, bookin
 		"country_code":  {"US"},
 	}.Encode())
 	return p.doGF2GET(ctx, detailsURL)
+}
+
+func (p *GoogleFlights2Provider) resolveGF2BookingOptionWithRetry(ctx context.Context, opt *gf2BookingOption, currency string) (*ResolvedPartnerBooking, error) {
+	resolved, err := p.resolveGF2BookingOption(ctx, opt, currency)
+	if err == nil && resolved != nil {
+		return resolved, nil
+	}
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "rate limited") {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+		return p.resolveGF2BookingOption(ctx, opt, currency)
+	}
+	return resolved, err
 }
 
 func (p *GoogleFlights2Provider) resolveGF2BookingOption(ctx context.Context, opt *gf2BookingOption, currency string) (*ResolvedPartnerBooking, error) {
