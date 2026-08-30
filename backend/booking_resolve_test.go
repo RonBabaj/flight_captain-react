@@ -15,6 +15,9 @@ import (
 )
 
 func TestHandleBookingResolve_verified(t *testing.T) {
+	t.Setenv("WEB_SEARCH_ENABLED", "true")
+	t.Setenv("SERPAPI_API_KEY", "test-key")
+
 	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 12, 30, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -136,10 +139,20 @@ func TestCacheTTLForStatus_doesNotCacheMisses(t *testing.T) {
 }
 
 func TestHandleBookingResolve_searchUnavailable(t *testing.T) {
+	t.Setenv("WEB_SEARCH_ENABLED", "true")
+	t.Setenv("SERPAPI_API_KEY", "test-key")
+
 	oldRunner := bookingMatchRunner
-	defer func() { bookingMatchRunner = oldRunner }()
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
+	}
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+		return nil
 	}
 
 	sessionsMu.Lock()
@@ -185,7 +198,7 @@ func TestHandleBookingResolve_invalidItinerary(t *testing.T) {
 	}
 }
 
-func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
+func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 14, 30, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 17, 5, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -199,14 +212,33 @@ func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
 	tripPrice := 137.0
+	gf2Price := 158.0
+
+	t.Setenv("WEB_SEARCH_ENABLED", "true")
+	t.Setenv("SERPAPI_API_KEY", "test-key")
 
 	oldRunner := bookingMatchRunner
-	defer func() { bookingMatchRunner = oldRunner }()
+	oldGF2 := bookingGF2Resolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2Resolver = oldGF2
+	}()
+
 	webSearchCalled := false
 	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		webSearchCalled = true
 		return &bookingmatch.MatchResult{
 			ItineraryFingerprint: fp,
+			Offers: []bookingmatch.BookingOffer{{
+				Domain:             "trip.com",
+				URL:                "https://trip.com/book/OS860",
+				URLType:            bookingmatch.URLTypeExactBooking,
+				Price:              &tripPrice,
+				Currency:           "EUR",
+				MatchScore:         90,
+				VerificationStatus: bookingmatch.StatusVerifiedExact,
+				CheckedAt:          time.Now().UTC(),
+			}},
 			BestOffer: &bookingmatch.BookingOffer{
 				Domain:             "trip.com",
 				URL:                "https://trip.com/book/OS860",
@@ -218,6 +250,18 @@ func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
 				CheckedAt:          time.Now().UTC(),
 			},
 		}, nil
+	}
+	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+		return &bookingmatch.BookingOffer{
+			Domain:             "austrian.com",
+			URL:                "https://www.austrian.com/en/book-flight/checkout",
+			URLType:            bookingmatch.URLTypeExactBooking,
+			Price:              &gf2Price,
+			Currency:           "EUR",
+			MatchScore:         95,
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+			CheckedAt:          time.Now().UTC(),
+		}
 	}
 
 	opt := &FlightOption{
@@ -232,17 +276,20 @@ func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "EUR"}}
 
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1, -1)
-	if webSearchCalled {
-		t.Fatal("GF2 partner link should win without running web search")
+	if !webSearchCalled {
+		t.Fatal("expected parallel web search when enabled")
 	}
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected a verified offer, got %+v", resp)
 	}
-	if resp.Offer.Domain != "austrian.com" {
-		t.Fatalf("expected GF2 search-time deep link, got %+v", resp.Offer)
+	if resp.Offer.Domain != "trip.com" {
+		t.Fatalf("expected cheapest trip.com offer, got %+v", resp.Offer)
 	}
-	if resp.Offer.PriceLabel != "google_flights_partner" {
+	if resp.Offer.PriceLabel != "cheapest_matching_offer" {
 		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+	if resp.Offer.Price == nil || *resp.Offer.Price != 137 {
+		t.Fatalf("price=%v", resp.Offer.Price)
 	}
 }
 
@@ -260,6 +307,9 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
 	gf2Price := 180.0
+
+	t.Setenv("WEB_SEARCH_ENABLED", "true")
+	t.Setenv("SERPAPI_API_KEY", "test-key")
 
 	oldRunner := bookingMatchRunner
 	oldGF2 := bookingGF2Resolver
@@ -311,8 +361,8 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
 
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
-	if webSearchCalled {
-		t.Fatal("GF2 partner offer should return before web search")
+	if !webSearchCalled {
+		t.Fatal("expected parallel web search when enabled")
 	}
 	if !gf2Called {
 		t.Fatal("expected GF2 resolver to run")
