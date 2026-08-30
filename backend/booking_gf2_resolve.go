@@ -21,22 +21,38 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	if fp == "" {
 		return nil
 	}
-	if legIndex < 0 && itineraryIsSplit(session, option) {
+	split := itineraryIsSplit(session, option)
+	if legIndex < 0 && split {
 		return nil
 	}
 
 	currency := "USD"
-	if session != nil && strings.TrimSpace(session.Params.Currency) != "" {
-		currency = session.Params.CurrencyOrDefault()
+	adults := 1
+	if session != nil {
+		if strings.TrimSpace(session.Params.Currency) != "" {
+			currency = session.Params.CurrencyOrDefault()
+		}
+		if session.Params.Adults > 0 {
+			adults = session.Params.Adults
+		}
 	}
 	quote := quoteBindingFromOption(session, option, legIndex)
 	token := legBookingToken(option, legIndex)
 	deepLink := legDeepLink(option, legIndex)
 
-	// Search-time checkout URL is enough — no live GF2 call required.
-	if deepLink != "" {
+	// Search-time partner checkout URL is enough — no live GF2 call required.
+	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
 		if offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote); offer != nil {
 			return offer
+		}
+	}
+	if legIndex < 0 && !split {
+		for _, raw := range []string{option.BookingURL, option.DeepLink} {
+			if u := normalizeProviderBookingURL(raw); u != "" && search.IsLikelyPartnerCheckoutURL(u) {
+				if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
+					return offer
+				}
+			}
 		}
 	}
 
@@ -58,16 +74,19 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 		}
 	}
 
-	// Last resort: live GF2 route search (same path as early partner checkout).
-	if legIndex >= 0 && legIndex < len(option.Legs) && googleFlights2Provider != nil {
-		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
-		adults := 1
-		if session != nil && session.Params.Adults > 0 {
-			adults = session.Params.Adults
+	// Live GF2 route search → partner checkout (round-trip when legIndex < 0, one-way per leg otherwise).
+	if googleFlights2Provider != nil {
+		var origin, dest, dep, ret string
+		if legIndex >= 0 && legIndex < len(option.Legs) {
+			origin, dest, dep = routeFromFlightLeg(option.Legs[legIndex])
+		} else {
+			origin, dest, dep, ret = bookingRouteFromSessionOption(session, option)
 		}
-		if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, "", currency, adults); err == nil {
-			if offer := gf2PartnerOfferFromURL(u, fp); offer != nil {
-				return offer
+		if origin != "" && dest != "" && dep != "" {
+			if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
+				if offer := gf2PartnerOfferFromURL(u, fp); offer != nil {
+					return offer
+				}
 			}
 		}
 	}
@@ -344,4 +363,19 @@ func quoteBindingForMatch(session *SearchSession, option *FlightOption, legIndex
 		return nil
 	}
 	return &bookingmatch.QuoteBinding{Amount: q.Amount, Currency: q.Currency}
+}
+
+// resolveLegBookingRedirectURL resolves GF2 partner checkout for one leg of a split itinerary,
+// falling back to a one-way search prefill when partner checkout is unavailable.
+func resolveLegBookingRedirectURL(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int) string {
+	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
+		return ""
+	}
+	it, err := canonicalItineraryForOption(option, legIndex)
+	if err == nil {
+		if offer := resolveGF2PartnerOffer(ctx, session, option, it, legIndex); offer != nil && strings.TrimSpace(offer.URL) != "" {
+			return offer.URL
+		}
+	}
+	return bookingPrefillURL(session, option, legIndex)
 }

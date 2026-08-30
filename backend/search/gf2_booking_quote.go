@@ -57,7 +57,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.limiter.allow() {
+	if !p.allowBooking() {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
@@ -120,10 +120,10 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.limiter.allow() {
+	if !p.allowBooking() {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
-	results, err := p.doSearch(ctx, req)
+	results, err := p.searchLegCached(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (p *GoogleFlights2Provider) resolvePartnerTokenToURL(ctx context.Context, p
 	bookingURLReq := fmt.Sprintf("https://%s/api/v1/getBookingURL?%s", p.host, url.Values{
 		"token": {partnerToken},
 	}.Encode())
-	if !p.limiter.allow() {
+	if !p.allowBooking() {
 		return "", fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	urlBody, err := p.doGF2GET(ctx, bookingURLReq)
@@ -238,18 +238,14 @@ func parseGF2BookingOptions(body []byte, defaultCurrency string) []gf2BookingOpt
 		}
 		opt := gf2BookingOption{
 			URL:                 firstPartnerURLInMap(m),
-			BookingRequestToken: firstStringByKeys(m, []string{
-				"booking_request_token", "bookingRequestToken",
-				"request_token", "requestToken",
-				"partner_token", "partnerToken",
-			}),
-			Price:    extractGF2Price(m),
+			BookingRequestToken: partnerRequestTokenFromMap(m),
+			Price:               extractGF2Price(m),
 			Currency: firstNonEmpty(
 				firstStringByKeys(m, []string{"currency", "currency_code", "currencyCode"}),
 				defaultCurrency,
 			),
 			Provider: firstNonEmpty(
-				firstStringByKeys(m, []string{"book_with", "bookWith", "provider", "vendor", "name", "seller"}),
+				firstStringByKeys(m, []string{"partner", "book_with", "bookWith", "provider", "vendor", "name", "seller"}),
 				providerFromURL(firstPartnerURLInMap(m)),
 			),
 		}
@@ -263,6 +259,10 @@ func parseGF2BookingOptions(body []byte, defaultCurrency string) []gf2BookingOpt
 func findBookingOptionsArray(v interface{}) []interface{} {
 	switch x := v.(type) {
 	case map[string]interface{}:
+		// RapidAPI getBookingDetails: { status, data: [ { partner, price, token } ] }
+		if dataArr, ok := x["data"].([]interface{}); ok && isPartnerBookingList(dataArr) {
+			return dataArr
+		}
 		for _, key := range []string{"booking_options", "bookingOptions", "options"} {
 			if arr, ok := x[key].([]interface{}); ok && len(arr) > 0 {
 				return arr
@@ -281,6 +281,9 @@ func findBookingOptionsArray(v interface{}) []interface{} {
 			}
 		}
 	case []interface{}:
+		if isPartnerBookingList(x) {
+			return x
+		}
 		for _, child := range x {
 			if arr := findBookingOptionsArray(child); len(arr) > 0 {
 				return arr
@@ -288,6 +291,40 @@ func findBookingOptionsArray(v interface{}) []interface{} {
 		}
 	}
 	return nil
+}
+
+func isPartnerBookingList(arr []interface{}) bool {
+	if len(arr) == 0 {
+		return false
+	}
+	for _, item := range arr {
+		m, _ := item.(map[string]interface{})
+		if m == nil {
+			return false
+		}
+		if partnerRequestTokenFromMap(m) == "" && firstPartnerURLInMap(m) == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func partnerRequestTokenFromMap(m map[string]interface{}) string {
+	for _, key := range []string{
+		"booking_request_token", "bookingRequestToken",
+		"request_token", "requestToken",
+		"partner_token", "partnerToken",
+		"token",
+	} {
+		if s, ok := m[key].(string); ok {
+			v := strings.TrimSpace(s)
+			if v == "" || strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+				continue
+			}
+			return v
+		}
+	}
+	return ""
 }
 
 func firstPartnerURLInMap(m map[string]interface{}) string {

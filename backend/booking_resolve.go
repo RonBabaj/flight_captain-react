@@ -408,7 +408,11 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	// SerpAPI web search only when GF2 partner checkout could not produce a link.
-	matchResult, err := bookingMatchRunner(ctx, it)
+	var matchResult *bookingmatch.MatchResult
+	var err error
+	if googleFlights2Provider == nil {
+		matchResult, err = bookingMatchRunner(ctx, it)
+	}
 	if err != nil {
 		resp := BookingResolveResponse{
 			Found:                false,
@@ -436,8 +440,32 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
-	verifiedCount := countVerifiedExactOffers(matchResult.Offers)
-	if matchResult.BestOffer == nil {
+	if matchResult == nil || matchResult.BestOffer == nil {
+		if prefill := bookingPrefillURL(session, option, legIndex); prefill != "" {
+			if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
+				offer := publicOfferFromMatch(gf2Prefill, false)
+				if offer != nil {
+					offer.PriceLabel = "search_prefill"
+					resp := BookingResolveResponse{
+						Found:                true,
+						Status:               BookingResolveVerified,
+						ItineraryFingerprint: fp,
+						Offer:                offer,
+						Message:              "Direct partner link unavailable. Opening a prefilled search — verify fare before paying.",
+					}
+					logBookingResolve(bookingResolveLogEvent{
+						Event:                "resolve_verified_prefill",
+						ItineraryFingerprint: fp,
+						LegIndex:             intPtrOrNil(legIndex),
+						LegRoute:             legRoute,
+						Status:               resp.Status,
+						Provider:             offer.Provider,
+						DurationMs:           time.Since(start).Milliseconds(),
+					})
+					return resp
+				}
+			}
+		}
 		resp := BookingResolveResponse{
 			Found:                false,
 			Status:               BookingResolveNotFound,
@@ -455,6 +483,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
+	verifiedCount := countVerifiedExactOffers(matchResult.Offers)
 	q := quoteBindingFromOption(session, option, legIndex)
 	extractedBeforeQuote := applySearchQuoteToOffer(matchResult.BestOffer, q)
 	offer := publicOfferFromMatch(matchResult.BestOffer, verifiedCount > 1)

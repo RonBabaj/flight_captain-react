@@ -133,6 +133,32 @@ func TestParseGF2BookingOptions(t *testing.T) {
 	}
 }
 
+func TestParseGF2BookingOptions_rapidAPIPartnerList(t *testing.T) {
+	const fakeAirlineToken = "fake-gf2-partner-request-token-airline-001"
+	const fakeOTAToken = "fake-gf2-partner-request-token-ota-002"
+	body := []byte(`{
+		"status": true,
+		"message": "Success",
+		"data": [
+			{"partner": "Austrian Airlines", "price": 108, "token": "fake-gf2-partner-request-token-airline-001", "is_airline": true},
+			{"partner": "Kayak", "price": 125, "token": "fake-gf2-partner-request-token-ota-002", "is_airline": false}
+		]
+	}`)
+	opts := parseGF2BookingOptions(body, "EUR")
+	if len(opts) != 2 {
+		t.Fatalf("expected 2 partner options, got %d (%+v)", len(opts), opts)
+	}
+	if opts[0].Provider != "Austrian Airlines" || opts[0].BookingRequestToken != fakeAirlineToken {
+		t.Fatalf("first option=%+v", opts[0])
+	}
+	if opts[1].BookingRequestToken != fakeOTAToken {
+		t.Fatalf("second option=%+v", opts[1])
+	}
+	if opts[0].Price != 108 {
+		t.Fatalf("expected price 108, got %+v", opts[0])
+	}
+}
+
 func TestFirstNonEmpty(t *testing.T) {
 	if firstNonEmpty("", "  ", "x") != "x" {
 		t.Fatal("expected x")

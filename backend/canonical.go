@@ -86,6 +86,34 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 	}
 }
 
+// bookingPrefillURL returns a search prefill URL for one leg or the whole itinerary when partner checkout fails.
+func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int) string {
+	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
+		if u := BuildOneWayLegBookingURL(session, option, legIndex); u != "" {
+			return u
+		}
+		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
+		if origin != "" && dest != "" {
+			cabin := ""
+			adults := 1
+			if session != nil {
+				cabin = session.Params.CabinClass
+				if session.Params.Adults > 0 {
+					adults = session.Params.Adults
+				}
+			}
+			if bookingLinkMode() == BookingModeSkyscannerPrefill {
+				return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+			}
+			u := buildGoogleFlightsPrefillURL(origin, dest, dep, "")
+			if u != "" {
+				return u
+			}
+		}
+	}
+	return BuildUniformBookingLink(session, option)
+}
+
 func firstAirport(leg FlightLeg) string {
 	if len(leg.Segments) == 0 {
 		return ""

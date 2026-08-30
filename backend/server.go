@@ -2637,7 +2637,7 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 		if resp != nil && option != nil {
 			var redirectURL string
 			if legIdx >= 0 {
-				redirectURL = BuildOneWayLegBookingURL(&resp.Session, option, legIdx)
+				redirectURL = resolveLegBookingRedirectURL(ctx, &resp.Session, option, legIdx)
 			}
 			if redirectURL == "" {
 				redirectURL = resolveBookingRedirectURL(ctx, &resp.Session, option)
