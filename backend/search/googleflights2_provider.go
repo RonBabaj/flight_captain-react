@@ -940,8 +940,8 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 	if totalDur == 0 {
 		if depS, _ := itin["departure_time"].(string); depS != "" {
 			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
-				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
-					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate, origin); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate, dest); err == nil && !arrT.IsZero() {
 						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
 							totalDur = mins
 						}
@@ -975,14 +975,14 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 
 		if firstSeg.DepartureTime.IsZero() {
 			if depS, _ := itin["departure_time"].(string); depS != "" {
-				if t, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil {
+				if t, err := parseGF2TimeWithDateHint(depS, departureDate, firstSeg.From); err == nil {
 					firstSeg.DepartureTime = t
 				}
 			}
 		}
 		if lastSeg.ArrivalTime.IsZero() {
 			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
-				if t, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil {
+				if t, err := parseGF2TimeWithDateHint(arrS, departureDate, lastSeg.To); err == nil {
 					lastSeg.ArrivalTime = t
 				}
 			}
@@ -1106,8 +1106,8 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	if totalDur == 0 {
 		if depS, _ := f["departure_time"].(string); depS != "" {
 			if arrS, _ := f["arrival_time"].(string); arrS != "" {
-				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
-					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate, origin); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate, dest); err == nil && !arrT.IsZero() {
 						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
 							totalDur = mins
 						}
@@ -1263,12 +1263,6 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 	if a, ok := leg["arrival"].(string); ok && a != "" {
 		to = a
 	}
-	if dt, ok := leg["departure_time"].(string); ok {
-		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
-	}
-	if at, ok := leg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
-	}
 	if c, ok := leg["airline"].(string); ok {
 		carrier = c
 	}
@@ -1297,6 +1291,13 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 		if code := gf2AirportCode(arrMap); code != "" {
 			to = code
 		}
+	}
+
+	if dt, ok := leg["departure_time"].(string); ok {
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate, from)
+	}
+	if at, ok := leg["arrival_time"].(string); ok {
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate, to)
 	}
 
 	durMin := extractGF2DurationMinutes(leg, "duration", "duration_minutes", "total_duration")
@@ -1372,7 +1373,7 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			from = code
 		}
 		if t, ok := dep["time"].(string); ok {
-			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate, from)
 		}
 	}
 	if arr, ok := s["arrival_airport"].(map[string]interface{}); ok {
@@ -1380,15 +1381,15 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			to = code
 		}
 		if t, ok := arr["time"].(string); ok {
-			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate, to)
 		}
 	}
 	if depTime.IsZero() && arrTime.IsZero() {
 		if t, ok := s["departure_time"].(string); ok {
-			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate, from)
 		}
 		if t, ok := s["arrival_time"].(string); ok {
-			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate, to)
 		}
 	}
 	if c, ok := s["airline"].(string); ok {
@@ -1502,10 +1503,10 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		to = d
 	}
 	if dt, ok := seg["departure_time"].(string); ok {
-		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate, from)
 	}
 	if at, ok := seg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate, to)
 	}
 	if c, ok := seg["airline"].(string); ok {
 		carrier = c
@@ -1839,13 +1840,15 @@ func truncateGF2(s string, max int) string {
 
 // parseGF2TimeWithDateHint first tries parseGF2Time (full datetime), then combines
 // time-only strings with the provided date hint (e.g. "2026-04-10") to produce a full datetime.
-func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
+// airportCode selects the local timezone for time-only strings (airport wall clock).
+func parseGF2TimeWithDateHint(s, dateHint, airportCode string) (time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
+	loc := AirportLocation(airportCode)
 	// Try full datetime first.
-	if t, err := parseGF2Time(s); err == nil {
+	if t, err := parseGF2Time(s, airportCode); err == nil {
 		return t, nil
 	}
 	// If no date hint available, we cannot resolve time-only strings.
@@ -1866,7 +1869,7 @@ func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
 	for _, tf := range timeOnlyFormats {
 		combined := dateHint + " " + s
 		fullFmt := "2006-01-02 " + tf
-		if t, err := time.ParseInLocation(fullFmt, combined, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(fullFmt, combined, loc); err == nil {
 			return t, nil
 		}
 	}
@@ -1885,7 +1888,7 @@ func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
 		"Mon, Jan 2, 3:04 PM",
 	}
 	for _, cf := range compositeFormats {
-		if t, err := time.ParseInLocation(cf, s, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(cf, s, loc); err == nil {
 			return t, nil
 		}
 	}
@@ -1894,10 +1897,12 @@ func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
 
 // parseGF2Time parses full date-time strings only. Time-only (e.g. "15:04") is rejected
 // to avoid 0001-01-01 and identical depart/arrive display ("02:20 → 02:20" bug).
-func parseGF2Time(s string) (time.Time, error) {
+// When the string has no zone offset, airportCode supplies the local timezone.
+func parseGF2Time(s, airportCode string) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
+	loc := AirportLocation(airportCode)
 	// Only full date-time formats; do NOT include "15:04" (time-only)
 	formats := []string{
 		time.RFC3339,
@@ -1917,7 +1922,7 @@ func parseGF2Time(s string) (time.Time, error) {
 		"Jan 2, 3:04 PM",
 	}
 	for _, f := range formats {
-		if t, err := time.ParseInLocation(f, s, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(f, s, loc); err == nil {
 			return t, nil
 		}
 		if t, err := time.Parse(f, s); err == nil {

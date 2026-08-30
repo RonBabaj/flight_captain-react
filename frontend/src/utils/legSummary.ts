@@ -1,4 +1,5 @@
 import type { FlightSegment, LayoverSummary, OutboundSummary } from '../types';
+import { flightTimeToMs } from './flightTimeDisplay';
 
 export interface LegPreviewSummary {
   departureTime: string;
@@ -11,11 +12,7 @@ export interface LegPreviewSummary {
 }
 
 function toValidMs(iso: string | undefined | null): number {
-  if (!iso) return NaN;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return NaN;
-  if (new Date(ms).getUTCFullYear() < 2000) return NaN;
-  return ms;
+  return flightTimeToMs(iso);
 }
 
 function layoverBetween(segments: FlightSegment[], idx: number): LayoverSummary | null {
