@@ -86,36 +86,6 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 	}
 }
 
-// BuildSkyscannerLegPrefillURL builds a Skyscanner search URL for one leg/segment (used when partner checkout is marked up).
-func BuildSkyscannerLegPrefillURL(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) string {
-	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
-		return ""
-	}
-	leg := option.Legs[legIndex]
-	var origin, dest, dep string
-	if segmentIndex >= 0 && segmentIndex < len(leg.Segments) {
-		origin, dest, dep = routeFromFlightSegment(leg.Segments[segmentIndex])
-	} else {
-		origin, dest, dep = routeFromFlightLeg(leg)
-	}
-	if origin == "" || dest == "" || dep == "" {
-		return ""
-	}
-	cabin := "ECONOMY"
-	adults := 1
-	if session != nil {
-		if c := session.Params.CabinPrefOrDefault(); c != "" {
-			cabin = c
-		} else if c := session.Params.CabinClass; c != "" {
-			cabin = c
-		}
-		if session.Params.Adults > 0 {
-			adults = session.Params.Adults
-		}
-	}
-	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
-}
-
 // bookingPrefillURL returns a search prefill URL for one leg/segment or the whole itinerary when partner checkout fails.
 func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) string {
 	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {

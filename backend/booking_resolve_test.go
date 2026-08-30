@@ -602,7 +602,7 @@ func TestRunBookingMatch_prefersAirlineDirectOverCheaperOTAWhenOTAAboveQuote(t *
 	}
 }
 
-func TestRunBookingMatch_prefersSkyscannerWhenOTAMarkedUpWithoutAirlineCheckout(t *testing.T) {
+func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *testing.T) {
 	dep := time.Date(2027, 1, 14, 19, 5, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -644,11 +644,11 @@ func TestRunBookingMatch_prefersSkyscannerWhenOTAMarkedUpWithoutAirlineCheckout(
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected verified offer, got %+v", resp)
 	}
-	if !strings.Contains(resp.Offer.URL, "skyscanner.net") {
-		t.Fatalf("expected Skyscanner fallback over marked-up budgetair, got %+v", resp.Offer)
+	if resp.Offer.Domain != "budgetair.com" {
+		t.Fatalf("expected cheapest verified OTA checkout, got %+v", resp.Offer)
 	}
-	if resp.Offer.PriceLabel != "search_prefill" {
-		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	if strings.Contains(resp.Offer.URL, "skyscanner.net") {
+		t.Fatalf("must not redirect to Skyscanner, got %q", resp.Offer.URL)
 	}
 }
 

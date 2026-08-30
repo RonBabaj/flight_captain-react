@@ -410,49 +410,6 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	return false
 }
 
-// skyscannerOfferWhenOTAMarkedUp returns a Skyscanner prefill offer when the cheapest verified checkout
-// exceeds the search quote and there is no real airline direct checkout deeplink.
-func skyscannerOfferWhenOTAMarkedUp(session *SearchSession, option *FlightOption, fp string, legIndex, segmentIndex int, best *bookingmatch.BookingOffer, offers []bookingmatch.BookingOffer, quote search.QuoteBinding, carrier string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
-	if best == nil || quote.Amount <= 0 {
-		return nil
-	}
-	if airlineDomainForCarrier(best.Domain, carrier) || airlineDomainForCarrier(best.Provider, carrier) {
-		return nil
-	}
-	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
-	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) || otaPrice <= quote.Amount {
-		return nil
-	}
-	for i := range offers {
-		o := &offers[i]
-		if o.VerificationStatus != bookingmatch.StatusVerifiedExact || o.URLType != bookingmatch.URLTypeExactBooking {
-			continue
-		}
-		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
-			continue
-		}
-		if isAffiliateTemplateBookingURL(o.URL) {
-			continue
-		}
-		return nil
-	}
-	sky := BuildSkyscannerLegPrefillURL(session, option, legIndex, segmentIndex)
-	if sky == "" {
-		return nil
-	}
-	offer := gf2PartnerOfferFromURL(sky, fp)
-	if offer == nil {
-		return nil
-	}
-	offer.URLType = bookingmatch.URLTypeExactSearch
-	p := quote.Amount
-	offer.Price = &p
-	if quote.Currency != "" {
-		offer.Currency = quote.Currency
-	}
-	return offer
-}
-
 func normalizedGF2OfferPrice(o bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer) (float64, bool) {
 	if o.Price == nil || *o.Price <= 0 {
 		return 0, false
