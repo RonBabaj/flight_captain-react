@@ -105,11 +105,13 @@ export interface FlightResultCardProps {
   tripType?: 'one-way' | 'round-trip';
   /** Return date from search params, used as fallback when legs[1] has no date */
   searchReturnDate?: string;
+  /** Open-jaw / RT return endpoints from search params — shown when legs[1] is missing */
+  searchReturnRoute?: { from: string; to: string };
   /** Total number of travelers in the search (adults + children + infants) */
   passengerCount?: number;
 }
 
-export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate, passengerCount }: FlightResultCardProps) {
+export function FlightResultCard({ option, onDetails, onBook, bookLoading = false, bookLabel, tripType, searchReturnDate, searchReturnRoute, passengerCount }: FlightResultCardProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency } = useLocale();
   const summary = buildSummary(option);
@@ -129,7 +131,11 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
     .filter(Boolean);
   const outboundRouteStr = legRoutes[0] || '';
   const extraRouteStrs = legRoutes.slice(1, Math.max(1, legRoutes.length - 1));
-  const returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
+  let returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
+  if (!returnRouteStr && searchReturnRoute?.from && searchReturnRoute?.to) {
+    returnRouteStr = `${searchReturnRoute.from.toUpperCase()}${sep}${searchReturnRoute.to.toUpperCase()}`;
+  }
+  const missingReturnLeg = !!(searchReturnRoute && legCount < 2);
 
   // Dates: outbound departure + return departure (if round-trip)
   const outboundDate = fmtShortDate(segments[0]?.departureTime);
@@ -225,7 +231,17 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
           ))}
           {/* Return route (round-trip only): destination → layover(s) → origin */}
           {isRoundTrip && returnRouteStr ? (
-            <Text style={[c.route, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>{returnRouteStr}</Text>
+            <Text
+              style={[
+                c.route,
+                { color: missingReturnLeg ? theme.error || '#b45309' : theme.textMuted },
+                isRTL && { textAlign: 'right' },
+              ]}
+              numberOfLines={1}
+            >
+              {returnRouteStr}
+              {missingReturnLeg ? ` (${t('return_leg_unavailable')})` : ''}
+            </Text>
           ) : null}
           {/* Dates: "Mar 26 → Apr 2" for round-trips, "Mar 26" for one-way */}
           {outboundDate ? (
