@@ -59,8 +59,8 @@ type BookingResolveResponse struct {
 	Message              string              `json:"message,omitempty"`
 	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
 	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
-	PriceMismatch        bool                `json:"priceMismatch,omitempty"`
-	CandidatesConsidered int                       `json:"candidatesConsidered,omitempty"`
+	PriceMismatch        bool                        `json:"priceMismatch,omitempty"`
+	CandidatesConsidered int                         `json:"candidatesConsidered,omitempty"`
 	Alternatives         []PublicBookingAlternative  `json:"alternatives,omitempty"`
 }
 
