@@ -28,25 +28,13 @@ import {
   formatLegStopsLabel,
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
+import { formatFlightTime, flightTimeToMs, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function toValidMs(iso: string | undefined | null): number {
-  if (!iso) return NaN;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return NaN;
-  if (new Date(ms).getUTCFullYear() < 2000) return NaN;
-  return ms;
-}
-
-function fmtTime(iso: string | undefined | null): string {
-  if (!Number.isFinite(toValidMs(iso))) return '';
-  return new Date(iso!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
 function fmtShortDate(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
+  const ms = flightTimeToMs(iso);
   if (!Number.isFinite(ms)) return '';
   return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -72,6 +60,8 @@ function LegScheduleBlock({
   t,
   theme,
   isRTL,
+  timeDisplay,
+  locale,
 }: {
   summary: LegPreviewSummary | null;
   routeStr: string;
@@ -80,11 +70,13 @@ function LegScheduleBlock({
   t: (key: string) => string;
   theme: ReturnType<typeof useTheme>['theme'];
   isRTL: boolean;
+  timeDisplay: FlightTimeDisplayMode;
+  locale: string;
 }) {
   if (!routeStr && !summary) return null;
 
-  const dep = fmtTime(summary?.departureTime) || '—';
-  const arr = fmtTime(summary?.arrivalTime) || '—';
+  const dep = formatFlightTime(summary?.departureTime, summary?.origin, timeDisplay, locale);
+  const arr = formatFlightTime(summary?.arrivalTime, summary?.destination, timeDisplay, locale);
   const dur = formatDuration(summary?.durationMinutes ?? 0);
   const stopsCount = summary?.stopsCount ?? 0;
   const stopsText = formatLegStopsLabel(stopsCount, t);
@@ -170,7 +162,7 @@ export function FlightResultCard({
   passengerCount,
 }: FlightResultCardProps) {
   const { theme } = useTheme();
-  const { t, isRTL, currency: displayCurrency } = useLocale();
+  const { t, isRTL, currency: displayCurrency, timeDisplay, locale } = useLocale();
   const segments = option.legs?.[0]?.segments ?? [];
   const outboundSummary = buildLegPreviewSummary(segments, option.outboundSummary, option.durationMinutes);
 
@@ -272,6 +264,8 @@ export function FlightResultCard({
             t={t}
             theme={theme}
             isRTL={isRTL}
+            timeDisplay={timeDisplay}
+            locale={locale}
           />
           {extraRouteStrs.map((routeStr, i) => (
             <Text
@@ -292,6 +286,8 @@ export function FlightResultCard({
                 t={t}
                 theme={theme}
                 isRTL={isRTL}
+                timeDisplay={timeDisplay}
+                locale={locale}
               />
             ) : (
               <Text

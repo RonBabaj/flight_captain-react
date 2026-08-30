@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import type { LanguageCode, CurrencyCode } from '../data/translations';
 import { getTranslation } from '../data/translations';
+import type { FlightTimeDisplayMode } from '../utils/flightTimeDisplay';
+import { FLIGHT_TIME_DISPLAY_MODES } from '../utils/flightTimeDisplay';
 
 const STORAGE_KEY = 'flight_captain_locale';
+
+const VALID_TIME_DISPLAY: FlightTimeDisplayMode[] = FLIGHT_TIME_DISPLAY_MODES;
 
 function getStorage(): Storage | null {
   try {
@@ -14,26 +18,29 @@ function getStorage(): Storage | null {
 
 const VALID_CURRENCIES: CurrencyCode[] = ['USD', 'ILS', 'GBP', 'EUR', 'JPY'];
 
-function loadSaved(): { language: LanguageCode; currency: CurrencyCode } {
+function loadSaved(): { language: LanguageCode; currency: CurrencyCode; timeDisplay: FlightTimeDisplayMode } {
   const storage = getStorage();
-  if (!storage) return { language: 'en', currency: 'USD' };
+  if (!storage) return { language: 'en', currency: 'USD', timeDisplay: 'airport' };
   try {
     const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return { language: 'en', currency: 'USD' };
-    const parsed = JSON.parse(raw) as { language?: string; currency?: string };
+    if (!raw) return { language: 'en', currency: 'USD', timeDisplay: 'airport' };
+    const parsed = JSON.parse(raw) as { language?: string; currency?: string; timeDisplay?: string };
     const language = parsed.language === 'he' || parsed.language === 'ru' ? parsed.language : 'en';
     const currency = VALID_CURRENCIES.includes((parsed.currency ?? '') as CurrencyCode) ? (parsed.currency as CurrencyCode) : 'USD';
-    return { language, currency };
+    const timeDisplay = VALID_TIME_DISPLAY.includes(parsed.timeDisplay as FlightTimeDisplayMode)
+      ? (parsed.timeDisplay as FlightTimeDisplayMode)
+      : 'airport';
+    return { language, currency, timeDisplay };
   } catch {
-    return { language: 'en', currency: 'USD' };
+    return { language: 'en', currency: 'USD', timeDisplay: 'airport' };
   }
 }
 
-function save(language: LanguageCode, currency: CurrencyCode): void {
+function save(language: LanguageCode, currency: CurrencyCode, timeDisplay: FlightTimeDisplayMode): void {
   const storage = getStorage();
   if (!storage) return;
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify({ language, currency }));
+    storage.setItem(STORAGE_KEY, JSON.stringify({ language, currency, timeDisplay }));
   } catch {}
 }
 
@@ -49,8 +56,10 @@ export function languageToLocale(lang: LanguageCode): string {
 export type LocaleContextValue = {
   language: LanguageCode;
   currency: CurrencyCode;
+  timeDisplay: FlightTimeDisplayMode;
   setLanguage: (lang: LanguageCode) => void;
   setCurrency: (curr: CurrencyCode) => void;
+  setTimeDisplay: (mode: FlightTimeDisplayMode) => void;
   /** API locale e.g. en-US */
   locale: string;
   /** Right-to-left layout (e.g. Hebrew, Arabic) */
@@ -63,33 +72,41 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<LanguageCode>('en');
   const [currency, setCurrencyState] = useState<CurrencyCode>('USD');
+  const [timeDisplay, setTimeDisplayState] = useState<FlightTimeDisplayMode>('airport');
 
   useEffect(() => {
-    const { language: l, currency: c } = loadSaved();
+    const { language: l, currency: c, timeDisplay: td } = loadSaved();
     setLanguageState(l);
     setCurrencyState(c);
+    setTimeDisplayState(td);
   }, []);
 
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
-    save(lang, currency);
+    save(lang, currency, timeDisplay);
   };
   const setCurrency = (curr: CurrencyCode) => {
     setCurrencyState(curr);
-    save(language, curr);
+    save(language, curr, timeDisplay);
+  };
+  const setTimeDisplay = (mode: FlightTimeDisplayMode) => {
+    setTimeDisplayState(mode);
+    save(language, currency, mode);
   };
 
   const value = useMemo<LocaleContextValue>(
     () => ({
       language,
       currency,
+      timeDisplay,
       setLanguage,
       setCurrency,
+      setTimeDisplay,
       locale: languageToLocale(language),
       isRTL: language === 'he',
       t: (key: string) => getTranslation(key, language),
     }),
-    [language, currency]
+    [language, currency, timeDisplay]
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

@@ -31,26 +31,13 @@ import {
   isSplitBookingItinerary,
   needsPerHopBooking,
 } from '../../../utils/skyscanner';
+import { formatFlightTime, flightTimeToMs } from '../../../utils/flightTimeDisplay';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function toValidMs(iso: string | undefined | null): number {
-  if (!iso) return NaN;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return NaN;
-  if (new Date(ms).getUTCFullYear() < 2000) return NaN;
-  return ms;
-}
-
-function safeTime(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
-  if (!Number.isFinite(ms)) return '—';
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
 function safeDate(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
+  const ms = flightTimeToMs(iso);
   if (!Number.isFinite(ms)) return '';
   const d = new Date(ms);
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -68,8 +55,8 @@ function layoverBetween(segments: FlightSegment[], idx: number): number {
   const finalDest = segments[segments.length - 1].to?.code || '';
   const connectAirport = segments[idx - 1].to?.code || '';
   if (connectAirport && connectAirport === finalDest) return 0;
-  const prevArr = toValidMs(segments[idx - 1].arrivalTime);
-  const dep = toValidMs(segments[idx].departureTime);
+  const prevArr = flightTimeToMs(segments[idx - 1].arrivalTime);
+  const dep = flightTimeToMs(segments[idx].departureTime);
   if (!Number.isFinite(prevArr) || !Number.isFinite(dep) || dep <= prevArr) return 0;
   return Math.round((dep - prevArr) / 60000);
 }
@@ -86,8 +73,8 @@ function cabinLabel(raw: string | undefined, t: (k: string) => string): string {
 
 function legDuration(segments: FlightSegment[]): number {
   if (!segments?.length) return 0;
-  const depMs = toValidMs(segments[0].departureTime);
-  const arrMs = toValidMs(segments[segments.length - 1].arrivalTime);
+  const depMs = flightTimeToMs(segments[0].departureTime);
+  const arrMs = flightTimeToMs(segments[segments.length - 1].arrivalTime);
   if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs > depMs) {
     return Math.round((arrMs - depMs) / 60000);
   }
@@ -114,7 +101,7 @@ export function FlightDetailsModal({
   searchParams,
 }: FlightDetailsModalProps) {
   const { theme } = useTheme();
-  const { t, isRTL, language, currency: displayCurrency } = useLocale();
+  const { t, isRTL, language, currency: displayCurrency, timeDisplay, locale } = useLocale();
   const [legResolves, setLegResolves] = useState<Record<string, BookingResolveResponse>>({});
   const [resolveLoadingKey, setResolveLoadingKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -658,7 +645,7 @@ export function FlightDetailsModal({
                           {/* Departure */}
                           <View style={s.segEndpoint}>
                             <Text style={[s.segTime, { color: theme.text }]}>
-                              {safeTime(seg.departureTime)}
+                              {formatFlightTime(seg.departureTime, seg.from?.code, timeDisplay, locale)}
                             </Text>
                             <Text style={[s.segAirport, { color: theme.textMuted }]}>
                               {getAirportNameByCode(seg.from?.code, language)}
@@ -677,7 +664,7 @@ export function FlightDetailsModal({
                           {/* Arrival */}
                           <View style={[s.segEndpoint, s.segEndpointRight]}>
                             <Text style={[s.segTime, { color: theme.text }]}>
-                              {safeTime(seg.arrivalTime)}
+                              {formatFlightTime(seg.arrivalTime, seg.to?.code, timeDisplay, locale)}
                             </Text>
                             <Text style={[s.segAirport, { color: theme.textMuted }]}>
                               {getAirportNameByCode(seg.to?.code, language)}

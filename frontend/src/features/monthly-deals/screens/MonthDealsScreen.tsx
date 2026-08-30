@@ -13,6 +13,7 @@ import {
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { formatFlightTime, flightTimeToMs, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSession, getSearchSessionResults } from '../../../api';
@@ -157,21 +158,8 @@ function sortDeals(
 
 // ─── Shared helpers (same logic as FlightDetailsModal) ──────────────────────
 
-function toValidMs(iso: string | undefined | null): number {
-  if (!iso) return NaN;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms) || new Date(ms).getUTCFullYear() < 2000) return NaN;
-  return ms;
-}
-
-function safeTime(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
-  if (!Number.isFinite(ms)) return '—';
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
 function safeDate(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
+  const ms = flightTimeToMs(iso);
   if (!Number.isFinite(ms)) return '';
   return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -185,8 +173,8 @@ function fmtDur(min: number): string {
 
 function legDuration(segs: FlightSegment[]): number {
   if (!segs?.length) return 0;
-  const d = toValidMs(segs[0].departureTime);
-  const a = toValidMs(segs[segs.length - 1].arrivalTime);
+  const d = flightTimeToMs(segs[0].departureTime);
+  const a = flightTimeToMs(segs[segs.length - 1].arrivalTime);
   if (Number.isFinite(d) && Number.isFinite(a) && a > d) return Math.round((a - d) / 60000);
   return segs.reduce((s, seg) => s + Math.max(0, seg.durationMinutes || 0), 0);
 }
@@ -196,8 +184,8 @@ function layoverBetween(segs: FlightSegment[], idx: number): number {
   const dest = segs[segs.length - 1].to?.code || '';
   const con = segs[idx - 1].to?.code || '';
   if (con && con === dest) return 0;
-  const prev = toValidMs(segs[idx - 1].arrivalTime);
-  const dep = toValidMs(segs[idx].departureTime);
+  const prev = flightTimeToMs(segs[idx - 1].arrivalTime);
+  const dep = flightTimeToMs(segs[idx].departureTime);
   if (!Number.isFinite(prev) || !Number.isFinite(dep) || dep <= prev) return 0;
   return Math.round((dep - prev) / 60000);
 }
@@ -242,7 +230,7 @@ function buildDealsPositioningSignature(
 
 export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: any; view?: 'form' | 'results' }) {
   const { theme } = useTheme();
-  const { currency, locale, t, isRTL, language } = useLocale();
+  const { currency, locale, t, isRTL, language, timeDisplay } = useLocale();
   const isMobile = useIsMobile();
   const { width: screenW } = useWindowDimensions();
   const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
@@ -1300,8 +1288,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               </View>
 
               {/* Legs — pass isRTL so segments mirror correctly */}
-              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language, isRTL)}
-              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language, isRTL)}
+              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language, timeDisplay, locale, isRTL)}
+              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language, timeDisplay, locale, isRTL)}
             </ScrollView>
           )}
 
@@ -1521,6 +1509,8 @@ function renderLeg(
   theme: import('../../../theme/ThemeContext').Theme,
   t: (k: string) => string,
   language: LanguageCode,
+  timeDisplay: FlightTimeDisplayMode,
+  locale: string,
   isRTL = false,
 ) {
   if (!segs?.length) return null;
@@ -1554,7 +1544,7 @@ function renderLeg(
             {/* In RTL, mirror dep/arr: arrival on right (visual start), departure on left */}
             <View style={[m.segRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View style={[m.segEnd, isRTL && { alignItems: 'center' }]}>
-                <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.departureTime)}</Text>
+                <Text style={[m.segTime, { color: theme.text }]}>{formatFlightTime(seg.departureTime, seg.from?.code, timeDisplay, locale)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.from?.code, language)}</Text>
               </View>
               <View style={m.segMid}>
@@ -1563,7 +1553,7 @@ function renderLeg(
                 <View style={[m.segLine, { backgroundColor: theme.cardBorder }]} />
               </View>
               <View style={[m.segEnd, m.segEndRight, isRTL && { alignItems: 'center' }]}>
-                <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.arrivalTime)}</Text>
+                <Text style={[m.segTime, { color: theme.text }]}>{formatFlightTime(seg.arrivalTime, seg.to?.code, timeDisplay, locale)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.to?.code, language)}</Text>
               </View>
             </View>

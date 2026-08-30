@@ -126,15 +126,15 @@
     "semantic_hash": ""
   },
   "backend/search/googleflights2_normalize_test.go": {
-    "mtime": 1788042989.1429257,
-    "seen": 1788043035.6645277,
-    "ast_hash": "3cbb9959d3a1d0ece25d2b385ed94c40",
+    "mtime": 1788101679.5033603,
+    "seen": 1788101772.4578626,
+    "ast_hash": "e90469f25994b270ece1ed407835a70f",
     "semantic_hash": ""
   },
   "backend/search/googleflights2_provider.go": {
-    "mtime": 1788096023.911088,
-    "seen": 1788097028.8569129,
-    "ast_hash": "165a68c2e4a99a6ad80255547bb46f7d",
+    "mtime": 1788101656.7115192,
+    "seen": 1788101772.4578636,
+    "ast_hash": "50ac0a4b8bd58699ac2beddaf72891fb",
     "semantic_hash": ""
   },
   "backend/search/providers.go": {
@@ -305,9 +305,9 @@
     "semantic_hash": ""
   },
   "frontend/src/context/LocaleContext.tsx": {
-    "mtime": 1788042991.058916,
-    "seen": 1788043035.6645672,
-    "ast_hash": "d7a47f151e51cb73a6cfdc9fa924e39f",
+    "mtime": 1788101694.739254,
+    "seen": 1788101772.4587603,
+    "ast_hash": "45dafd7de85a7a034f78f4af03fab136",
     "semantic_hash": ""
   },
   "frontend/src/data/airlines.ts": {
@@ -329,9 +329,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1788096998.1017244,
-    "seen": 1788097028.8578837,
-    "ast_hash": "f9ced19f0c1804e517f59aaa8a0db295",
+    "mtime": 1788101699.61122,
+    "seen": 1788101772.4588637,
+    "ast_hash": "429caa35d1377563ae4e78d8ed3c733f",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -377,15 +377,15 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1788094329.0375023,
-    "seen": 1788097028.8582368,
-    "ast_hash": "0449eec62f6a1ab5a40749c69c16128e",
+    "mtime": 1788101726.4670324,
+    "seen": 1788101772.4592464,
+    "ast_hash": "1d88c44eaf21af0c3ec7f247abe854f0",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
-    "mtime": 1788097012.4456034,
-    "seen": 1788097028.8582375,
-    "ast_hash": "500c33550c6e79fc1b4c747ebc624f7b",
+    "mtime": 1788101935.7377775,
+    "seen": 1788101940.7521334,
+    "ast_hash": "243d8455803efc0246608d89aa54457f",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx": {
@@ -443,9 +443,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1788042991.0629163,
-    "seen": 1788043035.6645906,
-    "ast_hash": "f6c25818d0e8a00d6783ce97a91a8828",
+    "mtime": 1788101755.270831,
+    "seen": 1788101772.4594789,
+    "ast_hash": "6a13fcb42f035046adb3218e8cee7a18",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -1156,9 +1156,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/settings/components/UserPreferencesSection.tsx": {
-    "mtime": 1788042991.0629163,
-    "seen": 1788043035.6645932,
-    "ast_hash": "d12d9f2779224c2e5c56e87122b04105",
+    "mtime": 1788101704.6631846,
+    "seen": 1788101772.4595606,
+    "ast_hash": "70c96858a3b48fd1eadd23cf380032eb",
     "semantic_hash": ""
   },
   "frontend/src/features/settings/screens/SettingsScreen.tsx": {
@@ -1234,9 +1234,33 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/legSummary.ts": {
-    "mtime": 1788096997.9177256,
-    "seen": 1788097028.8590152,
-    "ast_hash": "c55fddeb1cc2ca2244b561a8d65e1edd",
+    "mtime": 1788101928.9778132,
+    "seen": 1788101940.752949,
+    "ast_hash": "087ec59dea4616e1c9884e4b87a7f83c",
+    "semantic_hash": ""
+  },
+  "backend/search/airport_tz.go": {
+    "mtime": 1788101623.3197515,
+    "seen": 1788101772.457793,
+    "ast_hash": "4ba8ec349a35e650b54c044303f21cb8",
+    "semantic_hash": ""
+  },
+  "backend/search/airport_tz_test.go": {
+    "mtime": 1788101661.3994865,
+    "seen": 1788101772.4577947,
+    "ast_hash": "27d3661ec2961207034c1a8e1f565986",
+    "semantic_hash": ""
+  },
+  "frontend/src/data/airportTimezones.ts": {
+    "mtime": 1788101670.5394228,
+    "seen": 1788101772.4588172,
+    "ast_hash": "cb6cddd89f8c232dcc90bac4ea3af90a",
+    "semantic_hash": ""
+  },
+  "frontend/src/utils/flightTimeDisplay.ts": {
+    "mtime": 1788101670.4874232,
+    "seen": 1788101772.4600055,
+    "ast_hash": "a60926f623308a2147f617fe8d14785f",
     "semantic_hash": ""
   }
 }

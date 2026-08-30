@@ -47,6 +47,15 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   settings_theme_dark: { en: 'Dark mode', he: 'מצב כהה', ru: 'Тёмная тема' },
   settings_theme_light: { en: 'Light mode', he: 'מצב בהיר', ru: 'Светлая тема' },
   settings_theme_toggle: { en: 'Switch', he: 'החלף', ru: 'Сменить' },
+  settings_time_display_label: { en: 'Flight times', he: 'שעות טיסה', ru: 'Время рейсов' },
+  settings_time_display_hint: {
+    en: 'Airport local shows each city’s clock (matches airline sites). Your local converts to your timezone.',
+    he: 'שעון מקומי בנמל מציג את השעה בכל עיר (כמו באתרי חברות התעופה). המקומי שלך ממיר לאזור הזמן שלך.',
+    ru: 'Местное время аэропорта — как на сайтах авиакомпаний. Ваше местное — в вашем часовом поясе.',
+  },
+  time_display_airport: { en: 'Airport local', he: 'שעון נמל', ru: 'Аэропорт' },
+  time_display_local: { en: 'Your timezone', he: 'האזור שלך', ru: 'Ваш пояс' },
+  time_display_utc: { en: 'UTC', he: 'UTC', ru: 'UTC' },
   settings_profile_title: { en: 'Profile', he: 'פרופיל', ru: 'Профиль' },
   settings_profile_subtitle: {
     en: 'Your account and shared flights.',

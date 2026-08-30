@@ -7,11 +7,11 @@ import (
 // TestParseGF2Time_RejectsTimeOnly ensures time-only strings like "02:20" are rejected
 // so we never produce identical depart/arrive (02:20 → 02:20 bug).
 func TestParseGF2Time_RejectsTimeOnly(t *testing.T) {
-	_, err := parseGF2Time("02:20")
+	_, err := parseGF2Time("02:20", "")
 	if err == nil {
 		t.Error("parseGF2Time should reject time-only \"02:20\"")
 	}
-	_, err = parseGF2Time("15:04")
+	_, err = parseGF2Time("15:04", "")
 	if err == nil {
 		t.Error("parseGF2Time should reject time-only \"15:04\"")
 	}
@@ -19,7 +19,7 @@ func TestParseGF2Time_RejectsTimeOnly(t *testing.T) {
 
 // TestParseGF2Time_AcceptsFullDateTime ensures full ISO/RFC3339 datetimes parse correctly.
 func TestParseGF2Time_AcceptsFullDateTime(t *testing.T) {
-	got, err := parseGF2Time("2025-03-06T08:00:00Z")
+	got, err := parseGF2Time("2025-03-06T08:00:00Z", "TLV")
 	if err != nil {
 		t.Fatalf("parseGF2Time: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestParseGF2Time_AcceptsFullDateTime(t *testing.T) {
 		t.Errorf("got %v", got)
 	}
 
-	got2, err := parseGF2Time("2025-03-06T14:35:00Z")
+	got2, err := parseGF2Time("2025-03-06T14:35:00Z", "NAP")
 	if err != nil {
 		t.Fatalf("parseGF2Time: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestExtractGF2Leg_SingleSegment_DepartArriveDiffer(t *testing.T) {
 	}
 }
 
-// TestExtractGF2Leg_TimeOnly_WithDateHint ensures time-only strings are parsed with date hint.
+// TestExtractGF2Leg_TimeOnly_WithDateHint ensures time-only strings are parsed in airport local zones.
 func TestExtractGF2Leg_TimeOnly_WithDateHint(t *testing.T) {
 	leg := map[string]interface{}{
 		"departure_time": "8:00 AM",
@@ -96,8 +96,16 @@ func TestExtractGF2Leg_TimeOnly_WithDateHint(t *testing.T) {
 	if s.DepartureTime.Year() != 2026 || s.DepartureTime.Month() != 4 || s.DepartureTime.Day() != 10 {
 		t.Errorf("expected 2026-04-10, got %v", s.DepartureTime)
 	}
-	if dur != 140 {
-		t.Errorf("totalDur expected 140, got %d", dur)
+	depLocal := s.DepartureTime.In(AirportLocation("TLV"))
+	if depLocal.Hour() != 8 || depLocal.Minute() != 0 {
+		t.Errorf("expected 08:00 TLV local, got %s", depLocal.Format("15:04"))
+	}
+	arrLocal := s.ArrivalTime.In(AirportLocation("NAP"))
+	if arrLocal.Hour() != 10 || arrLocal.Minute() != 20 {
+		t.Errorf("expected 10:20 NAP local, got %s", arrLocal.Format("15:04"))
+	}
+	if dur <= 0 {
+		t.Errorf("totalDur expected positive, got %d", dur)
 	}
 }
 
