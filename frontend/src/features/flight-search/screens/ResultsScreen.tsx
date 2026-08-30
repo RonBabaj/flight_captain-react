@@ -1142,6 +1142,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   }
   const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
+  const searchReturnRoute =
+    tripType === 'round-trip' && params?.origin && params?.destination
+      ? {
+          from: (isOpenJaw ? params.returnOrigin || params.destination : params.destination).toUpperCase(),
+          to: (isOpenJaw ? params.returnDestination || params.origin : params.origin).toUpperCase(),
+        }
+      : undefined;
 
   // Hide the top progress banner once we have results (or search finished).
   // bootstrappingSession used to stick true when create was cancelled mid-flight
@@ -1249,6 +1256,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             bookLabel={t('book_this_flight')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
+            searchReturnRoute={searchReturnRoute}
             passengerCount={
               (storeParams?.adults ?? 0) +
               (storeParams?.children ?? 0) +

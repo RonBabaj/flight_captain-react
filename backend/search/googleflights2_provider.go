@@ -290,6 +290,9 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 				return p.doSearch(ctx, req)
 			}
 			if i == len(steps)-1 && len(extras) == 0 {
+				if IsOpenJaw(req) {
+					return nil, fmt.Errorf("return search failed for open-jaw trip (%s)", step.label)
+				}
 				log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(res))
 				return batches[0], nil
 			}

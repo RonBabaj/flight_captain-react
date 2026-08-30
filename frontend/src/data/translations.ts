@@ -515,6 +515,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   checked_bag_unknown: { en: 'Checked bag: Unknown', he: 'מזוודה: לא ידוע', ru: 'Багаж: неизвестно' },
   outbound: { en: 'Outbound', he: 'הלוך', ru: 'Туда' },
   return_leg: { en: 'Return', he: 'חזור', ru: 'Обратно' },
+  return_leg_unavailable: {
+    en: 'return not loaded',
+    he: 'חזור לא נטען',
+    ru: 'обратный рейс не загружен',
+  },
   flight_leg: { en: 'Flight', he: 'טיסה', ru: 'Рейс' },
   layover_in: { en: 'Layover in', he: 'המתנה ב־', ru: 'Пересадка в' },
   stop_at: { en: 'stop at', he: 'עצירה ב־', ru: 'пересадка в' },
