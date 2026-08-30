@@ -492,3 +492,59 @@ func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
 		t.Fatalf("price=%v", resp.Offer.Price)
 	}
 }
+
+func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.T) {
+	dep := time.Date(2027, 1, 14, 19, 5, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "SZG", To: "TLV",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LY", FlightNumber: "LY5194",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	budgetair := 324.0
+	elalQuote := 288.0
+
+	oldGF2 := bookingGF2OffersResolver
+	defer func() { bookingGF2OffersResolver = oldGF2 }()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{
+			{
+				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &budgetair, Currency: "USD",
+				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			},
+			{
+				Domain: "booking.elal.co.il", URL: "https://booking.elal.co.il/checkout/szg-tlv",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &elalQuote, Currency: "USD",
+				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			},
+		}
+	}
+
+	opt := &FlightOption{
+		Price:     MonetaryAmount{Amount: 465, Currency: "USD"},
+		LegPrices: []float64{288},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY5194",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected verified offer, got %+v", resp)
+	}
+	if !strings.Contains(resp.Offer.Domain, "elal") {
+		t.Fatalf("expected elal airline direct over budgetair, got %+v", resp.Offer)
+	}
+	if resp.Offer.Price == nil || *resp.Offer.Price != elalQuote {
+		t.Fatalf("price=%v", resp.Offer.Price)
+	}
+}

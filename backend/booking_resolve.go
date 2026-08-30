@@ -59,8 +59,17 @@ type BookingResolveResponse struct {
 	Message              string              `json:"message,omitempty"`
 	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
 	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
-	PriceMismatch        bool                `json:"priceMismatch,omitempty"`
-	CandidatesConsidered int                 `json:"candidatesConsidered,omitempty"`
+	PriceMismatch        bool                        `json:"priceMismatch,omitempty"`
+	CandidatesConsidered int                         `json:"candidatesConsidered,omitempty"`
+	Alternatives         []PublicBookingAlternative  `json:"alternatives,omitempty"`
+}
+
+// PublicBookingAlternative is a runner-up verified checkout (for transparency).
+type PublicBookingAlternative struct {
+	Provider string   `json:"provider"`
+	Domain   string   `json:"domain"`
+	Price    *float64 `json:"price,omitempty"`
+	Currency string   `json:"currency,omitempty"`
 }
 
 type bookingResolveCacheEntry struct {
@@ -500,6 +509,8 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
+		carrier := marketingCarrierForLegIndex(option, legIndex)
+		best = preferAirlineDirectOverOTAAboveQuote(best, offers, q, carrier, normalize)
 		if best != nil {
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
 			extractedBeforeQuote := (*float64)(nil)
@@ -531,6 +542,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 					ItineraryFingerprint: fp,
 					Offer:                offer,
 					CandidatesConsidered: len(offers),
+					Alternatives:         publicAlternativesFromOffers(offers, best, normalize, 4),
 				}
 				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 				logBookingResolve(bookingResolveLogEvent{
