@@ -123,7 +123,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	if !p.allowBooking() {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
-	results, err := p.doSearch(ctx, req)
+	results, err := p.searchLegCached(ctx, req)
 	if err != nil {
 		return nil, err
 	}

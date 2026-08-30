@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,7 +89,7 @@ func TestHandleBookingResolve_verified(t *testing.T) {
 	}
 }
 
-func TestHandleBookingResolve_notFound(t *testing.T) {
+func TestHandleBookingResolve_prefillFallback(t *testing.T) {
 	oldRunner := bookingMatchRunner
 	defer func() { bookingMatchRunner = oldRunner }()
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
@@ -117,8 +118,11 @@ func TestHandleBookingResolve_notFound(t *testing.T) {
 
 	var out BookingResolveResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)
-	if out.Found || out.Status != BookingResolveNotFound {
-		t.Fatalf("expected not_found, got %+v", out)
+	if !out.Found || out.Status != BookingResolveVerified || out.Offer == nil {
+		t.Fatalf("expected prefill verified offer, got %+v", out)
+	}
+	if !strings.Contains(out.Offer.URL, "google.com/travel/flights") {
+		t.Fatalf("expected google flights prefill, got %q", out.Offer.URL)
 	}
 }
 

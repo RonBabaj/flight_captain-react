@@ -221,7 +221,6 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		}
 		resultCount = len(results)
 		if len(results) > 0 {
-			p.enrichResultsPartnerLinks(ctx, results, req.Currency)
 			cheapest = results[0].Price.Amount
 			p.cache.set(cacheKey, results)
 		}
@@ -235,7 +234,6 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	}
 	resultCount = len(results)
 	if len(results) > 0 {
-		p.enrichResultsPartnerLinks(ctx, results, req.Currency)
 		cheapest = results[0].Price.Amount
 		p.cache.set(cacheKey, results)
 	}
@@ -325,7 +323,7 @@ func (p *GoogleFlights2Provider) searchLegCached(ctx context.Context, req Search
 	return res, nil
 }
 
-const enrichPartnerLinksMaxResults = 5
+const enrichPartnerLinksMaxResults = 1
 
 // enrichResultsPartnerLinks resolves GF2 getBookingDetails for the cheapest hits so
 // open-jaw CombineOneWayBatches can store real partner checkout URLs in LegDeepLinks.
