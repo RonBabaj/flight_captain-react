@@ -143,15 +143,15 @@ func TestHandleBookingResolve_searchUnavailable(t *testing.T) {
 	t.Setenv("SERPAPI_API_KEY", "test-key")
 
 	oldRunner := bookingMatchRunner
-	oldGF2 := bookingGF2Resolver
+	oldGF2 := bookingGF2OffersResolver
 	defer func() {
 		bookingMatchRunner = oldRunner
-		bookingGF2Resolver = oldGF2
+		bookingGF2OffersResolver = oldGF2
 	}()
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
 	}
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
 		return nil
 	}
 
@@ -218,10 +218,10 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 	t.Setenv("SERPAPI_API_KEY", "test-key")
 
 	oldRunner := bookingMatchRunner
-	oldGF2 := bookingGF2Resolver
+	oldGF2 := bookingGF2OffersResolver
 	defer func() {
 		bookingMatchRunner = oldRunner
-		bookingGF2Resolver = oldGF2
+		bookingGF2OffersResolver = oldGF2
 	}()
 
 	webSearchCalled := false
@@ -251,8 +251,8 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 			},
 		}, nil
 	}
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
-		return &bookingmatch.BookingOffer{
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{{
 			Domain:             "austrian.com",
 			URL:                "https://www.austrian.com/en/book-flight/checkout",
 			URLType:            bookingmatch.URLTypeExactBooking,
@@ -261,7 +261,7 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}
+		}}
 	}
 
 	opt := &FlightOption{
@@ -312,10 +312,10 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	t.Setenv("SERPAPI_API_KEY", "test-key")
 
 	oldRunner := bookingMatchRunner
-	oldGF2 := bookingGF2Resolver
+	oldGF2 := bookingGF2OffersResolver
 	defer func() {
 		bookingMatchRunner = oldRunner
-		bookingGF2Resolver = oldGF2
+		bookingGF2OffersResolver = oldGF2
 	}()
 
 	webSearchCalled := false
@@ -324,12 +324,12 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
 	}
 	gf2Called := false
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
 		gf2Called = true
 		if search.CanonicalItineraryFingerprint(wantItin) != fp || legIndex != 0 {
 			t.Fatalf("search partner fingerprint=%s legIndex=%d", search.CanonicalItineraryFingerprint(wantItin), legIndex)
 		}
-		return &bookingmatch.BookingOffer{
+		return []bookingmatch.BookingOffer{{
 			Domain:             "mytrip.com",
 			URL:                "https://mytrip.com/checkout/tlv-vie",
 			URLType:            bookingmatch.URLTypeExactBooking,
@@ -338,7 +338,7 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}
+		}}
 	}
 
 	opt := &FlightOption{
@@ -391,17 +391,17 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 	gf2Price := 180.0
 
 	oldRunner := bookingMatchRunner
-	oldGF2 := bookingGF2Resolver
+	oldGF2 := bookingGF2OffersResolver
 	defer func() {
 		bookingMatchRunner = oldRunner
-		bookingGF2Resolver = oldGF2
+		bookingGF2OffersResolver = oldGF2
 	}()
 
 	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
 	}
-	bookingGF2Resolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
-		return &bookingmatch.BookingOffer{
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{{
 			Domain:             "mytrip.com",
 			URL:                "https://mytrip.com/checkout/tlv-vie",
 			URLType:            bookingmatch.URLTypeExactBooking,
@@ -410,7 +410,7 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}
+		}}
 	}
 
 	opt := &FlightOption{
@@ -428,5 +428,67 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
 	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
 		t.Fatalf("expected persisted search-quote offer when web search errors, got %+v", resp)
+	}
+}
+
+func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
+	dep := time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 14, 20, 10, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "SZG", To: "TLV",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LH", FlightNumber: "LH1263",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	budgetair := 324.0
+	trip := 289.0
+
+	oldGF2 := bookingGF2OffersResolver
+	defer func() { bookingGF2OffersResolver = oldGF2 }()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{
+			{
+				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &budgetair, Currency: "USD",
+				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			},
+			{
+				Domain: "trip.com", URL: "https://www.trip.com/flights/book/LH1263",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &trip, Currency: "USD",
+				MatchScore: 90, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			},
+		}
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 650, Currency: "USD"},
+		LegDeepLinks: []string{
+			"https://www.budgetair.com/checkout/tlv-vie",
+			"https://www.budgetair.com/checkout/szg-tlv",
+		},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"}, MarketingCarrier: Carrier{Code: "OS"}}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "LH"}, FlightNumber: "LH1263",
+			}}},
+		},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 1, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected verified offer, got %+v", resp)
+	}
+	if resp.Offer.Domain != "trip.com" {
+		t.Fatalf("expected cheapest trip.com, got %+v", resp.Offer)
+	}
+	if resp.Offer.Price == nil || *resp.Offer.Price != trip {
+		t.Fatalf("price=%v", resp.Offer.Price)
 	}
 }

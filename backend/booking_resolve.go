@@ -95,7 +95,7 @@ var (
 	bookingResolveNegativeTTL  = 5 * time.Minute
 	bookingResolveSem          chan struct{}
 	bookingMatchRunner         = defaultBookingMatchRunner
-	bookingGF2Resolver         = resolveGF2PartnerOffer
+	bookingGF2OffersResolver   = resolveGF2PartnerOffers
 )
 
 func init() {
@@ -155,7 +155,7 @@ func webBookingMatchEnabled() bool {
 	return cfg.Enabled && cfg.SerpAPIKey != ""
 }
 
-func collectVerifiedBookingOffers(gf2 *bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
+func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
 	var out []bookingmatch.BookingOffer
 	seen := map[string]struct{}{}
 	add := func(o bookingmatch.BookingOffer) {
@@ -178,8 +178,8 @@ func collectVerifiedBookingOffers(gf2 *bookingmatch.BookingOffer, match *booking
 		seen[key] = struct{}{}
 		out = append(out, o)
 	}
-	if gf2 != nil {
-		add(*gf2)
+	for _, o := range gf2 {
+		add(o)
 	}
 	if match != nil {
 		for _, o := range match.Offers {
@@ -190,6 +190,18 @@ func collectVerifiedBookingOffers(gf2 *bookingmatch.BookingOffer, match *booking
 		}
 	}
 	return out
+}
+
+func bookingOfferInGF2Sources(offer *bookingmatch.BookingOffer, gf2 []bookingmatch.BookingOffer) bool {
+	if offer == nil {
+		return false
+	}
+	for i := range gf2 {
+		if bookingOfferSameURL(offer, &gf2[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 func bookingOfferSameURL(a, b *bookingmatch.BookingOffer) bool {
@@ -446,7 +458,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	normalize := bookingMatchPriceNormalizer()
 
 	var (
-		gf2Offer    *bookingmatch.BookingOffer
+		gf2Offers   []bookingmatch.BookingOffer
 		matchResult *bookingmatch.MatchResult
 		matchErr    error
 		wg          sync.WaitGroup
@@ -455,7 +467,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		gf2Offer = bookingGF2Resolver(ctx, session, option, it, legIndex, segmentIndex)
+		gf2Offers = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
 	}()
 
 	if webBookingMatchEnabled() {
@@ -468,17 +480,18 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	wg.Wait()
 
-	offers := collectVerifiedBookingOffers(gf2Offer, matchResult)
+	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
 		if best != nil {
 			extractedBeforeQuote := applySearchQuoteToOffer(best, q)
 			hadMultiple := len(offers) > 1
+			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
 			offer := publicOfferFromMatch(best, hadMultiple)
 			if offer != nil {
 				if hadMultiple {
 					offer.PriceLabel = "cheapest_matching_offer"
-				} else if bookingOfferSameURL(best, gf2Offer) {
+				} else if fromGF2 {
 					offer.PriceLabel = "google_flights_partner"
 				} else if extractedBeforeQuote == nil {
 					offer.PriceLabel = "search_quote"
@@ -486,7 +499,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 				event := "resolve_verified"
 				if hadMultiple {
 					event = "resolve_verified_cheapest"
-				} else if bookingOfferSameURL(best, gf2Offer) {
+				} else if fromGF2 {
 					event = "resolve_verified_gf2"
 				}
 				resp := BookingResolveResponse{

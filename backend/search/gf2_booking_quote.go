@@ -107,6 +107,133 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 	return nil, fmt.Errorf("no booking option matches quoted fare")
 }
 
+// ResolveAllPartnerBookingsFromToken resolves every partner in getBookingDetails booking_options.
+func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsFromToken(ctx context.Context, bookingToken, currency string) ([]ResolvedPartnerBooking, error) {
+	if p == nil {
+		return nil, fmt.Errorf("google flights provider not configured")
+	}
+	token := strings.TrimSpace(bookingToken)
+	if token == "" {
+		return nil, fmt.Errorf("missing booking token")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if !p.allowBooking() {
+		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+
+	detailsBody, err := p.fetchBookingDetails(ctx, token, currency)
+	if err != nil {
+		return nil, err
+	}
+
+	options := parseGF2BookingOptions(detailsBody, currency)
+	out, err := p.resolveAllGF2BookingOptions(ctx, options, currency)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+
+	if _, directURL := extractGF2PartnerBookingToken(detailsBody); isLikelyPartnerCheckoutURL(directURL) {
+		return []ResolvedPartnerBooking{{
+			URL:      directURL,
+			Currency: currency,
+			Provider: providerFromURL(directURL),
+		}}, nil
+	}
+	if u, err := p.resolvePartnerTokenToURL(ctx, token); err == nil && isLikelyPartnerCheckoutURL(u) {
+		return []ResolvedPartnerBooking{{
+			URL:      u,
+			Currency: currency,
+			Provider: providerFromURL(u),
+		}}, nil
+	}
+	return nil, fmt.Errorf("no partner bookings resolved from token")
+}
+
+func (p *GoogleFlights2Provider) resolveAllGF2BookingOptions(ctx context.Context, options []gf2BookingOption, currency string) ([]ResolvedPartnerBooking, error) {
+	valid := make([]gf2BookingOption, 0, len(options))
+	for _, o := range options {
+		if strings.TrimSpace(o.URL) != "" || strings.TrimSpace(o.BookingRequestToken) != "" {
+			valid = append(valid, o)
+		}
+	}
+	if len(valid) == 0 {
+		return nil, nil
+	}
+
+	seen := map[string]struct{}{}
+	out := make([]ResolvedPartnerBooking, 0, len(valid))
+	for i := range valid {
+		resolved, err := p.resolveGF2BookingOption(ctx, &valid[i], currency)
+		if err != nil || resolved == nil {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(resolved.URL))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, *resolved)
+	}
+	return out, nil
+}
+
+// ResolveAllPartnerBookingsForFingerprint re-searches GF2 and resolves all partner checkouts
+// for the matching itinerary.
+func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string, quote QuoteBinding) ([]ResolvedPartnerBooking, error) {
+	if p == nil {
+		return nil, fmt.Errorf("google flights provider not configured")
+	}
+	wantFP := CanonicalItineraryFingerprint(wantItin)
+	if wantFP == "" {
+		return nil, fmt.Errorf("missing itinerary fingerprint")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if !p.allowBooking() {
+		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	results, err := p.searchLegCached(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		p.enrichResultsPartnerLinks(ctx, results, currency)
+	}
+	AttachCanonicalIdentityAll(results)
+	for i := range results {
+		r := &results[i]
+		if r.ItineraryFingerprint != wantFP && !ResultMatchesItinerary(wantItin, *r) {
+			continue
+		}
+		bt := strings.TrimSpace(r.BookingToken)
+		if bt != "" {
+			return p.ResolveAllPartnerBookingsFromToken(ctx, bt, currency)
+		}
+		if u := strings.TrimSpace(r.DeepLink); u != "" && isLikelyPartnerCheckoutURL(u) {
+			price := r.Price.Amount
+			if quote.Amount > 0 {
+				price = quote.Amount
+			}
+			return []ResolvedPartnerBooking{{
+				URL:      u,
+				Price:    price,
+				Currency: firstNonEmpty(quote.Currency, r.Price.Currency, currency),
+				Provider: firstNonEmpty(strings.TrimSpace(r.VendorName), providerFromURL(u)),
+			}}, nil
+		}
+	}
+	return nil, fmt.Errorf("no booking path for itinerary fingerprint %s", wantFP)
+}
+
 // ResolveQuotedPartnerBookingForFingerprint re-searches GF2 and resolves checkout for the
 // matching itinerary using that result's quote (price + deep link + token).
 func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string, quote QuoteBinding) (*ResolvedPartnerBooking, error) {

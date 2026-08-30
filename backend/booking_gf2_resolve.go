@@ -10,10 +10,9 @@ import (
 	"flightcaptainweb/search"
 )
 
-// resolveGF2PartnerOffer resolves checkout for the exact fare shown in search results
-// using preserved GF2 booking tokens and deep links. For open-jaw itineraries each leg
-// keeps its own token from CombineOneWayBatches instead of losing them at merge time.
-func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+// resolveGF2PartnerOffers collects every GF2 partner checkout candidate for an itinerary.
+// Search-time deep links are included but never short-circuit before live booking_options.
+func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
 	if option == nil {
 		return nil
 	}
@@ -40,46 +39,52 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	token := legBookingToken(option, legIndex)
 	deepLink := legDeepLink(option, legIndex)
 
-	// Search-time partner checkout URL is enough — no live GF2 call required.
-	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
-		if offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote); offer != nil {
-			return offer
+	var offers []bookingmatch.BookingOffer
+	addResolved := func(resolved []search.ResolvedPartnerBooking) {
+		for _, r := range resolved {
+			if legIndex >= 0 && !resolvedPartnerURLMatchesLeg(option, legIndex, r.URL) {
+				continue
+			}
+			if offer := gf2PartnerOfferFromResolved(&r, fp); offer != nil {
+				offers = append(offers, *offer)
+			}
 		}
+	}
+	addOffer := func(offer *bookingmatch.BookingOffer) {
+		if offer == nil {
+			return
+		}
+		if legIndex >= 0 && !resolvedPartnerURLMatchesLeg(option, legIndex, offer.URL) {
+			return
+		}
+		offers = append(offers, *offer)
+	}
+
+	if token != "" && googleFlights2Provider != nil {
+		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsFromToken(ctx, token, currency); err == nil {
+			addResolved(resolved)
+		}
+	}
+
+	if len(offers) == 0 && googleFlights2Provider != nil {
+		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
+		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForFingerprint(ctx, sreq, it, currency, quote); err == nil {
+			addResolved(resolved)
+		}
+	}
+
+	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
+		addOffer(gf2PartnerOfferFromQuoteURL(deepLink, fp, quote))
 	}
 	if legIndex < 0 && !split {
 		for _, raw := range []string{option.BookingURL, option.DeepLink} {
 			if u := normalizeProviderBookingURL(raw); u != "" && search.IsLikelyPartnerCheckoutURL(u) {
-				if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
-					return offer
-				}
+				addOffer(gf2PartnerOfferFromQuoteURL(u, fp, quote))
 			}
 		}
 	}
 
-	if token != "" && googleFlights2Provider != nil {
-		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, token, currency, quote); err == nil {
-			if resolved != nil && resolvedPartnerURLMatchesLeg(option, legIndex, resolved.URL) {
-				if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
-					return offer
-				}
-			}
-		}
-	}
-
-	// Re-search only when search-time token/deeplink were not preserved (e.g. legacy session).
-	if googleFlights2Provider != nil {
-		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
-		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, it, currency, quote); err == nil {
-			if resolved != nil && (legIndex < 0 || resolvedPartnerURLMatchesLeg(option, legIndex, resolved.URL)) {
-				if offer := gf2PartnerOfferFromResolved(resolved, fp); offer != nil {
-					return offer
-				}
-			}
-		}
-	}
-
-	// Live GF2 route search → partner checkout (round-trip when legIndex < 0, one-way per leg otherwise).
-	if googleFlights2Provider != nil {
+	if len(offers) == 0 && googleFlights2Provider != nil {
 		var origin, dest, dep, ret string
 		if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
 			if segmentIndex >= 0 && segmentIndex < len(option.Legs[legIndex].Segments) {
@@ -92,14 +97,38 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 		}
 		if origin != "" && dest != "" && dep != "" {
 			if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
-				if offer := gf2PartnerOfferFromURL(u, fp); offer != nil {
-					return offer
-				}
+				addOffer(gf2PartnerOfferFromURL(u, fp))
 			}
 		}
 	}
 
-	return nil
+	return dedupeGF2PartnerOffers(offers)
+}
+
+// resolveGF2PartnerOffer returns the cheapest GF2 partner offer for redirect-style flows.
+func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
+	offers := resolveGF2PartnerOffers(ctx, session, option, it, legIndex, segmentIndex)
+	return bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer())
+}
+
+func dedupeGF2PartnerOffers(offers []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
+	if len(offers) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]bookingmatch.BookingOffer, 0, len(offers))
+	for _, o := range offers {
+		key := strings.ToLower(strings.TrimSpace(o.URL))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, o)
+	}
+	return out
 }
 
 func legBookingToken(option *FlightOption, legIndex int) string {
@@ -136,7 +165,6 @@ func legDeepLink(option *FlightOption, legIndex int) string {
 }
 
 // legPartnerArraysAligned requires per-leg partner metadata to line up with Legs[].
-// Misaligned arrays caused open-jaw leg 0 to reuse leg 1's El Al checkout URL.
 func legPartnerArraysAligned(option *FlightOption) bool {
 	if option == nil {
 		return false
@@ -183,7 +211,6 @@ func partnerDomainMatchesCarrier(domain, carrier string) bool {
 	if domain == "" || carrier == "" {
 		return true
 	}
-	// Reject known airline-direct checkout domains that belong to a different carrier.
 	type carrierDomain struct {
 		carrier string
 		domain  string
