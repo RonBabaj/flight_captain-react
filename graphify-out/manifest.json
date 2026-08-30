@@ -383,8 +383,8 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
-    "mtime": 1788101712.055133,
-    "seen": 1788101772.459247,
+    "mtime": 1788101935.7377775,
+    "seen": 1788101940.7521334,
     "ast_hash": "243d8455803efc0246608d89aa54457f",
     "semantic_hash": ""
   },
@@ -1234,8 +1234,8 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/legSummary.ts": {
-    "mtime": 1788101755.0668325,
-    "seen": 1788101772.4600258,
+    "mtime": 1788101928.9778132,
+    "seen": 1788101940.752949,
     "ast_hash": "087ec59dea4616e1c9884e4b87a7f83c",
     "semantic_hash": ""
   },
