@@ -298,9 +298,52 @@ func (p *GoogleFlights2Provider) searchLegCached(ctx context.Context, req Search
 		return nil, err
 	}
 	if len(res) > 0 {
+		p.enrichResultsPartnerLinks(ctx, res, req.Currency)
 		p.cache.set(cacheKey, res)
 	}
 	return res, nil
+}
+
+const enrichPartnerLinksMaxResults = 5
+
+// enrichResultsPartnerLinks resolves GF2 getBookingDetails for the cheapest hits so
+// open-jaw CombineOneWayBatches can store real partner checkout URLs in LegDeepLinks.
+func (p *GoogleFlights2Provider) enrichResultsPartnerLinks(ctx context.Context, results []ProviderResult, currency string) {
+	if p == nil || len(results) == 0 {
+		return
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	n := enrichPartnerLinksMaxResults
+	if n > len(results) {
+		n = len(results)
+	}
+	for i := 0; i < n; i++ {
+		r := &results[i]
+		if u := strings.TrimSpace(r.DeepLink); u != "" && isLikelyPartnerCheckoutURL(u) {
+			continue
+		}
+		tok := strings.TrimSpace(r.BookingToken)
+		if tok == "" {
+			continue
+		}
+		if !p.limiter.allow() {
+			return
+		}
+		quote := QuoteBinding{
+			Amount:   r.Price.Amount,
+			Currency: r.Price.Currency,
+		}
+		resolved, err := p.ResolveQuotedPartnerBooking(ctx, tok, currency, quote)
+		if err != nil || resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+			continue
+		}
+		r.DeepLink = resolved.URL
+		if strings.TrimSpace(r.VendorName) == "" && strings.TrimSpace(resolved.Provider) != "" {
+			r.VendorName = resolved.Provider
+		}
+	}
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
@@ -1505,13 +1548,30 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 	}
 	// GF2 sometimes nests the bookable token under offer/booking/tokens.
 	// Never treat departure_token as bookable — getBookingDetails rejects it.
-	for _, nest := range []string{"booking", "offer", "tokens", "purchase"} {
+	for _, nest := range []string{"booking", "offer", "tokens", "purchase", "pricing", "fare"} {
 		child, _ := m[nest].(map[string]interface{})
 		if child == nil {
 			continue
 		}
 		if tok := extractGF2BookingToken(child); tok != "" {
 			return tok
+		}
+	}
+	for k, v := range m {
+		lk := strings.ToLower(k)
+		if strings.Contains(lk, "departure") {
+			continue
+		}
+		if s, ok := v.(string); ok {
+			s = strings.TrimSpace(s)
+			if s == "" || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+				continue
+			}
+			if (strings.Contains(lk, "booking") && strings.Contains(lk, "token")) || lk == "book_token" {
+				if len(s) >= 12 {
+					return s
+				}
+			}
 		}
 	}
 	return ""
