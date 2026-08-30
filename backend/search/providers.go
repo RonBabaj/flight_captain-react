@@ -217,7 +217,49 @@ func mergeProviderLeg(cur, r ProviderResult, rIdx int, idPrefix string) Provider
 	next.LegPrices = append(append([]float64(nil), cur.LegPrices...), r.Price.Amount)
 	next.BookingToken = ""
 	next.DeepLink = ""
+	next.ValidatingAirlines = mergeCarrierCodeLists(cur.ValidatingAirlines, r.ValidatingAirlines)
+	if len(next.ValidatingAirlines) == 0 {
+		next.ValidatingAirlines = marketingCarriersFromLegs(next.Legs)
+	}
 	return next
+}
+
+func mergeCarrierCodeLists(a, b []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, list := range [][]string{a, b} {
+		for _, c := range list {
+			c = strings.ToUpper(strings.TrimSpace(c))
+			if c == "" {
+				continue
+			}
+			if _, ok := seen[c]; ok {
+				continue
+			}
+			seen[c] = struct{}{}
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func marketingCarriersFromLegs(legs []Leg) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, leg := range legs {
+		for _, seg := range leg.Segments {
+			c := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier))
+			if c == "" {
+				continue
+			}
+			if _, ok := seen[c]; ok {
+				continue
+			}
+			seen[c] = struct{}{}
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // finalizeCombinedBatches keeps the cheapest combinations but reserves slots so distinct

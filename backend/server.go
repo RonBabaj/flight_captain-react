@@ -1152,6 +1152,35 @@ func ensurePrimaryCarrier(opt *FlightOption) {
 	}
 }
 
+// ensureAllMarketingCarriers fills ValidatingAirlines from every segment so multi-airline itineraries are labeled honestly.
+func ensureAllMarketingCarriers(opt *FlightOption) {
+	if opt == nil {
+		return
+	}
+	seen := map[string]struct{}{}
+	var carriers []string
+	for _, leg := range opt.Legs {
+		for _, seg := range leg.Segments {
+			c := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+			if c == "" {
+				continue
+			}
+			if _, ok := seen[c]; ok {
+				continue
+			}
+			seen[c] = struct{}{}
+			carriers = append(carriers, c)
+		}
+	}
+	if len(carriers) == 0 {
+		return
+	}
+	opt.ValidatingAirlines = carriers
+	if opt.PrimaryDisplayCarrier == "" {
+		opt.PrimaryDisplayCarrier = carriers[0]
+	}
+}
+
 // sanitizeSegmentTimes ensures no segment has identical departure and arrival when duration is known (fixes "02:20 -> 02:20" and fake 0h layovers).
 func sanitizeSegmentTimes(legs []FlightLeg) {
 	for i := range legs {
@@ -1293,6 +1322,7 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 		}
 		sanitizeSegmentTimes(opt.Legs)
 		ensurePrimaryCarrier(&opt)
+		ensureAllMarketingCarriers(&opt)
 		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
 		opt.OutboundSummary = computeOutboundSummary(&opt)
 		it := pr.CanonicalItinerary

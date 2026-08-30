@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
+import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
 import { countByStopsFilter } from '../../../utils/itineraryStops';
@@ -41,13 +42,9 @@ export function FiltersPanel({
   const airlines = useMemo(() => {
     const map: Record<string, number> = {};
     results.forEach((opt) => {
-      const primary =
-        opt.primaryDisplayCarrier ||
-        opt.validatingAirlines?.[0] ||
-        opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
-      if (!primary) return;
-      const code = primary.toUpperCase();
-      map[code] = (map[code] ?? 0) + 1;
+      for (const code of distinctMarketingCarriers(opt)) {
+        map[code] = (map[code] ?? 0) + 1;
+      }
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))

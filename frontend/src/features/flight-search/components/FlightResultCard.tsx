@@ -17,6 +17,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { maxStopsPerLeg, formatStopsLabel } from '../../../utils/itineraryStops';
+import { displayAirlineLabel, hasMultipleAirlines } from '../../../utils/displayAirlines';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -92,15 +93,6 @@ function buildRoutePath(segments: FlightSegment[]): string[] {
   return codes;
 }
 
-function airlineName(option: FlightOption): string {
-  const code =
-    option.primaryDisplayCarrier
-    || option.validatingAirlines?.[0]
-    || option.legs?.[0]?.segments?.find((s) => s.marketingCarrier?.code)?.marketingCarrier?.code
-    || '';
-  return code ? (getAirlineName(code) || code) : '';
-}
-
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export interface FlightResultCardProps {
@@ -145,7 +137,8 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
   const returnSegs = (option.legs?.length ?? 0) > 1 ? lastLegSegs : [];
   const returnDate = fmtShortDate(returnSegs[0]?.departureTime) || (tripType === 'round-trip' ? fmtShortDate(searchReturnDate) : '');
   const isRoundTrip = !!(returnDate || returnRouteStr);
-  const airline = airlineName(option);
+  const airline = displayAirlineLabel(option);
+  const multiAirline = hasMultipleAirlines(option);
 
   const allSegments = option.legs.flatMap((l) => l.segments ?? []);
   const rankCabin = (cabin: string | undefined | null): number => {
@@ -285,9 +278,9 @@ export function FlightResultCard({ option, onDetails, onBook, bookLoading = fals
               {option.selfTransferWarning || t('self_transfer_warning')}
             </Text>
           ) : null}
-          {option.source === 'kiwi' || option.vendorName ? (
+          {option.source === 'kiwi' || (option.vendorName && !multiAirline) ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-              {option.vendorName
+              {option.vendorName && !multiAirline
                 ? t('via_vendor').replace('{vendor}', option.vendorName)
                 : option.source === 'kiwi'
                   ? t('source_kiwi')
