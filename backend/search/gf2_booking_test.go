@@ -103,6 +103,18 @@ func TestSelectBookingOptionForQuote_prefersDeepLinkHost(t *testing.T) {
 	}
 }
 
+func TestSelectBookingOptionForQuote_fallsBackWhenQuotePriceMismatch(t *testing.T) {
+	options := []gf2BookingOption{
+		{URL: "https://www.austrian.com/book", Price: 140, Provider: "austrian.com"},
+		{URL: "https://www.kayak.com/book", Price: 125, Provider: "kayak.com"},
+	}
+	quote := QuoteBinding{Amount: 125, Currency: "USD", DeepLink: "https://www.google.com/travel/flights"}
+	picked := selectBookingOptionForQuote(options, quote)
+	if picked == nil || picked.Provider != "kayak.com" {
+		t.Fatalf("expected closest-price fallback, got %+v", picked)
+	}
+}
+
 func TestParseGF2BookingOptions(t *testing.T) {
 	body := []byte(`{
 		"data": {

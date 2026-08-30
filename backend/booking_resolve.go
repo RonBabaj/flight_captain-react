@@ -288,7 +288,7 @@ func releaseBookingResolveSlot() {
 	}
 }
 
-func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int) BookingResolveResponse {
+func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int, force bool) BookingResolveResponse {
 	it, err := canonicalItineraryForOption(option, legIndex)
 	if err != nil {
 		return BookingResolveResponse{
@@ -299,8 +299,10 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
 	cacheKey := bookingResolveCacheKey(fp, legIndex)
-	if cached, ok := getCachedBookingResolve(cacheKey); ok {
-		return cached
+	if !force {
+		if cached, ok := getCachedBookingResolve(cacheKey); ok {
+			return cached
+		}
 	}
 
 	waitEntry, leader := beginInflightResolve(cacheKey)
@@ -318,8 +320,10 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 		if waitEntry.resp != nil {
 			return *waitEntry.resp
 		}
-		if cached, ok := getCachedBookingResolve(cacheKey); ok {
-			return cached
+		if !force {
+			if cached, ok := getCachedBookingResolve(cacheKey); ok {
+				return cached
+			}
 		}
 		return BookingResolveResponse{
 			Found:                false,
@@ -343,9 +347,11 @@ func resolveBookingOffer(ctx context.Context, session *SearchSession, option *Fl
 	}
 	defer releaseBookingResolveSlot()
 
-	if cached, ok := getCachedBookingResolve(cacheKey); ok {
-		waitEntry.resp = &cached
-		return cached
+	if !force {
+		if cached, ok := getCachedBookingResolve(cacheKey); ok {
+			waitEntry.resp = &cached
+			return cached
+		}
 	}
 
 	resp := runBookingMatch(ctx, session, option, it, fp, legIndex)
@@ -570,7 +576,7 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)
 	defer cancel()
 
-	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex)
+	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex, req.Force)
 	statusCode := http.StatusOK
 	if out.Status == BookingResolveInvalidItinerary {
 		statusCode = http.StatusBadRequest

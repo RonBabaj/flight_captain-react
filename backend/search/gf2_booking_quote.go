@@ -70,6 +70,9 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 	if picked := selectBookingOptionForQuote(options, quote); picked != nil {
 		return p.resolveGF2BookingOption(ctx, picked, currency)
 	}
+	if picked := firstPartnerBookingOption(options); picked != nil {
+		return p.resolveGF2BookingOption(ctx, picked, currency)
+	}
 
 	// Some GF2 payloads put the partner checkout URL outside booking_options.
 	if _, directURL := extractGF2PartnerBookingToken(detailsBody); isLikelyPartnerCheckoutURL(directURL) {
@@ -120,9 +123,12 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	if !p.limiter.allow() {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
-	results, err := p.Search(ctx, req)
+	results, err := p.doSearch(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+	if len(results) > 0 {
+		p.enrichResultsPartnerLinks(ctx, results, currency)
 	}
 	AttachCanonicalIdentityAll(results)
 	for i := range results {
@@ -314,8 +320,6 @@ func selectBookingOptionForQuote(options []gf2BookingOption, quote QuoteBinding)
 		}
 		if len(matched) > 0 {
 			valid = matched
-		} else if quote.DeepLink != "" {
-			return nil
 		}
 	}
 
@@ -364,6 +368,19 @@ func selectBookingOptionForQuote(options []gf2BookingOption, quote QuoteBinding)
 		}
 	}
 	return &valid[bestIdx]
+}
+
+func firstPartnerBookingOption(options []gf2BookingOption) *gf2BookingOption {
+	for i := range options {
+		o := &options[i]
+		if u := strings.TrimSpace(o.URL); u != "" && isLikelyPartnerCheckoutURL(u) {
+			return o
+		}
+		if strings.TrimSpace(o.BookingRequestToken) != "" {
+			return o
+		}
+	}
+	return nil
 }
 
 func providerFromURL(raw string) string {
