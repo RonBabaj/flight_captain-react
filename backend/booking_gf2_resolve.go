@@ -58,6 +58,20 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 		}
 	}
 
+	// Last resort: live GF2 route search (same path as early partner checkout).
+	if legIndex >= 0 && legIndex < len(option.Legs) && googleFlights2Provider != nil {
+		origin, dest, dep := routeFromFlightLeg(option.Legs[legIndex])
+		adults := 1
+		if session != nil && session.Params.Adults > 0 {
+			adults = session.Params.Adults
+		}
+		if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, "", currency, adults); err == nil {
+			if offer := gf2PartnerOfferFromURL(u, fp); offer != nil {
+				return offer
+			}
+		}
+	}
+
 	return nil
 }
 

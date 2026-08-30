@@ -181,7 +181,7 @@ func TestHandleBookingResolve_invalidItinerary(t *testing.T) {
 	}
 }
 
-func TestRunBookingMatch_stillRunsWebSearchWhenSearchQuoteExists(t *testing.T) {
+func TestRunBookingMatch_gf2DirectLinkSkipsWebSearch(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 14, 30, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 17, 5, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -228,14 +228,17 @@ func TestRunBookingMatch_stillRunsWebSearchWhenSearchQuoteExists(t *testing.T) {
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "EUR"}}
 
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1)
-	if !webSearchCalled {
-		t.Fatal("expected web search matcher to run")
+	if webSearchCalled {
+		t.Fatal("GF2 partner link should win without running web search")
 	}
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected a verified offer, got %+v", resp)
 	}
 	if resp.Offer.Domain != "austrian.com" {
-		t.Fatalf("quote-matching search partner should win over a cheaper non-matching web hit, got %+v", resp.Offer)
+		t.Fatalf("expected GF2 search-time deep link, got %+v", resp.Offer)
+	}
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
 	}
 }
 
@@ -304,8 +307,11 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
 
 	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0)
-	if !webSearchCalled || !gf2Called {
-		t.Fatalf("webSearch=%v searchPartner=%v", webSearchCalled, gf2Called)
+	if webSearchCalled {
+		t.Fatal("GF2 partner offer should return before web search")
+	}
+	if !gf2Called {
+		t.Fatal("expected GF2 resolver to run")
 	}
 	if !resp.Found || resp.Offer == nil || resp.Offer.Domain != "mytrip.com" {
 		t.Fatalf("expected search-quote partner offer, got %+v", resp)
