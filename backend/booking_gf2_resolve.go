@@ -33,8 +33,8 @@ func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option 
 	token := legBookingToken(option, legIndex)
 	deepLink := legDeepLink(option, legIndex)
 
-	// Search-time checkout URL is enough — no live GF2 call required.
-	if deepLink != "" {
+	// Search-time partner checkout URL is enough — no live GF2 call required.
+	if deepLink != "" && search.IsLikelyPartnerCheckoutURL(deepLink) {
 		if offer := gf2PartnerOfferFromQuoteURL(deepLink, fp, quote); offer != nil {
 			return offer
 		}

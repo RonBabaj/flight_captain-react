@@ -21,16 +21,20 @@ const (
 	// Default max calls to Search() per rolling minute (in-process). Explore uses up to 10 per request;
 	// the old default of 5 caused the follow-up "real" search after Anywhere to always hit rate limit.
 	gf2RateLimitPerMinDefault = 30
+	// Booking endpoints (getBookingDetails / getBookingURL) use a separate bucket so
+	// search-time enrich + Book-click resolve are not starved after a heavy search.
+	gf2BookingRateLimitPerMinDefault = 60
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
 type GoogleFlights2Provider struct {
-	apiKey  string
-	host    string
-	path    string // endpoint path e.g. /search or /
-	client  *http.Client
-	cache   *gf2Cache
-	limiter *gf2RateLimiter
+	apiKey          string
+	host            string
+	path            string // endpoint path e.g. /search or /
+	client          *http.Client
+	cache           *gf2Cache
+	limiter         *gf2RateLimiter
+	bookingLimiter  *gf2RateLimiter
 }
 
 type gf2Cache struct {
@@ -138,19 +142,34 @@ func NewGoogleFlights2Provider() *GoogleFlights2Provider {
 			maxPerMin = v
 		}
 	}
+	bookingMax := gf2BookingRateLimitPerMinDefault
+	if s := strings.TrimSpace(os.Getenv("GOOGLEFLIGHTS2_BOOKING_RATE_LIMIT_PER_MIN")); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 1 && v <= 500 {
+			bookingMax = v
+		}
+	}
 	log.Printf("[GF2] in-process rate limit: %d Search() calls per rolling minute (set GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN to override)", maxPerMin)
+	log.Printf("[GF2] booking rate limit: %d getBookingDetails/URL calls per rolling minute", bookingMax)
 	return &GoogleFlights2Provider{
-		apiKey:  apiKey,
-		host:    host,
-		path:    path,
-		client:  &http.Client{Timeout: gf2Timeout},
-		cache:   newGF2Cache(),
-		limiter: newGF2RateLimiter(maxPerMin),
+		apiKey:         apiKey,
+		host:           host,
+		path:           path,
+		client:         &http.Client{Timeout: gf2Timeout},
+		cache:          newGF2Cache(),
+		limiter:        newGF2RateLimiter(maxPerMin),
+		bookingLimiter: newGF2RateLimiter(bookingMax),
 	}
 }
 
 func (p *GoogleFlights2Provider) Name() string {
 	return "googleflights2"
+}
+
+func (p *GoogleFlights2Provider) allowBooking() bool {
+	if p == nil || p.bookingLimiter == nil {
+		return p != nil && p.limiter != nil && p.limiter.allow()
+	}
+	return p.bookingLimiter.allow()
 }
 
 func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
@@ -202,6 +221,7 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		}
 		resultCount = len(results)
 		if len(results) > 0 {
+			p.enrichResultsPartnerLinks(ctx, results, req.Currency)
 			cheapest = results[0].Price.Amount
 			p.cache.set(cacheKey, results)
 		}
@@ -215,6 +235,7 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	}
 	resultCount = len(results)
 	if len(results) > 0 {
+		p.enrichResultsPartnerLinks(ctx, results, req.Currency)
 		cheapest = results[0].Price.Amount
 		p.cache.set(cacheKey, results)
 	}
@@ -328,7 +349,7 @@ func (p *GoogleFlights2Provider) enrichResultsPartnerLinks(ctx context.Context, 
 		if tok == "" {
 			continue
 		}
-		if !p.limiter.allow() {
+		if !p.allowBooking() {
 			return
 		}
 		quote := QuoteBinding{
@@ -1653,10 +1674,10 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 	if adults < 1 {
 		adults = 1
 	}
-	if !p.limiter.allow() {
+	if !p.allowBooking() {
 		return "", fmt.Errorf("flight search rate limited; try again in a minute")
 	}
-	results, err := p.doSearch(ctx, SearchRequest{
+	results, err := p.searchLegCached(ctx, SearchRequest{
 		Origin:        origin,
 		Destination:   destination,
 		DepartureDate: departureDate,
@@ -1692,6 +1713,10 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context
 		return "", fmt.Errorf("empty booking URL")
 	}
 	return resolved.URL, nil
+}
+
+func IsLikelyPartnerCheckoutURL(u string) bool {
+	return isLikelyPartnerCheckoutURL(u)
 }
 
 func isLikelyPartnerCheckoutURL(u string) bool {
