@@ -504,11 +504,6 @@ func gf2PartnerOfferFromQuoteURL(rawURL, fp string, quote search.QuoteBinding) *
 	if offer == nil {
 		return nil
 	}
-	if quote.Amount > 0 {
-		p := quote.Amount
-		offer.Price = &p
-		offer.Currency = quote.Currency
-	}
 	if vn := strings.TrimSpace(optionVendorFromQuote(quote)); vn != "" {
 		offer.Provider = vn
 	}

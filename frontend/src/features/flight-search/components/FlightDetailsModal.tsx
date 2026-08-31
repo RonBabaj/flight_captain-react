@@ -281,7 +281,9 @@ export function FlightDetailsModal({
                 ? t('search_prefill_hint')
                 : resolved.offer.priceLabel === 'cheapest_matching_offer'
                   ? t('cheapest_matching_offer')
-                  : t('exact_itinerary_matched')}
+                  : resolved.offer.priceLabel === 'partner_checkout_price'
+                    ? t('partner_checkout_price')
+                    : t('exact_itinerary_matched')}
               {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
                 : isPrefill && resolved.offer.domain

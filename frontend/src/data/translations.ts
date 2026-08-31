@@ -609,6 +609,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'ההצעה הזולה ביותר למסלול זה',
     ru: 'Самое дешёвое подходящее предложение',
   },
+  partner_checkout_price: {
+    en: 'Partner checkout price',
+    he: 'מחיר בדף ההזמנה',
+    ru: 'Цена на сайте партнёра',
+  },
   search_quote_price: {
     en: 'search quote',
     he: 'מחיר חיפוש',
