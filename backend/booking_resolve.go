@@ -243,6 +243,115 @@ func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookin
 	return out
 }
 
+func gf2CheckoutOffers(gf2 []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
+	var out []bookingmatch.BookingOffer
+	for _, o := range gf2 {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			continue
+		}
+		if o.URLType == bookingmatch.URLTypeGenericSearch || o.URLType == bookingmatch.URLTypeExactSearch {
+			continue
+		}
+		if bookingmatch.IsNonBookableDomain(o.Domain) || bookingmatch.IsNonBookableDomain(o.Provider) {
+			continue
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+func buildDualBookingResolveResponse(
+	primaryPick, cheapestOtaPick, airlineDirectPick *bookingmatch.BookingOffer,
+	gf2Offers []bookingmatch.BookingOffer,
+	hadMultiple bool,
+	candidateCount int,
+	session *SearchSession,
+	option *FlightOption,
+	legIndex int,
+	fp string,
+) (BookingResolveResponse, string, bool) {
+	if primaryPick == nil {
+		return BookingResolveResponse{}, "", false
+	}
+	fromGF2 := bookingOfferInGF2Sources(primaryPick, gf2Offers)
+	var extractedBeforeQuote *float64
+	if primaryPick.Price != nil {
+		p := *primaryPick.Price
+		extractedBeforeQuote = &p
+	}
+
+	offer := publicBookingOfferFromPick(primaryPick, gf2Offers, "cheapest_ota", hadMultiple)
+	if offer != nil && cheapestOtaPick == nil && airlineDirectPick != nil {
+		label := "airline_direct"
+		if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+			label = "airline_direct_prefill"
+		}
+		offer = publicBookingOfferFromPick(primaryPick, gf2Offers, label, false)
+	}
+	if offer == nil {
+		return BookingResolveResponse{}, "", false
+	}
+
+	var cheapestOta *PublicBookingOffer
+	if cheapestOtaPick != nil {
+		cheapestOta = publicBookingOfferFromPick(cheapestOtaPick, gf2Offers, "cheapest_ota", hadMultiple)
+	}
+	var airlineDirect *PublicBookingOffer
+	if airlineDirectPick != nil {
+		label := "airline_direct"
+		if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+			label = "airline_direct_prefill"
+		}
+		airlineDirect = publicBookingOfferFromPick(airlineDirectPick, gf2Offers, label, false)
+	}
+
+	event := "resolve_verified"
+	if cheapestOta != nil && airlineDirect != nil {
+		event = "resolve_verified_dual"
+	} else if hadMultiple {
+		event = "resolve_verified_cheapest"
+	} else if fromGF2 {
+		event = "resolve_verified_gf2"
+	}
+	resp := BookingResolveResponse{
+		Found:                true,
+		Status:               BookingResolveVerified,
+		ItineraryFingerprint: fp,
+		Offer:                offer,
+		CheapestOta:          cheapestOta,
+		AirlineDirect:        airlineDirect,
+		CandidatesConsidered: candidateCount,
+	}
+	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
+	return resp, event, true
+}
+
+func pickDualBookingOffers(
+	sourceOffers []bookingmatch.BookingOffer,
+	gf2Offers []bookingmatch.BookingOffer,
+	matchResult *bookingmatch.MatchResult,
+	session *SearchSession,
+	option *FlightOption,
+	legIndex, segmentIndex int,
+	fp string,
+	normalize bookingmatch.PriceNormalizer,
+) (primary, cheapestOta, airlineDirect *bookingmatch.BookingOffer) {
+	cheapestOta = pickCheapestOTAOffer(sourceOffers, matchResult, session, option, legIndex, normalize)
+	airlineDirect = pickAirlineDirectOffer(sourceOffers, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
+	switch {
+	case cheapestOta != nil:
+		primary = cheapestOta
+	case airlineDirect != nil:
+		primary = airlineDirect
+	default:
+		primary = selectBestBookingOffer(sourceOffers, matchResult, session, option, legIndex, normalize)
+	}
+	return primary, cheapestOta, airlineDirect
+}
+
 func webVerifiedBookingOffers(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
 	if match == nil || len(all) == 0 {
 		return nil
@@ -756,87 +865,56 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	wg.Wait()
 
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
-	if len(offers) > 0 {
-		hadMultiple := len(offers) > 1
-		cheapestOtaPick := pickCheapestOTAOffer(offers, matchResult, session, option, legIndex, normalize)
-		airlineDirectPick := pickAirlineDirectOffer(offers, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
-
-		var primaryPick *bookingmatch.BookingOffer
-		switch {
-		case cheapestOtaPick != nil:
-			primaryPick = cheapestOtaPick
-		case airlineDirectPick != nil:
-			primaryPick = airlineDirectPick
-		default:
-			primaryPick = selectBestBookingOffer(offers, matchResult, session, option, legIndex, normalize)
+	tryResolve := func(sourceOffers []bookingmatch.BookingOffer, candidateCount int) (BookingResolveResponse, string, bool) {
+		if len(sourceOffers) == 0 && legIndex < 0 {
+			return BookingResolveResponse{}, "", false
 		}
+		hadMultiple := len(sourceOffers) > 1
+		primaryPick, cheapestOtaPick, airlineDirectPick := pickDualBookingOffers(
+			sourceOffers, gf2Offers, matchResult, session, option, legIndex, segmentIndex, fp, normalize,
+		)
+		return buildDualBookingResolveResponse(
+			primaryPick, cheapestOtaPick, airlineDirectPick,
+			gf2Offers, hadMultiple, candidateCount, session, option, legIndex, fp,
+		)
+	}
 
-		if primaryPick != nil {
-			fromGF2 := bookingOfferInGF2Sources(primaryPick, gf2Offers)
-			var extractedBeforeQuote *float64
-			if primaryPick.Price != nil {
-				p := *primaryPick.Price
-				extractedBeforeQuote = &p
-			}
+	if resp, event, ok := tryResolve(offers, len(offers)); ok {
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                event,
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			Provider:             resp.Offer.Provider,
+			CandidateCount:       resp.CandidatesConsidered,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
+	}
 
-			offer := publicBookingOfferFromPick(primaryPick, gf2Offers, "cheapest_ota", hadMultiple)
-			if offer != nil && cheapestOtaPick == nil && airlineDirectPick != nil {
-				// Only airline direct available — preserve airline label on primary.
-				label := "airline_direct"
-				if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
-					label = "airline_direct_prefill"
-				}
-				offer = publicBookingOfferFromPick(primaryPick, gf2Offers, label, false)
-			}
-
-			var cheapestOta *PublicBookingOffer
-			if cheapestOtaPick != nil {
-				cheapestOta = publicBookingOfferFromPick(cheapestOtaPick, gf2Offers, "cheapest_ota", hadMultiple)
-			}
-			var airlineDirect *PublicBookingOffer
-			if airlineDirectPick != nil {
-				label := "airline_direct"
-				if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
-					label = "airline_direct_prefill"
-				}
-				airlineDirect = publicBookingOfferFromPick(airlineDirectPick, gf2Offers, label, false)
-			}
-
-			if offer != nil {
-				event := "resolve_verified"
-				if cheapestOta != nil && airlineDirect != nil {
-					event = "resolve_verified_dual"
-				} else if hadMultiple {
-					event = "resolve_verified_cheapest"
-				} else if fromGF2 {
-					event = "resolve_verified_gf2"
-				}
-				resp := BookingResolveResponse{
-					Found:                true,
-					Status:               BookingResolveVerified,
-					ItineraryFingerprint: fp,
-					Offer:                offer,
-					CheapestOta:          cheapestOta,
-					AirlineDirect:        airlineDirect,
-					CandidatesConsidered: len(offers),
-				}
-				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
-				logBookingResolve(bookingResolveLogEvent{
-					Event:                event,
-					ItineraryFingerprint: fp,
-					LegIndex:             intPtrOrNil(legIndex),
-					LegRoute:             legRoute,
-					Status:               resp.Status,
-					Provider:             offer.Provider,
-					CandidateCount:       len(offers),
-					DurationMs:           time.Since(start).Milliseconds(),
-				})
-				return resp
-			}
+	// GF2 partner checkout and airline templates before generic Google prefill.
+	if gf2Only := gf2CheckoutOffers(gf2Offers); len(gf2Only) > 0 || legIndex >= 0 {
+		source := gf2Only
+		if len(source) == 0 {
+			source = nil
+		}
+		if resp, event, ok := tryResolve(source, len(gf2Only)); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                event,
+				ItineraryFingerprint: fp,
+				LegIndex:             intPtrOrNil(legIndex),
+				LegRoute:             legRoute,
+				Status:               resp.Status,
+				Provider:             resp.Offer.Provider,
+				CandidateCount:       resp.CandidatesConsidered,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			return resp
 		}
 	}
 
-	if matchErr != nil && len(offers) == 0 {
+	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
 		resp := BookingResolveResponse{
 			Found:                false,
 			ItineraryFingerprint: fp,
@@ -867,14 +945,20 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
 			offer := publicOfferFromMatch(gf2Prefill, false)
 			if offer != nil {
-				offer.PriceLabel = "search_prefill"
+				priceLabel := "search_prefill"
+				message := "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying."
+				if isAffiliateTemplateBookingURL(prefill) {
+					priceLabel = "airline_direct_prefill"
+					message = "Opens airline site with your route prefilled — select your flight and verify the fare."
+				}
+				offer.PriceLabel = priceLabel
 				offer.MatchConfidence = 0
 				resp := BookingResolveResponse{
 					Found:                true,
 					Status:               BookingResolveVerified,
 					ItineraryFingerprint: fp,
 					Offer:                offer,
-					Message:              "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying.",
+					Message:              message,
 				}
 				logBookingResolve(bookingResolveLogEvent{
 					Event:                "resolve_verified_prefill",

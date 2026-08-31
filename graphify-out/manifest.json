@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "backend/canonical.go": {
-    "mtime": 1788130356.7239287,
-    "seen": 1788172197.0379627,
-    "ast_hash": "1d6da59efcc18dc39209562925f15f76",
+    "mtime": 1788197537.2813265,
+    "seen": 1788197608.564515,
+    "ast_hash": "4ae83aa07647ff3157df212dc631fb81",
     "semantic_hash": ""
   },
   "backend/explore_airports.go": {
@@ -377,9 +377,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6862962,
-    "ast_hash": "376fa24ab767be64f071bc77183d7b11",
+    "mtime": 1788197564.0870056,
+    "seen": 1788197608.5664382,
+    "ast_hash": "f47d784e2fdad1495c03d97f880f50d2",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -868,15 +868,15 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1788184893.0825567,
-    "seen": 1788185541.6841822,
-    "ast_hash": "111b21795b874e3e3296cbda0f410817",
+    "mtime": 1788197558.6872804,
+    "seen": 1788197608.5642996,
+    "ast_hash": "3f4eb28cf27027635f94b5d06cb4bd8b",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1788175340.0871747,
-    "seen": 1788181163.5967724,
-    "ast_hash": "4329ddfb5fa8f81549cdc7f8f6effe11",
+    "mtime": 1788197594.0864646,
+    "seen": 1788197608.5643167,
+    "ast_hash": "4c137481e3da0486ec304551c43664c7",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -1210,9 +1210,9 @@
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve.go": {
-    "mtime": 1788172731.0902665,
-    "seen": 1788173647.8065884,
-    "ast_hash": "b19469663e7c2ae62832c85d34a66f04",
+    "mtime": 1788197537.2853258,
+    "seen": 1788197608.5642796,
+    "ast_hash": "bff458e2f63973d87986069c4ee6e1aa",
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve_test.go": {
@@ -1312,9 +1312,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/bookingOfferDisplay.ts": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6870415,
-    "ast_hash": "3edc3110511334b4e2f4884050c94a98",
+    "mtime": 1788197574.4146616,
+    "seen": 1788197608.5672607,
+    "ast_hash": "08b801f9993c4e999fb732edb12db121",
     "semantic_hash": ""
   },
   "frontend/src/ui/index.ts": {

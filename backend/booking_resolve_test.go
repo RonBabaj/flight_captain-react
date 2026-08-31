@@ -779,3 +779,74 @@ func TestIsAffiliateTemplateBookingURL(t *testing.T) {
 	}
 }
 
+func TestRunBookingMatch_returnLegPrefersAirlineTemplateOverGooglePrefill(t *testing.T) {
+	dep := time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "SZG", To: "TLV",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LY", FlightNumber: "LY5194",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+
+	oldGF2 := bookingGF2OffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, nil
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 465, Currency: "USD"},
+		Legs: []FlightLeg{{
+			Segments: []FlightSegment{{
+				From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY5194",
+			}},
+		}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected airline template offer, got %+v", resp)
+	}
+	if strings.Contains(resp.Offer.URL, "google.com/travel/flights") {
+		t.Fatalf("must not fall back to Google Flights, got %q", resp.Offer.URL)
+	}
+	if !strings.Contains(resp.Offer.URL, "elal") {
+		t.Fatalf("expected El Al booking URL, got %q", resp.Offer.URL)
+	}
+}
+
+func TestLegDeepLink_allowsAlignedDeepLinksWhenTokenCountDiffers(t *testing.T) {
+	opt := &FlightOption{
+		LegBookingTokens: []string{"tok-outbound-only"},
+		LegDeepLinks:     []string{"https://mytrip.com/checkout/tlv-vie", "https://mytrip.com/checkout/szg-tlv"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "OS"}}}},
+			{Segments: []FlightSegment{{MarketingCarrier: Carrier{Code: "LY"}}}},
+		},
+	}
+	if got := legDeepLink(opt, 0); got != "https://mytrip.com/checkout/tlv-vie" {
+		t.Fatalf("leg 0 deeplink=%q", got)
+	}
+	if got := legDeepLink(opt, 1); got != "https://mytrip.com/checkout/szg-tlv" {
+		t.Fatalf("leg 1 deeplink=%q", got)
+	}
+	if got := legBookingToken(opt, 1); got != "" {
+		t.Fatalf("leg 1 must not reuse single token, got %q", got)
+	}
+}
+

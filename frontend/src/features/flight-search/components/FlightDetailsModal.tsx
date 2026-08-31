@@ -428,7 +428,10 @@ export function FlightDetailsModal({
 
           <ScrollView
             style={s.scrollBody}
-            contentContainerStyle={s.scrollContent}
+            contentContainerStyle={[
+              s.scrollContent,
+              useFullScreen && { paddingBottom: Math.max(insets.bottom, 16) + 32 },
+            ]}
             showsVerticalScrollIndicator
             keyboardShouldPersistTaps="handled"
           >
@@ -637,9 +640,8 @@ export function FlightDetailsModal({
                 ))}
               </View>
             )}
+            {renderBookingFooter()}
           </ScrollView>
-
-          {renderBookingFooter()}
         </View>
       </View>
     </Modal>
