@@ -283,9 +283,7 @@ export function FlightDetailsModal({
                   ? t('cheapest_matching_offer')
                   : resolved.offer.priceLabel === 'partner_checkout_price'
                     ? t('partner_checkout_price')
-                    : resolved.offer.priceLabel === 'google_flights_partner'
-                      ? t('exact_itinerary_matched')
-                      : t('exact_itinerary_matched')}
+                    : t('exact_itinerary_matched')}
               {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
                 : isPrefill && resolved.offer.domain
