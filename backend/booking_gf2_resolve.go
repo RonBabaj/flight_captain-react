@@ -349,51 +349,6 @@ func offersIncludeAirlineDirect(offers []bookingmatch.BookingOffer, carrier stri
 	return false
 }
 
-// preferAirlineDirectOverOTAAboveQuote picks airline checkout when the cheapest OTA exceeds the search quote.
-func preferAirlineDirectOverOTAAboveQuote(best *bookingmatch.BookingOffer, offers []bookingmatch.BookingOffer, quote search.QuoteBinding, carrier string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
-	if best == nil || quote.Amount <= 0 || carrier == "" {
-		return best
-	}
-	if airlineDomainForCarrier(best.Domain, carrier) || airlineDomainForCarrier(best.Provider, carrier) {
-		return best
-	}
-	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
-	if !ok || search.PricesMatchQuote(quote.Amount, otaPrice) || otaPrice <= quote.Amount {
-		return best
-	}
-
-	var airlinePick *bookingmatch.BookingOffer
-	var airlinePrice float64
-	hasAirlinePrice := false
-	for i := range offers {
-		o := &offers[i]
-		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
-			continue
-		}
-		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
-			continue
-		}
-		if isAffiliateTemplateBookingURL(o.URL) {
-			continue
-		}
-		if np, ok := normalizedGF2OfferPrice(*o, normalize); ok {
-			if !hasAirlinePrice || np < airlinePrice {
-				airlinePick = o
-				airlinePrice = np
-				hasAirlinePrice = true
-			}
-		} else if airlinePick == nil {
-			airlinePick = o
-		}
-	}
-	if airlinePick == nil {
-		return best
-	}
-	// Meta OTAs above the search quote are often marked up; airline direct is the better path
-	// even when GF2 shows a higher airline price (checkout may match search/Skyscanner).
-	return airlinePick
-}
-
 // isAffiliateTemplateBookingURL is true for synthetic airline search URLs built from provider templates
 // (not live GF2 partner checkout deeplinks). El Al rejects these with "Request is not allowed."
 func isAffiliateTemplateBookingURL(raw string) bool {

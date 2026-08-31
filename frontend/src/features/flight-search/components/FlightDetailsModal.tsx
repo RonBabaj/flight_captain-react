@@ -208,9 +208,30 @@ export function FlightDetailsModal({
     }
   };
 
-  const handleBookThisFlight = async (legIndex?: number, segmentIndex?: number) => {
+  const handleBookPress = async (legIndex?: number, segmentIndex?: number) => {
     if (!option || !sessionId) return;
     const key = resolveStorageKey(legIndex, segmentIndex);
+    const cached = legResolves[key];
+
+    if (cached?.found && cached.offer?.url && isSafeBookingUrl(cached.offer.url)) {
+      await openUrlInNewTab(cached.offer.url);
+      void (async () => {
+        try {
+          const res = await resolveBookingOffer(
+            sessionId,
+            option.id,
+            legIndex != null && legIndex >= 0 ? legIndex : undefined,
+            true,
+            segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
+          );
+          setLegResolves((prev) => ({ ...prev, [key]: res }));
+        } catch {
+          // Keep showing the last good link if refresh fails.
+        }
+      })();
+      return;
+    }
+
     setResolveLoadingKey(key);
     try {
       const res = await resolveBookingOffer(
@@ -231,35 +252,6 @@ export function FlightDetailsModal({
     }
   };
 
-  const handleOpenVerifiedBooking = async (legIndex?: number, segmentIndex?: number) => {
-    if (!option || !sessionId) return;
-    const key = resolveStorageKey(legIndex, segmentIndex);
-    setResolveLoadingKey(key);
-    try {
-      const res = await resolveBookingOffer(
-        sessionId,
-        option.id,
-        legIndex != null && legIndex >= 0 ? legIndex : undefined,
-        true,
-        segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
-      );
-      setLegResolves((prev) => ({ ...prev, [key]: res }));
-      const url = res.offer?.url;
-      if (!url || !isSafeBookingUrl(url)) {
-        Alert.alert('Cannot open link', 'This booking link is not valid.');
-        return;
-      }
-      const ok = await openUrlInNewTab(url);
-      if (!ok) {
-        Alert.alert('Cannot open link', 'Your device cannot open this booking link.');
-      }
-    } catch {
-      Alert.alert('Error', t('booking_search_unavailable'));
-    } finally {
-      setResolveLoadingKey(null);
-    }
-  };
-
   const renderBookingAction = (storageKey: string, legIndex?: number, segmentIndex?: number) => {
     const resolved = legResolves[storageKey];
     const loading = resolveLoadingKey === storageKey;
@@ -272,7 +264,7 @@ export function FlightDetailsModal({
       : success
         ? isPrefill
           ? t('open_flight_search')
-          : t('open_booking_site')
+          : t('book_this_flight')
         : error
           ? t('try_again')
           : t('book_this_flight');
@@ -322,7 +314,7 @@ export function FlightDetailsModal({
         ) : null}
         <TouchableOpacity
           style={[s.bookBtn, success && s.bookBtnCompact, { backgroundColor: theme.primary }]}
-          onPress={() => (success ? handleOpenVerifiedBooking(legIndex, segmentIndex) : handleBookThisFlight(legIndex, segmentIndex))}
+          onPress={() => handleBookPress(legIndex, segmentIndex)}
           disabled={loading}
         >
           {loading ? (

@@ -509,8 +509,6 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
-		carrier := marketingCarrierForLegIndex(option, legIndex)
-		best = preferAirlineDirectOverOTAAboveQuote(best, offers, q, carrier, normalize)
 		if best != nil {
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
 			extractedBeforeQuote := (*float64)(nil)
