@@ -103,7 +103,8 @@ export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
     const destination = (last?.to?.code || '').toUpperCase();
     const date = isoDatePrefix(first?.departureTime);
     if (origin && destination && date) {
-      hops.push({ origin, destination, date, legIndex });
+      const carrier = segmentCarrierCode(first) || undefined;
+      hops.push({ origin, destination, date, legIndex, carrier });
     }
   });
   return hops;

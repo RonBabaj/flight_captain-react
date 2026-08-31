@@ -304,69 +304,35 @@ export function FlightDetailsModal({
           <Text style={[s.splitHint, { color: theme.textMuted }]}>
             {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
           </Text>
-          {hops.length > 1 && !isNarrow ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.legBookingRow}
-            >
-              {hops.map((hop, index) => {
-                const key = hopStorageKey(hop);
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      s.legBookingCard,
-                      s.legBookingCardHorizontal,
-                      { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
-                    ]}
-                  >
+          <View style={s.legBookingList}>
+            {hops.map((hop, index) => {
+              const key = hopStorageKey(hop);
+              return (
+                <View
+                  key={key}
+                  style={[
+                    s.legBookingCard,
+                    isNarrow && s.legBookingCardCompact,
+                    { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+                  ]}
+                >
+                  {hops.length > 1 ? (
                     <Text style={[s.legStep, { color: theme.textMuted }]}>
                       {t('booking_leg_step').replace('{current}', String(index + 1)).replace('{total}', String(hops.length))}
                     </Text>
-                    <Text style={[s.legRoute, { color: theme.text }]}>
-                      {hop.origin} → {hop.destination}
-                    </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>
-                      {hop.date}
-                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
-                    </Text>
-                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          ) : (
-            <View style={s.legBookingList}>
-              {hops.map((hop, index) => {
-                const key = hopStorageKey(hop);
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      s.legBookingCard,
-                      isNarrow && s.legBookingCardCompact,
-                      { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
-                    ]}
-                  >
-                    {hops.length > 1 ? (
-                      <Text style={[s.legStep, { color: theme.textMuted }]}>
-                        {t('booking_leg_step').replace('{current}', String(index + 1)).replace('{total}', String(hops.length))}
-                      </Text>
-                    ) : null}
-                    <Text style={[s.legRoute, { color: theme.text }]}>
-                      {hop.origin} → {hop.destination}
-                    </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>
-                      {hop.date}
-                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
-                    </Text>
-                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
-                  </View>
-                );
-              })}
-            </View>
-          )}
+                  ) : null}
+                  <Text style={[s.legRoute, { color: theme.text }]}>
+                    {hop.origin} → {hop.destination}
+                  </Text>
+                  <Text style={[s.legDate, { color: theme.textMuted }]}>
+                    {hop.date}
+                    {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
+                  </Text>
+                  {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
+                </View>
+              );
+            })}
+          </View>
         </>
       ) : (
         <>
