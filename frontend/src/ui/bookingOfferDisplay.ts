@@ -13,7 +13,13 @@ export function formatProviderDisplayName(raw: string): string {
   if (!trimmed) return raw;
   if (!trimmed.includes('.') && !trimmed.includes('/')) return trimmed;
   const host = trimmed.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
-  const slug = host.split('.')[0] || host;
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length === 0) return trimmed;
+  const localeLike = (label: string) => /^[a-z]{2}(-[a-z]{2})?$/i.test(label);
+  let slug = parts[0];
+  if (parts.length >= 2 && (localeLike(slug) || slug.length <= 3)) {
+    slug = parts[parts.length - 2];
+  }
   if (!slug) return trimmed;
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }

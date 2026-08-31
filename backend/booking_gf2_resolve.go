@@ -198,33 +198,63 @@ func legBookingToken(option *FlightOption, legIndex int) string {
 	if option == nil {
 		return ""
 	}
-	if legIndex >= 0 {
-		if !legPartnerArraysAligned(option) || legIndex >= len(option.LegBookingTokens) {
-			return ""
-		}
-		return strings.TrimSpace(option.LegBookingTokens[legIndex])
+	if legIndex < 0 {
+		return strings.TrimSpace(option.BookingToken)
 	}
-	return strings.TrimSpace(option.BookingToken)
+	if legIndex >= len(option.Legs) {
+		return ""
+	}
+	nLegs := len(option.Legs)
+	nTokens := len(option.LegBookingTokens)
+	if nTokens == 0 {
+		return ""
+	}
+	// One token for a multi-leg itinerary: use it only for the first leg.
+	if nTokens == 1 && nLegs > 1 {
+		if legIndex == 0 {
+			return strings.TrimSpace(option.LegBookingTokens[0])
+		}
+		return ""
+	}
+	if nTokens != nLegs {
+		return ""
+	}
+	if legIndex >= nTokens {
+		return ""
+	}
+	return strings.TrimSpace(option.LegBookingTokens[legIndex])
 }
 
 func legDeepLink(option *FlightOption, legIndex int) string {
 	if option == nil {
 		return ""
 	}
-	if legIndex >= 0 {
-		if !legPartnerArraysAligned(option) || legIndex >= len(option.LegDeepLinks) {
-			return ""
-		}
-		u := normalizeProviderBookingURL(option.LegDeepLinks[legIndex])
-		if u == "" {
-			return ""
-		}
-		if !resolvedPartnerURLMatchesLeg(option, legIndex, u) {
-			return ""
-		}
-		return u
+	if legIndex < 0 {
+		return normalizeProviderBookingURL(option.DeepLink)
 	}
-	return normalizeProviderBookingURL(option.DeepLink)
+	if legIndex >= len(option.Legs) {
+		return ""
+	}
+	nLegs := len(option.Legs)
+	nLinks := len(option.LegDeepLinks)
+	if nLinks == 0 {
+		return ""
+	}
+	// Fewer deeplinks than legs: never bind by index (wrong-leg risk).
+	if nLinks != nLegs {
+		return ""
+	}
+	if legIndex >= nLinks {
+		return ""
+	}
+	u := normalizeProviderBookingURL(option.LegDeepLinks[legIndex])
+	if u == "" {
+		return ""
+	}
+	if !resolvedPartnerURLMatchesLeg(option, legIndex, u) {
+		return ""
+	}
+	return u
 }
 
 // legPartnerArraysAligned requires per-leg partner metadata to line up with Legs[].

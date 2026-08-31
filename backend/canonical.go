@@ -89,6 +89,9 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 // bookingPrefillURL returns a search prefill URL for one leg/segment or the whole itinerary when partner checkout fails.
 func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) string {
 	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
+		if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+			return u
+		}
 		if u := buildLegOrSegmentBookingURL(session, option, legIndex, segmentIndex); u != "" {
 			return u
 		}
