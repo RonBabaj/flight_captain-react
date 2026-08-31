@@ -18412,7 +18412,7 @@
       "file_type": "code",
       "norm_label": "s",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L692"
+      "source_location": "L651"
     },
     {
       "id": "frontend_src_features_flight_search_components_flightresultcard",
@@ -29518,18 +29518,6 @@
     },
     {
       "source": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodal",
-      "target": "frontend_src_api_booking_resolvebookingoffer",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L143",
-      "weight": 1.0
-    },
-    {
-      "source": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodal",
       "target": "frontend_src_utils_skyscanner_buildshareurlwithoptionid",
       "relation": "calls",
       "_origin": "ast",
@@ -29537,7 +29525,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L163",
+      "source_location": "L136",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodal",
+      "target": "frontend_src_api_booking_resolvebookingoffer",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
+      "source_location": "L192",
       "weight": 1.0
     },
     {
@@ -29549,7 +29549,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L238",
+      "source_location": "L210",
       "weight": 1.0
     },
     {
@@ -29561,7 +29561,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L239",
+      "source_location": "L211",
       "weight": 1.0
     },
     {
@@ -29573,7 +29573,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L329",
+      "source_location": "L288",
       "weight": 1.0
     },
     {
@@ -29585,7 +29585,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L361",
+      "source_location": "L320",
       "weight": 1.0
     },
     {
@@ -29597,7 +29597,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L362",
+      "source_location": "L321",
       "weight": 1.0
     },
     {
@@ -29609,7 +29609,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L368",
+      "source_location": "L327",
       "weight": 1.0
     },
     {
@@ -29621,7 +29621,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L370",
+      "source_location": "L329",
       "weight": 1.0
     },
     {
@@ -29633,7 +29633,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L415",
+      "source_location": "L374",
       "weight": 1.0
     },
     {
@@ -29645,7 +29645,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L425",
+      "source_location": "L384",
       "weight": 1.0
     },
     {
@@ -29657,7 +29657,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L535",
+      "source_location": "L494",
       "weight": 1.0
     },
     {
@@ -29669,7 +29669,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L569",
+      "source_location": "L528",
       "weight": 1.0
     },
     {
@@ -29681,7 +29681,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L589",
+      "source_location": "L548",
       "weight": 1.0
     },
     {
@@ -29693,7 +29693,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L600",
+      "source_location": "L559",
       "weight": 1.0
     },
     {
@@ -29705,7 +29705,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L610",
+      "source_location": "L569",
       "weight": 1.0
     },
     {
@@ -68850,7 +68850,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/components/FlightDetailsModal.tsx",
-      "source_location": "L692",
+      "source_location": "L651",
       "weight": 1.0
     },
     {
@@ -80111,5 +80111,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "623f24328afc5b31bdfc8471f4fae5c1159ea98a"
+  "built_at_commit": "b142e83d35d01ca976f9743ae22c45ca5f5a9329"
 }
