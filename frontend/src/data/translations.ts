@@ -644,6 +644,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'המשך ב-{provider}',
     ru: 'Продолжить на {provider}',
   },
+  booking_continue: {
+    en: 'Continue',
+    he: 'המשך',
+    ru: 'Продолжить',
+  },
+  booking_leg_step: {
+    en: 'Leg {current} of {total}',
+    he: 'קטע {current} מתוך {total}',
+    ru: 'Сегмент {current} из {total}',
+  },
   booking_airline_direct_subtitle: {
     en: 'Book directly with the airline',
     he: 'הזמנה ישירות אצל חברת התעופה',

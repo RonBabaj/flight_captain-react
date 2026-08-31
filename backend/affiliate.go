@@ -131,6 +131,30 @@ func init() {
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://www.lufthansa.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
+		"OS": {
+			Code:   "OS",
+			Name:   "Austrian Airlines",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.austrian.com/at/en/booking?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
+		},
+		"LX": {
+			Code:   "LX",
+			Name:   "Swiss",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.swiss.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+		},
+		"AF": {
+			Code:   "AF",
+			Name:   "Air France",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://wwws.airfrance.fr/search/offers?origin={origin}&destination={destination}&departureDate={departureDate}&aff_id={aff_id}&subid={subid}",
+		},
+		"KL": {
+			Code:   "KL",
+			Name:   "KLM",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.klm.com/search/offers?origin={origin}&destination={destination}&departureDate={departureDate}&aff_id={aff_id}&subid={subid}",
+		},
 		"TK": {
 			Code:   "TK",
 			Name:   "Turkish Airlines",

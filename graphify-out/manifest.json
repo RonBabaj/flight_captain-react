@@ -1,8 +1,8 @@
 {
   "backend/affiliate.go": {
-    "mtime": 1788174887.9148102,
-    "seen": 1788174976.537819,
-    "ast_hash": "e93098b6a6bc49413d61766c90740980",
+    "mtime": 1788184892.4505584,
+    "seen": 1788185541.6840777,
+    "ast_hash": "1249db72201004037811a17f538de897",
     "semantic_hash": ""
   },
   "backend/canonical.go": {
@@ -329,9 +329,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1788180992.3634791,
-    "seen": 1788181163.5985625,
-    "ast_hash": "7346d15289b1a80b1ae63aaeda482335",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6859276,
+    "ast_hash": "7cc700364fed6fbffbb312936a9335b3",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -377,9 +377,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1788181096.078556,
-    "seen": 1788181163.5989132,
-    "ast_hash": "a0907b7b004a3074be3c5224df4436e9",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6862962,
+    "ast_hash": "376fa24ab767be64f071bc77183d7b11",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -443,9 +443,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1788181077.4507256,
-    "seen": 1788181163.5990965,
-    "ast_hash": "7655b1170ebea72cd12c010e18947275",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6865652,
+    "ast_hash": "28a04da1e0ca7c250d21ad1e4fbd812b",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -832,9 +832,9 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/skyscanner.ts": {
-    "mtime": 1788109103.8347034,
-    "seen": 1788124054.3466995,
-    "ast_hash": "fc13c2f782e6e59632659aac3ae912a1",
+    "mtime": 1788184892.4465585,
+    "seen": 1788185541.687309,
+    "ast_hash": "57575f869ee4a74dd26cb6e46e98ccfc",
     "semantic_hash": ""
   },
   "backend/session_store.go": {
@@ -868,9 +868,9 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1788175340.0871747,
-    "seen": 1788181163.5967531,
-    "ast_hash": "3e2586741b6004c694d80b2e3b0f929b",
+    "mtime": 1788184893.0825567,
+    "seen": 1788185541.6841822,
+    "ast_hash": "111b21795b874e3e3296cbda0f410817",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
@@ -1276,21 +1276,21 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionCard.tsx": {
-    "mtime": 1788180975.699642,
-    "seen": 1788181163.5994642,
-    "ast_hash": "902237fdf48e479329469356e96d374f",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6869833,
+    "ast_hash": "cedd06e16229fe863325384cb7807067",
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1788180992.971474,
-    "seen": 1788181163.5994651,
-    "ast_hash": "1c3ca6a4f01075429b65d0b847983789",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6869845,
+    "ast_hash": "47ecf736427433f6150b62d6ee86d3ab",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
-    "mtime": 1788180957.7798595,
-    "seen": 1788181163.5994663,
-    "ast_hash": "87d32473d07939591dd8e91be203fbbf",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6869855,
+    "ast_hash": "0807f92ce261ef82b678a7c314f7cf9f",
     "semantic_hash": ""
   },
   "frontend/src/ui/Callout.tsx": {
@@ -1312,15 +1312,15 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/bookingOfferDisplay.ts": {
-    "mtime": 1788180957.7798595,
-    "seen": 1788181163.599469,
-    "ast_hash": "af2306d973450409901febeac8496400",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6870415,
+    "ast_hash": "3edc3110511334b4e2f4884050c94a98",
     "semantic_hash": ""
   },
   "frontend/src/ui/index.ts": {
-    "mtime": 1788180975.7396414,
-    "seen": 1788181163.59947,
-    "ast_hash": "4341e6a1608f972810c4892010f70192",
+    "mtime": 1788185529.7855756,
+    "seen": 1788185541.6870422,
+    "ast_hash": "905ecc3c4e0ad5fa295cbf3d6559a790",
     "semantic_hash": ""
   }
 }

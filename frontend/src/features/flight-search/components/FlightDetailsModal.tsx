@@ -291,69 +291,48 @@ export function FlightDetailsModal({
         onResolve={() => handleBookPress(legIndex, segmentIndex)}
         onOpenUrl={(url) => handleBookPress(legIndex, segmentIndex, url)}
         carrierCode={carrierCode}
+        compact={isNarrow}
         showDisclaimer={false}
       />
     );
   };
 
   const renderBookingFooter = () => (
-    <View style={[s.footer, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
+    <View style={[s.footer, isNarrow && s.footerCompact, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
       {perHopBooking && hops.length > 0 ? (
         <>
           <Text style={[s.splitHint, { color: theme.textMuted }]}>
             {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
           </Text>
-          {hops.length > 1 && useFullScreen ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.legBookingRow}
-            >
-              {hops.map((hop) => {
-                const key = hopStorageKey(hop);
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      s.legBookingCard,
-                      s.legBookingCardHorizontal,
-                      { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
-                    ]}
-                  >
-                    <Text style={[s.legRoute, { color: theme.text }]}>
-                      {hop.origin} → {hop.destination}
+          <View style={s.legBookingList}>
+            {hops.map((hop, index) => {
+              const key = hopStorageKey(hop);
+              return (
+                <View
+                  key={key}
+                  style={[
+                    s.legBookingCard,
+                    isNarrow && s.legBookingCardCompact,
+                    { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+                  ]}
+                >
+                  {hops.length > 1 ? (
+                    <Text style={[s.legStep, { color: theme.textMuted }]}>
+                      {t('booking_leg_step').replace('{current}', String(index + 1)).replace('{total}', String(hops.length))}
                     </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>
-                      {hop.date}
-                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
-                    </Text>
-                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          ) : (
-            <View style={s.legBookingList}>
-              {hops.map((hop) => {
-                const key = hopStorageKey(hop);
-                return (
-                  <View
-                    key={key}
-                    style={[s.legBookingCard, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}
-                  >
-                    <Text style={[s.legRoute, { color: theme.text }]}>
-                      {hop.origin} → {hop.destination}
-                    </Text>
-                    <Text style={[s.legDate, { color: theme.textMuted }]}>
-                      {hop.date}
-                      {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
-                    </Text>
-                    {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
-                  </View>
-                );
-              })}
-            </View>
-          )}
+                  ) : null}
+                  <Text style={[s.legRoute, { color: theme.text }]}>
+                    {hop.origin} → {hop.destination}
+                  </Text>
+                  <Text style={[s.legDate, { color: theme.textMuted }]}>
+                    {hop.date}
+                    {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
+                  </Text>
+                  {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
+                </View>
+              );
+            })}
+          </View>
         </>
       ) : (
         <>
@@ -846,6 +825,10 @@ const s = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
   },
+  footerCompact: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
   bookBtn: {
     paddingVertical: 14,
     borderRadius: 12,
@@ -889,10 +872,22 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
+    width: '100%',
+  },
+  legBookingCardCompact: {
+    padding: 10,
   },
   legBookingCardHorizontal: {
-    width: 260,
+    width: 300,
+    maxWidth: '100%',
     flexShrink: 0,
+  },
+  legStep: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
   legRoute: { fontSize: 15, fontWeight: '700' },
   legDate: { fontSize: 13, marginTop: 2, marginBottom: 4 },

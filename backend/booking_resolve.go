@@ -372,20 +372,33 @@ func pickCheapestOTAOffer(all []bookingmatch.BookingOffer, match *bookingmatch.M
 	return selectBestFromVerifiedOffers(otaOffers, match, session, option, legIndex, normalize)
 }
 
-func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, fp string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, gf2Raw []bookingmatch.BookingOffer, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, fp string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
 	carrier := marketingCarrierForLegIndex(option, legIndex)
 	if carrier == "" {
 		return nil
 	}
 	var airlineVerified []bookingmatch.BookingOffer
-	for _, o := range verified {
+	collect := func(o bookingmatch.BookingOffer) {
 		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
-			continue
+			return
 		}
 		if isAffiliateTemplateBookingURL(o.URL) {
-			continue
+			return
+		}
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			return
 		}
 		airlineVerified = append(airlineVerified, o)
+	}
+	for _, o := range verified {
+		collect(o)
+	}
+	// GF2 may attach airline checkout URLs that were filtered from verified set.
+	for _, o := range gf2Raw {
+		collect(o)
 	}
 	if len(airlineVerified) > 0 {
 		quote := quoteBindingForMatch(session, option, legIndex)
@@ -396,7 +409,10 @@ func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, session *Searc
 	}
 	if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
 		quote := quoteBindingFromOption(session, option, legIndex)
-		return gf2PartnerOfferFromQuoteURL(u, fp, quote)
+		if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
+			offer.URLType = bookingmatch.URLTypeExactSearch
+			return offer
+		}
 	}
 	return nil
 }
@@ -743,7 +759,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	if len(offers) > 0 {
 		hadMultiple := len(offers) > 1
 		cheapestOtaPick := pickCheapestOTAOffer(offers, matchResult, session, option, legIndex, normalize)
-		airlineDirectPick := pickAirlineDirectOffer(offers, session, option, legIndex, segmentIndex, fp, normalize)
+		airlineDirectPick := pickAirlineDirectOffer(offers, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
 
 		var primaryPick *bookingmatch.BookingOffer
 		switch {

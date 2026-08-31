@@ -14,4 +14,6 @@ export {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
   formatBookingOfferPriceLine,
+  formatBookingOfferPriceAmount,
+  formatProviderDisplayName,
 } from './bookingOfferDisplay';
