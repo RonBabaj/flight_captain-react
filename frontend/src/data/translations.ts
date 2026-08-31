@@ -624,6 +624,21 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'זמין גם ב',
     ru: 'Также доступно на',
   },
+  booking_cheapest_ota: {
+    en: 'Cheapest OTA',
+    he: 'סוכן הנסיעות הזול ביותר',
+    ru: 'Самый дешёвый агент',
+  },
+  booking_airline_direct: {
+    en: 'Book with airline',
+    he: 'הזמנה ישירות אצל חברת התעופה',
+    ru: 'Бронирование у авиакомпании',
+  },
+  airline_direct_prefill_hint: {
+    en: 'Opens airline site with your route prefilled — select your flight and verify the fare.',
+    he: 'פותח את אתר חברת התעופה עם המסלול — בחרו את הטיסה ואמתו את המחיר.',
+    ru: 'Откроется сайт авиакомпании с вашим маршрутом — выберите рейс и проверьте цену.',
+  },
   search_quote_price: {
     en: 'search quote',
     he: 'מחיר חיפוש',

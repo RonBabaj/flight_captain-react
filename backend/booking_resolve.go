@@ -56,6 +56,8 @@ type BookingResolveResponse struct {
 	Status               string              `json:"status"`
 	ItineraryFingerprint string              `json:"itineraryFingerprint,omitempty"`
 	Offer                *PublicBookingOffer `json:"offer,omitempty"`
+	CheapestOta          *PublicBookingOffer `json:"cheapestOta,omitempty"`
+	AirlineDirect        *PublicBookingOffer `json:"airlineDirect,omitempty"`
 	Message              string              `json:"message,omitempty"`
 	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
 	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
@@ -293,9 +295,9 @@ func normalizedBookingOfferPrice(o bookingmatch.BookingOffer, normalize bookingm
 	return amount, true
 }
 
-// selectBestBookingOffer prefers web-extracted checkout prices over GF2 listing metadata,
+// selectBestFromVerifiedOffers prefers web-extracted checkout prices over GF2 listing metadata,
 // then quote-matching fares, then the lowest verified price.
-func selectBestBookingOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+func selectBestFromVerifiedOffers(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
 	if len(all) == 0 {
 		return nil
 	}
@@ -312,35 +314,119 @@ func selectBestBookingOffer(all []bookingmatch.BookingOffer, match *bookingmatch
 	}
 	overallBest = bookingmatch.SelectBestOffer(all, normalize, quote)
 
-	var best *bookingmatch.BookingOffer
 	switch {
 	case webBest != nil && gf2Best != nil:
 		wNorm, wOk := normalizedBookingOfferPrice(*webBest, normalize)
 		gNorm, gOk := normalizedBookingOfferPrice(*gf2Best, normalize)
 		if wOk && gOk {
 			if gNorm < wNorm {
-				best = gf2Best
-			} else {
-				best = webBest
+				return gf2Best
 			}
-		} else if wOk {
-			best = webBest
-		} else if gOk {
-			best = gf2Best
-		} else {
-			best = webBest
+			return webBest
 		}
+		if wOk {
+			return webBest
+		}
+		if gOk {
+			return gf2Best
+		}
+		return webBest
 	case webBest != nil:
-		best = webBest
+		return webBest
 	case gf2Best != nil:
-		best = gf2Best
+		return gf2Best
 	default:
-		best = overallBest
+		return overallBest
 	}
+}
 
+// selectBestBookingOffer picks the best verified offer and may swap in airline direct when it
+// beats a marked-up OTA (legacy single-offer path).
+func selectBestBookingOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	best := selectBestFromVerifiedOffers(all, match, session, option, legIndex, normalize)
+	if best == nil {
+		return nil
+	}
 	q := quoteBindingFromOption(session, option, legIndex)
 	carrier := marketingCarrierForLegIndex(option, legIndex)
 	return preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, all, q, carrier, normalize)
+}
+
+func offersExcludingAirlineDirect(all []bookingmatch.BookingOffer, carrier string) []bookingmatch.BookingOffer {
+	if carrier == "" {
+		return all
+	}
+	out := make([]bookingmatch.BookingOffer, 0, len(all))
+	for _, o := range all {
+		if airlineDomainForCarrier(o.Domain, carrier) || airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+func pickCheapestOTAOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	otaOffers := offersExcludingAirlineDirect(all, carrier)
+	return selectBestFromVerifiedOffers(otaOffers, match, session, option, legIndex, normalize)
+}
+
+func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, fp string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	if carrier == "" {
+		return nil
+	}
+	var airlineVerified []bookingmatch.BookingOffer
+	for _, o := range verified {
+		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		if isAffiliateTemplateBookingURL(o.URL) {
+			continue
+		}
+		airlineVerified = append(airlineVerified, o)
+	}
+	if len(airlineVerified) > 0 {
+		quote := quoteBindingForMatch(session, option, legIndex)
+		return bookingmatch.SelectBestOffer(airlineVerified, normalize, quote)
+	}
+	if legIndex < 0 {
+		return nil
+	}
+	if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+		quote := quoteBindingFromOption(session, option, legIndex)
+		return gf2PartnerOfferFromQuoteURL(u, fp, quote)
+	}
+	return nil
+}
+
+func publicBookingOfferFromPick(o *bookingmatch.BookingOffer, gf2 []bookingmatch.BookingOffer, semanticLabel string, hadMultiple bool) *PublicBookingOffer {
+	if o == nil {
+		return nil
+	}
+	offer := publicOfferFromMatch(o, hadMultiple)
+	if offer == nil {
+		return nil
+	}
+	fromGF2 := bookingOfferInGF2Sources(o, gf2)
+	switch semanticLabel {
+	case "cheapest_ota":
+		if fromGF2 && offer.Price != nil {
+			offer.PriceLabel = "google_flights_partner"
+		} else if offer.Price != nil {
+			if hadMultiple {
+				offer.PriceLabel = "cheapest_matching_offer"
+			} else {
+				offer.PriceLabel = "partner_checkout_price"
+			}
+		} else {
+			offer.PriceLabel = semanticLabel
+		}
+	default:
+		offer.PriceLabel = semanticLabel
+	}
+	return offer
 }
 
 func filterOffersNotIn(subset, all []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
@@ -655,28 +741,56 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
-		best := selectBestBookingOffer(offers, matchResult, session, option, legIndex, normalize)
-		if best != nil {
-			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
+		hadMultiple := len(offers) > 1
+		cheapestOtaPick := pickCheapestOTAOffer(offers, matchResult, session, option, legIndex, normalize)
+		airlineDirectPick := pickAirlineDirectOffer(offers, session, option, legIndex, segmentIndex, fp, normalize)
+
+		var primaryPick *bookingmatch.BookingOffer
+		switch {
+		case cheapestOtaPick != nil:
+			primaryPick = cheapestOtaPick
+		case airlineDirectPick != nil:
+			primaryPick = airlineDirectPick
+		default:
+			primaryPick = selectBestBookingOffer(offers, matchResult, session, option, legIndex, normalize)
+		}
+
+		if primaryPick != nil {
+			fromGF2 := bookingOfferInGF2Sources(primaryPick, gf2Offers)
 			var extractedBeforeQuote *float64
-			if best.Price != nil {
-				p := *best.Price
+			if primaryPick.Price != nil {
+				p := *primaryPick.Price
 				extractedBeforeQuote = &p
 			}
-			hadMultiple := len(offers) > 1
-			offer := publicOfferFromMatch(best, hadMultiple)
-			if offer != nil {
-				if fromGF2 {
-					offer.PriceLabel = "google_flights_partner"
-				} else if best.Price != nil {
-					if hadMultiple {
-						offer.PriceLabel = "cheapest_matching_offer"
-					} else {
-						offer.PriceLabel = "partner_checkout_price"
-					}
+
+			offer := publicBookingOfferFromPick(primaryPick, gf2Offers, "cheapest_ota", hadMultiple)
+			if offer != nil && cheapestOtaPick == nil && airlineDirectPick != nil {
+				// Only airline direct available — preserve airline label on primary.
+				label := "airline_direct"
+				if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+					label = "airline_direct_prefill"
 				}
+				offer = publicBookingOfferFromPick(primaryPick, gf2Offers, label, false)
+			}
+
+			var cheapestOta *PublicBookingOffer
+			if cheapestOtaPick != nil {
+				cheapestOta = publicBookingOfferFromPick(cheapestOtaPick, gf2Offers, "cheapest_ota", hadMultiple)
+			}
+			var airlineDirect *PublicBookingOffer
+			if airlineDirectPick != nil {
+				label := "airline_direct"
+				if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+					label = "airline_direct_prefill"
+				}
+				airlineDirect = publicBookingOfferFromPick(airlineDirectPick, gf2Offers, label, false)
+			}
+
+			if offer != nil {
 				event := "resolve_verified"
-				if hadMultiple {
+				if cheapestOta != nil && airlineDirect != nil {
+					event = "resolve_verified_dual"
+				} else if hadMultiple {
 					event = "resolve_verified_cheapest"
 				} else if fromGF2 {
 					event = "resolve_verified_gf2"
@@ -686,8 +800,9 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 					Status:               BookingResolveVerified,
 					ItineraryFingerprint: fp,
 					Offer:                offer,
+					CheapestOta:          cheapestOta,
+					AirlineDirect:        airlineDirect,
 					CandidatesConsidered: len(offers),
-					Alternatives:         publicAlternativesFromOffers(offers, best, normalize, 8),
 				}
 				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 				logBookingResolve(bookingResolveLogEvent{

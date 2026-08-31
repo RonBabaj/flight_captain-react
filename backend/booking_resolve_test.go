@@ -610,8 +610,14 @@ func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected verified offer, got %+v", resp)
 	}
-	if !strings.Contains(resp.Offer.Domain, "elal") {
-		t.Fatalf("expected elal airline direct over budgetair, got %+v", resp.Offer)
+	if resp.Offer.Domain != "budgetair.com" {
+		t.Fatalf("expected cheapest OTA (budgetair) as primary, got %+v", resp.Offer)
+	}
+	if resp.CheapestOta == nil || resp.CheapestOta.Domain != "budgetair.com" {
+		t.Fatalf("expected cheapestOta=budgetair, got %+v", resp.CheapestOta)
+	}
+	if resp.AirlineDirect == nil || !strings.Contains(resp.AirlineDirect.Domain, "elal") {
+		t.Fatalf("expected airlineDirect=elal, got %+v", resp.AirlineDirect)
 	}
 	if resp.Offer.PriceLabel != "google_flights_partner" {
 		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
@@ -672,15 +678,11 @@ func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *t
 	if resp.Offer.PriceLabel != "google_flights_partner" {
 		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
 	}
-	foundElAlAlt := false
-	for _, alt := range resp.Alternatives {
-		if strings.Contains(strings.ToLower(alt.Domain), "elal") && strings.Contains(alt.URL, "booking.elal.co.il") {
-			foundElAlAlt = true
-			break
-		}
+	if resp.CheapestOta == nil || resp.CheapestOta.Domain != "budgetair.com" {
+		t.Fatalf("expected cheapestOta=budgetair, got %+v", resp.CheapestOta)
 	}
-	if !foundElAlAlt {
-		t.Fatalf("expected El Al in alternatives when BudgetAir wins, got %+v", resp.Alternatives)
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.Domain), "elal") {
+		t.Fatalf("expected airlineDirect=elal when BudgetAir wins, got %+v", resp.AirlineDirect)
 	}
 }
 
@@ -769,7 +771,7 @@ func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *te
 }
 
 func TestIsAffiliateTemplateBookingURL(t *testing.T) {
-	if !isAffiliateTemplateBookingURL("https://book.elal.com/en/booking/flights?origin=SZG&destination=TLV&departureDate=2027-01-14") {
+	if !isAffiliateTemplateBookingURL("https://booking.elal.com/en/booking/flights?origin=SZG&destination=TLV&departureDate=2027-01-14") {
 		t.Fatal("expected elal template URL")
 	}
 	if isAffiliateTemplateBookingURL("https://booking.elal.co.il/checkout/szg-tlv") {

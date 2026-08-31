@@ -24,7 +24,11 @@ export interface PublicBookingOffer {
     | 'cheapest_matching_offer'
     | 'search_quote'
     | 'search_prefill'
-    | 'google_flights_partner';
+    | 'google_flights_partner'
+    | 'partner_checkout_price'
+    | 'cheapest_ota'
+    | 'airline_direct'
+    | 'airline_direct_prefill';
   checkedAt: string;
 }
 
@@ -33,6 +37,8 @@ export interface BookingResolveResponse {
   status: BookingResolveStatus;
   itineraryFingerprint?: string;
   offer?: PublicBookingOffer;
+  cheapestOta?: PublicBookingOffer;
+  airlineDirect?: PublicBookingOffer;
   message?: string;
   quotedPrice?: number;
   quotedCurrency?: string;

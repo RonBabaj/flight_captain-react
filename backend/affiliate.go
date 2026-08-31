@@ -105,7 +105,7 @@ func init() {
 			Code:   "LY",
 			Name:   "El Al",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://book.elal.com/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
+			URLTpl: "https://booking.elal.com/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
 		},
 		"UA": {
 			Code:   "UA",
