@@ -1302,6 +1302,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               onResolve={handleBookFromDetails}
               onOpenUrl={handleOpenBookingUrl}
               carrierCode={details?.outbound?.segments?.[0]?.marketingCarrier?.code}
+              compact={isMobile}
             />
           </View>
         </View>

@@ -11,7 +11,7 @@ import { Callout } from './Callout';
 import {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
-  formatBookingOfferPriceLine,
+  formatBookingOfferPriceAmount,
 } from './bookingOfferDisplay';
 
 export interface BookingOptionsFooterProps {
@@ -22,6 +22,8 @@ export interface BookingOptionsFooterProps {
   onOpenUrl: (url: string) => void;
   /** Marketing carrier for airline-direct title (e.g. LY → El Al). */
   carrierCode?: string;
+  /** Tighter layout for narrow/mobile containers. */
+  compact?: boolean;
   showDisclaimer?: boolean;
   style?: ViewStyle;
 }
@@ -46,6 +48,7 @@ export function BookingOptionsFooter({
   onResolve,
   onOpenUrl,
   carrierCode,
+  compact = false,
   showDisclaimer = true,
   style,
 }: BookingOptionsFooterProps) {
@@ -101,11 +104,13 @@ export function BookingOptionsFooter({
           <BookingOptionCard
             offer={resolved.cheapestOta}
             badge="cheapest"
+            compact={compact}
             onContinue={() => onOpenUrl(resolved.cheapestOta!.url)}
           />
           <BookingOptionCard
             offer={resolved.airlineDirect}
             badge="direct"
+            compact={compact}
             titleOverride={airlineName}
             onContinue={() => onOpenUrl(resolved.airlineDirect!.url)}
           />
@@ -116,14 +121,18 @@ export function BookingOptionsFooter({
           if (!offer?.url || !isSafeBookingUrl(offer.url)) return null;
           const isPrefill = offer.priceLabel === 'search_prefill';
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
-          const priceLine = formatBookingOfferPriceLine(offer, t);
+          const priceAmount = formatBookingOfferPriceAmount(offer);
           const subtitle = bookingOfferSubtitle(offer, t);
           return (
-            <View style={[styles.singleCard, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
-              <Text style={[styles.singleTitle, { color: theme.text }]}>
-                {title}
-                {priceLine ? ` · ${priceLine}` : ''}
-              </Text>
+            <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
+              <View style={styles.singleHeader}>
+                <Text style={[styles.singleTitle, { color: theme.text }]} numberOfLines={2}>
+                  {title}
+                </Text>
+                {priceAmount ? (
+                  <Text style={[styles.singlePrice, { color: theme.text }]}>{priceAmount}</Text>
+                ) : null}
+              </View>
               {subtitle ? (
                 <Text style={[styles.singleSubtitle, { color: theme.textMuted }]}>{subtitle}</Text>
               ) : null}
@@ -164,11 +173,28 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 6,
+    width: '100%',
+  },
+  singleCardCompact: {
+    padding: 10,
+    borderRadius: 12,
+  },
+  singleHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   singleTitle: {
+    flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    lineHeight: 21,
+    lineHeight: 20,
+  },
+  singlePrice: {
+    fontSize: 18,
+    fontWeight: '800',
+    flexShrink: 0,
   },
   singleSubtitle: {
     fontSize: 12,
