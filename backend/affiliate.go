@@ -105,7 +105,7 @@ func init() {
 			Code:   "LY",
 			Name:   "El Al",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://booking.elal.co.il/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}&aff_id={aff_id}&subid={subid}",
+			URLTpl: "https://book.elal.com/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
 		},
 		"UA": {
 			Code:   "UA",
@@ -227,7 +227,32 @@ func BuildRedirectURL(session *SearchSession, option *FlightOption, provider *Pr
 	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
-	return s
+	return stripEmptyQueryParams(s)
+}
+
+func stripEmptyQueryParams(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := parsed.Query()
+	for k, vals := range q {
+		empty := len(vals) == 0
+		if !empty {
+			empty = true
+			for _, v := range vals {
+				if strings.TrimSpace(v) != "" {
+					empty = false
+					break
+				}
+			}
+		}
+		if empty {
+			q.Del(k)
+		}
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
 }
 
 // BuildLegAirlineDirectURL builds a one-way airline booking URL for a single leg when GF2 only surfaced OTAs.
@@ -285,7 +310,7 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
-	return s
+	return stripEmptyQueryParams(s)
 }
 
 const maxClickStoreRecords = 100_000
