@@ -21,7 +21,7 @@ import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '..
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
-import { getSearchSessionResults, createSearchSession } from '../../../api';
+import { getSearchSessionResults, createSearchSessionWithRetry } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
@@ -172,7 +172,7 @@ type CheapestOption = {
 async function findCheapestOptionForParams(
   base: CreateSearchSessionRequest
 ): Promise<CheapestOption | null> {
-  const session = await createSearchSession(base);
+  const session = await createSearchSessionWithRetry(base);
   let attempts = 0;
   let lastResults: FlightOption[] = [];
   let status: string | undefined;
@@ -376,7 +376,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       const generation = searchActions.beginSearch(payload);
       updateUrl(payload);
       versionRef.current = 0;
-      const session = await createSearchSession(payload);
+      const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
       const res = await getSearchSessionResults(session.id, undefined, payload);
       if (!isCurrentSearchGeneration(generation)) return;
@@ -613,7 +613,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           locale: (base.locale ?? locale ?? 'en-US') as any,
         };
 
-        const session = await createSearchSession(payload);
+        const session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
         // POST /sessions returns COMPLETE but does not include offers. Hydrate

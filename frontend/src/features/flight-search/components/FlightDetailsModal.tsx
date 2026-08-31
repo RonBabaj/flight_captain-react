@@ -283,7 +283,9 @@ export function FlightDetailsModal({
                   ? t('cheapest_matching_offer')
                   : resolved.offer.priceLabel === 'partner_checkout_price'
                     ? t('partner_checkout_price')
-                    : t('exact_itinerary_matched')}
+                    : resolved.offer.priceLabel === 'google_flights_partner'
+                      ? t('exact_itinerary_matched')
+                      : t('exact_itinerary_matched')}
               {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
                 ? ` · ${resolved.offer.provider || resolved.offer.domain}`
                 : isPrefill && resolved.offer.domain
@@ -325,6 +327,39 @@ export function FlightDetailsModal({
             <Text style={s.bookBtnText}>{btnLabel}</Text>
           )}
         </TouchableOpacity>
+        {success && resolved?.alternatives && resolved.alternatives.length > 0 ? (
+          <View style={{ marginTop: 10, width: '100%' }}>
+            <Text style={[s.legMatchedLine, { color: theme.textMuted, marginBottom: 6 }]}>
+              {t('booking_alternatives_title')}
+            </Text>
+            {resolved.alternatives.map((alt) => {
+              const label = alt.provider || alt.domain || t('book_this_flight');
+              const priceStr =
+                alt.price != null && alt.currency
+                  ? ` · ${getCurrencySymbol(alt.currency)} ${alt.price.toFixed(0)}`
+                  : '';
+              const altUrl = alt.url?.trim();
+              return (
+                <TouchableOpacity
+                  key={`${alt.domain}-${altUrl || label}`}
+                  style={[s.secondaryBtn, { borderColor: theme.cardBorder }]}
+                  disabled={!altUrl || !isSafeBookingUrl(altUrl)}
+                  onPress={() => {
+                    if (altUrl && isSafeBookingUrl(altUrl)) {
+                      void openUrlInNewTab(altUrl);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.secondaryBtnText, { color: theme.primary }]}>
+                    {label}
+                    {priceStr}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
       </>
     );
   };

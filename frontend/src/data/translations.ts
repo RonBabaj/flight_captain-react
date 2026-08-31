@@ -614,6 +614,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'מחיר בדף ההזמנה',
     ru: 'Цена на сайте партнёра',
   },
+  booking_alternatives_title: {
+    en: 'Also available at',
+    he: 'זמין גם ב',
+    ru: 'Также доступно на',
+  },
   search_quote_price: {
     en: 'search quote',
     he: 'מחיר חיפוש',
