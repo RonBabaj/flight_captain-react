@@ -44,6 +44,7 @@ export interface BookingResolveResponse {
 export interface PublicBookingAlternative {
   provider: string;
   domain: string;
+  url?: string;
   price?: number;
   currency?: string;
 }

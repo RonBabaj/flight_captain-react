@@ -24,6 +24,10 @@ const (
 	// Booking endpoints (getBookingDetails / getBookingURL) use a separate bucket so
 	// search-time enrich + Book-click resolve are not starved after a heavy search.
 	gf2BookingRateLimitPerMinDefault = 60
+	// Session create waits on Search(); brief backoff avoids failing the whole request when
+	// Explore/deals just consumed the in-process token bucket.
+	gf2SearchRateLimitRetries  = 5
+	gf2SearchRateLimitBackoff  = 3 * time.Second
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
@@ -165,6 +169,26 @@ func (p *GoogleFlights2Provider) Name() string {
 	return "googleflights2"
 }
 
+func (p *GoogleFlights2Provider) waitForSearchRateLimit(ctx context.Context) bool {
+	if p == nil || p.limiter == nil {
+		return true
+	}
+	for attempt := 0; attempt < gf2SearchRateLimitRetries; attempt++ {
+		if p.limiter.allow() {
+			return true
+		}
+		if attempt == gf2SearchRateLimitRetries-1 {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(gf2SearchRateLimitBackoff):
+		}
+	}
+	return false
+}
+
 func (p *GoogleFlights2Provider) allowBooking() bool {
 	if p == nil || p.bookingLimiter == nil {
 		return p != nil && p.limiter != nil && p.limiter.allow()
@@ -201,7 +225,7 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		return cached, nil
 	}
 
-	if !p.limiter.allow() {
+	if !p.waitForSearchRateLimit(ctx) {
 		errLog = "rate limited"
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}

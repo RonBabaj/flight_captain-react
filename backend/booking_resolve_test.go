@@ -603,6 +603,47 @@ func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *t
 	if resp.Offer.Price != nil {
 		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
 	}
+	foundElAlAlt := false
+	for _, alt := range resp.Alternatives {
+		if strings.Contains(strings.ToLower(alt.Domain), "elal") && strings.Contains(alt.URL, "booking.elal.co.il") {
+			foundElAlAlt = true
+			break
+		}
+	}
+	if !foundElAlAlt {
+		t.Fatalf("expected El Al in alternatives when BudgetAir wins, got %+v", resp.Alternatives)
+	}
+}
+
+func TestPreferAirlineDirectWhenCheaperThanMarkedUpOTA(t *testing.T) {
+	budgetair := 324.0
+	elal := 310.0
+	quote := search.QuoteBinding{Amount: 288, Currency: "USD"}
+	offers := []bookingmatch.BookingOffer{
+		{
+			Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
+			URLType: bookingmatch.URLTypeExactBooking, Price: &budgetair, Currency: "USD",
+			VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+		},
+		{
+			Domain: "booking.elal.co.il", URL: "https://booking.elal.co.il/checkout/szg-tlv",
+			URLType: bookingmatch.URLTypeExactBooking, Price: &elal, Currency: "USD",
+			VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+		},
+	}
+	best := bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer())
+	got := preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, offers, quote, "LY", bookingMatchPriceNormalizer())
+	if got == nil || !strings.Contains(got.Domain, "elal") {
+		t.Fatalf("expected El Al when cheaper than marked-up OTA, got %+v", got)
+	}
+
+	inflated := 340.0
+	offers[1].Price = &inflated
+	best = bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer())
+	got = preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, offers, quote, "LY", bookingMatchPriceNormalizer())
+	if got == nil || got.Domain != "budgetair.com" {
+		t.Fatalf("expected BudgetAir when El Al GF2 is inflated above OTA, got %+v", got)
+	}
 }
 
 func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *testing.T) {

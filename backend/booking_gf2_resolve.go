@@ -349,6 +349,52 @@ func offersIncludeAirlineDirect(offers []bookingmatch.BookingOffer, carrier stri
 	return false
 }
 
+// preferAirlineDirectWhenCheaperThanMarkedUpOTA keeps the cheapest OTA when it beats airline GF2,
+// but switches to verified airline checkout when the OTA exceeds the search quote and the airline
+// offer is cheaper than that OTA (without forcing an inflated airline GF2 price above the OTA).
+func preferAirlineDirectWhenCheaperThanMarkedUpOTA(best *bookingmatch.BookingOffer, offers []bookingmatch.BookingOffer, quote search.QuoteBinding, carrier string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	if best == nil || quote.Amount <= 0 || carrier == "" {
+		return best
+	}
+	if airlineDomainForCarrier(best.Domain, carrier) || airlineDomainForCarrier(best.Provider, carrier) {
+		return best
+	}
+	otaPrice, ok := normalizedGF2OfferPrice(*best, normalize)
+	if !ok || otaPrice <= quote.Amount {
+		return best
+	}
+
+	var airlinePick *bookingmatch.BookingOffer
+	var airlinePrice float64
+	hasAirlinePrice := false
+	for i := range offers {
+		o := &offers[i]
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			continue
+		}
+		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		if isAffiliateTemplateBookingURL(o.URL) {
+			continue
+		}
+		if np, ok := normalizedGF2OfferPrice(*o, normalize); ok {
+			if np >= otaPrice {
+				continue
+			}
+			if !hasAirlinePrice || np < airlinePrice {
+				airlinePick = o
+				airlinePrice = np
+				hasAirlinePrice = true
+			}
+		}
+	}
+	if airlinePick != nil {
+		return airlinePick
+	}
+	return best
+}
+
 // isAffiliateTemplateBookingURL is true for synthetic airline search URLs built from provider templates
 // (not live GF2 partner checkout deeplinks). El Al rejects these with "Request is not allowed."
 func isAffiliateTemplateBookingURL(raw string) bool {
@@ -404,9 +450,13 @@ func publicAlternativesFromOffers(offers []bookingmatch.BookingOffer, best *book
 		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
 			continue
 		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
 		alt := PublicBookingAlternative{
 			Provider: strings.TrimSpace(o.Provider),
 			Domain:   strings.TrimSpace(o.Domain),
+			URL:      strings.TrimSpace(o.URL),
 			Currency: o.Currency,
 		}
 		if alt.Provider == "" {
