@@ -130,33 +130,6 @@ export function FlightDetailsModal({
     setResolveLoadingKey(null);
   }, [option?.id, sessionId]);
 
-  useEffect(() => {
-    if (!visible || !option || !sessionId) return;
-    const keysToResolve = perHopBooking && hops.length > 0
-      ? hops.map((hop) => ({ legIndex: hop.legIndex, segmentIndex: hop.segmentIndex }))
-      : [{ legIndex: undefined, segmentIndex: undefined }];
-    for (const { legIndex, segmentIndex } of keysToResolve) {
-      const key = resolveStorageKey(legIndex, segmentIndex);
-      setResolveLoadingKey(key);
-      void (async () => {
-        try {
-          const res = await resolveBookingOffer(
-            sessionId,
-            option.id,
-            legIndex != null && legIndex >= 0 ? legIndex : undefined,
-            true,
-            segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
-          );
-          setLegResolves((prev) => ({ ...prev, [key]: res }));
-        } catch {
-          // User can still tap retry manually.
-        } finally {
-          setResolveLoadingKey((prev) => (prev === key ? null : prev));
-        }
-      })();
-    }
-  }, [visible, option?.id, sessionId, perHopBooking, hops]);
-
   const handleShare = async () => {
     if (!option) return;
     const fingerprint = (option as any).canonicalFingerprint as string | undefined;
@@ -233,19 +206,9 @@ export function FlightDetailsModal({
   const handleBookPress = async (legIndex?: number, segmentIndex?: number, directUrl?: string) => {
     if (!option || !sessionId) return;
     const key = resolveStorageKey(legIndex, segmentIndex);
-    const cached = legResolves[key];
 
     if (directUrl && isSafeBookingUrl(directUrl)) {
       await openUrlInNewTab(directUrl);
-      refreshResolve(legIndex, segmentIndex);
-      return;
-    }
-
-    const cachedUrl =
-      cached?.cheapestOta?.url ||
-      cached?.offer?.url;
-    if (cached?.found && cachedUrl && isSafeBookingUrl(cachedUrl)) {
-      await openUrlInNewTab(cachedUrl);
       refreshResolve(legIndex, segmentIndex);
       return;
     }
@@ -260,10 +223,6 @@ export function FlightDetailsModal({
         segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
       );
       setLegResolves((prev) => ({ ...prev, [key]: res }));
-      const url = res.cheapestOta?.url || res.offer?.url;
-      if (res.found && url && isSafeBookingUrl(url)) {
-        await openUrlInNewTab(url);
-      }
     } catch {
       Alert.alert('Error', t('booking_search_unavailable'));
     } finally {
