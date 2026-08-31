@@ -25,7 +25,7 @@ export function RegisterScreen() {
         {t('auth_register_page_title')}
       </Text>
       <Text style={[styles.pageSubtitle, { color: theme.textMuted }]}>{t('auth_register_page_subtitle')}</Text>
-      <RegisterForm onSuccess={() => navigation.navigate('Settings' as never)} />
+      <RegisterForm onSuccess={() => navigation.navigate('Account' as never)} />
       <View style={styles.footerRow}>
         <Text style={[styles.footerText, { color: theme.textMuted }]}>{t('auth_have_account')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>

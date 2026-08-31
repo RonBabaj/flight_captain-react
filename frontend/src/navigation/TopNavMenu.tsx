@@ -28,8 +28,12 @@ const TITLE_KEYS: Record<string, string> = {
   DynamicDestinationsForm: 'nav_dynamic_destinations',
   FlyFixRefine: 'flyfix_refine_nav_title',
   Settings: 'nav_settings',
+  Account: 'account_page_title',
   Login: 'auth_login_page_title',
   Register: 'auth_register_page_title',
+  Admin: 'admin_hub_title',
+  AdminRuntimeConfig: 'admin_runtime_title',
+  AdminUsers: 'settings_users_title',
 };
 
 type NavIconName = 'home-outline' | 'search-outline' | 'calendar-outline' | 'airplane-outline';

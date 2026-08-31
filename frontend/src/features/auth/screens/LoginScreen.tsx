@@ -25,7 +25,7 @@ export function LoginScreen() {
         {t('auth_login_page_title')}
       </Text>
       <Text style={[styles.pageSubtitle, { color: theme.textMuted }]}>{t('auth_login_page_subtitle')}</Text>
-      <LoginForm onSuccess={() => navigation.navigate('Settings' as never)} />
+      <LoginForm onSuccess={() => navigation.navigate('Account' as never)} />
       <View style={styles.footerRow}>
         <Text style={[styles.footerText, { color: theme.textMuted }]}>{t('auth_no_account')}</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Register' as never)}>
