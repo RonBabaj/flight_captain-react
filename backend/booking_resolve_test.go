@@ -486,10 +486,10 @@ func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
 		t.Fatalf("expected verified offer, got %+v", resp)
 	}
 	if resp.Offer.Domain != "trip.com" {
-		t.Fatalf("expected cheapest trip.com, got %+v", resp.Offer)
+		t.Fatalf("expected cheapest GF2 partner URL, got %+v", resp.Offer)
 	}
-	if resp.Offer.Price == nil || *resp.Offer.Price != trip {
-		t.Fatalf("price=%v", resp.Offer.Price)
+	if resp.Offer.Price != nil {
+		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
 	}
 }
 
@@ -544,12 +544,12 @@ func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.
 	if !strings.Contains(resp.Offer.Domain, "elal") {
 		t.Fatalf("expected elal airline direct over budgetair, got %+v", resp.Offer)
 	}
-	if resp.Offer.Price == nil || *resp.Offer.Price != elalQuote {
-		t.Fatalf("price=%v", resp.Offer.Price)
+	if resp.Offer.Price != nil {
+		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
 	}
 }
 
-func TestRunBookingMatch_prefersAirlineDirectOverCheaperOTAWhenOTAAboveQuote(t *testing.T) {
+func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *testing.T) {
 	dep := time.Date(2027, 1, 14, 19, 5, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
 	seg := search.CanonicalSegment{
@@ -597,8 +597,11 @@ func TestRunBookingMatch_prefersAirlineDirectOverCheaperOTAWhenOTAAboveQuote(t *
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected verified offer, got %+v", resp)
 	}
-	if !strings.Contains(resp.Offer.Domain, "elal") {
-		t.Fatalf("expected elal over cheaper budgetair when OTA exceeds quote, got %+v", resp.Offer)
+	if resp.Offer.Domain != "budgetair.com" {
+		t.Fatalf("expected cheapest verified checkout (budgetair), not inflated elal GF2 price, got %+v", resp.Offer)
+	}
+	if resp.Offer.Price != nil {
+		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
 	}
 }
 
@@ -649,6 +652,9 @@ func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *te
 	}
 	if strings.Contains(resp.Offer.URL, "skyscanner.net") {
 		t.Fatalf("must not redirect to Skyscanner, got %q", resp.Offer.URL)
+	}
+	if resp.Offer.Price != nil {
+		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
 	}
 }
 

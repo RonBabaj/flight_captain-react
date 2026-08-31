@@ -173,9 +173,8 @@ func webBookingMatchEnabled() bool {
 }
 
 func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
-	var out []bookingmatch.BookingOffer
-	seen := map[string]struct{}{}
-	add := func(o bookingmatch.BookingOffer) {
+	byURL := map[string]bookingmatch.BookingOffer{}
+	merge := func(o bookingmatch.BookingOffer) {
 		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
 			return
 		}
@@ -195,22 +194,37 @@ func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookin
 		if key == "" {
 			return
 		}
-		if _, ok := seen[key]; ok {
+		existing, ok := byURL[key]
+		if !ok {
+			byURL[key] = o
 			return
 		}
-		seen[key] = struct{}{}
-		out = append(out, o)
-	}
-	for _, o := range gf2 {
-		add(o)
+		// Prefer checkout-extracted price (web) over GF2 partner URL metadata.
+		if existing.Price == nil && o.Price != nil {
+			byURL[key] = o
+			return
+		}
+		if existing.Price != nil && o.Price == nil {
+			return
+		}
+		if o.MatchScore > existing.MatchScore {
+			byURL[key] = o
+		}
 	}
 	if match != nil {
 		for _, o := range match.Offers {
-			add(o)
+			merge(o)
 		}
 		if match.BestOffer != nil {
-			add(*match.BestOffer)
+			merge(*match.BestOffer)
 		}
+	}
+	for _, o := range gf2 {
+		merge(o)
+	}
+	out := make([]bookingmatch.BookingOffer, 0, len(byURL))
+	for _, o := range byURL {
+		out = append(out, o)
 	}
 	return out
 }
@@ -480,7 +494,6 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
 	start := time.Now()
 	legRoute := legRouteLabel(it)
-	q := quoteBindingFromOption(session, option, legIndex)
 	normalize := bookingMatchPriceNormalizer()
 
 	var (
@@ -509,26 +522,26 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
 		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
-		carrier := marketingCarrierForLegIndex(option, legIndex)
-		best = preferAirlineDirectOverOTAAboveQuote(best, offers, q, carrier, normalize)
 		if best != nil {
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
-			extractedBeforeQuote := (*float64)(nil)
-			if fromGF2 {
-				extractedBeforeQuote = applySearchQuoteToOffer(best, q)
-			} else if best.Price != nil {
+			var extractedBeforeQuote *float64
+			if best.Price != nil {
 				p := *best.Price
 				extractedBeforeQuote = &p
 			}
 			hadMultiple := len(offers) > 1
 			offer := publicOfferFromMatch(best, hadMultiple)
 			if offer != nil {
-				if hadMultiple {
-					offer.PriceLabel = "cheapest_matching_offer"
-				} else if fromGF2 {
+				if fromGF2 {
 					offer.PriceLabel = "google_flights_partner"
-				} else if extractedBeforeQuote == nil {
-					offer.PriceLabel = "search_quote"
+					offer.Price = nil
+					offer.Currency = ""
+				} else if best.Price != nil {
+					if hadMultiple {
+						offer.PriceLabel = "cheapest_matching_offer"
+					} else {
+						offer.PriceLabel = "partner_checkout_price"
+					}
 				}
 				event := "resolve_verified"
 				if hadMultiple {
