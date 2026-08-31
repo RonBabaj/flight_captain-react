@@ -175,6 +175,7 @@ func webBookingMatchEnabled() bool {
 
 func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
 	byURL := map[string]bookingmatch.BookingOffer{}
+	normalize := bookingMatchPriceNormalizer()
 	merge := func(o bookingmatch.BookingOffer) {
 		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
 			return
@@ -208,6 +209,16 @@ func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookin
 		if existing.Price != nil && o.Price == nil {
 			return
 		}
+		if existing.Price != nil && o.Price != nil {
+			exNorm, exOk := normalizedGF2OfferPrice(existing, normalize)
+			oNorm, oOk := normalizedGF2OfferPrice(o, normalize)
+			if exOk && oOk {
+				if oNorm < exNorm {
+					byURL[key] = o
+				}
+				return
+			}
+		}
 		if o.MatchScore > existing.MatchScore {
 			byURL[key] = o
 		}
@@ -226,6 +237,128 @@ func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookin
 	out := make([]bookingmatch.BookingOffer, 0, len(byURL))
 	for _, o := range byURL {
 		out = append(out, o)
+	}
+	return out
+}
+
+func webVerifiedBookingOffers(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
+	if match == nil || len(all) == 0 {
+		return nil
+	}
+	webURL := map[string]struct{}{}
+	addWeb := func(o bookingmatch.BookingOffer) {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if u := strings.ToLower(strings.TrimSpace(o.URL)); u != "" {
+			webURL[u] = struct{}{}
+		}
+	}
+	for _, o := range match.Offers {
+		addWeb(o)
+	}
+	if match.BestOffer != nil {
+		addWeb(*match.BestOffer)
+	}
+	if len(webURL) == 0 {
+		return nil
+	}
+	var out []bookingmatch.BookingOffer
+	for _, o := range all {
+		if _, ok := webURL[strings.ToLower(strings.TrimSpace(o.URL))]; ok {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+func normalizedBookingOfferPrice(o bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer) (float64, bool) {
+	if normalize == nil {
+		normalize = bookingMatchPriceNormalizer()
+	}
+	if o.Price == nil || *o.Price <= 0 {
+		return 0, false
+	}
+	from := o.Currency
+	if from == "" {
+		from = bookingmatch.DefaultCompareCurrency
+	}
+	amount, cur := normalize(*o.Price, from, bookingmatch.DefaultCompareCurrency)
+	if amount <= 0 {
+		return 0, false
+	}
+	if cur == "" {
+		cur = bookingmatch.DefaultCompareCurrency
+	}
+	return amount, true
+}
+
+// selectBestBookingOffer prefers web-extracted checkout prices over GF2 listing metadata,
+// then quote-matching fares, then the lowest verified price.
+func selectBestBookingOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	if len(all) == 0 {
+		return nil
+	}
+	quote := quoteBindingForMatch(session, option, legIndex)
+
+	webOffers := webVerifiedBookingOffers(all, match)
+	var webBest, gf2Best, overallBest *bookingmatch.BookingOffer
+	if len(webOffers) > 0 {
+		webBest = bookingmatch.SelectBestOffer(webOffers, normalize, quote)
+	}
+	gf2Only := filterOffersNotIn(webOffers, all)
+	if len(gf2Only) > 0 {
+		gf2Best = bookingmatch.SelectBestOffer(gf2Only, normalize, quote)
+	}
+	overallBest = bookingmatch.SelectBestOffer(all, normalize, quote)
+
+	var best *bookingmatch.BookingOffer
+	switch {
+	case webBest != nil && gf2Best != nil:
+		wNorm, wOk := normalizedBookingOfferPrice(*webBest, normalize)
+		gNorm, gOk := normalizedBookingOfferPrice(*gf2Best, normalize)
+		if wOk && gOk {
+			if gNorm < wNorm {
+				best = gf2Best
+			} else {
+				best = webBest
+			}
+		} else if wOk {
+			best = webBest
+		} else if gOk {
+			best = gf2Best
+		} else {
+			best = webBest
+		}
+	case webBest != nil:
+		best = webBest
+	case gf2Best != nil:
+		best = gf2Best
+	default:
+		best = overallBest
+	}
+
+	q := quoteBindingFromOption(session, option, legIndex)
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	return preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, all, q, carrier, normalize)
+}
+
+func filterOffersNotIn(subset, all []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
+	inSubset := map[string]struct{}{}
+	for _, o := range subset {
+		if u := strings.ToLower(strings.TrimSpace(o.URL)); u != "" {
+			inSubset[u] = struct{}{}
+		}
+	}
+	var out []bookingmatch.BookingOffer
+	for _, o := range all {
+		u := strings.ToLower(strings.TrimSpace(o.URL))
+		if u == "" {
+			continue
+		}
+		if _, ok := inSubset[u]; !ok {
+			out = append(out, o)
+		}
 	}
 	return out
 }
@@ -522,10 +655,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	if len(offers) > 0 {
-		best := bookingmatch.SelectCheapestVerifiedOffer(offers, normalize)
-		quote := quoteBindingFromOption(session, option, legIndex)
-		carrier := marketingCarrierForLegIndex(option, legIndex)
-		best = preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, offers, quote, carrier, normalize)
+		best := selectBestBookingOffer(offers, matchResult, session, option, legIndex, normalize)
 		if best != nil {
 			fromGF2 := bookingOfferInGF2Sources(best, gf2Offers)
 			var extractedBeforeQuote *float64
@@ -538,8 +668,6 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			if offer != nil {
 				if fromGF2 {
 					offer.PriceLabel = "google_flights_partner"
-					offer.Price = nil
-					offer.Currency = ""
 				} else if best.Price != nil {
 					if hadMultiple {
 						offer.PriceLabel = "cheapest_matching_offer"
@@ -559,7 +687,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 					ItineraryFingerprint: fp,
 					Offer:                offer,
 					CandidatesConsidered: len(offers),
-					Alternatives:         publicAlternativesFromOffers(offers, best, normalize, 4),
+					Alternatives:         publicAlternativesFromOffers(offers, best, normalize, 8),
 				}
 				resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 				logBookingResolve(bookingResolveLogEvent{
