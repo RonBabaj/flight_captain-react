@@ -19,7 +19,15 @@ export type Theme = {
   tabInactive: string;
   buttonBg: string;
   buttonText: string;
+  onPrimary: string;
   error: string;
+  errorBg: string;
+  warning: string;
+  warningBg: string;
+  success: string;
+  successBg: string;
+  info: string;
+  infoBg: string;
   /** Controls, steppers, secondary surfaces – shared feel across light/dark */
   controlBg: string;
   radiusMd: number;
@@ -53,7 +61,15 @@ const darkTheme: Theme = {
   tabInactive: 'rgba(255,255,255,0.7)',
   buttonBg: ACCENT.main,
   buttonText: '#fff',
+  onPrimary: '#fff',
   error: '#f87171',
+  errorBg: 'rgba(248, 113, 113, 0.12)',
+  warning: '#fbbf24',
+  warningBg: 'rgba(251, 191, 36, 0.12)',
+  success: '#6ee7b7',
+  successBg: 'rgba(6, 78, 59, 0.55)',
+  info: '#93c5fd',
+  infoBg: 'rgba(59, 130, 246, 0.12)',
   controlBg: '#27272a',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
@@ -65,7 +81,7 @@ const lightTheme: Theme = {
   isDark: false,
   primary: ACCENT.dark,
   primaryLight: ACCENT.main,
-  navBg: '#18181b',
+  navBg: '#ffffff',
   screenBg: '#fafafa',
   cardBg: '#ffffff',
   cardBorder: '#e4e4e7',
@@ -73,11 +89,19 @@ const lightTheme: Theme = {
   textMuted: '#71717a',
   inputBg: '#ffffff',
   inputBorder: '#e4e4e7',
-  tabActive: '#fff',
-  tabInactive: 'rgba(255,255,255,0.85)',
+  tabActive: '#18181b',
+  tabInactive: '#71717a',
   buttonBg: ACCENT.dark,
   buttonText: '#fff',
+  onPrimary: '#fff',
   error: '#dc2626',
+  errorBg: '#fef2f2',
+  warning: '#b45309',
+  warningBg: '#fffbeb',
+  success: '#065f46',
+  successBg: '#d1fae5',
+  info: '#1d4ed8',
+  infoBg: '#eff6ff',
   controlBg: '#f4f4f5',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,

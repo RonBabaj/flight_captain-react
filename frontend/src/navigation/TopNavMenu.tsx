@@ -152,6 +152,7 @@ export function TopNavMenu() {
         style={styles.iconBtn}
         onPress={handleGoToSettings}
         activeOpacity={0.8}
+        accessibilityRole="button"
         accessibilityLabel={t('nav_settings')}
       >
         <AppIcon
@@ -161,7 +162,7 @@ export function TopNavMenu() {
           fallbackText=""
         />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.8}>
+      <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={theme.isDark ? t('theme_light') : t('theme_dark')}>
         <AppIcon
           name={theme.isDark ? 'sunny-outline' : 'moon-outline'}
           size={20}

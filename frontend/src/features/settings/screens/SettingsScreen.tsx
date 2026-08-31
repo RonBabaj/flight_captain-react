@@ -5,7 +5,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
 import { UserPreferencesSection } from '../components/UserPreferencesSection';
-import { SettingsSection, SettingsPlaceholder } from '../components/SettingsSection';
+import { SettingsSection } from '../components/SettingsSection';
 import { AccountSection } from '../components/AccountSection';
 import { AdminRuntimeConfigPanel } from '../../admin/components/AdminRuntimeConfigPanel';
 import { UserManagementPanel } from '../../admin/components/UserManagementPanel';
@@ -13,11 +13,8 @@ import { UserManagementPanel } from '../../admin/components/UserManagementPanel'
 export function SettingsScreen() {
   const { theme } = useTheme();
   const { t } = useLocale();
-  const { isSignedIn, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const insets = useSafeAreaInsets();
-
-  const signedInPlaceholder = t('settings_feature_coming_soon');
-  const guestPlaceholder = t('settings_sign_in_required');
 
   return (
     <ScrollView
@@ -42,30 +39,6 @@ export function SettingsScreen() {
       </SettingsSection>
 
       <UserPreferencesSection />
-
-      <SettingsSection
-        icon="person-outline"
-        title={t('settings_profile_title')}
-        subtitle={t('settings_profile_subtitle')}
-      >
-        <SettingsPlaceholder text={isSignedIn ? signedInPlaceholder : guestPlaceholder} />
-      </SettingsSection>
-
-      <SettingsSection
-        icon="heart-outline"
-        title={t('settings_favorites_title')}
-        subtitle={t('settings_favorites_subtitle')}
-      >
-        <SettingsPlaceholder text={isSignedIn ? signedInPlaceholder : guestPlaceholder} />
-      </SettingsSection>
-
-      <SettingsSection
-        icon="options-outline"
-        title={t('settings_search_defaults_title')}
-        subtitle={t('settings_search_defaults_subtitle')}
-      >
-        <SettingsPlaceholder text={isSignedIn ? signedInPlaceholder : guestPlaceholder} />
-      </SettingsSection>
 
       {isAdmin ? (
         <>

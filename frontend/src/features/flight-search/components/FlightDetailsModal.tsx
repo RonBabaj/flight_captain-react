@@ -7,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Linking,
   Alert,
   Share,
@@ -19,7 +18,8 @@ import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
 import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
-import type { BookingResolveResponse, PublicBookingOffer } from '../../../api/booking';
+import type { BookingResolveResponse } from '../../../api/booking';
+import { BookingOptionsFooter } from '../../../ui';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
@@ -69,20 +69,6 @@ function cabinLabel(raw: string | undefined, t: (k: string) => string): string {
     case 'FIRST': return t('cabin_first');
     default: return t('cabin_economy');
   }
-}
-
-function formatBookingOfferPrice(
-  offer: PublicBookingOffer,
-  t: (k: string) => string,
-): string {
-  if (offer.price == null || !offer.currency) return '';
-  const hint =
-    offer.priceLabel === 'google_flights_partner' ? ` (${t('partner_listing_price')})` : '';
-  return ` · ${getCurrencySymbol(offer.currency)} ${offer.price.toFixed(0)}${hint}`;
-}
-
-function bookingOfferLabel(offer: PublicBookingOffer, fallback: string): string {
-  return (offer.provider || offer.domain || fallback).trim();
 }
 
 function legDuration(segments: FlightSegment[]): number {
@@ -151,6 +137,7 @@ export function FlightDetailsModal({
       : [{ legIndex: undefined, segmentIndex: undefined }];
     for (const { legIndex, segmentIndex } of keysToResolve) {
       const key = resolveStorageKey(legIndex, segmentIndex);
+      setResolveLoadingKey(key);
       void (async () => {
         try {
           const res = await resolveBookingOffer(
@@ -162,7 +149,9 @@ export function FlightDetailsModal({
           );
           setLegResolves((prev) => ({ ...prev, [key]: res }));
         } catch {
-          // User can still tap Book / Try again manually.
+          // User can still tap retry manually.
+        } finally {
+          setResolveLoadingKey((prev) => (prev === key ? null : prev));
         }
       })();
     }
@@ -282,135 +271,28 @@ export function FlightDetailsModal({
     }
   };
 
-  const renderDualBookingButtons = (
-    resolved: BookingResolveResponse,
-    legIndex?: number,
-    segmentIndex?: number,
-    airlineName?: string,
-  ) => {
-    const cheapest = resolved.cheapestOta;
-    const airline = resolved.airlineDirect;
-    if (!cheapest?.url || !airline?.url) return null;
-    if (cheapest.url === airline.url) return null;
-    if (!isSafeBookingUrl(cheapest.url) || !isSafeBookingUrl(airline.url)) return null;
-
-    const otaLabel = `${t('booking_cheapest_ota')} · ${bookingOfferLabel(cheapest, t('book_this_flight'))}${formatBookingOfferPrice(cheapest, t)}`;
-    const airlineLabel = `${airlineName || t('booking_airline_direct')} · ${bookingOfferLabel(airline, t('booking_airline_direct'))}${formatBookingOfferPrice(airline, t)}`;
-
-    return (
-      <View style={s.dualBookingRow}>
-        <TouchableOpacity
-          style={[s.bookBtn, s.bookBtnCompact, { backgroundColor: theme.primary }]}
-          onPress={() => handleBookPress(legIndex, segmentIndex, cheapest.url)}
-        >
-          <Text style={s.bookBtnText}>{otaLabel}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.secondaryBtn, s.bookBtnSpaced, { borderColor: theme.cardBorder }]}
-          onPress={() => handleBookPress(legIndex, segmentIndex, airline.url)}
-          activeOpacity={0.8}
-        >
-          <Text style={[s.secondaryBtnText, { color: theme.primary }]}>{airlineLabel}</Text>
-        </TouchableOpacity>
-        {airline.priceLabel === 'airline_direct_prefill' ? (
-          <Text style={[s.resolveHint, { color: theme.textMuted, marginTop: 6 }]}>
-            {t('airline_direct_prefill_hint')}
-          </Text>
-        ) : null}
-      </View>
-    );
-  };
-
   const renderBookingAction = (storageKey: string, legIndex?: number, segmentIndex?: number, carrierCode?: string) => {
     const resolved = legResolves[storageKey];
     const loading = resolveLoadingKey === storageKey;
-    const success = !!(resolved?.found && resolved.offer);
     const error = resolved && !resolved.found;
-    const isPrefill = resolved?.offer?.priceLabel === 'search_prefill';
-    const airlineName = carrierCode ? getAirlineName(carrierCode) || carrierCode : undefined;
-    const dualButtons = success && resolved ? renderDualBookingButtons(resolved, legIndex, segmentIndex, airlineName) : null;
 
-    const btnLabel = loading
-      ? null
-      : success
-        ? isPrefill
-          ? t('open_flight_search')
-          : dualButtons
-            ? null
-            : t('book_this_flight')
-        : error
-          ? t('try_again')
-          : t('book_this_flight');
+    const errorMessage =
+      error
+        ? resolved?.status === 'search_unavailable' || resolved?.status === 'timeout'
+          ? t('booking_search_unavailable')
+          : resolved?.message || t('no_verified_booking')
+        : null;
 
     return (
-      <>
-        {loading ? (
-          <Text style={[s.resolveHint, { color: theme.textMuted }]}>{t('resolving_exact_booking')}</Text>
-        ) : null}
-        {success && resolved?.offer && !dualButtons ? (
-          <>
-            <Text style={[s.legMatchedLine, { color: theme.textMuted }]}>
-              {isPrefill
-                ? t('search_prefill_hint')
-                : resolved.offer.priceLabel === 'cheapest_matching_offer'
-                  ? t('cheapest_matching_offer')
-                  : resolved.offer.priceLabel === 'partner_checkout_price'
-                    ? t('partner_checkout_price')
-                    : resolved.offer.priceLabel === 'airline_direct' || resolved.offer.priceLabel === 'airline_direct_prefill'
-                      ? t('booking_airline_direct')
-                      : t('exact_itinerary_matched')}
-              {!isPrefill && (resolved.offer.provider || resolved.offer.domain)
-                ? ` · ${resolved.offer.provider || resolved.offer.domain}`
-                : isPrefill && resolved.offer.domain
-                  ? ` · ${resolved.offer.domain}`
-                  : ''}
-              {!isPrefill ? formatBookingOfferPrice(resolved.offer, t) : null}
-            </Text>
-            {isPrefill && resolved.message ? (
-              <Text style={[s.verifyError, { color: theme.textMuted }]}>
-                {resolved.message}
-              </Text>
-            ) : null}
-            {resolved.offer.priceLabel === 'airline_direct_prefill' ? (
-              <Text style={[s.verifyError, { color: theme.textMuted }]}>
-                {t('airline_direct_prefill_hint')}
-              </Text>
-            ) : null}
-            {resolved.priceMismatch ? (
-              <Text style={[s.verifyError, { color: theme.error || '#b45309' }]}>
-                {resolved.message || t('price_mismatch_warning')}
-              </Text>
-            ) : null}
-          </>
-        ) : null}
-        {success && dualButtons && resolved?.priceMismatch ? (
-          <Text style={[s.verifyError, { color: theme.error || '#b45309', marginBottom: 8 }]}>
-            {resolved.message || t('price_mismatch_warning')}
-          </Text>
-        ) : null}
-        {error ? (
-          <Text style={[s.verifyError, { color: theme.textMuted }]}>
-            {resolved?.status === 'search_unavailable' || resolved?.status === 'timeout'
-              ? t('booking_search_unavailable')
-              : resolved?.message || t('no_verified_booking')}
-          </Text>
-        ) : null}
-        {dualButtons ? (
-          dualButtons
-        ) : (
-          <TouchableOpacity
-            style={[s.bookBtn, success && s.bookBtnCompact, { backgroundColor: theme.primary }]}
-            onPress={() => handleBookPress(legIndex, segmentIndex)}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={s.bookBtnText}>{btnLabel}</Text>
-            )}
-          </TouchableOpacity>
-        )}
-      </>
+      <BookingOptionsFooter
+        resolved={resolved}
+        loading={loading}
+        errorMessage={errorMessage}
+        onResolve={() => handleBookPress(legIndex, segmentIndex)}
+        onOpenUrl={(url) => handleBookPress(legIndex, segmentIndex, url)}
+        carrierCode={carrierCode}
+        showDisclaimer={false}
+      />
     );
   };
 
@@ -646,7 +528,7 @@ export function FlightDetailsModal({
                   </View>
                 )}
                 {option.selfTransfer ? (
-                  <Text style={[s.selfTransferWarn, { color: theme.error || '#b45309', marginTop: 8 }]}>
+                  <Text style={[s.selfTransferWarn, { color: theme.warning, marginTop: 8 }]}>
                     {option.selfTransferWarning || t('self_transfer_warning')}
                   </Text>
                 ) : null}

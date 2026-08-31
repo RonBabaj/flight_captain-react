@@ -105,7 +105,7 @@ function LegScheduleBlock({
             style={[
               c.stopsChip,
               stopsCount === 0
-                ? { backgroundColor: theme.isDark ? '#064e3b' : '#d1fae5' }
+                ? { backgroundColor: theme.successBg }
                 : { backgroundColor: theme.controlBg },
             ]}
           >
@@ -113,7 +113,7 @@ function LegScheduleBlock({
               style={[
                 c.stopsChipText,
                 stopsCount === 0
-                  ? { color: theme.isDark ? '#6ee7b7' : '#065f46' }
+                  ? { color: theme.success }
                   : { color: theme.text },
                 isRTL && { textAlign: 'center' },
               ]}
@@ -137,7 +137,6 @@ function LegScheduleBlock({
 export interface FlightResultCardProps {
   option: FlightOption;
   onDetails: () => void;
-  onBook: () => void;
   bookLoading?: boolean;
   bookLabel?: string;
   /** 'round-trip' when the search had a return date — used to show return route even when legs[1] is missing */
@@ -153,7 +152,6 @@ export interface FlightResultCardProps {
 export function FlightResultCard({
   option,
   onDetails,
-  onBook,
   bookLoading = false,
   bookLabel,
   tripType,
@@ -293,7 +291,7 @@ export function FlightResultCard({
               <Text
                 style={[
                   c.route,
-                  { color: missingReturnLeg ? theme.error || '#b45309' : theme.textMuted },
+                  { color: missingReturnLeg ? theme.warning : theme.textMuted },
                   isRTL && { textAlign: 'right' },
                 ]}
                 numberOfLines={1}
@@ -333,7 +331,7 @@ export function FlightResultCard({
             </View>
           ) : null}
           {option.selfTransfer ? (
-            <Text style={[c.selfTransferWarn, { color: theme.error || '#b45309' }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+            <Text style={[c.selfTransferWarn, { color: theme.warning }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {option.selfTransferWarning || t('self_transfer_warning')}
             </Text>
           ) : null}
@@ -355,23 +353,15 @@ export function FlightResultCard({
             style={[c.bookBtn, { backgroundColor: theme.primary }, isRTL && { alignSelf: 'stretch' }]}
             onPress={(e) => {
               e.stopPropagation();
-              onBook();
+              onDetails();
             }}
             disabled={bookLoading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={bookLabel ?? t('view_and_book')}
           >
-            <Text style={c.bookBtnText}>{bookLoading ? '…' : bookLabel ?? t('book_now')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              onDetails();
-            }}
-            style={[c.detailsBtn, isRTL && { alignSelf: 'stretch' }]}
-            hitSlop={6}
-          >
-            <Text style={[c.detailsBtnText, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
-              {isRTL ? `← ${t('view_details')}` : `${t('view_details')} →`}
+            <Text style={[c.bookBtnText, { color: theme.onPrimary }]}>
+              {bookLoading ? '…' : bookLabel ?? t('view_and_book')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -448,9 +438,7 @@ const c = StyleSheet.create({
     minWidth: 96,
     alignItems: 'center',
   },
-  bookBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  detailsBtn: { marginTop: 6 },
-  detailsBtnText: { fontSize: 13, fontWeight: '600' },
+  bookBtnText: { fontSize: 14, fontWeight: '700' },
 
   row2: {
     flexDirection: 'row',

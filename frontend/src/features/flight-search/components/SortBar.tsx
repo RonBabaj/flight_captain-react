@@ -1,12 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import type { SortField } from '../../../store/searchStore';
+import { Chip } from '../../../ui';
 
 export type SortOption = 'price' | 'duration' | 'best';
 
-const ICONS: Record<SortOption, string> = { price: '💰', duration: '⚡', best: '⭐' };
 const KEYS: Record<SortOption, string> = { price: 'cheapest', duration: 'fastest', best: 'best' };
 
 interface SortBarProps {
@@ -26,30 +26,17 @@ export function SortBar({ sortField, sortOrder, onSort }: SortBarProps) {
       <View style={[s.pills, isRTL && s.pillsRTL]}>
         {opts.map((opt) => {
           const active = sortField === opt;
-          /** No ↑/↓ on "Best" — direction is less meaningful and reads like a dropdown chevron. */
           const arrow =
             active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
           return (
-            <TouchableOpacity
+            <Chip
               key={opt}
-              style={[
-                s.pill,
-                { backgroundColor: theme.controlBg, borderColor: theme.cardBorder },
-                active && { backgroundColor: theme.primary, borderColor: theme.primary },
-              ]}
+              label={`${t(KEYS[opt])}${arrow}`}
+              active={active}
               onPress={() => onSort(opt as SortField)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  s.pillText,
-                  { color: theme.text },
-                  active && { color: '#fff', fontWeight: '700' },
-                ]}
-              >
-                {`${ICONS[opt]} ${t(KEYS[opt])}${arrow}`}
-              </Text>
-            </TouchableOpacity>
+              accessibilityLabel={`${t('sort_by')} ${t(KEYS[opt])}`}
+              style={s.chip}
+            />
           );
         })}
       </View>
@@ -59,22 +46,25 @@ export function SortBar({ sortField, sortOrder, onSort }: SortBarProps) {
 
 const s = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    paddingHorizontal: 10,
-    flex: 1,
-    minWidth: 0,
+    gap: 8,
   },
-  label: { fontSize: 13, fontWeight: '500' },
-  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 },
-  pillsRTL: { flexDirection: 'row-reverse' },
-  pill: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  pillText: { fontSize: 13 },
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pillsRTL: {
+    flexDirection: 'row-reverse',
+  },
+  chip: {
+    marginRight: 0,
+  },
 });
