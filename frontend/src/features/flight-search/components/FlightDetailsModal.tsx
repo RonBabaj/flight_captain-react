@@ -291,7 +291,11 @@ export function FlightDetailsModal({
                   : ''}
               {!isPrefill && resolved.offer.price != null && resolved.offer.currency ? (
                 ` · ${getCurrencySymbol(resolved.offer.currency)} ${resolved.offer.price.toFixed(0)}${
-                  resolved.offer.priceLabel === 'search_quote' ? ` (${t('search_quote_price')})` : ''
+                  resolved.offer.priceLabel === 'search_quote'
+                    ? ` (${t('search_quote_price')})`
+                    : resolved.offer.priceLabel === 'google_flights_partner'
+                      ? ` (${t('partner_listing_price')})`
+                      : ''
                 }`
               ) : null}
             </Text>

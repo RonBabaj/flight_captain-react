@@ -293,6 +293,72 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 	}
 }
 
+func TestRunBookingMatch_prefersWebCheckoutWhenGF2ListingInflated(t *testing.T) {
+	dep := time.Date(2027, 1, 14, 19, 5, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 14, 23, 35, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "SZG", To: "TLV",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LY", FlightNumber: "LY5194",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	gf2Budget := 360.0
+	webGotogate := 328.0
+
+	t.Setenv("WEB_SEARCH_ENABLED", "true")
+	t.Setenv("SERPAPI_API_KEY", "test-key")
+
+	oldRunner := bookingMatchRunner
+	oldGF2 := bookingGF2OffersResolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2OffersResolver = oldGF2
+	}()
+
+	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return &bookingmatch.MatchResult{
+			ItineraryFingerprint: fp,
+			Offers: []bookingmatch.BookingOffer{{
+				Domain: "us.gotogate.com", URL: "https://us.gotogate.com/checkout/szg-tlv",
+				URLType: bookingmatch.URLTypeExactBooking, Price: &webGotogate, Currency: "USD",
+				MatchScore: 88, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+			}},
+		}, nil
+	}
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+		return []bookingmatch.BookingOffer{{
+			Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
+			URLType: bookingmatch.URLTypeExactBooking, Price: &gf2Budget, Currency: "USD",
+			MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
+		}}
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 288, Currency: "USD"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "SZG"}, To: AirportLike{Code: "TLV"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY5194",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected verified offer, got %+v", resp)
+	}
+	if resp.Offer.Domain != "us.gotogate.com" {
+		t.Fatalf("expected cheaper web checkout over inflated GF2 listing, got %+v", resp.Offer)
+	}
+	if resp.Offer.Price == nil || *resp.Offer.Price != webGotogate {
+		t.Fatalf("price=%v", resp.Offer.Price)
+	}
+}
+
 func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 	dep := time.Date(2027, 1, 7, 17, 40, 0, 0, time.UTC)
 	arr := time.Date(2027, 1, 7, 20, 25, 0, 0, time.UTC)
@@ -488,8 +554,11 @@ func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
 	if resp.Offer.Domain != "trip.com" {
 		t.Fatalf("expected cheapest GF2 partner URL, got %+v", resp.Offer)
 	}
-	if resp.Offer.Price != nil {
-		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	}
+	if resp.Offer.Price == nil || *resp.Offer.Price != trip {
+		t.Fatalf("expected GF2 ranking price on primary for transparency, got %v", resp.Offer.Price)
 	}
 }
 
@@ -544,8 +613,8 @@ func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.
 	if !strings.Contains(resp.Offer.Domain, "elal") {
 		t.Fatalf("expected elal airline direct over budgetair, got %+v", resp.Offer)
 	}
-	if resp.Offer.Price != nil {
-		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
 	}
 }
 
@@ -600,8 +669,8 @@ func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *t
 	if resp.Offer.Domain != "budgetair.com" {
 		t.Fatalf("expected cheapest verified checkout (budgetair), not inflated elal GF2 price, got %+v", resp.Offer)
 	}
-	if resp.Offer.Price != nil {
-		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
 	}
 	foundElAlAlt := false
 	for _, alt := range resp.Alternatives {
@@ -694,8 +763,8 @@ func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *te
 	if strings.Contains(resp.Offer.URL, "skyscanner.net") {
 		t.Fatalf("must not redirect to Skyscanner, got %q", resp.Offer.URL)
 	}
-	if resp.Offer.Price != nil {
-		t.Fatalf("GF2 listing price must not appear in resolve UI, got %v", resp.Offer.Price)
+	if resp.Offer.PriceLabel != "google_flights_partner" {
+		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
 	}
 }
 
