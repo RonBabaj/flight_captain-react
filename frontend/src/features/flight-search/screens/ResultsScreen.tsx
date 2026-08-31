@@ -32,6 +32,7 @@ import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
+import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
 import {
@@ -50,6 +51,7 @@ import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
+import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
@@ -103,33 +105,6 @@ const defaultFormParams: CreateSearchSessionRequest = {
   currency: 'USD',
   locale: 'en-US',
 };
-
-function SkeletonCard({ theme }: { theme: import('../../../theme/ThemeContext').Theme }) {
-  const bg = theme.controlBg;
-  return (
-    <View style={[sk.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-      <View style={sk.topRow}>
-        <View style={{ flex: 1 }}>
-          <View style={[sk.line, { backgroundColor: bg, width: '75%' }]} />
-          <View style={[sk.line, { backgroundColor: bg, width: '50%', height: 12 }]} />
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <View style={[sk.line, { backgroundColor: bg, width: 64, height: 22 }]} />
-          <View style={[sk.line, { backgroundColor: bg, width: 80, height: 30, borderRadius: 8, marginTop: 6 }]} />
-        </View>
-      </View>
-      <View style={[sk.divider, { backgroundColor: theme.cardBorder }]} />
-      <View style={[sk.line, { backgroundColor: bg, width: '40%', height: 12 }]} />
-    </View>
-  );
-}
-
-const sk = StyleSheet.create({
-  card: { marginHorizontal: 12, marginVertical: 5, padding: 14, borderRadius: 14, borderWidth: 1 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  line: { height: 18, borderRadius: 6, marginBottom: 6 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
-});
 
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
 function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
@@ -316,9 +291,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     setDetailsOption(null);
   }, []);
 
-  const handleBookFromCard = async (option: FlightOption) => {
-    openDetails(option);
-  };
 
   const [formParams, setFormParams] = useState<CreateSearchSessionRequest>(() =>
     storeParams ? { ...defaultFormParams, ...storeParams } : defaultFormParams
@@ -1097,16 +1069,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     };
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
-        <Text style={[styles.error, { color: theme.error }]}>
-          {storeError || t('search_failed_expired')}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryBtn, { borderColor: theme.primary, marginTop: 16 }]}
-          onPress={retrySearch}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.retryBtnText, { color: theme.primary }]}>{t('try_again')}</Text>
-        </TouchableOpacity>
+        <SearchStatusBanner
+          message={storeError || t('search_failed_expired')}
+          variant="error"
+          onRetry={retrySearch}
+          retryLabel={t('try_again')}
+          style={{ marginHorizontal: 0, width: '100%', maxWidth: 480 }}
+        />
       </View>
     );
   }
@@ -1216,9 +1185,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const resultsList = (
     isLoading && filtered.length === 0 ? (
       <View style={styles.listContent}>
-        {[1, 2, 3, 4].map((i) => (
-          <SkeletonCard key={i} theme={theme} />
-        ))}
+        <ResultsSkeletonList theme={theme} count={4} />
       </View>
     ) : showEmpty ? (
       <View style={styles.listContentEmpty}>
@@ -1251,9 +1218,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           <FlightResultCard
             option={item}
             onDetails={() => openDetails(item)}
-            onBook={() => handleBookFromCard(item)}
             bookLoading={false}
-            bookLabel={t('book_this_flight')}
+            bookLabel={t('view_and_book')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
             searchReturnRoute={searchReturnRoute}

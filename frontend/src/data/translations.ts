@@ -629,10 +629,35 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'סוכן הנסיעות הזול ביותר',
     ru: 'Самый дешёвый агент',
   },
+  booking_badge_cheapest: {
+    en: 'Cheapest',
+    he: 'הזול ביותר',
+    ru: 'Дешевле',
+  },
+  booking_badge_direct: {
+    en: 'Direct',
+    he: 'ישיר',
+    ru: 'Напрямую',
+  },
+  booking_continue_on: {
+    en: 'Continue on {provider}',
+    he: 'המשך ב-{provider}',
+    ru: 'Продолжить на {provider}',
+  },
+  booking_airline_direct_subtitle: {
+    en: 'Book directly with the airline',
+    he: 'הזמנה ישירות אצל חברת התעופה',
+    ru: 'Бронирование напрямую у авиакомпании',
+  },
   booking_airline_direct: {
     en: 'Book with airline',
     he: 'הזמנה ישירות אצל חברת התעופה',
     ru: 'Бронирование у авиакомпании',
+  },
+  view_and_book: {
+    en: 'View & book',
+    he: 'צפייה והזמנה',
+    ru: 'Смотреть и забронировать',
   },
   airline_direct_prefill_hint: {
     en: 'Opens airline site with your route prefilled — select your flight and verify the fare.',

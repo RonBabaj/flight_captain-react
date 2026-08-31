@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { Chip } from '../../../ui';
 import { getAirlineName } from '../../../data/airlines';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import type { FlightOption } from '../../../types';
@@ -85,16 +86,12 @@ export function FiltersPanel({
             {([null, 0, 1, 2] as const).map((max) => {
               const active = filters.maxStops === max;
               return (
-                <TouchableOpacity
+                <Chip
                   key={max ?? 'any'}
-                  style={[f.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  label={stopsLabel(max)}
+                  active={active}
                   onPress={() => onFiltersChange({ maxStops: max })}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[f.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>
-                    {stopsLabel(max)}
-                  </Text>
-                </TouchableOpacity>
+                />
               );
             })}
           </View>

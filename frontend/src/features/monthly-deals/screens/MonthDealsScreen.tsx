@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSession, getSearchSessionResults } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
+import { BookingOptionsFooter } from '../../../ui';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
@@ -868,7 +869,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     }
   };
 
-  const handleBookFromDetails = async () => {
+  const handleBookFromDetails = useCallback(async () => {
     if (!details?.sessionId || !details?.optionId) {
       setBookError(t('booking_search_unavailable'));
       return;
@@ -879,12 +880,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     try {
       const res = await resolveBookingOffer(details.sessionId, details.optionId);
       setBookingResolve(res);
-      if (res.found && res.offer?.url) {
-        if (!isSafeBookingUrl(res.offer.url)) {
-          setBookError(t('no_verified_booking'));
-          return;
-        }
-      } else if (!res.found) {
+      if (!res.found) {
         setBookError(res.message || t('no_verified_booking'));
       }
     } catch {
@@ -892,11 +888,15 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     } finally {
       setBookLoading(false);
     }
-  };
+  }, [details?.sessionId, details?.optionId, t]);
 
-  const handleOpenVerifiedBooking = async () => {
-    const url = bookingResolve?.offer?.url;
-    if (!url || !isSafeBookingUrl(url)) return;
+  useEffect(() => {
+    if (!showDetails || !details?.sessionId || !details?.optionId) return;
+    void handleBookFromDetails();
+  }, [showDetails, details?.sessionId, details?.optionId, handleBookFromDetails]);
+
+  const handleOpenBookingUrl = async (url: string) => {
+    if (!isSafeBookingUrl(url)) return;
     const ok = await openUrlInNewTab(url);
     if (!ok) setBookError('Cannot open booking link.');
   };
@@ -1295,43 +1295,14 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
 
           {/* Footer */}
           <View style={[m.footer, { borderTopColor: theme.cardBorder }]}>
-            {bookError ? (
-              <Text style={[m.bookError, { color: theme.error }]}>{bookError}</Text>
-            ) : null}
-            {bookingResolve?.found && bookingResolve.offer ? (
-              <View style={m.bookVerifyBlock}>
-                <Text style={[m.bookVerifyTitle, { color: theme.text }]}>{t('exact_itinerary_matched')}</Text>
-                {bookingResolve.offer.price != null ? (
-                  <Text style={[m.bookVerifyPrice, { color: theme.primary }]}>
-                    {getCurrencySymbol(bookingResolve.offer.currency || currency)}{' '}
-                    {getDisplayPrice(bookingResolve.offer.price, bookingResolve.offer.currency || currency, currency).amount.toFixed(0)}{' '}
-                    · {bookingResolve.offer.provider || bookingResolve.offer.domain}
-                  </Text>
-                ) : null}
-                <TouchableOpacity
-                  style={[m.bookBtn, { backgroundColor: theme.primary }]}
-                  onPress={handleOpenVerifiedBooking}
-                >
-                  <Text style={m.bookBtnText}>{t('open_booking_site')}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-            <TouchableOpacity
-              style={[m.bookBtn, { backgroundColor: details && !bookLoading ? theme.primary : theme.controlBg }]}
-              onPress={handleBookFromDetails}
-              disabled={!details || bookLoading}
-              activeOpacity={0.8}
-            >
-              {bookLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[m.bookBtnText, { color: details ? '#fff' : theme.textMuted }]}>{t('book_this_flight')}</Text>
-              )}
-            </TouchableOpacity>
-            {!bookLoading && details && !bookingResolve ? (
-              <Text style={[m.disclaimer, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
-            ) : null}
-            <Text style={[m.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+            <BookingOptionsFooter
+              resolved={bookingResolve}
+              loading={bookLoading}
+              errorMessage={bookError}
+              onResolve={handleBookFromDetails}
+              onOpenUrl={handleOpenBookingUrl}
+              carrierCode={details?.outbound?.segments?.[0]?.marketingCarrier?.code}
+            />
           </View>
         </View>
       </View>
