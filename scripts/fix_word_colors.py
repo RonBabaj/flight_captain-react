@@ -30,6 +30,30 @@ def set_rtl(paragraph):
         bidi = OxmlElement("w:bidi")
         bidi.set(qn("w:val"), "1")
         pPr.append(bidi)
+    jc = pPr.find(qn("w:jc"))
+    if jc is not None and jc.get(qn("w:val")) == "left":
+        jc.set(qn("w:val"), "right")
+
+
+def clear_indent(paragraph):
+    """Remove LTR conversion indents/tabs that break RTL layout."""
+    pPr = paragraph._p.get_or_add_pPr()
+    for tag in ("w:ind", "w:tabs", "w:framePr"):
+        el = pPr.find(qn(tag))
+        if el is not None:
+            pPr.remove(el)
+    fmt = paragraph.paragraph_format
+    fmt.left_indent = Pt(0)
+    fmt.right_indent = Pt(0)
+    fmt.first_line_indent = Pt(0)
+    # Strip leading/trailing tab characters left from Word PDF import.
+    for run in paragraph.runs:
+        if has_drawing(run):
+            continue
+        if run.text.startswith("\t"):
+            run.text = run.text.lstrip("\t")
+        if run.text.endswith("\t"):
+            run.text = run.text.rstrip("\t")
 
 
 def set_hebrew_lang(run):
@@ -137,7 +161,8 @@ def insert_header_table(doc):
 
     left = ht.rows[0].cells[2].paragraphs[0]
     set_rtl(left)
-    left.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    clear_indent(left)
+    left.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_rtl(left, "תאריך: ", blue=True, bold=True)
     add_ltr(left, "31/08/2026")
     add_run(left, "\n")
@@ -146,16 +171,19 @@ def insert_header_table(doc):
 
     center = ht.rows[0].cells[1].paragraphs[0]
     set_rtl(center)
+    clear_indent(center)
     center.alignment = WD_ALIGN_PARAGRAPH.CENTER
     add_rtl(center, "מכבי שירותי בריאות", bold=True, size_pt=14)
 
     right = ht.rows[0].cells[0].paragraphs[0]
     set_rtl(right)
+    clear_indent(right)
     right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_rtl(right, "דר' קגנוביץ גלינה", bold=True)
 
     ht._tbl.getparent().remove(ht._tbl)
     anchor.addprevious(ht._tbl)
+    set_table_rtl(ht)
 
     # Remove the mashed first paragraph (title/date/doctor were combined there).
     delete_paragraph(doc.paragraphs[0])
@@ -163,6 +191,7 @@ def insert_header_table(doc):
 
 def fix_header_specialty(paragraph):
     set_rtl(paragraph)
+    clear_indent(paragraph)
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     paragraph.paragraph_format.space_after = Pt(4)
     clear_text_runs(paragraph)
@@ -182,6 +211,7 @@ def fix_contact(doc):
 
     clear_text_runs(p_phone)
     set_rtl(p_phone)
+    clear_indent(p_phone)
     p_phone.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_phone.paragraph_format.space_after = Pt(2)
     add_rtl(p_phone, "טלפון: ", blue=True, bold=True)
@@ -192,6 +222,7 @@ def fix_contact(doc):
 
     clear_text_runs(p_addr)
     set_rtl(p_addr)
+    clear_indent(p_addr)
     p_addr.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_addr.paragraph_format.space_after = Pt(10)
     add_rtl(p_addr, "כתובת: ", blue=True, bold=True)
@@ -203,6 +234,7 @@ def cell_write(cell, lines: list[tuple[str, str, bool]]):
     p = cell.paragraphs[0]
     clear_text_runs(p)
     set_rtl(p)
+    clear_indent(p)
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.line_spacing = 1.15
     for i, (label, value, ltr_val) in enumerate(lines):
@@ -283,33 +315,73 @@ def rebuild_patient_table(doc):
 
     if unique_drawings:
         new.rows[1].cells[3].paragraphs[0]._p.append(unique_drawings[0])
-    add_ltr(new.rows[3].cells[3].paragraphs[0], "0215359910")
+    barcode_p = new.rows[3].cells[3].paragraphs[0]
+    set_rtl(barcode_p)
+    clear_indent(barcode_p)
+    barcode_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    add_ltr(barcode_p, "0215359910")
 
 
 def fix_title(p):
     clear_text_runs(p)
     set_rtl(p)
+    clear_indent(p)
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(8)
     add_rtl(p, "אישור מחלה", bold=True, underline=True)
 
 
+def set_table_rtl(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+    if tblPr.find(qn("w:bidiVisual")) is None:
+        bidi_visual = OxmlElement("w:bidiVisual")
+        bidi_visual.set(qn("w:val"), "1")
+        tblPr.append(bidi_visual)
+
+
 def set_doc_rtl(doc):
-    """Default the document body to RTL (Hebrew)."""
+    """Default the document and sections to RTL (Hebrew)."""
+    for section in doc.sections:
+        sect_pr = section._sectPr
+        if sect_pr.find(qn("w:bidi")) is None:
+            bidi = OxmlElement("w:bidi")
+            sect_pr.append(bidi)
+
     body = doc.element.body
-    bodyPr = body.find(qn("w:bodyPr"))
-    if bodyPr is None:
-        bodyPr = OxmlElement("w:bodyPr")
-        body.insert(0, bodyPr)
-    if bodyPr.find(qn("w:bidi")) is None:
+    body_pr = body.find(qn("w:bodyPr"))
+    if body_pr is None:
+        body_pr = OxmlElement("w:bodyPr")
+        body.insert(0, body_pr)
+    if body_pr.find(qn("w:bidi")) is None:
         bidi = OxmlElement("w:bidi")
         bidi.set(qn("w:val"), "1")
-        bodyPr.append(bidi)
+        body_pr.append(bidi)
+
+
+def normalize_layout(doc):
+    """Clear stray LTR indents and enforce RTL on every paragraph."""
+    for paragraph in doc.paragraphs:
+        set_rtl(paragraph)
+        clear_indent(paragraph)
+    for table in doc.tables:
+        # bidiVisual only on header/footer — patient grid keeps stable columns.
+        if len(table.columns) != 4:
+            set_table_rtl(table)
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    set_rtl(paragraph)
+                    clear_indent(paragraph)
 
 
 def fix_statement(p):
     set_rtl(p)
+    clear_indent(p)
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     for r in p.runs:
         if not has_drawing(r):
@@ -322,6 +394,7 @@ def fix_statement(p):
 def fix_dates(p):
     clear_text_runs(p)
     set_rtl(p)
+    clear_indent(p)
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.space_after = Pt(20)
     add_rtl(p, "אינו/ה מסוגל/ת לעבוד מיום: ", blue=True, bold=True)
@@ -353,6 +426,7 @@ def fix_footer(doc):
 
     ft = doc.add_table(rows=3, cols=2)
     no_border(ft)
+    set_table_rtl(ft)
     ft.alignment = WD_ALIGN_PARAGRAPH.CENTER
     ft.autofit = False
     for row in ft.rows:
@@ -362,6 +436,7 @@ def fix_footer(doc):
     # RTL col 0 = visual right (date side per PDF)
     date0 = ft.rows[0].cells[0].paragraphs[0]
     set_rtl(date0)
+    clear_indent(date0)
     date0.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_ltr(date0, "31/08/2026")
 
@@ -369,7 +444,9 @@ def fix_footer(doc):
     date1 = ft.rows[1].cells[0].paragraphs[0]
     set_rtl(sig1)
     set_rtl(date1)
-    sig1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    clear_indent(sig1)
+    clear_indent(date1)
+    sig1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     date1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
     if footer_drawings:
@@ -382,7 +459,9 @@ def fix_footer(doc):
     date2 = ft.rows[2].cells[0].paragraphs[0]
     set_rtl(sig2)
     set_rtl(date2)
-    sig2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    clear_indent(sig2)
+    clear_indent(date2)
+    sig2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     date2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_rtl(sig2, "חתימה וחותמת הרופא", blue=True, bold=True)
     add_rtl(date2, "תאריך", blue=True, bold=True)
@@ -416,6 +495,7 @@ def main():
             fix_dates(p)
 
     fix_footer(doc)
+    normalize_layout(doc)
     doc.save(OUT)
     print("Saved", OUT)
 
