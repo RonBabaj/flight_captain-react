@@ -121,7 +121,7 @@ export function BookingOptionsFooter({
           if (!offer?.url || !isSafeBookingUrl(offer.url)) return null;
           const isPrefill = offer.priceLabel === 'search_prefill';
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
-          const priceAmount = formatBookingOfferPriceAmount(offer);
+          const priceAmount = formatBookingOfferPriceAmount(offer, t);
           const subtitle = bookingOfferSubtitle(offer, t);
           return (
             <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>

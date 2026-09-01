@@ -868,15 +868,15 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1788197558.6872804,
-    "seen": 1788197608.5642996,
-    "ast_hash": "3f4eb28cf27027635f94b5d06cb4bd8b",
+    "mtime": 1788302292.9810753,
+    "seen": 1788302324.3177,
+    "ast_hash": "b6e7994485e52e92a5919c29be4692d7",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1788197594.0864646,
-    "seen": 1788197608.5643167,
-    "ast_hash": "4c137481e3da0486ec304551c43664c7",
+    "mtime": 1788302307.849206,
+    "seen": 1788302324.3177168,
+    "ast_hash": "7cd23d8f8b1f84ce4572971a211655fa",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -1210,9 +1210,9 @@
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve.go": {
-    "mtime": 1788197537.2853258,
-    "seen": 1788197608.5642796,
-    "ast_hash": "bff458e2f63973d87986069c4ee6e1aa",
+    "mtime": 1788302292.9690752,
+    "seen": 1788302324.317681,
+    "ast_hash": "4e51267387efd1f289390a182c76d8d2",
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve_test.go": {
@@ -1276,15 +1276,15 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionCard.tsx": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6869833,
-    "ast_hash": "cedd06e16229fe863325384cb7807067",
+    "mtime": 1788302298.4171257,
+    "seen": 1788302324.3205853,
+    "ast_hash": "42d289fe8ccf5d545c218c360e556163",
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6869845,
-    "ast_hash": "47ecf736427433f6150b62d6ee86d3ab",
+    "mtime": 1788302307.7452052,
+    "seen": 1788302324.3205862,
+    "ast_hash": "0980f87a1825ba29568cac88061698d7",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
@@ -1312,9 +1312,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/bookingOfferDisplay.ts": {
-    "mtime": 1788197574.4146616,
-    "seen": 1788197608.5672607,
-    "ast_hash": "08b801f9993c4e999fb732edb12db121",
+    "mtime": 1788302307.853206,
+    "seen": 1788302324.3206606,
+    "ast_hash": "e3f6d051c83a12c8521f37a5fe1f25e9",
     "semantic_hash": ""
   },
   "frontend/src/ui/index.ts": {

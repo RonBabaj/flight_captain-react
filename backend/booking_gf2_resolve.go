@@ -438,6 +438,14 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {
 		return true
 	}
+	// Route/date search forms (no flight number) for major carriers we template-link.
+	if strings.Contains(u, "origin=") && (strings.Contains(u, "departuredate=") || strings.Contains(u, "departure=")) {
+		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com", "airfrance.", "klm.com", "turkishairlines.com", "united.com", "delta.com", "aa.com"} {
+			if strings.Contains(u, host) {
+				return true
+			}
+		}
+	}
 	return false
 }
 

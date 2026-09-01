@@ -35,7 +35,7 @@ export function BookingOptionCard({
   const { t } = useLocale();
 
   const title = titleOverride || bookingOfferProviderLabel(offer, t('book_this_flight'));
-  const priceAmount = formatBookingOfferPriceAmount(offer);
+  const priceAmount = formatBookingOfferPriceAmount(offer, t);
   const subtitle = bookingOfferSubtitle(offer, t);
   const badgeLabel = badge === 'cheapest' ? t('booking_badge_cheapest') : t('booking_badge_direct');
   const badgeColors =
