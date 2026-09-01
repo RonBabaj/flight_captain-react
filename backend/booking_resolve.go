@@ -520,6 +520,7 @@ func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, gf2Raw []booki
 		quote := quoteBindingFromOption(session, option, legIndex)
 		if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
 			offer.URLType = bookingmatch.URLTypeExactSearch
+			applySearchQuoteToOffer(offer, quote)
 			return offer
 		}
 	}
