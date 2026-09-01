@@ -17,6 +17,7 @@ OUT = "/opt/cursor/artifacts/medical_certificate.docx"
 BLUE = RGBColor(0x00, 0x00, 0x8B)
 BLACK = RGBColor(0x00, 0x00, 0x00)
 LRM = "\u200e"
+RLM = "\u200f"
 
 
 def has_drawing(run) -> bool:
@@ -31,21 +32,48 @@ def set_rtl(paragraph):
         pPr.append(bidi)
 
 
+def set_hebrew_lang(run):
+    rPr = run._element.get_or_add_rPr()
+    lang = rPr.find(qn("w:lang"))
+    if lang is None:
+        lang = OxmlElement("w:lang")
+        rPr.append(lang)
+    lang.set(qn("w:bidi"), "he-IL")
+    lang.set(qn("w:rtl"), "he-IL")
+
+
+def set_rtl_run(run):
+    rPr = run._element.get_or_add_rPr()
+    existing = rPr.find(qn("w:rtl"))
+    if existing is not None:
+        rPr.remove(existing)
+    rtl = OxmlElement("w:rtl")
+    rtl.set(qn("w:val"), "1")
+    rPr.append(rtl)
+    set_hebrew_lang(run)
+
+
 def set_ltr_run(run):
     rPr = run._element.get_or_add_rPr()
-    if rPr.find(qn("w:rtl")) is None:
-        rtl = OxmlElement("w:rtl")
-        rtl.set(qn("w:val"), "0")
-        rPr.append(rtl)
+    existing = rPr.find(qn("w:rtl"))
+    if existing is not None:
+        rPr.remove(existing)
+    rtl = OxmlElement("w:rtl")
+    rtl.set(qn("w:val"), "0")
+    rPr.append(rtl)
 
 
-def clear_text_runs(paragraph):
-    for run in list(paragraph.runs):
-        if not has_drawing(run):
-            run._element.getparent().remove(run._element)
-
-
-def add_run(paragraph, text, *, blue=False, bold=False, underline=False, ltr=False, size_pt=None):
+def add_run(
+    paragraph,
+    text,
+    *,
+    blue=False,
+    bold=False,
+    underline=False,
+    ltr=False,
+    rtl=False,
+    size_pt=None,
+):
     r = paragraph.add_run(text)
     r.bold = bold
     r.font.name = "Arial"
@@ -56,11 +84,24 @@ def add_run(paragraph, text, *, blue=False, bold=False, underline=False, ltr=Fal
         r.font.underline = WD_UNDERLINE.SINGLE
     if ltr:
         set_ltr_run(r)
+    elif rtl:
+        set_rtl_run(r)
     return r
+
+
+def add_rtl(paragraph, text, **kwargs):
+    return add_run(paragraph, text, rtl=True, **kwargs)
 
 
 def add_ltr(paragraph, text):
     add_run(paragraph, LRM + text, ltr=True)
+    add_run(paragraph, RLM)
+
+
+def clear_text_runs(paragraph):
+    for run in list(paragraph.runs):
+        if not has_drawing(run):
+            run._element.getparent().remove(run._element)
 
 
 def delete_paragraph(paragraph):
@@ -97,21 +138,21 @@ def insert_header_table(doc):
     left = ht.rows[0].cells[2].paragraphs[0]
     set_rtl(left)
     left.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_run(left, "תאריך: ", blue=True, bold=True)
+    add_rtl(left, "תאריך: ", blue=True, bold=True)
     add_ltr(left, "31/08/2026")
     add_run(left, "\n")
-    add_run(left, "מ.ר ", blue=True, bold=True)
-    add_run(left, "גורם מפנה", blue=True, bold=True)
+    add_rtl(left, "מ.ר ", blue=True, bold=True)
+    add_rtl(left, "גורם מפנה", blue=True, bold=True)
 
     center = ht.rows[0].cells[1].paragraphs[0]
     set_rtl(center)
     center.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_run(center, "מכבי שירותי בריאות", bold=True, size_pt=14)
+    add_rtl(center, "מכבי שירותי בריאות", bold=True, size_pt=14)
 
     right = ht.rows[0].cells[0].paragraphs[0]
     set_rtl(right)
     right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    add_run(right, "דר' קגנוביץ גלינה", bold=True)
+    add_rtl(right, "דר' קגנוביץ גלינה", bold=True)
 
     ht._tbl.getparent().remove(ht._tbl)
     anchor.addprevious(ht._tbl)
@@ -125,7 +166,7 @@ def fix_header_specialty(paragraph):
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     paragraph.paragraph_format.space_after = Pt(4)
     clear_text_runs(paragraph)
-    add_run(paragraph, "משפחה, פנימית וכללית")
+    add_rtl(paragraph, "משפחה, פנימית וכללית")
 
 
 def fix_contact(doc):
@@ -143,18 +184,18 @@ def fix_contact(doc):
     set_rtl(p_phone)
     p_phone.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_phone.paragraph_format.space_after = Pt(2)
-    add_run(p_phone, "טלפון: ", blue=True, bold=True)
+    add_rtl(p_phone, "טלפון: ", blue=True, bold=True)
     add_ltr(p_phone, "08-9257689")
     add_run(p_phone, "\n")
-    add_run(p_phone, "פקס: ", blue=True, bold=True)
+    add_rtl(p_phone, "פקס: ", blue=True, bold=True)
     add_ltr(p_phone, "08-9257689")
 
     clear_text_runs(p_addr)
     set_rtl(p_addr)
     p_addr.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_addr.paragraph_format.space_after = Pt(10)
-    add_run(p_addr, "כתובת: ", blue=True, bold=True)
-    add_run(p_addr, "שטרן יאיר 14, רמלה")
+    add_rtl(p_addr, "כתובת: ", blue=True, bold=True)
+    add_rtl(p_addr, "שטרן יאיר 14, רמלה")
 
 
 def cell_write(cell, lines: list[tuple[str, str, bool]]):
@@ -162,17 +203,18 @@ def cell_write(cell, lines: list[tuple[str, str, bool]]):
     p = cell.paragraphs[0]
     clear_text_runs(p)
     set_rtl(p)
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.line_spacing = 1.15
     for i, (label, value, ltr_val) in enumerate(lines):
         if i:
             add_run(p, "\n")
-        add_run(p, label, blue=True, bold=True)
+        add_rtl(p, label, blue=True, bold=True)
         if value:
             add_run(p, " ")
             if ltr_val:
                 add_ltr(p, value)
             else:
-                add_run(p, value)
+                add_rtl(p, value)
 
 
 def patient_table(doc):
@@ -250,7 +292,20 @@ def fix_title(p):
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(8)
-    add_run(p, "אישור מחלה", bold=True, underline=True)
+    add_rtl(p, "אישור מחלה", bold=True, underline=True)
+
+
+def set_doc_rtl(doc):
+    """Default the document body to RTL (Hebrew)."""
+    body = doc.element.body
+    bodyPr = body.find(qn("w:bodyPr"))
+    if bodyPr is None:
+        bodyPr = OxmlElement("w:bodyPr")
+        body.insert(0, bodyPr)
+    if bodyPr.find(qn("w:bidi")) is None:
+        bidi = OxmlElement("w:bidi")
+        bidi.set(qn("w:val"), "1")
+        bodyPr.append(bidi)
 
 
 def fix_statement(p):
@@ -260,6 +315,7 @@ def fix_statement(p):
         if not has_drawing(r):
             r.font.color.rgb = BLUE
             r.bold = True
+            set_rtl_run(r)
     p.paragraph_format.space_after = Pt(8)
 
 
@@ -268,14 +324,14 @@ def fix_dates(p):
     set_rtl(p)
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p.paragraph_format.space_after = Pt(20)
-    add_run(p, "אינו/ה מסוגל/ת לעבוד מיום: ", blue=True, bold=True)
+    add_rtl(p, "אינו/ה מסוגל/ת לעבוד מיום: ", blue=True, bold=True)
     add_ltr(p, "24/08/2026")
     add_run(p, "    ")
-    add_run(p, "עד יום: ", blue=True, bold=True)
+    add_rtl(p, "עד יום: ", blue=True, bold=True)
     add_ltr(p, "27/08/2026")
     add_run(p, "    ")
-    add_run(p, 'סה"כ: ', blue=True, bold=True)
-    add_run(p, "4 ימים.")
+    add_rtl(p, 'סה"כ: ', blue=True, bold=True)
+    add_rtl(p, "4 ימים.")
 
 
 def fix_footer(doc):
@@ -328,8 +384,8 @@ def fix_footer(doc):
     set_rtl(date2)
     sig2.alignment = WD_ALIGN_PARAGRAPH.LEFT
     date2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    add_run(sig2, "חתימה וחותמת הרופא", blue=True, bold=True)
-    add_run(date2, "תאריך", blue=True, bold=True)
+    add_rtl(sig2, "חתימה וחותמת הרופא", blue=True, bold=True)
+    add_rtl(date2, "תאריך", blue=True, bold=True)
 
     date0.paragraph_format.space_before = Pt(24)
 
@@ -343,6 +399,7 @@ def remove_et4d(doc):
 def main():
     shutil.copy2(SRC, OUT)
     doc = Document(OUT)
+    set_doc_rtl(doc)
 
     insert_header_table(doc)
     fix_header_specialty(doc.paragraphs[0])
