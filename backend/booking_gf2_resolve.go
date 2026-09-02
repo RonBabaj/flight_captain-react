@@ -150,7 +150,9 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 			origin, dest, dep, ret = bookingRouteFromSessionOption(session, option)
 		}
 		if origin != "" && dest != "" && dep != "" {
-			if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
+			if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
+				addResolved(resolved)
+			} else if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
 				addOffer(gf2PartnerOfferFromURL(u, fp))
 			}
 		}

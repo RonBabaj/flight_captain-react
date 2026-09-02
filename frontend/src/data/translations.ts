@@ -624,6 +624,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'זמין גם ב',
     ru: 'Также доступно на',
   },
+  booking_sites_compared: {
+    en: 'Compared {count} booking sites — showing cheapest',
+    he: 'הושוו {count} אתרי הזמנה — מוצג הזול ביותר',
+    ru: 'Сравнено {count} сайтов — показан самый дешёвый',
+  },
   booking_cheapest_ota: {
     en: 'Cheapest OTA',
     he: 'סוכן הנסיעות הזול ביותר',

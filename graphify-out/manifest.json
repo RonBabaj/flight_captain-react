@@ -329,9 +329,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6859276,
-    "ast_hash": "7cc700364fed6fbffbb312936a9335b3",
+    "mtime": 1788324098.3816857,
+    "seen": 1788324123.993861,
+    "ast_hash": "50e1d965f43b40ef60731fe145824c2d",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -868,14 +868,14 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1788197558.6872804,
-    "seen": 1788197608.5642996,
-    "ast_hash": "3f4eb28cf27027635f94b5d06cb4bd8b",
+    "mtime": 1788324092.677718,
+    "seen": 1788324123.9920862,
+    "ast_hash": "2737eb75e682119dcc868c89e9c60542",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1788197594.0864646,
-    "seen": 1788197608.5643167,
+    "mtime": 1788324061.0178204,
+    "seen": 1788324123.992104,
     "ast_hash": "4c137481e3da0486ec304551c43664c7",
     "semantic_hash": ""
   },
@@ -964,9 +964,9 @@
     "semantic_hash": ""
   },
   "backend/search/gf2_booking_quote.go": {
-    "mtime": 1788123987.036805,
-    "seen": 1788124054.3446274,
-    "ast_hash": "3fbd71435bb2060d3960321eff626270",
+    "mtime": 1788324091.5897243,
+    "seen": 1788324123.992731,
+    "ast_hash": "fa5c4d0fb5d993080dd38a12ae4c965d",
     "semantic_hash": ""
   },
   "backend/search/itinerary.go": {
@@ -1210,9 +1210,9 @@
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve.go": {
-    "mtime": 1788197537.2853258,
-    "seen": 1788197608.5642796,
-    "ast_hash": "bff458e2f63973d87986069c4ee6e1aa",
+    "mtime": 1788324091.5457244,
+    "seen": 1788324123.9920676,
+    "ast_hash": "86dc1543651004e40e3c35064f65598a",
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve_test.go": {
@@ -1276,15 +1276,15 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionCard.tsx": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6869833,
+    "mtime": 1788324061.0178204,
+    "seen": 1788324123.9949698,
     "ast_hash": "cedd06e16229fe863325384cb7807067",
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1788185529.7855756,
-    "seen": 1788185541.6869845,
-    "ast_hash": "47ecf736427433f6150b62d6ee86d3ab",
+    "mtime": 1788324110.1256208,
+    "seen": 1788324123.9949706,
+    "ast_hash": "069078e5dd5e4ef520da46adbdd64fe7",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
@@ -1312,8 +1312,8 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/bookingOfferDisplay.ts": {
-    "mtime": 1788197574.4146616,
-    "seen": 1788197608.5672607,
+    "mtime": 1788324061.0178204,
+    "seen": 1788324123.9950595,
     "ast_hash": "08b801f9993c4e999fb732edb12db121",
     "semantic_hash": ""
   },
