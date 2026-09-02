@@ -5,6 +5,7 @@ import { isSafeBookingUrl } from '../api/booking';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { getAirlineName } from '../data/airlines';
+import { getCurrencySymbol } from '../utils/exchangeRates';
 import { BookingOptionCard } from './BookingOptionCard';
 import { Button } from './Button';
 import { Callout } from './Callout';
@@ -12,6 +13,7 @@ import {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
   formatBookingOfferPriceAmount,
+  formatProviderDisplayName,
 } from './bookingOfferDisplay';
 
 export interface BookingOptionsFooterProps {
@@ -101,6 +103,11 @@ export function BookingOptionsFooter({
 
       {dual && resolved.cheapestOta && resolved.airlineDirect ? (
         <View style={styles.optionsStack}>
+          {resolved.candidatesConsidered != null && resolved.candidatesConsidered > 1 ? (
+            <Text style={[styles.comparedHint, { color: theme.textMuted }]}>
+              {t('booking_sites_compared').replace('{count}', String(resolved.candidatesConsidered))}
+            </Text>
+          ) : null}
           <BookingOptionCard
             offer={resolved.cheapestOta}
             badge="cheapest"
@@ -114,6 +121,24 @@ export function BookingOptionsFooter({
             titleOverride={airlineName}
             onContinue={() => onOpenUrl(resolved.airlineDirect!.url)}
           />
+          {resolved.alternatives && resolved.alternatives.length > 0 ? (
+            <View style={styles.altBlock}>
+              <Text style={[styles.altTitle, { color: theme.textMuted }]}>{t('booking_alternatives_title')}</Text>
+              {resolved.alternatives.map((alt) => {
+                const label = formatProviderDisplayName(alt.provider || alt.domain || '');
+                const price =
+                  alt.price != null && alt.currency
+                    ? `${getCurrencySymbol(alt.currency)} ${alt.price.toFixed(0)}`
+                    : null;
+                return (
+                  <Text key={`${alt.domain}-${alt.url}`} style={[styles.altRow, { color: theme.textMuted }]}>
+                    {label}
+                    {price ? ` · ${price}` : ''}
+                  </Text>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
       ) : (
         (() => {
@@ -167,6 +192,25 @@ const styles = StyleSheet.create({
   },
   optionsStack: {
     gap: 10,
+  },
+  comparedHint: {
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  altBlock: {
+    gap: 4,
+    marginTop: 2,
+  },
+  altTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  altRow: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   singleCard: {
     borderWidth: 1,

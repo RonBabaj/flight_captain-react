@@ -266,8 +266,9 @@ func gf2CheckoutOffers(gf2 []bookingmatch.BookingOffer) []bookingmatch.BookingOf
 func buildDualBookingResolveResponse(
 	primaryPick, cheapestOtaPick, airlineDirectPick *bookingmatch.BookingOffer,
 	gf2Offers []bookingmatch.BookingOffer,
+	allOffers []bookingmatch.BookingOffer,
+	matchResult *bookingmatch.MatchResult,
 	hadMultiple bool,
-	candidateCount int,
 	session *SearchSession,
 	option *FlightOption,
 	legIndex int,
@@ -276,6 +277,7 @@ func buildDualBookingResolveResponse(
 	if primaryPick == nil {
 		return BookingResolveResponse{}, "", false
 	}
+	normalize := bookingMatchPriceNormalizer()
 	fromGF2 := bookingOfferInGF2Sources(primaryPick, gf2Offers)
 	var extractedBeforeQuote *float64
 	if primaryPick.Price != nil {
@@ -308,6 +310,21 @@ func buildDualBookingResolveResponse(
 		airlineDirect = publicBookingOfferFromPick(airlineDirectPick, gf2Offers, label, false)
 	}
 
+	candidateCount := len(allOffers)
+	if matchResult != nil && matchResult.CandidatesConsidered > candidateCount {
+		candidateCount = matchResult.CandidatesConsidered
+	}
+	if len(gf2Offers) > candidateCount {
+		candidateCount = len(gf2Offers)
+	}
+
+	var alternatives []PublicBookingAlternative
+	if cheapestOtaPick != nil {
+		carrier := marketingCarrierForLegIndex(option, legIndex)
+		otaPool := offersExcludingAirlineDirect(allOffers, carrier)
+		alternatives = publicAlternativesFromOffers(otaPool, cheapestOtaPick, normalize, 4)
+	}
+
 	event := "resolve_verified"
 	if cheapestOta != nil && airlineDirect != nil {
 		event = "resolve_verified_dual"
@@ -324,6 +341,7 @@ func buildDualBookingResolveResponse(
 		CheapestOta:          cheapestOta,
 		AirlineDirect:        airlineDirect,
 		CandidatesConsidered: candidateCount,
+		Alternatives:         alternatives,
 	}
 	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
 	return resp, event, true
@@ -865,7 +883,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	wg.Wait()
 
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
-	tryResolve := func(sourceOffers []bookingmatch.BookingOffer, candidateCount int) (BookingResolveResponse, string, bool) {
+	tryResolve := func(sourceOffers []bookingmatch.BookingOffer) (BookingResolveResponse, string, bool) {
 		if len(sourceOffers) == 0 && legIndex < 0 {
 			return BookingResolveResponse{}, "", false
 		}
@@ -875,11 +893,11 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		)
 		return buildDualBookingResolveResponse(
 			primaryPick, cheapestOtaPick, airlineDirectPick,
-			gf2Offers, hadMultiple, candidateCount, session, option, legIndex, fp,
+			gf2Offers, sourceOffers, matchResult, hadMultiple, session, option, legIndex, fp,
 		)
 	}
 
-	if resp, event, ok := tryResolve(offers, len(offers)); ok {
+	if resp, event, ok := tryResolve(offers); ok {
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                event,
 			ItineraryFingerprint: fp,
@@ -899,7 +917,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		if len(source) == 0 {
 			source = nil
 		}
-		if resp, event, ok := tryResolve(source, len(gf2Only)); ok {
+		if resp, event, ok := tryResolve(source); ok {
 			logBookingResolve(bookingResolveLogEvent{
 				Event:                event,
 				ItineraryFingerprint: fp,

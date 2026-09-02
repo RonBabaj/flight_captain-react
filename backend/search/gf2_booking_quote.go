@@ -156,6 +156,52 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsFromToken(ctx context.
 	return nil, fmt.Errorf("no partner bookings resolved from token")
 }
 
+// ResolveAllPartnerBookingsForRoute runs a GF2 route search and resolves every partner
+// in booking_options (not just the single cheapest seller).
+func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsForRoute(ctx context.Context, origin, destination, departureDate, returnDate, currency string, adults int) ([]ResolvedPartnerBooking, error) {
+	if p == nil {
+		return nil, fmt.Errorf("google flights provider not configured")
+	}
+	origin = strings.ToUpper(strings.TrimSpace(origin))
+	destination = strings.ToUpper(strings.TrimSpace(destination))
+	departureDate = strings.TrimSpace(departureDate)
+	if origin == "" || destination == "" || departureDate == "" {
+		return nil, fmt.Errorf("missing route params for partner booking")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	if adults < 1 {
+		adults = 1
+	}
+	if !p.allowBooking() {
+		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	results, err := p.searchLegCached(ctx, SearchRequest{
+		Origin:        origin,
+		Destination:   destination,
+		DepartureDate: departureDate,
+		ReturnDate:    strings.TrimSpace(returnDate),
+		Adults:        adults,
+		Currency:      currency,
+		CabinClass:    "ECONOMY",
+	})
+	if err != nil {
+		return nil, err
+	}
+	token := ""
+	for _, r := range results {
+		if t := strings.TrimSpace(r.BookingToken); t != "" {
+			token = t
+			break
+		}
+	}
+	if token == "" {
+		return nil, fmt.Errorf("no booking_token in route search")
+	}
+	return p.ResolveAllPartnerBookingsFromToken(ctx, token, currency)
+}
+
 // SelectCheapestResolvedPartner picks the lowest-price resolved partner booking.
 func SelectCheapestResolvedPartner(partners []ResolvedPartnerBooking) *ResolvedPartnerBooking {
 	if len(partners) == 0 {
