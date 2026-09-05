@@ -28,6 +28,8 @@ const (
 	// Explore/deals just consumed the in-process token bucket.
 	gf2SearchRateLimitRetries  = 5
 	gf2SearchRateLimitBackoff  = 3 * time.Second
+	gf2BookingRateLimitRetries = 5
+	gf2BookingRateLimitBackoff = 2 * time.Second
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
@@ -194,6 +196,35 @@ func (p *GoogleFlights2Provider) allowBooking() bool {
 		return p != nil && p.limiter != nil && p.limiter.allow()
 	}
 	return p.bookingLimiter.allow()
+}
+
+// waitForBookingRateLimit waits for a booking API token (getBookingDetails / getBookingURL).
+func (p *GoogleFlights2Provider) waitForBookingRateLimit(ctx context.Context) bool {
+	if p == nil {
+		return false
+	}
+	for attempt := 0; attempt < gf2BookingRateLimitRetries; attempt++ {
+		if p.allowBooking() {
+			return true
+		}
+		if attempt == gf2BookingRateLimitRetries-1 {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(gf2BookingRateLimitBackoff):
+		}
+	}
+	return false
+}
+
+// IsGF2RateLimitError reports GF2 in-process or upstream rate-limit failures.
+func IsGF2RateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "rate limit")
 }
 
 func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
@@ -374,7 +405,7 @@ func (p *GoogleFlights2Provider) enrichResultsPartnerLinks(ctx context.Context, 
 		if tok == "" {
 			continue
 		}
-		if !p.allowBooking() {
+		if !p.waitForBookingRateLimit(ctx) {
 			return
 		}
 		partners, err := p.ResolveAllPartnerBookingsFromToken(ctx, tok, currency)
@@ -1700,7 +1731,7 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 	if adults < 1 {
 		adults = 1
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return "", fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	results, err := p.searchLegCached(ctx, SearchRequest{

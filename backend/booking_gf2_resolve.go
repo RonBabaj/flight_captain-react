@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"sort"
 	"strings"
@@ -11,19 +12,33 @@ import (
 	"flightcaptainweb/search"
 )
 
+func isTransientGF2BookingErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if search.IsGF2RateLimitError(err) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") || strings.Contains(msg, "timed out")
+}
+
 // resolveGF2PartnerOffers collects every GF2 partner checkout candidate for an itinerary.
 // Search-time deep links are included but never short-circuit before live booking_options.
-func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 	if option == nil {
-		return nil
+		return nil, nil
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
 	if fp == "" {
-		return nil
+		return nil, nil
 	}
 	split := itineraryIsSplit(session, option)
 	if legIndex < 0 && split {
-		return nil
+		return nil, nil
 	}
 
 	currency := "USD"
@@ -41,6 +56,12 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	deepLink := legDeepLink(option, legIndex)
 
 	var offers []bookingmatch.BookingOffer
+	var lastTransientErr error
+	noteErr := func(err error) {
+		if isTransientGF2BookingErr(err) {
+			lastTransientErr = err
+		}
+	}
 	addResolved := func(resolved []search.ResolvedPartnerBooking) {
 		for _, r := range resolved {
 			if legIndex >= 0 && !resolvedPartnerURLMatchesLeg(option, legIndex, r.URL) {
@@ -64,6 +85,8 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 	if token != "" && googleFlights2Provider != nil {
 		if resolved, err := resolveAllPartnerBookingsFromTokenWithRetry(ctx, token, currency); err == nil {
 			addResolved(resolved)
+		} else {
+			noteErr(err)
 		}
 	}
 
@@ -74,6 +97,8 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 		sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 		if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForFingerprint(ctx, sreq, it, currency, quote); err == nil {
 			addResolved(resolved)
+		} else {
+			noteErr(err)
 		}
 	}
 
@@ -152,13 +177,25 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 		if origin != "" && dest != "" && dep != "" {
 			if resolved, err := googleFlights2Provider.ResolveAllPartnerBookingsForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
 				addResolved(resolved)
-			} else if u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err == nil {
-				addOffer(gf2PartnerOfferFromURL(u, fp))
+			} else {
+				noteErr(err)
+				if u, err2 := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults); err2 == nil {
+					addOffer(gf2PartnerOfferFromURL(u, fp))
+				} else {
+					noteErr(err2)
+				}
 			}
 		}
 	}
 
-	return dedupeGF2PartnerOffers(offers)
+	offers = dedupeGF2PartnerOffers(offers)
+	if len(offers) > 0 {
+		return offers, nil
+	}
+	if lastTransientErr != nil {
+		return nil, lastTransientErr
+	}
+	return nil, nil
 }
 
 func gf2OffersHavePrice(offers []bookingmatch.BookingOffer) bool {
@@ -172,7 +209,7 @@ func gf2OffersHavePrice(offers []bookingmatch.BookingOffer) bool {
 
 // resolveGF2PartnerOffer returns the cheapest GF2 partner offer for redirect-style flows.
 func resolveGF2PartnerOffer(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, legIndex int, segmentIndex int) *bookingmatch.BookingOffer {
-	offers := resolveGF2PartnerOffers(ctx, session, option, it, legIndex, segmentIndex)
+	offers, _ := resolveGF2PartnerOffers(ctx, session, option, it, legIndex, segmentIndex)
 	return bookingmatch.SelectCheapestVerifiedOffer(offers, bookingMatchPriceNormalizer())
 }
 
@@ -796,11 +833,11 @@ func resolveAllPartnerBookingsFromTokenWithRetry(ctx context.Context, token, cur
 	if err == nil && len(resolved) > 0 {
 		return resolved, nil
 	}
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "rate limited") {
+	if err != nil && search.IsGF2RateLimitError(err) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(300 * time.Millisecond):
+		case <-time.After(2 * time.Second):
 		}
 		return googleFlights2Provider.ResolveAllPartnerBookingsFromToken(ctx, token, currency)
 	}

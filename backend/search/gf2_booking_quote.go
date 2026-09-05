@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+const (
+	// gf2MaxPartnerOptionsToResolve caps getBookingURL calls per resolve (sorted cheapest first).
+	gf2MaxPartnerOptionsToResolveDefault = 5
+)
+
 // QuoteBinding ties checkout to the fare amount shown in search results.
 type QuoteBinding struct {
 	Amount   float64
@@ -59,7 +64,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBooking(ctx context.Context
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
@@ -121,7 +126,7 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsFromToken(ctx context.
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
@@ -174,7 +179,7 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsForRoute(ctx context.C
 	if adults < 1 {
 		adults = 1
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	results, err := p.searchLegCached(ctx, SearchRequest{
@@ -254,6 +259,11 @@ func (p *GoogleFlights2Provider) resolveAllGF2BookingOptions(ctx context.Context
 		return pi < pj
 	})
 
+	maxResolve := gf2MaxPartnerOptionsToResolveDefault
+	if len(valid) > maxResolve {
+		valid = valid[:maxResolve]
+	}
+
 	seen := map[string]struct{}{}
 	out := make([]ResolvedPartnerBooking, 0, len(valid))
 	for i := range valid {
@@ -287,7 +297,7 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsForFingerprint(ctx con
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	results, err := p.searchLegCached(ctx, req)
@@ -336,7 +346,7 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	if currency == "" {
 		currency = "USD"
 	}
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	results, err := p.searchLegCached(ctx, req)
@@ -396,11 +406,11 @@ func (p *GoogleFlights2Provider) resolveGF2BookingOptionWithRetry(ctx context.Co
 	if err == nil && resolved != nil {
 		return resolved, nil
 	}
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "rate limited") {
+	if err != nil && IsGF2RateLimitError(err) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(gf2BookingRateLimitBackoff):
 		}
 		return p.resolveGF2BookingOption(ctx, opt, currency)
 	}
@@ -439,7 +449,7 @@ func (p *GoogleFlights2Provider) resolvePartnerTokenToURL(ctx context.Context, p
 	bookingURLReq := fmt.Sprintf("https://%s/api/v1/getBookingURL?%s", p.host, url.Values{
 		"token": {partnerToken},
 	}.Encode())
-	if !p.allowBooking() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return "", fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 	urlBody, err := p.doGF2GET(ctx, bookingURLReq)

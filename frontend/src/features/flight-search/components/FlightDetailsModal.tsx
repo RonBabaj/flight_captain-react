@@ -203,7 +203,12 @@ export function FlightDetailsModal({
     })();
   };
 
-  const handleBookPress = async (legIndex?: number, segmentIndex?: number, directUrl?: string) => {
+  const handleBookPress = async (
+    legIndex?: number,
+    segmentIndex?: number,
+    directUrl?: string,
+    forceRefresh = false,
+  ) => {
     if (!option || !sessionId) return;
     const key = resolveStorageKey(legIndex, segmentIndex);
 
@@ -219,7 +224,7 @@ export function FlightDetailsModal({
         sessionId,
         option.id,
         legIndex != null && legIndex >= 0 ? legIndex : undefined,
-        true,
+        forceRefresh,
         segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
       );
       setLegResolves((prev) => ({ ...prev, [key]: res }));
@@ -247,7 +252,7 @@ export function FlightDetailsModal({
         resolved={resolved}
         loading={loading}
         errorMessage={errorMessage}
-        onResolve={() => handleBookPress(legIndex, segmentIndex)}
+        onResolve={() => handleBookPress(legIndex, segmentIndex, undefined, true)}
         onOpenUrl={(url) => handleBookPress(legIndex, segmentIndex, url)}
         carrierCode={carrierCode}
         compact={isNarrow}
