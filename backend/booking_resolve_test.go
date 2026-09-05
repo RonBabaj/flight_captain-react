@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -151,8 +152,8 @@ func TestHandleBookingResolve_searchUnavailable(t *testing.T) {
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
 	}
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
-		return nil
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
 	}
 
 	sessionsMu.Lock()
@@ -251,7 +252,7 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 			},
 		}, nil
 	}
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{{
 			Domain:             "austrian.com",
 			URL:                "https://www.austrian.com/en/book-flight/checkout",
@@ -261,7 +262,7 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}}
+		}}, nil
 	}
 
 	opt := &FlightOption{
@@ -329,12 +330,12 @@ func TestRunBookingMatch_prefersWebCheckoutWhenGF2ListingInflated(t *testing.T) 
 			}},
 		}, nil
 	}
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{{
 			Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
 			URLType: bookingmatch.URLTypeExactBooking, Price: &gf2Budget, Currency: "USD",
 			MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
-		}}
+		}}, nil
 	}
 
 	opt := &FlightOption{
@@ -390,7 +391,7 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 		return &bookingmatch.MatchResult{ItineraryFingerprint: fp}, nil
 	}
 	gf2Called := false
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		gf2Called = true
 		if search.CanonicalItineraryFingerprint(wantItin) != fp || legIndex != 0 {
 			t.Fatalf("search partner fingerprint=%s legIndex=%d", search.CanonicalItineraryFingerprint(wantItin), legIndex)
@@ -404,7 +405,7 @@ func TestRunBookingMatch_usesLegTokenFromSearchQuote(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}}
+		}}, nil
 	}
 
 	opt := &FlightOption{
@@ -466,7 +467,7 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 	bookingMatchRunner = func(ctx context.Context, got search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, errBookingSearchUnavailable
 	}
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{{
 			Domain:             "mytrip.com",
 			URL:                "https://mytrip.com/checkout/tlv-vie",
@@ -476,7 +477,7 @@ func TestRunBookingMatch_usesSearchQuoteWhenWebSearchErrors(t *testing.T) {
 			MatchScore:         95,
 			VerificationStatus: bookingmatch.StatusVerifiedExact,
 			CheckedAt:          time.Now().UTC(),
-		}}
+		}}, nil
 	}
 
 	opt := &FlightOption{
@@ -515,7 +516,7 @@ func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
 
 	oldGF2 := bookingGF2OffersResolver
 	defer func() { bookingGF2OffersResolver = oldGF2 }()
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{
 			{
 				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
@@ -527,7 +528,7 @@ func TestRunBookingMatch_picksCheapestAmongMultipleGF2Partners(t *testing.T) {
 				URLType: bookingmatch.URLTypeExactBooking, Price: &trip, Currency: "USD",
 				MatchScore: 90, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
 			},
-		}
+		}, nil
 	}
 
 	opt := &FlightOption{
@@ -580,7 +581,7 @@ func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.
 
 	oldGF2 := bookingGF2OffersResolver
 	defer func() { bookingGF2OffersResolver = oldGF2 }()
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{
 			{
 				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
@@ -592,7 +593,7 @@ func TestRunBookingMatch_prefersAirlineDirectWhenOTAAboveSearchQuote(t *testing.
 				URLType: bookingmatch.URLTypeExactBooking, Price: &elalQuote, Currency: "USD",
 				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
 			},
-		}
+		}, nil
 	}
 
 	opt := &FlightOption{
@@ -642,7 +643,7 @@ func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *t
 
 	oldGF2 := bookingGF2OffersResolver
 	defer func() { bookingGF2OffersResolver = oldGF2 }()
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{
 			{
 				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
@@ -654,7 +655,7 @@ func TestRunBookingMatch_prefersCheapestCheckoutWhenAirlineGF2PriceInflated(t *t
 				URLType: bookingmatch.URLTypeExactBooking, Price: &elalGF2, Currency: "USD",
 				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
 			},
-		}
+		}, nil
 	}
 
 	opt := &FlightOption{
@@ -734,14 +735,14 @@ func TestRunBookingMatch_usesCheapestOTAWhenMarkedUpWithoutAirlineCheckout(t *te
 
 	oldGF2 := bookingGF2OffersResolver
 	defer func() { bookingGF2OffersResolver = oldGF2 }()
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return []bookingmatch.BookingOffer{
 			{
 				Domain: "budgetair.com", URL: "https://www.budgetair.com/checkout/szg-tlv",
 				URLType: bookingmatch.URLTypeExactBooking, Price: &budgetair, Currency: "USD",
 				MatchScore: 95, VerificationStatus: bookingmatch.StatusVerifiedExact, CheckedAt: time.Now().UTC(),
 			},
-		}
+		}, nil
 	}
 
 	opt := &FlightOption{
@@ -799,8 +800,8 @@ func TestRunBookingMatch_returnLegPrefersAirlineTemplateOverGooglePrefill(t *tes
 		bookingGF2OffersResolver = oldGF2
 		bookingMatchRunner = oldWeb
 	}()
-	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) []bookingmatch.BookingOffer {
-		return nil
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
 	}
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return nil, nil
@@ -847,6 +848,55 @@ func TestLegDeepLink_allowsAlignedDeepLinksWhenTokenCountDiffers(t *testing.T) {
 	}
 	if got := legBookingToken(opt, 1); got != "" {
 		t.Fatalf("leg 1 must not reuse single token, got %q", got)
+	}
+}
+
+func TestRunBookingMatch_surfacesGF2RateLimitAsRetryable(t *testing.T) {
+	dep := time.Date(2027, 2, 1, 10, 0, 0, 0, time.UTC)
+	arr := time.Date(2027, 2, 1, 13, 0, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "XX", FlightNumber: "XX100",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+
+	oldGF2 := bookingGF2OffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	opt := &FlightOption{
+		Price: MonetaryAmount{Amount: 360, Currency: "USD"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "XX"}, FlightNumber: "XX100",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, 0, -1)
+	if resp.Found {
+		t.Fatal("expected failure on GF2 rate limit")
+	}
+	if resp.Status != BookingResolveSearchUnavailable {
+		t.Fatalf("status=%q want search_unavailable", resp.Status)
+	}
+	if !strings.Contains(resp.Message, "busy") {
+		t.Fatalf("message=%q want busy hint", resp.Message)
 	}
 }
 

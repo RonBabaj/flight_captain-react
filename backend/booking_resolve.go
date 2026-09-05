@@ -861,6 +861,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	var (
 		gf2Offers   []bookingmatch.BookingOffer
+		gf2Err      error
 		matchResult *bookingmatch.MatchResult
 		matchErr    error
 		wg          sync.WaitGroup
@@ -869,7 +870,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		gf2Offers = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+		gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
 	}()
 
 	if webBookingMatchEnabled() {
@@ -932,21 +933,22 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
-		resp := BookingResolveResponse{
-			Found:                false,
+	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
+		resp := bookingResolveFailureResponse(fp, gf2Err)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
 			ItineraryFingerprint: fp,
-			Message:              "Booking search is temporarily unavailable.",
-		}
-		if errors.Is(matchErr, context.DeadlineExceeded) || errors.Is(matchErr, context.Canceled) {
-			resp.Status = BookingResolveTimeout
-			resp.Message = "Booking search timed out. Please try again."
-		} else if errors.Is(matchErr, errBookingSearchUnavailable) {
-			resp.Status = BookingResolveSearchUnavailable
-			resp.Message = "Exact-flight booking search is not configured on this server."
-		} else {
-			resp.Status = BookingResolveSearchUnavailable
-		}
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        gf2Err.Error(),
+		})
+		return resp
+	}
+
+	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
+		resp := bookingResolveFailureResponse(fp, matchErr)
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                "resolve_failed",
 			ItineraryFingerprint: fp,
@@ -1092,6 +1094,27 @@ func providerFromOffer(o *PublicBookingOffer) string {
 		return ""
 	}
 	return o.Provider
+}
+
+func bookingResolveFailureResponse(fp string, err error) BookingResolveResponse {
+	resp := BookingResolveResponse{
+		Found:                false,
+		ItineraryFingerprint: fp,
+		Message:              "Booking search is temporarily unavailable.",
+		Status:               BookingResolveSearchUnavailable,
+	}
+	if err == nil {
+		return resp
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		resp.Status = BookingResolveTimeout
+		resp.Message = "Booking search timed out. Please try again."
+	} else if errors.Is(err, errBookingSearchUnavailable) {
+		resp.Message = "Exact-flight booking search is not configured on this server."
+	} else if search.IsGF2RateLimitError(err) {
+		resp.Message = "Booking lookup is busy. Please try again in a moment."
+	}
+	return resp
 }
 
 func mustCanonicalForLog(option *FlightOption, legIndex int, segmentIndex int) search.CanonicalItinerary {
