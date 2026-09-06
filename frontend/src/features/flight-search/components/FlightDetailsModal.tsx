@@ -19,7 +19,7 @@ import { AppIcon } from '../../../components/AppIcon';
 import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
-import { BookingOptionsFooter } from '../../../ui';
+import { BookingOptionsFooter, Button } from '../../../ui';
 import { getAirlineName } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
@@ -103,7 +103,7 @@ export function FlightDetailsModal({
   const { theme } = useTheme();
   const { t, isRTL, language, currency: displayCurrency, timeDisplay, locale } = useLocale();
   const [legResolves, setLegResolves] = useState<Record<string, BookingResolveResponse>>({});
-  const [resolveLoadingKey, setResolveLoadingKey] = useState<string | null>(null);
+  const [resolveLoadingKeys, setResolveLoadingKeys] = useState<Record<string, true>>({});
   const [copied, setCopied] = useState(false);
   const { width, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -127,8 +127,60 @@ export function FlightDetailsModal({
 
   useEffect(() => {
     setLegResolves({});
-    setResolveLoadingKey(null);
+    setResolveLoadingKeys({});
   }, [option?.id, sessionId]);
+
+  const setHopLoading = (key: string, loading: boolean) => {
+    setResolveLoadingKeys((prev) => {
+      const next = { ...prev };
+      if (loading) next[key] = true;
+      else delete next[key];
+      return next;
+    });
+  };
+
+  const resolveHop = async (
+    legIndex?: number,
+    segmentIndex?: number,
+    forceRefresh = false,
+  ): Promise<BookingResolveResponse | undefined> => {
+    if (!option || !sessionId) return undefined;
+    const key = resolveStorageKey(legIndex, segmentIndex);
+    setHopLoading(key, true);
+    try {
+      const res = await resolveBookingOffer(
+        sessionId,
+        option.id,
+        legIndex != null && legIndex >= 0 ? legIndex : undefined,
+        forceRefresh,
+        segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
+      );
+      setLegResolves((prev) => ({ ...prev, [key]: res }));
+      return res;
+    } catch {
+      return undefined;
+    } finally {
+      setHopLoading(key, false);
+    }
+  };
+
+  const hopsNeedingResolve = (forceRefresh: boolean) => {
+    if (!perHopBooking || hops.length <= 1) {
+      return [];
+    }
+    return hops.filter((hop) => {
+      const key = hopStorageKey(hop);
+      if (resolveLoadingKeys[key]) return false;
+      if (forceRefresh) return true;
+      return !legResolves[key]?.found;
+    });
+  };
+
+  const resolveAllUnresolvedHops = async (forceRefresh = false) => {
+    const pending = hopsNeedingResolve(forceRefresh);
+    if (pending.length === 0) return;
+    await Promise.all(pending.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, forceRefresh)));
+  };
 
   const handleShare = async () => {
     if (!option) return;
@@ -210,7 +262,6 @@ export function FlightDetailsModal({
     forceRefresh = false,
   ) => {
     if (!option || !sessionId) return;
-    const key = resolveStorageKey(legIndex, segmentIndex);
 
     if (directUrl && isSafeBookingUrl(directUrl)) {
       await openUrlInNewTab(directUrl);
@@ -218,26 +269,43 @@ export function FlightDetailsModal({
       return;
     }
 
-    setResolveLoadingKey(key);
-    try {
-      const res = await resolveBookingOffer(
-        sessionId,
-        option.id,
-        legIndex != null && legIndex >= 0 ? legIndex : undefined,
-        forceRefresh,
-        segmentIndex != null && segmentIndex >= 0 ? segmentIndex : undefined,
+    if (forceRefresh) {
+      const res = await resolveHop(legIndex, segmentIndex, true);
+      if (!res?.found) {
+        Alert.alert('Error', t('booking_search_unavailable'));
+      }
+      return;
+    }
+
+    if (perHopBooking && hops.length > 1) {
+      const pending = hopsNeedingResolve(false);
+      const includesTrigger = pending.some(
+        (hop) =>
+          hop.legIndex === legIndex &&
+          (hop.segmentIndex ?? -1) === (segmentIndex ?? -1),
       );
-      setLegResolves((prev) => ({ ...prev, [key]: res }));
-    } catch {
+      const targets =
+        includesTrigger && pending.length > 0
+          ? pending
+          : [{ legIndex, segmentIndex }];
+      const results = await Promise.all(
+        targets.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, false)),
+      );
+      if (results.length === 1 && !results[0]?.found) {
+        Alert.alert('Error', t('booking_search_unavailable'));
+      }
+      return;
+    }
+
+    const res = await resolveHop(legIndex, segmentIndex, false);
+    if (!res?.found) {
       Alert.alert('Error', t('booking_search_unavailable'));
-    } finally {
-      setResolveLoadingKey(null);
     }
   };
 
   const renderBookingAction = (storageKey: string, legIndex?: number, segmentIndex?: number, carrierCode?: string) => {
     const resolved = legResolves[storageKey];
-    const loading = resolveLoadingKey === storageKey;
+    const loading = !!resolveLoadingKeys[storageKey];
     const error = resolved && !resolved.found;
 
     const errorMessage =
@@ -261,13 +329,34 @@ export function FlightDetailsModal({
     );
   };
 
-  const renderBookingFooter = () => (
+  const renderBookingFooter = () => {
+    const unresolvedHopCount =
+      perHopBooking && hops.length > 1
+        ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
+        : 0;
+    const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
+
+    return (
     <View style={[s.footer, isNarrow && s.footerCompact, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
       {perHopBooking && hops.length > 0 ? (
         <>
           <Text style={[s.splitHint, { color: theme.textMuted }]}>
             {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
           </Text>
+          {hops.length > 1 && unresolvedHopCount > 1 ? (
+            <Button
+              label={t('book_all_legs')}
+              onPress={() => void resolveAllUnresolvedHops(false)}
+              variant="secondary"
+              size="sm"
+              disabled={parallelLoadingCount > 0}
+            />
+          ) : null}
+          {parallelLoadingCount > 1 ? (
+            <Text style={[s.splitHint, { color: theme.textMuted }]}>
+              {t('booking_searching_all_legs')}
+            </Text>
+          ) : null}
           <View style={s.legBookingList}>
             {hops.map((hop, index) => {
               const key = hopStorageKey(hop);
@@ -313,7 +402,8 @@ export function FlightDetailsModal({
       )}
       <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
     </View>
-  );
+    );
+  };
 
   if (!option) return null;
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import type { BookingResolveResponse, PublicBookingOffer } from '../api/booking';
 import { isSafeBookingUrl } from '../api/booking';
 import { useTheme } from '../theme/ThemeContext';
@@ -130,11 +130,34 @@ export function BookingOptionsFooter({
                   alt.price != null && alt.currency
                     ? `${getCurrencySymbol(alt.currency)} ${alt.price.toFixed(0)}`
                     : null;
+                const canOpen = !!alt.url && isSafeBookingUrl(alt.url);
+                const rowKey = `${alt.domain}-${alt.url || label}`;
+                if (!canOpen) {
+                  return (
+                    <Text key={rowKey} style={[styles.altRow, { color: theme.textMuted }]}>
+                      {label}
+                      {price ? ` · ${price}` : ''}
+                    </Text>
+                  );
+                }
                 return (
-                  <Text key={`${alt.domain}-${alt.url}`} style={[styles.altRow, { color: theme.textMuted }]}>
-                    {label}
-                    {price ? ` · ${price}` : ''}
-                  </Text>
+                  <Pressable
+                    key={rowKey}
+                    onPress={() => onOpenUrl(alt.url!)}
+                    style={({ pressed }) => [styles.altPressable, pressed && styles.altPressablePressed]}
+                    accessibilityRole="link"
+                    accessibilityLabel={
+                      price
+                        ? t('booking_open_alternative').replace('{provider}', label).replace('{price}', price)
+                        : t('booking_open_alternative_no_price').replace('{provider}', label)
+                    }
+                  >
+                    <Text style={[styles.altRow, styles.altLink, { color: theme.primaryLight }]}>
+                      {label}
+                      {price ? ` · ${price}` : ''}
+                    </Text>
+                    <Text style={[styles.altOpenHint, { color: theme.textMuted }]}>{t('booking_continue')}</Text>
+                  </Pressable>
                 );
               })}
             </View>
@@ -211,6 +234,26 @@ const styles = StyleSheet.create({
   altRow: {
     fontSize: 12,
     lineHeight: 17,
+    flex: 1,
+  },
+  altPressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  altPressablePressed: {
+    opacity: 0.7,
+  },
+  altLink: {
+    textDecorationLine: 'underline',
+  },
+  altOpenHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 0,
   },
   singleCard: {
     borderWidth: 1,

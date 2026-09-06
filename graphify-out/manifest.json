@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1788618264.9433997,
-    "seen": 1788619248.717477,
-    "ast_hash": "50e1d965f43b40ef60731fe145824c2d",
+    "mtime": 1788705466.5968394,
+    "seen": 1788705504.9792929,
+    "ast_hash": "1cb8dc8dab333a2e549e3e7d95b8df69",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1788619207.5026267,
-    "seen": 1788619248.717489,
-    "ast_hash": "c4b9e41288ba05583bd083ac6405519b",
+    "mtime": 1788705492.1686358,
+    "seen": 1788705504.979306,
+    "ast_hash": "861a8061708b6502f2df3ea2de031662",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -1296,9 +1296,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1788618264.9473999,
-    "seen": 1788619248.7175138,
-    "ast_hash": "069078e5dd5e4ef520da46adbdd64fe7",
+    "mtime": 1788705461.0809066,
+    "seen": 1788705504.9793324,
+    "ast_hash": "3cc96c2bcf2fb07c05b3a2b8425b11a3",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
