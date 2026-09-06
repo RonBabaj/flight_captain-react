@@ -624,6 +624,26 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'זמין גם ב',
     ru: 'Также доступно на',
   },
+  booking_open_alternative: {
+    en: 'Open {provider} booking at {price}',
+    he: 'פתח הזמנה ב-{provider} ב-{price}',
+    ru: 'Открыть бронирование на {provider} — {price}',
+  },
+  booking_open_alternative_no_price: {
+    en: 'Open {provider} booking',
+    he: 'פתח הזמנה ב-{provider}',
+    ru: 'Открыть бронирование на {provider}',
+  },
+  book_all_legs: {
+    en: 'Find booking for all legs',
+    he: 'מצא הזמנה לכל הטיסות',
+    ru: 'Найти бронирование для всех перелётов',
+  },
+  booking_searching_all_legs: {
+    en: 'Searching booking options for all legs…',
+    he: 'מחפש אפשרויות הזמנה לכל הטיסות…',
+    ru: 'Ищем варианты бронирования для всех перелётов…',
+  },
   booking_sites_compared: {
     en: 'Compared {count} booking sites — showing cheapest',
     he: 'הושוו {count} אתרי הזמנה — מוצג הזול ביותר',
