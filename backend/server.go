@@ -805,6 +805,19 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	for attempt := 0; attempt < 2 && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
+		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
+		wait := time.Duration(attempt+1) * 2 * time.Second
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+			if ctx.Err() == nil {
+				multi = flightProviderRegistry.SearchAll(ctx, sreq)
+			}
+		}
+	}
 	if multi.AllFailed() {
 		log.Printf("[SEARCH] all providers failed stats=%+v", multi.Stats)
 		writeJSON(w, http.StatusBadGateway, map[string]string{

@@ -196,8 +196,55 @@ func isSkippedProviderErr(errMsg string) bool {
 	return strings.Contains(errMsg, ErrProviderSkipped.Error())
 }
 
+// IsTransientFailure reports whether all provider errors look retryable (rate limit, timeout, gateway).
+func (m MultiSearchResult) IsTransientFailure() bool {
+	if len(m.Results) > 0 {
+		return false
+	}
+	attempted := 0
+	transient := 0
+	for _, s := range m.Stats {
+		if s.Err == "" || isSkippedProviderErr(s.Err) {
+			continue
+		}
+		attempted++
+		if IsTransientSearchErrMsg(s.Err) {
+			transient++
+		}
+	}
+	if attempted == 0 {
+		return true
+	}
+	return transient == attempted
+}
+
+// IsTransientSearchErrMsg classifies provider error strings that often succeed on retry.
+func IsTransientSearchErrMsg(errMsg string) bool {
+	if errMsg == "" {
+		return false
+	}
+	msg := strings.ToLower(errMsg)
+	if strings.Contains(msg, "rate limit") ||
+		strings.Contains(msg, "try again") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "gateway") ||
+		strings.Contains(msg, "temporarily unavailable") ||
+		strings.Contains(msg, "status 5") {
+		return true
+	}
+	// Empty or blipped GF2 leg responses during open-jaw combine — not a true "no flights" outcome.
+	if strings.Contains(msg, "outbound search failed") {
+		return true
+	}
+	return false
+}
+
 // FailureMessage returns a user-facing error when SearchAll produced no results.
 func (m MultiSearchResult) FailureMessage() string {
+	if m.IsTransientFailure() {
+		return "Flight search is temporarily unavailable. Please try again."
+	}
 	for _, s := range m.Stats {
 		if s.Err == "" || isSkippedProviderErr(s.Err) {
 			continue

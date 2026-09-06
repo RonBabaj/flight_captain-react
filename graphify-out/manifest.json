@@ -132,9 +132,9 @@
     "semantic_hash": ""
   },
   "backend/search/googleflights2_provider.go": {
-    "mtime": 1788619123.4902909,
-    "seen": 1788619248.7174342,
-    "ast_hash": "7f782adfe0bba66c7f2feaf5a9cb77f9",
+    "mtime": 1788706069.021123,
+    "seen": 1788706104.03596,
+    "ast_hash": "0317595ba9a30e7da7358f209ef2fb3b",
     "semantic_hash": ""
   },
   "backend/search/providers.go": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1788618264.9393997,
-    "seen": 1788619248.7174408,
-    "ast_hash": "b52e216839a060c4a021732cd90a545d",
+    "mtime": 1788706081.4130614,
+    "seen": 1788706104.035968,
+    "ast_hash": "5fd1daaf9fe395c7ed70b680ff62d8f4",
     "semantic_hash": ""
   },
   "backend/server_baggage_test.go": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "frontend/src/api/search.ts": {
-    "mtime": 1788618264.9433997,
-    "seen": 1788619248.7174592,
-    "ast_hash": "e93e1af534f6eba3dd6955feab1506a8",
+    "mtime": 1788706075.6130905,
+    "seen": 1788706104.0359852,
+    "ast_hash": "a56d5a670f357e38daaba48a4f592963",
     "semantic_hash": ""
   },
   "frontend/src/components/AppIcon.tsx": {
@@ -408,9 +408,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ExploreScreen.tsx": {
-    "mtime": 1788603356.0,
-    "seen": 1788619248.7174933,
-    "ast_hash": "687db32afca3572077dd2b8ed02dda4a",
+    "mtime": 1788706096.1249866,
+    "seen": 1788706104.03602,
+    "ast_hash": "88065e2b67eb645bd6fa57b26af21979",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1788618264.9473999,
-    "seen": 1788619248.7174978,
-    "ast_hash": "28a04da1e0ca7c250d21ad1e4fbd812b",
+    "mtime": 1788706099.7289681,
+    "seen": 1788706104.0360248,
+    "ast_hash": "25031165a363d726e322e062e93391c0",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -792,15 +792,15 @@
     "semantic_hash": ""
   },
   "backend/search/multi_provider_test.go": {
-    "mtime": 1788618264.9393997,
-    "seen": 1788619248.7174375,
-    "ast_hash": "8771630bc0281784afae0a229fd27996",
+    "mtime": 1788706081.1850626,
+    "seen": 1788706104.0359645,
+    "ast_hash": "ec99b32f5cd7e58586f64919d4ee4a82",
     "semantic_hash": ""
   },
   "backend/search/registry.go": {
-    "mtime": 1788618264.9393997,
-    "seen": 1788619248.7174394,
-    "ast_hash": "b3236af2f65ad7a37ebc18a1b2587d93",
+    "mtime": 1788706075.6730902,
+    "seen": 1788706104.0359664,
+    "ast_hash": "53c28a58a12b8ba1333684134bec619e",
     "semantic_hash": ""
   },
   "backend/search/openjaw_test.go": {

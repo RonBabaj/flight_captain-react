@@ -16,7 +16,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { formatFlightTime, flightTimeToMs, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
-import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSession, getSearchSessionResults } from '../../../api';
+import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSessionWithRetry, getSearchSessionResults } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { BookingOptionsFooter } from '../../../ui';
@@ -74,7 +74,7 @@ async function findCheapestFlightForDate(params: {
 
   const promise = (async (): Promise<PositioningLegResult | null> => {
     try {
-      const session = await createSearchSession({
+      const session = await createSearchSessionWithRetry({
         origin: params.origin,
         destination: params.destination,
         departureDate: params.departureDate,
