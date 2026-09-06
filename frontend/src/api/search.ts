@@ -62,19 +62,19 @@ export async function createSearchSession(
 }
 
 function isTransientSearchError(message: string): boolean {
-  return /temporarily unavailable|rate limit|try again|timed out|gateway|502|503|504|all providers failed|flight search failed/i.test(
+  return /temporarily unavailable|rate limit|try again|timed out|timeout|gateway|502|503|504|all providers failed|flight search failed|outbound search failed|outbound leg|load failed|failed to fetch|could not reach/i.test(
     message
   );
 }
 
 function searchRetryDelayMs(attempt: number): number {
-  return 1500 * (attempt + 1);
+  return 2000 * (attempt + 1);
 }
 
 /** Create a search session with automatic retries on transient provider / gateway failures. */
 export async function createSearchSessionWithRetry(
   params: CreateSearchSessionRequest,
-  maxAttempts = 4
+  maxAttempts = 5
 ): Promise<SearchSession> {
   let lastErr: Error | undefined;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {

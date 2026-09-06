@@ -154,6 +154,25 @@ func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
 	}
 }
 
+func TestRegistryFailureMessage_transientOutbound(t *testing.T) {
+	res := MultiSearchResult{
+		Stats: []ProviderSearchStats{{
+			Provider: "googleflights2",
+			Err:      "outbound search failed: flight search rate limited; try again in a minute",
+		}},
+	}
+	if !res.IsTransientFailure() {
+		t.Fatal("expected transient outbound failure")
+	}
+	msg := res.FailureMessage()
+	if strings.Contains(msg, "No flights found for the outbound leg") {
+		t.Fatalf("transient failure must not claim no flights, got %q", msg)
+	}
+	if !strings.Contains(msg, "try again") {
+		t.Fatalf("expected retry hint, got %q", msg)
+	}
+}
+
 func TestKiwiApifyTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/runs") && r.Method == http.MethodPost {

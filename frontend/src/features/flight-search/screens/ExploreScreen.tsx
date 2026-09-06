@@ -14,7 +14,7 @@ import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getExploreDestinations } from '../../../api';
-import { createSearchSession } from '../../../api';
+import { createSearchSessionWithRetry } from '../../../api';
 import { getMonthDeals } from '../../../api/deals';
 import { searchActions, dealsActions, isCurrentSearchGeneration } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
@@ -585,7 +585,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       };
       setCachedSearch(payload);
       const generation = searchActions.beginSearch(payload, { clearSession: false });
-      const session = await createSearchSession(payload);
+      const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);
@@ -762,7 +762,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       setFormParams((p) => ({ ...p, ...payload }));
       setCachedSearch(payload);
       const generation = searchActions.beginSearch(payload, { clearSession: false });
-      const session = await createSearchSession(payload);
+      const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
       searchActions.setSession(session.id, session, session.status);
       searchActions.setResults([], 0);

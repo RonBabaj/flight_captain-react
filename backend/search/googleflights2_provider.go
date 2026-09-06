@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -30,6 +31,9 @@ const (
 	gf2SearchRateLimitBackoff  = 3 * time.Second
 	gf2BookingRateLimitRetries = 5
 	gf2BookingRateLimitBackoff = 2 * time.Second
+	// Per-leg one-way searches (open-jaw / dynamic destinations) retry empty/transient GF2 responses.
+	gf2LegSearchRetries  = 4
+	gf2LegSearchBackoff  = 2 * time.Second
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
@@ -336,13 +340,16 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 
 	batches := make([][]ProviderResult, 0, len(steps))
 	for i, step := range steps {
-		res, err := p.searchLegCached(ctx, step.req)
+		res, err := p.searchLegCachedWithRetry(ctx, step.req)
 		if err != nil || len(res) == 0 {
 			if i == 0 {
 				if IsOpenJaw(req) || len(extras) > 0 {
-					return nil, fmt.Errorf("outbound search failed for dynamic destination trip")
+					if err != nil {
+						return nil, fmt.Errorf("outbound search failed: %w", err)
+					}
+					return nil, fmt.Errorf("no flights found for outbound %s→%s", req.Origin, req.Destination)
 				}
-				return p.doSearch(ctx, req)
+				return p.doSearchWithRetry(ctx, req)
 			}
 			if i == len(steps)-1 && len(extras) == 0 {
 				if IsOpenJaw(req) {
@@ -362,6 +369,94 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 		idPrefix = "gf2oj"
 	}
 	return CombineOneWayBatches(batches, idPrefix), nil
+}
+
+func isTransientGF2SearchErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if IsGF2RateLimitError(err) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "gateway") ||
+		strings.Contains(msg, "status 5") ||
+		strings.Contains(msg, "temporarily unavailable")
+}
+
+func legSearchRetryable(err error, res []ProviderResult, attempt, maxAttempts int) bool {
+	if err == nil && len(res) > 0 {
+		return false
+	}
+	if attempt >= maxAttempts-1 {
+		return false
+	}
+	if err != nil {
+		return isTransientGF2SearchErr(err)
+	}
+	// Empty GF2 payload on first attempts is often transient (rate limit / upstream blip).
+	return len(res) == 0
+}
+
+func (p *GoogleFlights2Provider) searchLegCachedWithRetry(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	var lastErr error
+	var lastRes []ProviderResult
+	for attempt := 0; attempt < gf2LegSearchRetries; attempt++ {
+		res, err := p.searchLegCached(ctx, req)
+		if err == nil && len(res) > 0 {
+			return res, nil
+		}
+		lastErr = err
+		lastRes = res
+		if !legSearchRetryable(err, res, attempt, gf2LegSearchRetries) {
+			break
+		}
+		log.Printf("[GF2] leg search retry attempt=%d route=%s→%s err=%v results=%d",
+			attempt+1, req.Origin, req.Destination, err, len(res))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(gf2LegSearchBackoff):
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return lastRes, nil
+}
+
+func (p *GoogleFlights2Provider) doSearchWithRetry(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	var lastErr error
+	var lastRes []ProviderResult
+	for attempt := 0; attempt < gf2LegSearchRetries; attempt++ {
+		res, err := p.doSearch(ctx, req)
+		if err == nil && len(res) > 0 {
+			cacheKey := p.buildCacheKey(req)
+			p.cache.set(cacheKey, res)
+			return res, nil
+		}
+		lastErr = err
+		lastRes = res
+		if !legSearchRetryable(err, res, attempt, gf2LegSearchRetries) {
+			break
+		}
+		log.Printf("[GF2] round-trip search retry attempt=%d route=%s→%s err=%v results=%d",
+			attempt+1, req.Origin, req.Destination, err, len(res))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(gf2LegSearchBackoff):
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return lastRes, nil
 }
 
 // searchLegCached runs a one-way GF2 search with the same in-memory cache as Search().
