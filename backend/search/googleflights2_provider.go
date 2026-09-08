@@ -272,7 +272,7 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		if IsOpenJaw(req) || HasExtraLegs(req) {
 			results, err = p.searchRoundTrip(ctx, req)
 		} else {
-			results, err = p.doSearch(ctx, req)
+			results, err = p.doSearchWithRetry(ctx, req)
 		}
 		if err != nil {
 			errLog = err.Error()
@@ -570,8 +570,8 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 	}
 
 	params := url.Values{}
-	params.Set("departure_id", strings.ToUpper(req.Origin))
-	params.Set("arrival_id", strings.ToUpper(req.Destination))
+	params.Set("departure_id", ResolveGF2PlaceCode(req.Origin))
+	params.Set("arrival_id", ResolveGF2PlaceCode(req.Destination))
 	params.Set("outbound_date", req.DepartureDate)
 	if req.ReturnDate != "" {
 		params.Set("return_date", req.ReturnDate)
