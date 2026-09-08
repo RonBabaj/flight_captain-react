@@ -274,6 +274,9 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 			results, err = p.searchRoundTrip(ctx, req)
 		} else {
 			results, err = p.doSearchWithRetry(ctx, req)
+			if err == nil && len(results) > 0 {
+				p.enrichNativeRoundTripReturnLegs(ctx, req, results)
+			}
 		}
 		if err != nil {
 			errLog = err.Error()
@@ -675,10 +678,10 @@ func (p *GoogleFlights2Provider) doSearchOne(ctx context.Context, req SearchRequ
 		return nil, fmt.Errorf("GF2 status %d", resp.StatusCode)
 	}
 
-	return parseGF2Response(body, originIATA, destIATA, currency, req.DepartureDate, cabin)
+	return parseGF2Response(body, originIATA, destIATA, currency, req.DepartureDate, req.ReturnDate, cabin)
 }
 
-func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin string) ([]ProviderResult, error) {
+func parseGF2Response(body []byte, origin, dest, currency, departureDate, returnDate, cabin string) ([]ProviderResult, error) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("parse GF2 response: %w", err)
@@ -843,7 +846,7 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 
 	// SerpAPI round-trip: top-level return_flights array holds return options separate from best_flights.
 	// Attach the best available return leg to any outbound-only result (1 leg).
-	attachReturnLegsFromArray := func(retArr []interface{}) {
+	attachReturnLegsFromArray := func(retArr []interface{}, returnDate string) {
 		var bestReturnLeg *Leg
 		for _, rAny := range retArr {
 			r, _ := rAny.(map[string]interface{})
@@ -851,10 +854,14 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 				continue
 			}
 			if flightsArr, ok := r["flights"].([]interface{}); ok && len(flightsArr) > 0 {
-				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, departureDate, cabin); leg != nil {
+				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, returnDate, cabin); leg != nil {
 					bestReturnLeg = leg
 					break
 				}
+			}
+			if leg := gf2ReturnLegFromFlatItem(r, dest, origin, returnDate, cabin); leg != nil {
+				bestReturnLeg = leg
+				break
 			}
 		}
 		if bestReturnLeg != nil {
@@ -866,11 +873,11 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 		}
 	}
 	if retFlights, ok := raw["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
-		attachReturnLegsFromArray(retFlights)
+		attachReturnLegsFromArray(retFlights, returnDate)
 	}
 	if data, ok := raw["data"].(map[string]interface{}); ok {
 		if retFlights, ok := data["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
-			attachReturnLegsFromArray(retFlights)
+			attachReturnLegsFromArray(retFlights, returnDate)
 		}
 	}
 
@@ -1117,6 +1124,14 @@ func gf2SegmentFromFlatItinerary(itin map[string]interface{}, origin, dest, depa
 		DurationMinutes:  durMin,
 		CabinClass:       cabin,
 	}
+}
+
+func gf2ReturnLegFromFlatItem(item map[string]interface{}, defaultFrom, defaultTo, returnDate, cabin string) *Leg {
+	seg := gf2SegmentFromFlatItinerary(item, defaultFrom, defaultTo, returnDate, cabin)
+	if seg == nil {
+		return nil
+	}
+	return &Leg{Segments: []Segment{*seg}}
 }
 
 func gf2ItineraryAirportCode(itin map[string]interface{}, keys ...string) string {

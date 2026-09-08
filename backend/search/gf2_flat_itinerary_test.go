@@ -22,7 +22,7 @@ func TestParseGF2Response_RapidAPIFlatTopFlights(t *testing.T) {
 			}
 		}
 	}`)
-	results, err := parseGF2Response(body, "TLV", "HND", "USD", "2026-10-08", "ECONOMY")
+	results, err := parseGF2Response(body, "TLV", "HND", "USD", "2026-10-08", "", "ECONOMY")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +51,34 @@ func TestParseGF2Time_EuropeanDateFormat(t *testing.T) {
 	}
 	if got.Day() != 8 || got.Month() != 10 || got.Year() != 2026 {
 		t.Fatalf("parsed %v", got)
+	}
+}
+
+func TestParseGF2Response_AttachesFlatReturnFlights(t *testing.T) {
+	body := []byte(`{
+		"data": {
+			"itineraries": {
+				"topFlights": [{
+					"departure_time": "08-10-2026 07:50 AM",
+					"arrival_time": "08-10-2026 05:10 PM",
+					"duration": {"raw": 560},
+					"price": 850
+				}]
+			},
+			"return_flights": [{
+				"departure_time": "22-10-2026 11:00 AM",
+				"arrival_time": "22-10-2026 06:30 PM",
+				"duration": {"raw": 690},
+				"price": 850
+			}]
+		}
+	}`)
+	results, err := parseGF2Response(body, "TLV", "NRT", "USD", "2026-10-08", "2026-10-22", "ECONOMY")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || len(results[0].Legs) != 2 {
+		t.Fatalf("expected 1 RT result with 2 legs, got %+v", results)
 	}
 }
 
