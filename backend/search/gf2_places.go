@@ -6,7 +6,7 @@ import (
 )
 
 // gf2MetroByIATA maps IATA airport/city codes to a shared metro key (same data as explore_metro.go).
-// GF2/SerpAPI reject metropolitan pseudo-codes (TYO, NYC, LON) — they need airport IATA or KGMID.
+// RapidAPI GF2 accepts one IATA code per request — metro city codes need parallel per-airport searches.
 var gf2MetroByIATA = map[string]string{
 	"NYC": "METRO_NYC", "JFK": "METRO_NYC", "LGA": "METRO_NYC", "EWR": "METRO_NYC", "SWF": "METRO_NYC",
 	"LON": "METRO_LON", "LHR": "METRO_LON", "LGW": "METRO_LON", "STN": "METRO_LON", "LTN": "METRO_LON", "LCY": "METRO_LON", "SEN": "METRO_LON",
@@ -55,7 +55,7 @@ var gf2CityToAirport = map[string]string{
 	"DTT": "DTW", "MKC": "MCI", "YEA": "YEG",
 }
 
-var gf2MetroAirports map[string]string
+var gf2MetroAirports map[string][]string
 
 func init() {
 	members := map[string][]string{}
@@ -65,10 +65,10 @@ func init() {
 		}
 		members[metro] = append(members[metro], code)
 	}
-	gf2MetroAirports = make(map[string]string, len(members))
+	gf2MetroAirports = make(map[string][]string, len(members))
 	for metro, airports := range members {
 		sort.Strings(airports)
-		gf2MetroAirports[metro] = strings.Join(airports, ",")
+		gf2MetroAirports[metro] = airports
 	}
 }
 
@@ -80,19 +80,31 @@ func gf2MetroKey(code string) string {
 	return code
 }
 
-// ResolveGF2PlaceCode converts a user-facing place code (airport or metro city) into a
-// GF2-compatible departure_id / arrival_id (comma-separated airport IATA when needed).
-func ResolveGF2PlaceCode(code string) string {
+// GF2SearchAirports returns the list of single IATA codes to query for a place.
+// Metro city codes (TYO, NYC) expand to all airports in the metro; specific airports stay as-is.
+func GF2SearchAirports(code string) []string {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" {
-		return code
+		return nil
+	}
+	if gf2MetroCityCodes[code] {
+		metro := gf2MetroKey(code)
+		if airports, ok := gf2MetroAirports[metro]; ok && len(airports) > 0 {
+			out := append([]string(nil), airports...)
+			return out
+		}
 	}
 	if airport, ok := gf2CityToAirport[code]; ok {
-		return airport
+		return []string{airport}
 	}
-	metro := gf2MetroKey(code)
-	if airports, ok := gf2MetroAirports[metro]; ok && airports != "" {
-		return airports
+	return []string{code}
+}
+
+// ResolveGF2PlaceCode returns a single IATA for callers that cannot fan out (legacy).
+func ResolveGF2PlaceCode(code string) string {
+	airports := GF2SearchAirports(code)
+	if len(airports) == 0 {
+		return strings.ToUpper(strings.TrimSpace(code))
 	}
-	return code
+	return airports[0]
 }
