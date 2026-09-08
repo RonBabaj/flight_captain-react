@@ -132,9 +132,9 @@
     "semantic_hash": ""
   },
   "backend/search/googleflights2_provider.go": {
-    "mtime": 1788853081.5638053,
-    "seen": 1788853109.656098,
-    "ast_hash": "b6f05e025327c2761dd134e46dc6dd85",
+    "mtime": 1788854256.5088966,
+    "seen": 1788854276.1509082,
+    "ast_hash": "91793507b3682d857fa3c4e2da743b40",
     "semantic_hash": ""
   },
   "backend/search/providers.go": {
@@ -1344,15 +1344,21 @@
     "semantic_hash": ""
   },
   "backend/search/gf2_places.go": {
-    "mtime": 1788853087.1878216,
-    "seen": 1788853109.6560948,
-    "ast_hash": "38515fcce585f157883818fa67b85717",
+    "mtime": 1788854240.5488808,
+    "seen": 1788854276.1509054,
+    "ast_hash": "ae579ac8d83af9826f08b4828f89ceef",
     "semantic_hash": ""
   },
   "backend/search/gf2_places_test.go": {
-    "mtime": 1788853086.923821,
-    "seen": 1788853109.6560957,
-    "ast_hash": "e3b40259fd33f71b1dd62ab76b93ad67",
+    "mtime": 1788854263.6569033,
+    "seen": 1788854276.1509063,
+    "ast_hash": "d0e7f13f562d3560f0c293b19fdd0d0e",
+    "semantic_hash": ""
+  },
+  "backend/search/gf2_flat_itinerary_test.go": {
+    "mtime": 1788854263.6449032,
+    "seen": 1788854276.1509037,
+    "ast_hash": "b71ca11662549cd7014e8f489cad84f8",
     "semantic_hash": ""
   }
 }
