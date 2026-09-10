@@ -182,7 +182,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
       // paint the previous route under the new summary header.
       searchActions.beginSearch(payload);
       // Clear any previous sessionId from the URL so Results does not poll a stale id.
-      updateUrl(payload);
+      updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
       navigation.navigate({
         name: 'Results',
         params: { sessionId: '', searchNonce: Date.now() },

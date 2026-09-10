@@ -92,7 +92,8 @@ export async function createSearchSessionWithRetry(
   throw lastErr ?? new Error('Search failed');
 }
 
-function paramsMatch(
+/** True when session params match the active in-app search (ignores unset expected fields). */
+export function searchParamsMatch(
   cached: CreateSearchSessionRequest | undefined,
   expected: Partial<CreateSearchSessionRequest> | null | undefined
 ): boolean {
@@ -128,13 +129,13 @@ export async function getSearchSessionResults(
 
   const memHit = isInitialLoad ? resultsCache.get(sessionId) : undefined;
   if (memHit && now - memHit.at < getRuntimeConfig().resultsCacheTtlMs) {
-    if (!paramsMatch(memHit.data.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
+    if (!searchParamsMatch(memHit.data.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
     return memHit.data;
   }
 
   const storageHit = isInitialLoad ? getFromStorage(sessionId) : null;
   if (storageHit) {
-    if (!paramsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
+    if (!searchParamsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
     resultsCache.set(sessionId, { data: storageHit, at: now });
     return storageHit;
   }
