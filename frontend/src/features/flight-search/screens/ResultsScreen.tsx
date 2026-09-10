@@ -21,7 +21,7 @@ import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '..
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
-import { getSearchSessionResults, createSearchSessionWithRetry } from '../../../api';
+import { getSearchSessionResults, createSearchSessionWithRetry, searchParamsMatch } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
@@ -210,14 +210,20 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
   const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
-  const hasSharedSessionInLink = !!(routeSessionId || urlSessionId);
+  /** SearchForm / Edit search navigate with sessionId="" — must win over a stale URL id. */
+  const routeExplicitNewSearch =
+    (route.params as Record<string, unknown> | undefined)?.sessionId === '' ||
+    deepLinkParams.sessionId === '';
+  const freshInAppSearch = status === 'PENDING' && !storeSessionId;
+  const hasSharedSessionInLink = !freshInAppSearch && !!(routeSessionId || urlSessionId);
 
   /**
    * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
    * sessionId="". Ignore route/URL ids only when starting a fresh in-app search — never
    * when the link itself carries a sessionId (shared deep link opened from Telegram etc.).
    */
-  const optimisticNewSearch = status === 'PENDING' && !storeSessionId && !hasSharedSessionInLink;
+  const optimisticNewSearch =
+    freshInAppSearch && (routeExplicitNewSearch || !routeSessionId);
 
   const sessionId = optimisticNewSearch
     ? ''
@@ -235,7 +241,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   );
   // Skip paramsMatch cache guard while hydrating a shared link — partial/stale URL
   // search fields must not block loading the server-side session snapshot.
-  const sharedLinkHydrationRef = useRef(!!(routeSessionId || urlSessionId) && !storeSessionId);
+  const sharedLinkHydrationRef = useRef(hasSharedSessionInLink && !storeSessionId);
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
@@ -468,7 +474,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
-      versionRef.current = 0;
+      const st = useSearchStore.getState();
+      // Bootstrap may have hydrated results before route sessionId caught up — keep version.
+      if (!(st.sessionId === sessionId && st.results.length > 0)) {
+        versionRef.current = 0;
+      }
     }
   }, [sessionId]);
 
@@ -506,7 +516,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     // URL/route already names a session — that was the iPhone Chrome bug: bootstrap
     // fired on frame 1 (sessionId not resolved yet) and replaced the shared session.
     const linkParams = mergeDeepLinkParams(route.params as Record<string, unknown>);
-    if (linkParams.sessionId?.trim() || parseSearchParamsFromUrl().sessionId?.trim()) return;
+    const storeNow = useSearchStore.getState();
+    const pendingFreshSearch = storeNow.status === 'PENDING' && !storeNow.sessionId;
+    if (
+      !pendingFreshSearch &&
+      (linkParams.sessionId?.trim() || parseSearchParamsFromUrl().sessionId?.trim())
+    ) {
+      return;
+    }
 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
@@ -568,22 +585,23 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     (async () => {
       try {
         const cabin = base.cabinClass ?? 'ECONOMY';
-        const payload: CreateSearchSessionRequest = {
-          ...defaultFormParams,
-          ...base,
-          origin: origin.toUpperCase(),
-          destination: destination.toUpperCase(),
-          departureDate,
-          returnDate: base.returnDate ? String(base.returnDate) : undefined,
-          cabinClass: String(cabin),
-          cabinPreference: (base.cabinPreference ?? cabin) as any,
-          includeCheckedBag: base.includeCheckedBag ?? false,
-          adults: base.adults ?? 1,
-          children: base.children ?? 0,
-          infants: base.infants ?? 0,
-          currency: (base.currency ?? currency ?? 'USD') as any,
-          locale: (base.locale ?? locale ?? 'en-US') as any,
-        };
+        const payload: CreateSearchSessionRequest = classicSearchPayload(
+          { ...defaultFormParams, ...base } as CreateSearchSessionRequest,
+          {
+            origin: origin.toUpperCase(),
+            destination: destination.toUpperCase(),
+            departureDate,
+            returnDate: base.returnDate ? String(base.returnDate) : undefined,
+            cabinClass: String(cabin),
+            cabinPreference: (base.cabinPreference ?? cabin) as any,
+            includeCheckedBag: base.includeCheckedBag ?? false,
+            adults: base.adults ?? 1,
+            children: base.children ?? 0,
+            infants: base.infants ?? 0,
+            currency: (base.currency ?? currency ?? 'USD') as any,
+            locale: (base.locale ?? locale ?? 'en-US') as any,
+          },
+        );
 
         const session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
@@ -670,6 +688,22 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         const latest = useSearchStore.getState();
         if (latest.sessionId != null && latest.sessionId !== polledSessionId) return;
         if (latest.sessionId == null && latest.status === 'PENDING' && !sharedLinkHydrationRef.current) return;
+
+        if (
+          storeParamsRef.current &&
+          res.session?.params &&
+          !searchParamsMatch(res.session.params, storeParamsRef.current)
+        ) {
+          logDeepLinkDiagnostics('poll-stale-session', {
+            routeParams: route.params as Record<string, unknown>,
+            resolvedSessionId: polledSessionId,
+            storeSessionId: useSearchStore.getState().sessionId,
+            storeStatus: statusRef.current,
+            resultsCount: useSearchStore.getState().results.length,
+            apiStatus: 'stale',
+          });
+          return;
+        }
 
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
