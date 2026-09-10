@@ -92,22 +92,39 @@ export async function createSearchSessionWithRetry(
   throw lastErr ?? new Error('Search failed');
 }
 
+function normPax(value: unknown): string {
+  const n = String(value ?? '').trim();
+  if (n === '' || n === '0') return '0';
+  return n;
+}
+
+function normRoute(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 /** True when session params match the active in-app search (ignores unset expected fields). */
 export function searchParamsMatch(
   cached: CreateSearchSessionRequest | undefined,
   expected: Partial<CreateSearchSessionRequest> | null | undefined
 ): boolean {
   if (!expected || !cached) return true;
-  const keys: (keyof CreateSearchSessionRequest)[] = [
+  const routeKeys: (keyof CreateSearchSessionRequest)[] = [
     'origin', 'destination', 'departureDate', 'returnDate',
     'returnOrigin', 'returnDestination',
-    'adults', 'children', 'infants',
   ];
-  for (const k of keys) {
+  for (const k of routeKeys) {
+    const c = cached[k];
+    const e = expected[k];
+    if (e === undefined || e === '') continue;
+    if (k === 'returnDate' && !String(c ?? '').trim() && !String(e ?? '').trim()) continue;
+    if (normRoute(c) !== normRoute(e)) return false;
+  }
+  const paxKeys: (keyof CreateSearchSessionRequest)[] = ['adults', 'children', 'infants'];
+  for (const k of paxKeys) {
     const c = cached[k];
     const e = expected[k];
     if (e === undefined) continue;
-    if (String(c ?? '') !== String(e ?? '')) return false;
+    if (normPax(c) !== normPax(e)) return false;
   }
   if (expected.extraLegs !== undefined) {
     const extraKey = (legs?: { origin?: string; destination?: string; date?: string }[]) =>
@@ -130,17 +147,33 @@ export async function getSearchSessionResults(
   const memHit = isInitialLoad ? resultsCache.get(sessionId) : undefined;
   if (memHit && now - memHit.at < getRuntimeConfig().resultsCacheTtlMs) {
     if (!searchParamsMatch(memHit.data.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
+    if (isEmptyCompleteSession(memHit.data)) return await fetchFresh(sessionId, sinceVersion);
     return memHit.data;
   }
 
   const storageHit = isInitialLoad ? getFromStorage(sessionId) : null;
   if (storageHit) {
     if (!searchParamsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
+    if (isEmptyCompleteSession(storageHit)) return await fetchFresh(sessionId, sinceVersion);
     resultsCache.set(sessionId, { data: storageHit, at: now });
     return storageHit;
   }
 
   return fetchFresh(sessionId, sinceVersion);
+}
+
+function isEmptyCompleteSession(data: SearchSessionResultsResponse): boolean {
+  return data.session?.status === 'COMPLETE' && (data.results?.length ?? 0) === 0;
+}
+
+/** Drop cached snapshots for a session (e.g. before re-searching an empty session). */
+export function invalidateSearchSessionResultsCache(sessionId: string): void {
+  resultsCache.delete(sessionId);
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(STORAGE_PREFIX + sessionId);
+  } catch {}
 }
 
 async function fetchFresh(

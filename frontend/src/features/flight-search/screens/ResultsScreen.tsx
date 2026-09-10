@@ -21,7 +21,12 @@ import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '..
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
-import { getSearchSessionResults, createSearchSessionWithRetry, searchParamsMatch } from '../../../api';
+import {
+  getSearchSessionResults,
+  createSearchSessionWithRetry,
+  searchParamsMatch,
+  invalidateSearchSessionResultsCache,
+} from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
@@ -244,10 +249,49 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const sharedLinkHydrationRef = useRef(hasSharedSessionInLink && !storeSessionId);
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
+  const emptyRetryRef = useRef(false);
+  const bootstrapEmptyRetryRef = useRef(false);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (status === 'PENDING' && !storeSessionId) {
+      emptyRetryRef.current = false;
+      bootstrapEmptyRetryRef.current = false;
+    }
+  }, [status, storeSessionId, searchNonce]);
+
+  const restartFreshSearch = useCallback(
+    (params: Partial<CreateSearchSessionRequest>, staleSessionId?: string) => {
+      const origin = (params.origin ?? '').trim();
+      const destination = (params.destination ?? '').trim();
+      const departureDate = (params.departureDate ?? '').trim();
+      if (!origin || !destination || !departureDate || emptyRetryRef.current) return false;
+
+      emptyRetryRef.current = true;
+      const sid = staleSessionId ?? sessionId;
+      if (sid) invalidateSearchSessionResultsCache(sid);
+
+      const retryPayload = classicSearchPayload(
+        { ...defaultFormParams, ...params } as CreateSearchSessionRequest,
+        {
+          origin: origin.toUpperCase(),
+          destination: destination.toUpperCase(),
+          departureDate,
+          returnDate: params.returnDate ? String(params.returnDate) : undefined,
+        },
+      );
+      searchActions.beginSearch(retryPayload);
+      updateUrl({ ...retryPayload, sessionId: undefined, optionId: undefined, flightId: undefined });
+      versionRef.current = 0;
+      creatingSessionRef.current = false;
+      navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
+      return true;
+    },
+    [sessionId, updateUrl, navigation],
+  );
 
   // iOS WebKit can deliver sessionId one frame late. If bootstrap already called
   // beginSearch (PENDING, no sessionId), the poll guard would block forever —
@@ -603,14 +647,26 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           },
         );
 
-        const session = await createSearchSessionWithRetry(payload);
+        let session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
         // POST /sessions returns COMPLETE but does not include offers. Hydrate
         // results here — the poll effect skips COMPLETE and would otherwise leave
         // the list empty ("No flights found") even when the API has offers.
-        const res = await getSearchSessionResults(session.id, undefined, payload);
+        let res = await getSearchSessionResults(session.id, undefined, payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
+
+        const bootstrapEmpty =
+          (res.session?.status ?? session.status) === 'COMPLETE' &&
+          (res.results?.length ?? 0) === 0;
+        if (bootstrapEmpty && !bootstrapEmptyRetryRef.current) {
+          bootstrapEmptyRetryRef.current = true;
+          invalidateSearchSessionResultsCache(session.id);
+          session = await createSearchSessionWithRetry(payload);
+          if (cancelled || !isCurrentSearchGeneration(generation)) return;
+          res = await getSearchSessionResults(session.id, undefined, payload);
+          if (cancelled || !isCurrentSearchGeneration(generation)) return;
+        }
 
         const applied = searchActions.applySessionResults({
           generation,
@@ -672,7 +728,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       // Otherwise a COMPLETE create with an empty store never GETs offers and the UI
       // falsely shows "No flights found".
       if (currentStatus === 'FAILED') return;
-      if (currentStatus === 'COMPLETE' && versionRef.current > 0) return;
+      if (
+        currentStatus === 'COMPLETE' &&
+        versionRef.current > 0 &&
+        useSearchStore.getState().results.length > 0
+      ) {
+        return;
+      }
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const matchParams =
@@ -702,7 +764,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             resultsCount: useSearchStore.getState().results.length,
             apiStatus: 'stale',
           });
+          restartFreshSearch(storeParamsRef.current, polledSessionId);
           return;
+        }
+
+        const pollEmptyComplete =
+          res.session?.status === 'COMPLETE' && (res.results?.length ?? 0) === 0;
+        if (pollEmptyComplete) {
+          const retryParams = storeParamsRef.current ?? res.session?.params;
+          if (retryParams && restartFreshSearch(retryParams, polledSessionId)) {
+            return;
+          }
         }
 
         consecutiveNotFound = 0;
@@ -775,7 +847,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         clearInterval(id);
         return;
       }
-      if (st === 'COMPLETE' && versionRef.current > 0) {
+      if (st === 'COMPLETE' && versionRef.current > 0 && useSearchStore.getState().results.length > 0) {
         clearInterval(id);
         return;
       }
