@@ -56,12 +56,11 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     const sid = paramsFromUrl.sessionId;
     if (!sid || typeof window === 'undefined') return;
     // Shared-link recovery only: cold open on SearchForm with a sessionId in the URL
-    // and nothing in the store. If we already have params/session (user searched or is
-    // looking at prior results), do not bounce back to Results — that stuck people on
-    // the previous cached session whenever the address bar still held sessionId.
+    // and nothing in the store. Pass the real sessionId — navigating with '' used to
+    // make mergeDeepLinkParams drop the URL id and hang Chrome shared links forever.
     const st = useSearchStore.getState();
     if (st.sessionId || st.status === 'PENDING' || st.params) return;
-    navigation.navigate('Results', { sessionId: '' });
+    navigation.navigate('Results', { sessionId: sid });
   }, [paramsFromUrl.sessionId, navigation]);
 
   // Do not merge URL on every render — that overwrote destination when switching Anywhere → real airport
