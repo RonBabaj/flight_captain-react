@@ -215,22 +215,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
   const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
-  /** SearchForm / Edit search navigate with sessionId="" — must win over a stale URL id. */
-  const routeExplicitNewSearch =
-    (route.params as Record<string, unknown> | undefined)?.sessionId === '' ||
-    deepLinkParams.sessionId === '';
+  /**
+   * beginSearch leaves PENDING + sessionId=null. While that is active, ignore any
+   * sessionId still sitting in the URL/route (Dynamic Destinations used to leave the
+   * previous id in the query string; React Navigation can also re-inject it from the
+   * address bar). Shared deep links never arrive in PENDING — they open with a null
+   * store status and should still hydrate from the link sessionId.
+   */
   const freshInAppSearch = status === 'PENDING' && !storeSessionId;
   const hasSharedSessionInLink = !freshInAppSearch && !!(routeSessionId || urlSessionId);
 
-  /**
-   * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
-   * sessionId="". Ignore route/URL ids only when starting a fresh in-app search — never
-   * when the link itself carries a sessionId (shared deep link opened from Telegram etc.).
-   */
-  const optimisticNewSearch =
-    freshInAppSearch && (routeExplicitNewSearch || !routeSessionId);
-
-  const sessionId = optimisticNewSearch
+  const sessionId = freshInAppSearch
     ? ''
     : (storeSessionId || routeSessionId || urlSessionId || '');
   const searchNonce = (route.params as any)?.searchNonce ?? 0;
@@ -396,7 +391,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     try {
       setCachedSearch(payload);
       const generation = searchActions.beginSearch(payload);
-      updateUrl(payload);
+      updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
       versionRef.current = 0;
       const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
