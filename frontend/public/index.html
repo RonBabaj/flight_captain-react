@@ -41,6 +41,20 @@
         flex: 1;
       }
     </style>
+    <!-- Force HTTPS as a client-side fallback. Production edge (Nginx Proxy Manager)
+         should 301 http→https; this covers caches / misconfigured hosts so Chrome
+         does not keep an insecure Origin that breaks CORS to api.fly-fix.com. -->
+    <script>
+      (function () {
+        try {
+          var loc = window.location;
+          if (!loc || loc.protocol !== 'http:') return;
+          var host = (loc.hostname || '').toLowerCase();
+          if (host === 'localhost' || host === '127.0.0.1') return;
+          loc.replace('https://' + loc.host + loc.pathname + loc.search + loc.hash);
+        } catch (e) {}
+      })();
+    </script>
     <!-- Capture shared-link query BEFORE React Navigation / Chrome rewrite the address bar.
          Without this, iOS Chrome Incognito often shows bare fly-fix.com and Results hangs. -->
     <script>

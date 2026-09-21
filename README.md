@@ -317,6 +317,7 @@ Legacy bookmarks (Apache/LiteSpeed, optional): **`frontend/public/.htaccess`** *
 
 - **SPA routing:** Docker/nginx serves the SPA using physical `index.html` route shells generated at build time by `frontend/scripts/write-spa-fallbacks.mjs`. `frontend/public/.htaccess` remains for legacy Apache/LiteSpeed hosting (optional).
 - **Deploy:** GitHub Actions deploys the Docker stack to the VPS on every push to `main` (see `.github/workflows/deploy.yml`).
+- **TLS / HTTPS:** Nginx Proxy Manager on the VPS must Force SSL for `fly-fix.com`, `www.fly-fix.com`, and `api.fly-fix.com`, and the frontend LE cert must include **both** apex and `www` SANs. See `scripts/npm-ssl-flyfix.md`. The SPA also upgrades `http→https` in `frontend/public/index.html` as a fallback.
 - **Legacy URLs:** **301** redirects for `/results` and `/deals` to the new paths; see **Web routes** above.
 
 ## Notes
