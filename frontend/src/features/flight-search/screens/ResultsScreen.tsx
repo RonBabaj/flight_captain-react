@@ -939,8 +939,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     };
   }, [sessionId]);
 
-  // Shared-link hang: sessionId present, store still null (never hydrated). After a
-  // short wait surface expired/retry instead of spinning "Finding the best fares…".
+  // Shared-link hang: sessionId present, store still null (never hydrated). Chrome
+  // often strips the URL before the GET completes. Prefer re-running the search from
+  // stashed params over a false "expired" screen.
   useEffect(() => {
     if (!sessionId || storeSessionId || status === 'COMPLETE' || status === 'FAILED') return;
     if (status === 'PENDING' || status === 'PARTIAL') return; // in-app search path
@@ -951,6 +952,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (st.sessionId || st.status === 'COMPLETE' || st.status === 'FAILED') return;
       if (st.results.length > 0) return;
       const cached = readSharedLinkCache();
+      const params = st.params ?? cached;
+      if (
+        params &&
+        (params.origin ?? '').trim() &&
+        (params.destination ?? '').trim() &&
+        (params.departureDate ?? '').trim()
+      ) {
+        restartFreshSearch(params, sessionId);
+        return;
+      }
       const canReRun = !!(
         (cached?.origin || storeParams?.origin) &&
         (cached?.destination || storeParams?.destination) &&
@@ -959,12 +970,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       setSharedLinkExpired(canReRun);
       searchActions.setError(canReRun ? t('shared_link_expired_body') : t('link_expired_invalid'));
       searchActions.setSession(null, null, 'FAILED');
-    }, 15000);
+    }, 12000);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [sessionId, storeSessionId, status, storeParams, t]);
+  }, [sessionId, storeSessionId, status, storeParams, t, restartFreshSearch]);
 
   useEffect(() => {
     if (sessionId && storeParams) {
