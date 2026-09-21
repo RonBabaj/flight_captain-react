@@ -1,15 +1,18 @@
 /**
  * Survive Chrome/iOS WebKit address-bar sync that strips ?sessionId=… from the
- * visible URL (and sometimes from window.location) after a shared link opens.
+ * visible URL (and sometimes rewrites the path to `/`) after a shared link opens.
  * sessionStorage is tab-scoped — Incognito still works within the same tab.
- *
- * Also call captureSharedLinkFromLocation() as early as possible (module load /
- * index.html inline script) before React Navigation rewrites history.
  */
 
 import type { SearchUrlState } from '../hooks/useSearchParams';
 
 export const SHARED_LINK_STORAGE_KEY = 'flyfix_shared_link_v1';
+export const BOOT_HREF_STORAGE_KEY = 'flyfix_boot_href_v1';
+
+export type SharedLinkCache = SearchUrlState & {
+  /** Path when the link was opened, e.g. /search/results */
+  pathname?: string;
+};
 
 function getSessionStorage(): Storage | null {
   try {
@@ -20,13 +23,36 @@ function getSessionStorage(): Storage | null {
   }
 }
 
-export function readSharedLinkCache(): SearchUrlState | null {
+export function readBootHref(): string | null {
+  const storage = getSessionStorage();
+  if (!storage) return null;
+  try {
+    const href = storage.getItem(BOOT_HREF_STORAGE_KEY);
+    return href && href.trim() ? href.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberBootHref(href: string): void {
+  const storage = getSessionStorage();
+  if (!storage) return;
+  try {
+    if (href && href.includes('sessionId=')) {
+      storage.setItem(BOOT_HREF_STORAGE_KEY, href);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function readSharedLinkCache(): SharedLinkCache | null {
   const storage = getSessionStorage();
   if (!storage) return null;
   try {
     const raw = storage.getItem(SHARED_LINK_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as SearchUrlState;
+    const parsed = JSON.parse(raw) as SharedLinkCache;
     if (!parsed || typeof parsed !== 'object') return null;
     if (typeof parsed.sessionId !== 'string' || !parsed.sessionId.trim()) return null;
     return parsed;
@@ -36,14 +62,14 @@ export function readSharedLinkCache(): SearchUrlState | null {
 }
 
 /** Persist whatever identity we still have for this tab's shared link. */
-export function rememberSharedLink(params: SearchUrlState): void {
+export function rememberSharedLink(params: SharedLinkCache): void {
   const sessionId = typeof params.sessionId === 'string' ? params.sessionId.trim() : '';
   if (!sessionId) return;
   const storage = getSessionStorage();
   if (!storage) return;
   try {
     const prev = readSharedLinkCache() ?? {};
-    const next: SearchUrlState = {
+    const next: SharedLinkCache = {
       ...prev,
       ...params,
       sessionId,
@@ -59,24 +85,32 @@ export function clearSharedLinkCache(): void {
   if (!storage) return;
   try {
     storage.removeItem(SHARED_LINK_STORAGE_KEY);
+    storage.removeItem(BOOT_HREF_STORAGE_KEY);
   } catch {
     // ignore
   }
 }
 
 /**
- * Snapshot the live window.location search into sessionStorage.
+ * Snapshot the live window.location into sessionStorage.
  * Safe to call repeatedly; no-ops when there is no sessionId in the URL.
  */
 export function captureSharedLinkFromLocation(): void {
   try {
-    const g = globalThis as { window?: { location?: { search?: string } } };
-    const search = g.window?.location?.search ?? '';
+    const g = globalThis as {
+      window?: { location?: { href?: string; search?: string; pathname?: string } };
+    };
+    const loc = g.window?.location;
+    const search = loc?.search ?? '';
     if (!search || !search.includes('sessionId=')) return;
+    if (loc?.href) rememberBootHref(loc.href);
     const p = new URLSearchParams(search);
     const sessionId = (p.get('sessionId') || '').trim();
     if (!sessionId) return;
-    const payload: SearchUrlState = { sessionId };
+    const payload: SharedLinkCache = {
+      sessionId,
+      pathname: loc?.pathname || undefined,
+    };
     const optionId = p.get('optionId');
     const flightId = p.get('flightId');
     const origin = p.get('origin');
@@ -111,6 +145,13 @@ export function captureSharedLinkFromLocation(): void {
   } catch {
     // ignore
   }
+}
+
+/** Prefer Results path under Search or Dynamic Destinations when Chrome wiped us to `/`. */
+export function resultsPathFromSharedCache(cached?: SharedLinkCache | null): string {
+  const path = (cached?.pathname || '').toLowerCase();
+  if (path.includes('dynamic-destinations')) return '/dynamic-destinations/results';
+  return '/search/results';
 }
 
 // Seed stash as soon as this module is evaluated — before NavigationContainer mounts.

@@ -46,12 +46,17 @@
     <script>
       (function () {
         try {
+          var href = window.location && window.location.href;
           var q = window.location && window.location.search;
           if (!q || q.indexOf('sessionId=') === -1) return;
+          if (href) window.sessionStorage.setItem('flyfix_boot_href_v1', href);
           var p = new URLSearchParams(q);
           var sid = (p.get('sessionId') || '').trim();
           if (!sid) return;
-          var payload = { sessionId: sid };
+          var payload = {
+            sessionId: sid,
+            pathname: (window.location.pathname || ''),
+          };
           [
             'optionId',
             'flightId',
