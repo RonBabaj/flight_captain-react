@@ -10,6 +10,8 @@ import { AuthProvider } from './src/context/AuthContext';
 import { RootNavigator } from './src/navigation';
 import { API_BASE } from './src/api/client';
 import { useExchangeRates } from './src/hooks/useExchangeRates';
+// Seed shared-link stash before NavigationContainer can rewrite the URL.
+import './src/utils/sharedLinkCache';
 
 const linking = {
   prefixes: [

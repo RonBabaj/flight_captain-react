@@ -11,7 +11,10 @@
 
 import type { SearchUrlState } from '../hooks/useSearchParams';
 import { parseSearchParamsFromUrl } from '../hooks/useSearchParams';
-import { readSharedLinkCache, rememberSharedLink } from './sharedLinkCache';
+import { readSharedLinkCache, rememberSharedLink, captureSharedLinkFromLocation } from './sharedLinkCache';
+
+// Re-run capture on import of this module too (App / Results import path).
+captureSharedLinkFromLocation();
 
 function trimString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;

@@ -41,6 +41,39 @@
         flex: 1;
       }
     </style>
+    <!-- Capture shared-link query BEFORE React Navigation / Chrome rewrite the address bar.
+         Without this, iOS Chrome Incognito often shows bare fly-fix.com and Results hangs. -->
+    <script>
+      (function () {
+        try {
+          var q = window.location && window.location.search;
+          if (!q || q.indexOf('sessionId=') === -1) return;
+          var p = new URLSearchParams(q);
+          var sid = (p.get('sessionId') || '').trim();
+          if (!sid) return;
+          var payload = { sessionId: sid };
+          [
+            'optionId',
+            'flightId',
+            'origin',
+            'destination',
+            'departureDate',
+            'returnDate',
+            'returnOrigin',
+            'returnDestination',
+            'adults',
+            'children',
+            'currency',
+            'cabinClass',
+            'extra',
+          ].forEach(function (k) {
+            var v = p.get(k);
+            if (v) payload[k] = v;
+          });
+          window.sessionStorage.setItem('flyfix_shared_link_v1', JSON.stringify(payload));
+        } catch (e) {}
+      })();
+    </script>
     <!-- Google AdSense. Consent message (CMP) for EEA/UK/CH: create & publish in AdSense → Privacy & messaging → European regulations; the tag above deploys it automatically. -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6901812004439947" crossorigin="anonymous"></script>
     <!-- Travelpayouts Drive (affiliate/tracking) -->
