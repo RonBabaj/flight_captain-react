@@ -269,15 +269,29 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       const sid = staleSessionId ?? sessionId;
       if (sid) invalidateSearchSessionResultsCache(sid);
 
-      const retryPayload = classicSearchPayload(
-        { ...defaultFormParams, ...params } as CreateSearchSessionRequest,
-        {
-          origin: origin.toUpperCase(),
-          destination: destination.toUpperCase(),
-          departureDate,
-          returnDate: params.returnDate ? String(params.returnDate) : undefined,
-        },
-      );
+      const merged = {
+        ...defaultFormParams,
+        ...params,
+        origin: origin.toUpperCase(),
+        destination: destination.toUpperCase(),
+        departureDate,
+        returnDate: params.returnDate ? String(params.returnDate) : undefined,
+      } as CreateSearchSessionRequest;
+
+      const retryPayload = isDynamicDestinationsSearch(merged)
+        ? {
+            ...merged,
+            returnOrigin: (merged.returnOrigin || '').trim().toUpperCase(),
+            returnDestination: (merged.returnDestination || merged.origin).trim().toUpperCase(),
+            extraLegs: merged.extraLegs ?? [],
+          }
+        : classicSearchPayload(merged, {
+            origin: merged.origin,
+            destination: merged.destination,
+            departureDate: merged.departureDate,
+            returnDate: merged.returnDate,
+          });
+
       searchActions.beginSearch(retryPayload);
       updateUrl({ ...retryPayload, sessionId: undefined, optionId: undefined, flightId: undefined });
       versionRef.current = 0;
@@ -549,7 +563,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   useEffect(() => {
     if (sessionId) return;
-    if (creatingSessionRef.current) return;
 
     // Shared links carry sessionId + search params. Never POST a new search when the
     // URL/route already names a session — that was the iPhone Chrome bug: bootstrap
@@ -585,7 +598,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const origin = (base.origin ?? '').trim();
     const destination = (base.destination ?? '').trim();
     const departureDate = (base.departureDate ?? '').trim();
-    if (!origin || !destination || !departureDate) return;
+    if (!origin || !destination || !departureDate) {
+      // beginSearch already flipped us to PENDING — without params we would spin
+      // "Comparing prices…" forever. Surface a retryable failure instead.
+      if (pendingFreshSearch) {
+        searchActions.setError(t('please_fill_origin_destination'));
+        searchActions.setSession(null, null, 'FAILED');
+      }
+      return;
+    }
 
     if (isDynamicDestinationsSearch(base) && !(base.returnDate ?? '').trim()) {
       searchActions.setError(t('choose_return_date'));
@@ -593,6 +614,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       return;
     }
 
+    let cancelled = false;
+    // Clear any gate left by a previous Strict Mode / remount cycle so we never
+    // bail out permanently while status stays PENDING (infinite skeletons).
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
 
@@ -620,27 +644,38 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     searchActions.setError(null);
     versionRef.current = 0;
 
-    let cancelled = false;
     (async () => {
       try {
         const cabin = base.cabinClass ?? 'ECONOMY';
-        const payload: CreateSearchSessionRequest = classicSearchPayload(
-          { ...defaultFormParams, ...base } as CreateSearchSessionRequest,
-          {
-            origin: origin.toUpperCase(),
-            destination: destination.toUpperCase(),
-            departureDate,
-            returnDate: base.returnDate ? String(base.returnDate) : undefined,
-            cabinClass: String(cabin),
-            cabinPreference: (base.cabinPreference ?? cabin) as any,
-            includeCheckedBag: base.includeCheckedBag ?? false,
-            adults: base.adults ?? 1,
-            children: base.children ?? 0,
-            infants: base.infants ?? 0,
-            currency: (base.currency ?? currency ?? 'USD') as any,
-            locale: (base.locale ?? locale ?? 'en-US') as any,
-          },
-        );
+        const mergedBase = {
+          ...defaultFormParams,
+          ...base,
+          origin: origin.toUpperCase(),
+          destination: destination.toUpperCase(),
+          departureDate,
+          returnDate: base.returnDate ? String(base.returnDate) : undefined,
+          cabinClass: String(cabin),
+          cabinPreference: (base.cabinPreference ?? cabin) as any,
+          includeCheckedBag: base.includeCheckedBag ?? false,
+          adults: base.adults ?? 1,
+          children: base.children ?? 0,
+          infants: base.infants ?? 0,
+          currency: (base.currency ?? currency ?? 'USD') as any,
+          locale: (base.locale ?? locale ?? 'en-US') as any,
+        } as CreateSearchSessionRequest;
+
+        // Keep open-jaw / extra-leg fields for Dynamic Destinations. classicSearchPayload
+        // strips them and turned DD bootstraps into plain TLV↔VIE round-trips.
+        const payload: CreateSearchSessionRequest = isDynamicDestinationsSearch(mergedBase)
+          ? {
+              ...mergedBase,
+              returnOrigin: (mergedBase.returnOrigin || '').trim().toUpperCase(),
+              returnDestination: (mergedBase.returnDestination || mergedBase.origin)
+                .trim()
+                .toUpperCase(),
+              extraLegs: mergedBase.extraLegs ?? [],
+            }
+          : classicSearchPayload(mergedBase);
 
         let session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
@@ -674,6 +709,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         });
         if (!applied) return;
         versionRef.current = res.version ?? 1;
+        updateUrl({ ...payload, sessionId: session.id, optionId: undefined, flightId: undefined });
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
@@ -690,12 +726,44 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
     return () => {
       cancelled = true;
+      // Let a remounted effect start a new create immediately (React Strict Mode /
+      // searchNonce bump). Leaving this true blocked the remount and left PENDING
+      // with empty results — "Comparing prices…" forever.
+      creatingSessionRef.current = false;
     };
     // Deliberately narrow deps: params/navigation/currency/locale are read via
     // refs or captured at execution time. Re-running on those (esp. storeParams,
     // which this effect itself mutates via beginSearch) self-cancelled the create.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, searchNonce]);
+
+  // Safety net: if bootstrap was cancelled/raced and never restarted, PENDING with
+  // no sessionId hangs on skeletons forever. After a short wait, re-bump searchNonce
+  // once; if still stuck, fail so the user can retry.
+  useEffect(() => {
+    if (sessionId || status !== 'PENDING' || storeSessionId) return;
+    let cancelled = false;
+    const retryTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId || creatingSessionRef.current) return;
+      navigation.setParams({ sessionId: '', searchNonce: Date.now() });
+    }, 8000);
+    const failTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId) return;
+      searchActions.setError(t('search_failed'));
+      searchActions.setSession(null, null, 'FAILED');
+      setBootstrappingSession(false);
+      creatingSessionRef.current = false;
+    }, 25000);
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+      clearTimeout(failTimer);
+    };
+  }, [sessionId, status, storeSessionId, searchNonce, navigation, t]);
 
   useEffect(() => {
     if (!sessionId) return;
