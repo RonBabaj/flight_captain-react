@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
-import { searchActions } from '../../../store';
+import { searchActions, useSearchStore } from '../../../store';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
@@ -54,12 +54,14 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     const sid = paramsFromUrl.sessionId;
-    if (sid && typeof window !== 'undefined') {
-      // Pass sessionId='' so Results resolves it from the URL, not from a fixed route
-      // param. That lets the expired-session recovery clear the URL sessionId and have
-      // routeSessionId fall to '' so the bootstrap effect can re-run the search.
-      navigation.navigate('Results', { sessionId: '' });
-    }
+    if (!sid || typeof window === 'undefined') return;
+    // Shared-link recovery only: cold open on SearchForm with a sessionId in the URL
+    // and nothing in the store. If we already have params/session (user searched or is
+    // looking at prior results), do not bounce back to Results — that stuck people on
+    // the previous cached session whenever the address bar still held sessionId.
+    const st = useSearchStore.getState();
+    if (st.sessionId || st.status === 'PENDING' || st.params) return;
+    navigation.navigate('Results', { sessionId: '' });
   }, [paramsFromUrl.sessionId, navigation]);
 
   // Do not merge URL on every render — that overwrote destination when switching Anywhere → real airport

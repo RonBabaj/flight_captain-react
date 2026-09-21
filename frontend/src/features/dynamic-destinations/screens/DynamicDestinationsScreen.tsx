@@ -12,6 +12,7 @@ import { searchActions } from '../../../store';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import type { DynamicDestinationsStackParamList } from '../../../navigation/types';
 import { DynamicDestinationsFormContent } from '../components/DynamicDestinationsFormContent';
+import { updateSearchUrl } from '../../../hooks/useSearchParams';
 import {
   addExtraDestinationLeg,
   MAX_EXTRA_DESTINATIONS,
@@ -91,7 +92,19 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
       // Same optimistic flow as regular search: Results bootstraps the session
       // with the full DD payload (returnOrigin, extraLegs, etc.).
       searchActions.beginSearch(validated.payload);
-      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() } as any);
+      // Clear any previous sessionId from the URL so Results does not poll a stale id
+      // (this was leaving users stuck on e.g. sess_dll0keke7b9i after a new search).
+      updateSearchUrl({
+        ...validated.payload,
+        sessionId: undefined,
+        optionId: undefined,
+        flightId: undefined,
+      });
+      navigation.navigate({
+        name: 'Results',
+        params: { sessionId: '', searchNonce: Date.now() },
+        merge: false,
+      } as any);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('search_failed'));
     } finally {

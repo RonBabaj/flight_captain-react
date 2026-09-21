@@ -64,12 +64,16 @@ export function mergeDeepLinkParams(
   const cabinClass = trimString(routeParams?.cabinClass);
   if (cabinClass) fromRoute.cabinClass = cabinClass.toUpperCase() as SearchUrlState['cabinClass'];
 
-  // URL first for search fields (share URLs bake the canonical values), then route
-  // overrides for ids that Navigation keeps after address-bar sync on iOS WebKit.
+  // Prefer route ids when Navigation kept them after address-bar sync (iOS WebKit).
+  // Explicit empty sessionId on the route means "new search" — do not fall back to a
+  // stale sessionId still present in window.location.
+  const routeClearedSession =
+    routeParams != null && Object.prototype.hasOwnProperty.call(routeParams, 'sessionId') && !sessionId;
+
   return {
     ...fromUrl,
     ...fromRoute,
-    sessionId: fromRoute.sessionId ?? fromUrl.sessionId,
+    sessionId: routeClearedSession ? undefined : (fromRoute.sessionId ?? fromUrl.sessionId),
     optionId: fromRoute.optionId ?? fromUrl.optionId,
     flightId: fromRoute.flightId ?? fromUrl.flightId,
   };
