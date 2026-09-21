@@ -33,7 +33,7 @@ import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSea
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
-import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
+import { clearSharedLinkCache, readSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -245,6 +245,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // Skip paramsMatch cache guard while hydrating a shared link — partial/stale URL
   // search fields must not block loading the server-side session snapshot.
   const sharedLinkHydrationRef = useRef(hasSharedSessionInLink && !storeSessionId);
+  // Keep the ref in sync when sessionId appears a frame late (Chrome address-bar strip).
+  if (hasSharedSessionInLink && !storeSessionId) {
+    sharedLinkHydrationRef.current = true;
+  }
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
   const emptyRetryRef = useRef(false);
@@ -258,8 +262,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (status === 'PENDING' && !storeSessionId) {
       emptyRetryRef.current = false;
       bootstrapEmptyRetryRef.current = false;
-      // New in-app search must not revive a prior shared-link session from stash.
-      clearSharedLinkCache();
+      // Do NOT clearSharedLinkCache here — a premature PENDING (bootstrap race before
+      // sessionId resolves) would wipe the stash Chrome needs after stripping the URL.
     }
   }, [status, storeSessionId, searchNonce]);
 
@@ -898,7 +902,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             // retention, or an invalid id). Show a distinct expired-link state —
             // never the generic "No flights found".
             const urlP = parseSearchParamsFromUrl();
-            const canReRun = !!(urlP.origin && urlP.destination && urlP.departureDate);
+            const cached = readSharedLinkCache();
+            const canReRun = !!(
+              (urlP.origin || cached?.origin) &&
+              (urlP.destination || cached?.destination) &&
+              (urlP.departureDate || cached?.departureDate)
+            );
             setSharedLinkExpired(canReRun);
             searchActions.setError(
               canReRun ? t('shared_link_expired_body') : t('link_expired_invalid')
@@ -929,6 +938,33 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       clearInterval(id);
     };
   }, [sessionId]);
+
+  // Shared-link hang: sessionId present, store still null (never hydrated). After a
+  // short wait surface expired/retry instead of spinning "Finding the best fares…".
+  useEffect(() => {
+    if (!sessionId || storeSessionId || status === 'COMPLETE' || status === 'FAILED') return;
+    if (status === 'PENDING' || status === 'PARTIAL') return; // in-app search path
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.sessionId || st.status === 'COMPLETE' || st.status === 'FAILED') return;
+      if (st.results.length > 0) return;
+      const cached = readSharedLinkCache();
+      const canReRun = !!(
+        (cached?.origin || storeParams?.origin) &&
+        (cached?.destination || storeParams?.destination) &&
+        (cached?.departureDate || storeParams?.departureDate)
+      );
+      setSharedLinkExpired(canReRun);
+      searchActions.setError(canReRun ? t('shared_link_expired_body') : t('link_expired_invalid'));
+      searchActions.setSession(null, null, 'FAILED');
+    }, 15000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sessionId, storeSessionId, status, storeParams, t]);
 
   useEffect(() => {
     if (sessionId && storeParams) {
@@ -1194,15 +1230,41 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (sharedLinkExpired) {
       const rerunSharedSearch = () => {
         const urlP = parseSearchParamsFromUrl();
+        const cached = readSharedLinkCache() ?? {};
+        const merged = { ...cached, ...urlP };
         // Keep the canonical fingerprint so the shared flight re-opens after the
         // fresh search finds the same itinerary.
-        if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
+        if (merged.flightId) pendingFlightIdRef.current = merged.flightId;
         pendingOptionIdRef.current = undefined;
         setSharedLinkExpired(false);
         searchActions.setError(null);
         searchActions.setSession(null, null, null);
         versionRef.current = 0;
         creatingSessionRef.current = false;
+        const origin = (merged.origin ?? '').trim();
+        const destination = (merged.destination ?? '').trim();
+        const departureDate = (merged.departureDate ?? '').trim();
+        if (origin && destination && departureDate) {
+          const payload = classicSearchPayload(
+            { ...defaultFormParams, ...merged } as CreateSearchSessionRequest,
+            {
+              origin: origin.toUpperCase(),
+              destination: destination.toUpperCase(),
+              departureDate,
+              returnDate: merged.returnDate ? String(merged.returnDate) : undefined,
+            },
+          );
+          clearSharedLinkCache();
+          searchActions.beginSearch(payload);
+          updateUrl({
+            ...payload,
+            sessionId: undefined,
+            optionId: undefined,
+            flightId: merged.flightId,
+          });
+          navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
+          return;
+        }
         clearDeadSessionEverywhere();
       };
       return (

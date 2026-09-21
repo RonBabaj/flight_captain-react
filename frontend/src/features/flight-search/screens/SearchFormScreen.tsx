@@ -8,6 +8,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
+import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
@@ -181,6 +182,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
       // Optimistic navigation: create the session after the Results screen mounts.
       // beginSearch bumps generation + clears prior results so a late poll cannot
       // paint the previous route under the new summary header.
+      clearSharedLinkCache();
       searchActions.beginSearch(payload);
       // Clear any previous sessionId from the URL so Results does not poll a stale id.
       updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
