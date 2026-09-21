@@ -33,6 +33,7 @@ import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSea
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
+import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
@@ -211,16 +212,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // WebKit the address bar can lose query params after history sync while
   // route.params still holds sessionId/optionId from the original shared URL.
   const deepLinkParams = mergeDeepLinkParams(route.params);
-  const mergedSearchParams = { ...paramsFromUrl, ...deepLinkParams };
+  // Prefer deep-link merge (URL + route + sessionStorage stash). Do not re-spread
+  // paramsFromUrl on top — an emptied address bar would wipe a recovered sessionId.
+  const mergedSearchParams = deepLinkParams;
 
   const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
   const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
   /**
    * beginSearch leaves PENDING + sessionId=null. While that is active, ignore any
-   * sessionId still sitting in the URL/route (Dynamic Destinations used to leave the
-   * previous id in the query string; React Navigation can also re-inject it from the
-   * address bar). Shared deep links never arrive in PENDING — they open with a null
-   * store status and should still hydrate from the link sessionId.
+   * sessionId still sitting in the URL/route/stash (Dynamic Destinations used to leave
+   * the previous id in the query string; React Navigation can also re-inject it).
+   * Shared deep links never arrive in PENDING — they open with a null store status
+   * and should still hydrate from the link sessionId.
    */
   const freshInAppSearch = status === 'PENDING' && !storeSessionId;
   const hasSharedSessionInLink = !freshInAppSearch && !!(routeSessionId || urlSessionId);
@@ -255,6 +258,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (status === 'PENDING' && !storeSessionId) {
       emptyRetryRef.current = false;
       bootstrapEmptyRetryRef.current = false;
+      // New in-app search must not revive a prior shared-link session from stash.
+      clearSharedLinkCache();
     }
   }, [status, storeSessionId, searchNonce]);
 
@@ -293,6 +298,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           });
 
       searchActions.beginSearch(retryPayload);
+      clearSharedLinkCache();
       updateUrl({ ...retryPayload, sessionId: undefined, optionId: undefined, flightId: undefined });
       versionRef.current = 0;
       creatingSessionRef.current = false;

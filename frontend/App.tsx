@@ -12,7 +12,11 @@ import { API_BASE } from './src/api/client';
 import { useExchangeRates } from './src/hooks/useExchangeRates';
 
 const linking = {
-  prefixes: [],
+  prefixes: [
+    'https://fly-fix.com',
+    'https://www.fly-fix.com',
+    ...(typeof window !== 'undefined' && window.location?.origin ? [window.location.origin] : []),
+  ],
   config: {
     screens: {
       Home: '',
@@ -20,7 +24,22 @@ const linking = {
         path: 'search',
         screens: {
           SearchForm: '',
-          Results: 'results',
+          Results: {
+            path: 'results',
+            parse: {
+              sessionId: (v: string) => v,
+              optionId: (v: string) => v,
+              flightId: (v: string) => v,
+              origin: (v: string) => v,
+              destination: (v: string) => v,
+              departureDate: (v: string) => v,
+              returnDate: (v: string) => v,
+              adults: (v: string) => v,
+              children: (v: string) => v,
+              currency: (v: string) => v,
+              cabinClass: (v: string) => v,
+            },
+          },
           Explore: 'explore',
         },
       },
@@ -28,7 +47,14 @@ const linking = {
         path: 'monthly-deals',
         screens: {
           MonthDealsForm: '',
-          MonthDealsResults: 'results',
+          MonthDealsResults: {
+            path: 'results',
+            parse: {
+              sessionId: (v: string) => v,
+              optionId: (v: string) => v,
+              flightId: (v: string) => v,
+            },
+          },
           Explore: 'explore',
         },
       },
@@ -36,7 +62,24 @@ const linking = {
         path: 'dynamic-destinations',
         screens: {
           DynamicDestinationsForm: '',
-          Results: 'results',
+          Results: {
+            path: 'results',
+            parse: {
+              sessionId: (v: string) => v,
+              optionId: (v: string) => v,
+              flightId: (v: string) => v,
+              origin: (v: string) => v,
+              destination: (v: string) => v,
+              departureDate: (v: string) => v,
+              returnDate: (v: string) => v,
+              returnOrigin: (v: string) => v,
+              returnDestination: (v: string) => v,
+              adults: (v: string) => v,
+              children: (v: string) => v,
+              currency: (v: string) => v,
+              cabinClass: (v: string) => v,
+            },
+          },
         },
       },
       Settings: {
