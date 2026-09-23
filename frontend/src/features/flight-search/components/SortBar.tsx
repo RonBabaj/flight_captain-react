@@ -26,8 +26,10 @@ export function SortBar({ sortField, sortOrder, onSort }: SortBarProps) {
       <View style={[s.pills, isRTL && s.pillsRTL]}>
         {opts.map((opt) => {
           const active = sortField === opt;
+          // asc = cheaper/faster first (low values at top). Show ↓ so the arrow
+          // matches "lower is better", not a generic ascending glyph.
           const arrow =
-            active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
+            active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↓' : ' ↑') : '';
           return (
             <Chip
               key={opt}
