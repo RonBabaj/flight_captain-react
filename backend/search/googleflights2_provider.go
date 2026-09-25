@@ -2191,20 +2191,71 @@ func parseGF2TimeWithDateHint(s, dateHint, airportCode string) (time.Time, error
 	return time.Time{}, fmt.Errorf("could not parse %q with date hint %q", s, dateHint)
 }
 
+// gf2HasNumericUTCOffset reports whether s includes an explicit ±HH:MM / ±HHMM offset
+// (not a trailing Z). Those are treated as absolute instants.
+func gf2HasNumericUTCOffset(s string) bool {
+	// RFC3339-style: ...±HH:MM or ...±HHMM at end
+	if len(s) < 6 {
+		return false
+	}
+	for i := len(s) - 1; i >= 0; i-- {
+		c := s[i]
+		if c == '+' || c == '-' {
+			// Avoid matching date separators in "2006-01-02..."
+			if i < 10 {
+				return false
+			}
+			rest := s[i+1:]
+			if len(rest) == 5 && rest[2] == ':' { // HH:MM
+				return true
+			}
+			if len(rest) == 4 { // HHMM
+				return true
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// gf2WallClockString strips a trailing Z so GF2/SerpAPI "local labeled as Z" values
+// can be parsed in the airport timezone. Numeric offsets are left intact.
+func gf2WallClockString(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "Z") || strings.HasSuffix(s, "z") {
+		return strings.TrimSpace(s[:len(s)-1])
+	}
+	return s
+}
+
 // parseGF2Time parses full date-time strings only. Time-only (e.g. "15:04") is rejected
 // to avoid 0001-01-01 and identical depart/arrive display ("02:20 → 02:20" bug).
-// When the string has no zone offset, airportCode supplies the local timezone.
+//
+// Google Flights / SerpAPI segment times are airport wall clocks. They often arrive as
+// "2027-01-14T06:30:00Z" where the clock face is local and Z is misleading. We parse
+// Z / zoneless values in airportCode's timezone so airline sites and our "Airport local"
+// display match. Strings with a numeric UTC offset are parsed as absolute instants.
 func parseGF2Time(s, airportCode string) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
+	s = strings.TrimSpace(s)
 	loc := AirportLocation(airportCode)
-	// Only full date-time formats; do NOT include "15:04" (time-only)
+
+	// Explicit ±offset → absolute instant.
+	if gf2HasNumericUTCOffset(s) {
+		for _, f := range []string{time.RFC3339Nano, time.RFC3339} {
+			if t, err := time.Parse(f, s); err == nil {
+				return t.UTC(), nil
+			}
+		}
+	}
+
+	// Z or zoneless → airport wall clock (matches airline / Google Flights UI).
+	wall := gf2WallClockString(s)
 	formats := []string{
-		time.RFC3339,
-		time.RFC3339Nano,
-		"2006-01-02T15:04:05.999Z",
-		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05.999",
 		"2006-01-02T15:04:05",
 		"2006-01-02T15:04",
 		"2006-01-02 15:04:05",
@@ -2222,11 +2273,8 @@ func parseGF2Time(s, airportCode string) (time.Time, error) {
 		"02-01-2006 15:04:05",
 	}
 	for _, f := range formats {
-		if t, err := time.ParseInLocation(f, s, loc); err == nil {
+		if t, err := time.ParseInLocation(f, wall, loc); err == nil {
 			return t, nil
-		}
-		if t, err := time.Parse(f, s); err == nil {
-			return t.UTC(), nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("could not parse %q", s)

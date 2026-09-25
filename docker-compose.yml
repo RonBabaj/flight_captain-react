@@ -1,0 +1,29 @@
+services:
+
+  flyfix-api:
+    container_name: flyfix-api
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend-data:/app/data
+    networks:
+      - proxy
+    expose:
+      - "8080"
+
+  flyfix-frontend:
+    container_name: flyfix-frontend
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    networks:
+      - proxy
+    expose:
+      - "80"
+
+networks:
+  proxy:
+    external: true

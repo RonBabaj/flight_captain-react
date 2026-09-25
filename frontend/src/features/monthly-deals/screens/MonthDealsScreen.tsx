@@ -13,7 +13,7 @@ import {
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { formatFlightTime, flightTimeToMs, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
+import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
 import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSessionWithRetry, getSearchSessionResults } from '../../../api';
@@ -158,12 +158,6 @@ function sortDeals(
 }
 
 // ─── Shared helpers (same logic as FlightDetailsModal) ──────────────────────
-
-function safeDate(iso: string | undefined | null): string {
-  const ms = flightTimeToMs(iso);
-  if (!Number.isFinite(ms)) return '';
-  return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function fmtDur(min: number): string {
   if (min <= 0) return '—';
@@ -1489,7 +1483,8 @@ function renderLeg(
   const stops = Math.max(0, segs.length - 1);
   const stopsLabel = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
   const dur = legDuration(segs);
-  const legDate = safeDate(segs[0].departureTime) || dateStr;
+  const legDate =
+    formatFlightWeekdayDate(segs[0].departureTime, segs[0].from?.code, timeDisplay, 'en-US') || dateStr;
 
   return (
     <View style={[m.legBlock, { borderTopColor: theme.cardBorder }]}>

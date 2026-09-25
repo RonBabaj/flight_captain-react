@@ -31,17 +31,10 @@ import {
   isSplitBookingItinerary,
   needsPerHopBooking,
 } from '../../../utils/skyscanner';
-import { formatFlightTime, flightTimeToMs } from '../../../utils/flightTimeDisplay';
+import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, formatFlightShortDate } from '../../../utils/flightTimeDisplay';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function safeDate(iso: string | undefined | null): string {
-  const ms = flightTimeToMs(iso);
-  if (!Number.isFinite(ms)) return '';
-  const d = new Date(ms);
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function formatDuration(min: number): string {
   if (min <= 0) return '—';
@@ -196,12 +189,7 @@ export function FlightDetailsModal({
     const fromCode = first?.from?.code || '';
     const toCode = option.legs?.[0]?.segments?.slice(-1)?.[0]?.to?.code || '';
     const depDate = first?.departureTime
-      ? (() => {
-          const d = new Date(first.departureTime);
-          return Number.isFinite(d.getTime())
-            ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : '';
-        })()
+      ? formatFlightShortDate(first.departureTime, first.from?.code, timeDisplay, 'en-US')
       : '';
     const titleParts = [fromCode && toCode ? `${fromCode} → ${toCode}` : '', depDate].filter(Boolean);
     const title = titleParts.length ? titleParts.join(' · ') : t('flight_details');
@@ -623,7 +611,12 @@ export function FlightDetailsModal({
                       ? t('return_leg')
                       : `${t('dd_extra_section')} ${legIdx + 1}`
                   : t('flight_leg');
-              const dateStr = safeDate(segs[0].departureTime);
+              const dateStr = formatFlightWeekdayDate(
+                segs[0].departureTime,
+                segs[0].from?.code,
+                timeDisplay,
+                'en-US',
+              );
               const legStops = Math.max(0, segs.length - 1);
               const legStopsLabel =
                 legStops === 0 ? t('direct') : legStops === 1 ? `1 ${t('stop')}` : `${legStops} ${t('stops')}`;

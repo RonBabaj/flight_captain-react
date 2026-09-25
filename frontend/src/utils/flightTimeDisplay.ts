@@ -1,3 +1,14 @@
+/**
+ * Format flight times for display.
+ *
+ * Modes (Settings → Flight times):
+ * - airport (default): each city’s clock — matches airline / Google Flights sites
+ * - local: convert the absolute instant into the viewer’s timezone
+ * - utc: show UTC
+ *
+ * Backend GF2 parsing stores real UTC instants derived from airport wall clocks,
+ * so "airport" uses the segment airport’s IANA zone (see airportTimezones.ts).
+ */
 import { getAirportTimeZone } from '../data/airportTimezones';
 
 export type FlightTimeDisplayMode = 'airport' | 'local' | 'utc';
@@ -43,6 +54,41 @@ export function formatFlightTime(
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+/** Short date (e.g. "Jan 14") using the same timezone rules as formatFlightTime. */
+export function formatFlightShortDate(
+  iso: string | undefined | null,
+  airportCode: string | undefined | null,
+  mode: FlightTimeDisplayMode,
+  locale = 'en-US',
+): string {
+  const ms = flightTimeToMs(iso);
+  if (!Number.isFinite(ms)) return '';
+  const timeZone = resolveTimeZone(mode, airportCode);
+  return new Date(ms).toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+/** Weekday + short date (e.g. "Thu, Jan 14"). */
+export function formatFlightWeekdayDate(
+  iso: string | undefined | null,
+  airportCode: string | undefined | null,
+  mode: FlightTimeDisplayMode,
+  locale = 'en-US',
+): string {
+  const ms = flightTimeToMs(iso);
+  if (!Number.isFinite(ms)) return '';
+  const timeZone = resolveTimeZone(mode, airportCode);
+  return new Date(ms).toLocaleDateString(locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
     ...(timeZone ? { timeZone } : {}),
   });
 }

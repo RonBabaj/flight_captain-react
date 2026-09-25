@@ -947,8 +947,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				layoversStr += l.AirportCode + "(" + fmt.Sprintf("%d", l.Minutes) + "m)"
 			}
 			log.Printf("[NORMALIZED_SUMMARY] departure=%s arrival=%s durationMinutes=%d stops=%d layovers=[%s]",
-				sum.DepartureTime.Format("2006-01-02T15:04:05Z"),
-				sum.ArrivalTime.Format("2006-01-02T15:04:05Z"),
+				sum.DepartureTime.UTC().Format(time.RFC3339),
+				sum.ArrivalTime.UTC().Format(time.RFC3339),
 				sum.DurationMinutes, sum.StopsCount, layoversStr)
 		}
 	}
