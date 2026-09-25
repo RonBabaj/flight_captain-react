@@ -116,6 +116,9 @@ type SearchSession struct {
 	Status    SearchSessionStatus        `json:"status"`
 	CreatedAt time.Time                  `json:"createdAt"`
 	Params    CreateSearchSessionRequest `json:"params"`
+	// TimeSchemaVersion: 0/missing = legacy wall-clock-as-Z snapshots (shared links);
+	// 1+ = absolute instants from airport-local GF2 parsing.
+	TimeSchemaVersion int `json:"timeSchemaVersion,omitempty"`
 }
 
 func (r *CreateSearchSessionRequest) CabinPrefOrDefault() string {
@@ -276,6 +279,12 @@ func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	persisted, found := loadPersistedSession(id)
 	if !found {
 		return SearchSessionResultsResponse{}, false
+	}
+	// Old shared-link snapshots stored GF2 wall clocks as UTC (…Z). Reinterpret
+	// once on durable load so Airport-local display matches airline sites, then
+	// re-persist with TimeSchemaVersion so we do not shift again.
+	if migrateLegacySessionTimes(&persisted) {
+		go persistSearchSession(persisted)
 	}
 	sessionsMu.Lock()
 	sessions[id] = persisted
@@ -966,10 +975,11 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 
 	session := SearchSession{
-		ID:        id,
-		Status:    StatusComplete, // simple synchronous search for now
-		CreatedAt: now,
-		Params:    req,
+		ID:                id,
+		Status:            StatusComplete, // simple synchronous search for now
+		CreatedAt:         now,
+		Params:            req,
+		TimeSchemaVersion: timeSchemaAirportAbsolute,
 	}
 
 	resp := SearchSessionResultsResponse{
@@ -2011,9 +2021,10 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	sessID := randomID("sess_")
 	exploreSessResp := SearchSessionResultsResponse{
 		Session: SearchSession{
-			ID:        sessID,
-			Status:    StatusComplete,
-			CreatedAt: time.Now().UTC(),
+			ID:                sessID,
+			Status:            StatusComplete,
+			CreatedAt:         time.Now().UTC(),
+			TimeSchemaVersion: timeSchemaAirportAbsolute,
 			Params: CreateSearchSessionRequest{
 				Origin:        origin,
 				Destination:   destination,
