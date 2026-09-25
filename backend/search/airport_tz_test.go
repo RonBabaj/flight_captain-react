@@ -35,3 +35,15 @@ func TestAirportLocation_UnknownFallsBackUTC(t *testing.T) {
 		t.Errorf("expected UTC, got %s", loc)
 	}
 }
+
+func TestParseGF2TimeWithDateHint_ZSuffixWallClock(t *testing.T) {
+	// Same wall clock as airline sites: 06:30 SZG local, not 06:30 UTC.
+	got, err := parseGF2TimeWithDateHint("2027-01-14T06:30:00Z", "2027-01-14", "SZG")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	local := got.In(AirportLocation("SZG"))
+	if local.Hour() != 6 || local.Minute() != 30 {
+		t.Errorf("expected 06:30 SZG local, got %s", local.Format("15:04"))
+	}
+}

@@ -28,16 +28,10 @@ import {
   formatLegStopsLabel,
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
-import { formatFlightTime, flightTimeToMs, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
+import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function fmtShortDate(iso: string | undefined | null): string {
-  const ms = flightTimeToMs(iso);
-  if (!Number.isFinite(ms)) return '';
-  return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 /** Returns every airport code in order: origin, all layovers, destination */
 function buildRoutePath(segments: FlightSegment[]): string[] {
@@ -183,10 +177,22 @@ export function FlightResultCard({
   }
   const missingReturnLeg = !!(searchReturnRoute && legCount < 2);
 
-  const outboundDate = fmtShortDate(segments[0]?.departureTime);
+  const outboundDate = formatFlightShortDate(
+    segments[0]?.departureTime,
+    segments[0]?.from?.code,
+    timeDisplay,
+    locale,
+  );
   const returnDate =
-    fmtShortDate(returnSegments[0]?.departureTime)
-    || (tripType === 'round-trip' ? fmtShortDate(searchReturnDate) : '');
+    formatFlightShortDate(
+      returnSegments[0]?.departureTime,
+      returnSegments[0]?.from?.code,
+      timeDisplay,
+      locale,
+    )
+    || (tripType === 'round-trip'
+      ? formatFlightShortDate(searchReturnDate, searchReturnRoute?.from, timeDisplay, locale)
+      : '');
   const isRoundTrip = !!(returnDate || returnRouteStr);
   const airline = displayAirlineLabel(option);
   const multiAirline = hasMultipleAirlines(option);
