@@ -784,6 +784,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const polledSessionId = sessionId;
     const generation = currentGeneration();
 
+    // Shared links may have a localStorage snapshot from before airport-time migration
+    // (…Z wall clocks → 07:30 instead of 06:30). Drop it so we GET the migrated session.
+    if (sharedLinkHydrationRef.current) {
+      invalidateSearchSessionResultsCache(polledSessionId);
+    }
+
     const poll = async () => {
       if (cancelled) return;
       if (!isCurrentSearchGeneration(generation)) return;

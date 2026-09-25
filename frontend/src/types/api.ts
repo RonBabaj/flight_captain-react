@@ -159,6 +159,8 @@ export interface SearchSession {
   createdAt: string; // ISO 8601
   params: CreateSearchSessionRequest;
   expiresAt?: string;
+  /** 1+ = absolute airport-local times; missing/0 = legacy wall-clock-as-Z (do not trust client cache). */
+  timeSchemaVersion?: number;
 }
 
 export interface SearchSessionResultsResponse {
