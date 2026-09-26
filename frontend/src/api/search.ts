@@ -21,7 +21,11 @@ interface CachedResult {
 
 const resultsCache = new Map<string, CachedResult>();
 
-const STORAGE_PREFIX = 'flight_captain_results_';
+/** v2: after airport-absolute time migration — ignore pre-fix localStorage snapshots. */
+const STORAGE_PREFIX = 'flight_captain_results_v2_';
+const LEGACY_STORAGE_PREFIXES = ['flight_captain_results_'];
+
+const MIN_TRUSTED_TIME_SCHEMA = 1;
 
 function getStorage(): Storage | null {
   try {
@@ -31,7 +35,43 @@ function getStorage(): Storage | null {
   return null;
 }
 
+/** Drop legacy v1 result keys so old shared-link Z-times cannot keep showing. */
+function purgeLegacyResultKeys(storage: Storage): void {
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (!key) continue;
+      for (const prefix of LEGACY_STORAGE_PREFIXES) {
+        if (key.startsWith(prefix) && !key.startsWith(STORAGE_PREFIX)) {
+          toRemove.push(key);
+          break;
+        }
+      }
+    }
+    toRemove.forEach((k) => storage.removeItem(k));
+  } catch {
+    // ignore
+  }
+}
+
+let legacyPurgeAttempted = false;
+
+function ensureLegacyPurge(): void {
+  if (legacyPurgeAttempted) return;
+  legacyPurgeAttempted = true;
+  const storage = getStorage();
+  if (storage) purgeLegacyResultKeys(storage);
+}
+
+/** Cached snapshots without timeSchemaVersion>=1 still have wall-clock-as-Z times. */
+function isTrustedTimeSchema(data: SearchSessionResultsResponse | null | undefined): boolean {
+  const v = data?.session?.timeSchemaVersion;
+  return typeof v === 'number' && v >= MIN_TRUSTED_TIME_SCHEMA;
+}
+
 function getFromStorage(sessionId: string): SearchSessionResultsResponse | null {
+  ensureLegacyPurge();
   const storage = getStorage();
   if (!storage) return null;
   try {
@@ -39,6 +79,10 @@ function getFromStorage(sessionId: string): SearchSessionResultsResponse | null 
     if (!raw) return null;
     const { data, at }: { data: SearchSessionResultsResponse; at: number } = JSON.parse(raw);
     if (!data || Date.now() - at > getRuntimeConfig().resultsStorageTtlMs) return null;
+    if (!isTrustedTimeSchema(data)) {
+      storage.removeItem(STORAGE_PREFIX + sessionId);
+      return null;
+    }
     return data;
   } catch {
     return null;
@@ -141,14 +185,21 @@ export async function getSearchSessionResults(
   sinceVersion?: number,
   paramsMatchExpected?: Partial<CreateSearchSessionRequest> | null
 ): Promise<SearchSessionResultsResponse> {
+  ensureLegacyPurge();
   const isInitialLoad = sinceVersion == null || sinceVersion === 0;
   const now = Date.now();
 
   const memHit = isInitialLoad ? resultsCache.get(sessionId) : undefined;
   if (memHit && now - memHit.at < getRuntimeConfig().resultsCacheTtlMs) {
-    if (!searchParamsMatch(memHit.data.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
-    if (isEmptyCompleteSession(memHit.data)) return await fetchFresh(sessionId, sinceVersion);
-    return memHit.data;
+    if (!isTrustedTimeSchema(memHit.data)) {
+      resultsCache.delete(sessionId);
+    } else if (!searchParamsMatch(memHit.data.session?.params, paramsMatchExpected)) {
+      return await fetchFresh(sessionId, sinceVersion);
+    } else if (isEmptyCompleteSession(memHit.data)) {
+      return await fetchFresh(sessionId, sinceVersion);
+    } else {
+      return memHit.data;
+    }
   }
 
   const storageHit = isInitialLoad ? getFromStorage(sessionId) : null;
