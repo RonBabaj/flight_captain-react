@@ -318,3 +318,21 @@ func TestGF2OperatingCarrierExtraction(t *testing.T) {
 		t.Fatalf("operating fn=%q", got.OperatingFlightNumber)
 	}
 }
+
+func TestCarrierDisplayName(t *testing.T) {
+	cases := []struct {
+		raw, want string
+	}{
+		{"Bluebird Airways", "Bluebird Airways"},
+		{"BZ", ""},
+		{"  Air France  ", "Air France"},
+		{"AF", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		got := CarrierDisplayName(tc.raw)
+		if got != tc.want {
+			t.Errorf("CarrierDisplayName(%q) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+}

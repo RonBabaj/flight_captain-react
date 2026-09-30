@@ -418,7 +418,9 @@ type Segment struct {
 	DepartureTime         time.Time
 	ArrivalTime           time.Time
 	MarketingCarrier      string
+	MarketingCarrierName  string // provider display name when airline was sent as text (e.g. "Bluebird Airways")
 	OperatingCarrier      string
+	OperatingCarrierName  string
 	FlightNumber          string
 	OperatingFlightNumber string
 	DurationMinutes       int

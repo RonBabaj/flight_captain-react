@@ -214,6 +214,19 @@ func NormalizeCarrierCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
+// CarrierDisplayName returns a human-readable airline name when the provider
+// sent a full name (e.g. "Bluebird Airways") rather than a bare IATA code.
+func CarrierDisplayName(rawCarrier string) string {
+	raw := strings.TrimSpace(rawCarrier)
+	if raw == "" {
+		return ""
+	}
+	if isIATACarrierCode(NormalizeCarrierCode(raw)) {
+		return ""
+	}
+	return raw
+}
+
 // ResolveFlightIdentity normalizes carrier + flight number from provider fields.
 // GF2 often sends full airline names ("Air France") with numbers that already
 // include the IATA designator ("AF 963").

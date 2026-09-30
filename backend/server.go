@@ -160,6 +160,7 @@ type AirportLike struct {
 
 type Carrier struct {
 	Code string `json:"code"`
+	Name string `json:"name,omitempty"` // human-readable airline name when known
 }
 
 type FlightSegment struct {
@@ -1295,13 +1296,13 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 					To:               AirportLike{Code: strings.ToUpper(s.To)},
 					DepartureTime:    s.DepartureTime,
 					ArrivalTime:      s.ArrivalTime,
-					MarketingCarrier: Carrier{Code: s.MarketingCarrier},
+					MarketingCarrier: Carrier{Code: s.MarketingCarrier, Name: strings.TrimSpace(s.MarketingCarrierName)},
 					FlightNumber:     s.FlightNumber,
 					DurationMinutes:  s.DurationMinutes,
 					CabinClass:       s.CabinClass,
 				}
 				if op := strings.TrimSpace(s.OperatingCarrier); op != "" {
-					fs.OperatingCarrier = &Carrier{Code: op}
+					fs.OperatingCarrier = &Carrier{Code: op, Name: strings.TrimSpace(s.OperatingCarrierName)}
 				}
 				if opFn := strings.TrimSpace(s.OperatingFlightNumber); opFn != "" {
 					fs.OperatingFlightNum = opFn
