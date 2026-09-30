@@ -20,11 +20,11 @@ import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { BookingOptionsFooter, Button } from '../../../ui';
-import { getAirlineName } from '../../../data/airlines';
+import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, hasMultipleAirlines } from '../../../utils/displayAirlines';
+import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
@@ -367,7 +367,7 @@ export function FlightDetailsModal({
                   </Text>
                   <Text style={[s.legDate, { color: theme.textMuted }]}>
                     {hop.date}
-                    {hop.carrier ? ` · ${getAirlineName(hop.carrier) || hop.carrier}` : ''}
+                    {hop.carrier ? ` · ${resolveAirlineLabel(hop.carrier)}` : ''}
                   </Text>
                   {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
                 </View>
@@ -400,7 +400,7 @@ export function FlightDetailsModal({
     || option.validatingAirlines?.[0]
     || option.legs?.[0]?.segments?.find((s) => s.marketingCarrier?.code)?.marketingCarrier?.code
     || '';
-  const airlineName = displayAirlineLabel(option) || (carrierCode ? getAirlineName(carrierCode) || carrierCode : '');
+  const airlineName = displayAirlineLabel(option) || labelForCarrierCode(option, carrierCode);
   const multiAirline = hasMultipleAirlines(option);
 
   const passengers = passengerCount && passengerCount > 0 ? passengerCount : 1;
@@ -638,7 +638,7 @@ export function FlightDetailsModal({
                   {segs.map((seg, segIdx) => {
                     const lo = layoverBetween(segs, segIdx);
                     const carrier = seg.marketingCarrier?.code || '';
-                    const carrierName = carrier ? (getAirlineName(carrier) || carrier) : '';
+                    const carrierName = carrier ? labelForCarrierCode(option, carrier) : '';
                     const segCabin = cabinLabel(seg.cabinClass, t);
 
                     return (
@@ -708,7 +708,7 @@ export function FlightDetailsModal({
                   <View key={idx} style={[s.sellerRow, { borderColor: theme.cardBorder }]}>
                     <View style={s.sellerInfo}>
                       <Text style={[s.sellerCarrier, { color: theme.text }]}>
-                        {seller.carrierCode ? (getAirlineName(seller.carrierCode) || seller.carrierCode) : seller.provider || seller.vendorName || '—'}
+                        {seller.carrierCode ? resolveAirlineLabel(seller.carrierCode) : seller.provider || seller.vendorName || '—'}
                       </Text>
                       <Text style={[s.sellerMeta, { color: theme.textMuted }]}>
                         {getCurrencySymbol(seller.price.currency)} {seller.price.amount.toFixed(0)}

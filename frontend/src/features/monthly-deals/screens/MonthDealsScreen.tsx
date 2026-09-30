@@ -23,7 +23,7 @@ import { BookingOptionsFooter } from '../../../ui';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
-import { getAirlineName } from '../../../data/airlines';
+import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -1043,7 +1043,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           {airlinesOpen && (
             <View style={fl.secBody}>
               {dealsAirlines.map(({ code, count }) => {
-                const name = getAirlineName(code) || code;
+                const name = resolveAirlineLabel(code);
                 const sel = selectedAirlines.includes(code);
                 return (
                   <TouchableOpacity
@@ -1497,7 +1497,7 @@ function renderLeg(
       {segs.map((seg, idx) => {
         const lo = layoverBetween(segs, idx);
         const carrier = seg.marketingCarrier?.code || '';
-        const carrierName = carrier ? (getAirlineName(carrier) || carrier) : '';
+        const carrierName = carrier ? resolveAirlineLabel(carrier) : '';
 
         return (
           <View key={idx}>

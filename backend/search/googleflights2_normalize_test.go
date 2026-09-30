@@ -168,3 +168,44 @@ func TestExtractGF2Leg_TimeOnly_NoDateHint(t *testing.T) {
 		t.Error("arrival should also be zero when departure cannot be parsed (no date hint)")
 	}
 }
+
+
+func TestExtractGF2SegmentFromFlight_PreservesAirlineName(t *testing.T) {
+	seg := map[string]interface{}{
+		"departure_airport": map[string]interface{}{"id": "TLV", "time": "2026-10-09T14:45:00Z"},
+		"arrival_airport":   map[string]interface{}{"id": "VIE", "time": "2026-10-09T17:30:00Z"},
+		"airline":           "Bluebird Airways",
+		"flight_number":     "BZ 316",
+		"duration":          225,
+	}
+	got := extractGF2SegmentFromFlight(seg, "TLV", "VIE", "2026-10-09", "ECONOMY")
+	if got == nil {
+		t.Fatal("expected segment")
+	}
+	if got.MarketingCarrier != "BZ" {
+		t.Errorf("MarketingCarrier = %q, want BZ", got.MarketingCarrier)
+	}
+	if got.MarketingCarrierName != "Bluebird Airways" {
+		t.Errorf("MarketingCarrierName = %q, want Bluebird Airways", got.MarketingCarrierName)
+	}
+}
+
+func TestExtractGF2SegmentFromFlight_CodeOnlyHasNoName(t *testing.T) {
+	seg := map[string]interface{}{
+		"departure_airport": map[string]interface{}{"id": "TLV", "time": "2026-10-09T14:45:00Z"},
+		"arrival_airport":   map[string]interface{}{"id": "VIE", "time": "2026-10-09T17:30:00Z"},
+		"airline":           "BZ",
+		"flight_number":     "BZ316",
+		"duration":          225,
+	}
+	got := extractGF2SegmentFromFlight(seg, "TLV", "VIE", "2026-10-09", "ECONOMY")
+	if got == nil {
+		t.Fatal("expected segment")
+	}
+	if got.MarketingCarrier != "BZ" {
+		t.Errorf("MarketingCarrier = %q, want BZ", got.MarketingCarrier)
+	}
+	if got.MarketingCarrierName != "" {
+		t.Errorf("MarketingCarrierName = %q, want empty for bare IATA", got.MarketingCarrierName)
+	}
+}

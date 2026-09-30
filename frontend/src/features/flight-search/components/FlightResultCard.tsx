@@ -18,9 +18,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { getAirlineName } from '../../../data/airlines';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, hasMultipleAirlines } from '../../../utils/displayAirlines';
+import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
 import {
   buildLegPreviewSummary,
   formatDuration,
@@ -381,12 +380,12 @@ export function FlightResultCard({
           {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
             <Text style={[c.codeshareText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
               {option.primaryOperatingCarrier
-                ? `${t('operated_by')} ${getAirlineName(option.primaryOperatingCarrier) || option.primaryOperatingCarrier}`
+                ? `${t('operated_by')} ${labelForCarrierCode(option, option.primaryOperatingCarrier)}`
                 : ''}
               {option.primaryOperatingCarrier && option.marketedBy && option.marketedBy.length > 1
-                ? ` · ${t('also_sold_by')} ${option.marketedBy.filter((c2) => c2 !== option.primaryOperatingCarrier).map((c2) => getAirlineName(c2) || c2).join(', ')}`
+                ? ` · ${t('also_sold_by')} ${option.marketedBy.filter((c2) => c2 !== option.primaryOperatingCarrier).map((c2) => labelForCarrierCode(option, c2)).join(', ')}`
                 : option.marketedBy && option.marketedBy.length > 1
-                  ? `${t('also_sold_by')} ${option.marketedBy.map((c2) => getAirlineName(c2) || c2).join(', ')}`
+                  ? `${t('also_sold_by')} ${option.marketedBy.map((c2) => labelForCarrierCode(option, c2)).join(', ')}`
                   : ''}
             </Text>
           )}

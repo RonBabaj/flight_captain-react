@@ -4,7 +4,7 @@ import type { BookingResolveResponse, PublicBookingOffer } from '../api/booking'
 import { isSafeBookingUrl } from '../api/booking';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
-import { getAirlineName } from '../data/airlines';
+import { resolveAirlineLabel } from '../data/airlines';
 import { getCurrencySymbol } from '../utils/exchangeRates';
 import { BookingOptionCard } from './BookingOptionCard';
 import { Button } from './Button';
@@ -57,7 +57,7 @@ export function BookingOptionsFooter({
   const { theme } = useTheme();
   const { t } = useLocale();
 
-  const airlineName = carrierCode ? getAirlineName(carrierCode) || carrierCode : undefined;
+  const airlineName = carrierCode ? resolveAirlineLabel(carrierCode) : undefined;
 
   if (loading) {
     return (

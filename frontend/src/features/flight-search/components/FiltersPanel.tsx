@@ -11,7 +11,7 @@ import {
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { Chip } from '../../../ui';
-import { getAirlineName } from '../../../data/airlines';
+import { resolveAirlineLabel } from '../../../data/airlines';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
@@ -104,7 +104,7 @@ export function FiltersPanel({
           {airlinesOpen && (
             <View style={f.secBody}>
               {airlines.map(({ code, count }) => {
-                const name = getAirlineName(code) || code;
+                const name = resolveAirlineLabel(code);
                 const sel = filters.airlines.includes(code);
                 return (
                   <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>
