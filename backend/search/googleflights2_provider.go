@@ -251,14 +251,22 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	}()
 
 	// Serve cache before rate limit so repeat searches and burst traffic still get prior results.
+	// Incomplete classic RT cache (outbound-only) must not be served — that surfaces as
+	// "return not loaded" on result cards until TTL expires.
 	cacheKey := p.buildCacheKey(req)
 	if cached, ok := p.cache.get(cacheKey); ok {
-		cacheHit = true
-		resultCount = len(cached)
-		if len(cached) > 0 {
-			cheapest = cached[0].Price.Amount
+		incompleteRT := req.ReturnDate != "" && !IsOpenJaw(req) && !HasExtraLegs(req) &&
+			classicRoundTripMissingReturn(cached)
+		if incompleteRT {
+			log.Printf("[GF2_RT] ignoring incomplete cached RT results count=%d (missing return legs)", len(cached))
+		} else {
+			cacheHit = true
+			resultCount = len(cached)
+			if len(cached) > 0 {
+				cheapest = cached[0].Price.Amount
+			}
+			return cached, nil
 		}
-		return cached, nil
 	}
 
 	if !p.waitForSearchRateLimit(ctx) {
@@ -276,6 +284,16 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 			results, err = p.doSearchWithRetry(ctx, req)
 			if err == nil && len(results) > 0 {
 				p.enrichNativeRoundTripReturnLegs(ctx, req, results)
+				// Native GF2 often returns outbound-only; if enrich could not attach returns,
+				// fall back to decomposed OW+OW so cards show real return schedules.
+				if classicRoundTripMissingReturn(results) {
+					log.Printf("[GF2_RT] native enrich incomplete (%d results); falling back to decomposed RT", len(results))
+					if alt, altErr := p.searchRoundTrip(ctx, req); altErr == nil && len(alt) > 0 && !classicRoundTripMissingReturn(alt) {
+						results = alt
+					} else if altErr != nil {
+						log.Printf("[GF2_RT] decomposed RT fallback failed: %v", altErr)
+					}
+				}
 			}
 		}
 		if err != nil {
@@ -285,7 +303,13 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		resultCount = len(results)
 		if len(results) > 0 {
 			cheapest = results[0].Price.Amount
-			p.cache.set(cacheKey, results)
+			// Only cache complete classic RT itineraries (both legs) so we never re-serve
+			// "return not loaded" shells from memory.
+			if IsOpenJaw(req) || HasExtraLegs(req) || !classicRoundTripMissingReturn(results) {
+				p.cache.set(cacheKey, results)
+			} else {
+				log.Printf("[GF2_RT] skipping cache for incomplete RT results count=%d", len(results))
+			}
 		}
 		return results, nil
 	}
@@ -359,8 +383,12 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 				if IsOpenJaw(req) {
 					return nil, fmt.Errorf("return search failed for open-jaw trip (%s)", step.label)
 				}
-				log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(res))
-				return batches[0], nil
+				// Do not return outbound-only as a "round trip" — the UI shows
+				// "return not loaded". Fail so callers can keep native results or surface an error.
+				if err != nil {
+					return nil, fmt.Errorf("return search failed (%s): %w", step.label, err)
+				}
+				return nil, fmt.Errorf("no flights found for %s", step.label)
 			}
 			return nil, fmt.Errorf("no flights found for %s", step.label)
 		}
@@ -440,8 +468,9 @@ func (p *GoogleFlights2Provider) doSearchWithRetry(ctx context.Context, req Sear
 	for attempt := 0; attempt < gf2LegSearchRetries; attempt++ {
 		res, err := p.doSearch(ctx, req)
 		if err == nil && len(res) > 0 {
-			cacheKey := p.buildCacheKey(req)
-			p.cache.set(cacheKey, res)
+			// Do not cache here. For classic RT, Search() enriches return legs then caches.
+			// Caching outbound-only results here races concurrent requests into
+			// "return not loaded" until TTL expires.
 			return res, nil
 		}
 		lastErr = err

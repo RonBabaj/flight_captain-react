@@ -6,6 +6,22 @@ import (
 	"strings"
 )
 
+// classicRoundTripMissingReturn reports whether any classic RT result still lacks a return leg.
+// Used to reject incomplete cache hits and to trigger decomposed RT fallback.
+func classicRoundTripMissingReturn(results []ProviderResult) bool {
+	if len(results) == 0 {
+		return false
+	}
+	missing := 0
+	for i := range results {
+		if len(results[i].Legs) < 2 {
+			missing++
+		}
+	}
+	// Treat as incomplete when a majority of hits lack return (native GF2 outbound-only).
+	return missing*2 >= len(results)
+}
+
 // enrichNativeRoundTripReturnLegs attaches return-leg schedules to native round-trip
 // search hits that only contain outbound data. RapidAPI GF2 (like SerpAPI) often returns
 // outbound options in topFlights even when return_date is set; return legs are not included
