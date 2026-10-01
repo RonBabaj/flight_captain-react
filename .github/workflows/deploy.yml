@@ -26,7 +26,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 300s
-          command_timeout: 15m
+          # npm build + docker compose regularly exceeds 15m when layers are cold
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -37,7 +38,8 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
+            docker compose build
             docker compose up -d
 
       - name: Wait before SSH retry
@@ -54,7 +56,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 300s
-          command_timeout: 15m
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -65,7 +67,7 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            docker compose build
             docker compose up -d
 
       - name: Wait before second SSH retry
@@ -82,7 +84,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 300s
-          command_timeout: 15m
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -93,7 +95,7 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            docker compose build
             docker compose up -d
 
       - name: Wait before third SSH retry
@@ -109,7 +111,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 300s
-          command_timeout: 15m
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
@@ -120,5 +122,5 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            docker compose build
             docker compose up -d
