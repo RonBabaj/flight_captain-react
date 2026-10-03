@@ -31,7 +31,7 @@ Apply this skill for any visual or interaction change in `frontend/`.
 - **Amber fares** via `theme.price` — prices are not the same color as CTAs
 - Paper neutrals (`screenBg`, `cardBg`, hairline borders)
 - Modest radii (`theme.radiusMd` ≈ 10, `radiusLg` ≈ 14)
-- Outfit (display) + Source Sans 3 (body) on web
+- **Archivo** (display — ticket/terminal) + **IBM Plex Sans** (body — UI/fares) on web
 - Real destination photos for mood — see `destinationMood.ts`
 
 ## Tokens (source of truth)

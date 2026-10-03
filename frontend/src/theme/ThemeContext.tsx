@@ -60,9 +60,10 @@ const ACCENT = {
 
 const RADIUS = { md: 10, lg: 14 };
 
+/** Archivo = terminal/ticket display; IBM Plex Sans = clear fare/UI body. */
 const FONTS = {
-  display: Platform.OS === 'web' ? 'Outfit, ui-sans-serif, sans-serif' : undefined,
-  body: Platform.OS === 'web' ? '"Source Sans 3", ui-sans-serif, sans-serif' : undefined,
+  display: Platform.OS === 'web' ? 'Archivo, ui-sans-serif, sans-serif' : undefined,
+  body: Platform.OS === 'web' ? '"IBM Plex Sans", ui-sans-serif, sans-serif' : undefined,
 };
 
 const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 16, spaceLg: 24, spaceXl: 36 };

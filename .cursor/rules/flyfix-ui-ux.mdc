@@ -10,6 +10,7 @@ When changing Fly-Fix visuals or interaction chrome, follow `.cursor/skills/flyf
 
 Quick constraints:
 - Light-first boarding-pass palette (ink navy CTAs, amber `theme.price`, paper neutrals)
+- Type: Archivo (display) + IBM Plex Sans (body) — not Outfit/Sora/Figtree startup stacks
 - No neon teal SaaS look, purple gradients, cream/terracotta AI cluster, glow shadows, pill forests
 - Sort = segmented control; destination mood photos via `destinationMood.ts`
 - Prefer theme tokens over hardcoded accent hex

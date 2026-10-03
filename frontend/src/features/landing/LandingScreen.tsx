@@ -317,18 +317,18 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontWeight: '800',
-    letterSpacing: -1.2,
+    letterSpacing: -0.5,
     marginBottom: 10,
   },
   heroTitle: {
     fontWeight: '700',
-    letterSpacing: -0.35,
+    letterSpacing: -0.2,
     marginBottom: 12,
     maxWidth: 520,
   },
   heroSubtitle: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 16.5,
+    lineHeight: 25,
     marginBottom: 26,
     maxWidth: 480,
   },
