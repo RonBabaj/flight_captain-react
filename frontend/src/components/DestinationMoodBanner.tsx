@@ -83,7 +83,7 @@ export function DestinationMoodBanner({
       <View
         style={[
           StyleSheet.absoluteFillObject,
-          { backgroundColor: theme.isDark ? '#163038' : '#c5ddd9' },
+          { backgroundColor: theme.isDark ? '#1A2430' : '#D8E2EC' },
         ]}
       />
       {!imgFailed && (

@@ -29,11 +29,13 @@ export type Theme = {
   successBg: string;
   info: string;
   infoBg: string;
-  /** Controls, steppers, secondary surfaces – shared feel across light/dark */
+  /** Controls, steppers, secondary surfaces */
   controlBg: string;
+  /** Price / money emphasis — warm signal, not the primary CTA color */
+  price: string;
   radiusMd: number;
   radiusLg: number;
-  /** Horizon wash for atmosphere (gradients / hero planes). */
+  /** Soft wash for hero / mood planes */
   atmosphere: string;
   fontDisplay: string | undefined;
   fontBody: string | undefined;
@@ -44,89 +46,96 @@ export type Theme = {
   spaceXl: number;
 };
 
-/** Travel-rooted teal — warmer & friendlier than cold indigo. */
+/**
+ * Boarding-pass system — ink navy + paper neutrals + amber fare signal.
+ * Intentionally not: neon teal SaaS, purple gradients, cream/terracotta AI clusters.
+ */
 const ACCENT = {
-  main: '#1FB8AE',
-  light: '#4FD0C6',
-  dark: '#0E7A72',
+  navy: '#163A5F',
+  navyDeep: '#0F2A45',
+  sky: '#3D7EB5',
+  amber: '#C27803',
+  amberSoft: '#E8A317',
 };
 
-const RADIUS = { md: 14, lg: 22 };
+const RADIUS = { md: 10, lg: 14 };
 
 const FONTS = {
-  display: Platform.OS === 'web' ? 'Sora, ui-sans-serif, sans-serif' : undefined,
-  body: Platform.OS === 'web' ? 'Figtree, ui-sans-serif, sans-serif' : undefined,
+  display: Platform.OS === 'web' ? 'Outfit, ui-sans-serif, sans-serif' : undefined,
+  body: Platform.OS === 'web' ? '"Source Sans 3", ui-sans-serif, sans-serif' : undefined,
 };
 
 const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 16, spaceLg: 24, spaceXl: 36 };
 
-/** Dark: soft night sky, approachable teal */
-const darkTheme: Theme = {
-  mode: 'dark',
-  isDark: true,
-  primary: ACCENT.main,
-  primaryLight: ACCENT.light,
-  navBg: '#101820',
-  screenBg: '#0b1219',
-  cardBg: '#15202b',
-  cardBorder: '#2a3a4a',
-  text: '#f4f7fa',
-  textMuted: '#a8b6c5',
-  inputBg: '#15202b',
-  inputBorder: '#2a3a4a',
-  tabActive: '#fff',
-  tabInactive: 'rgba(244,247,250,0.68)',
-  buttonBg: ACCENT.main,
-  buttonText: '#041016',
-  onPrimary: '#041016',
-  error: '#f87171',
-  errorBg: 'rgba(248, 113, 113, 0.12)',
-  warning: '#fbbf24',
-  warningBg: 'rgba(251, 191, 36, 0.12)',
-  success: '#6ee7b7',
-  successBg: 'rgba(6, 78, 59, 0.55)',
-  info: '#7dd3fc',
-  infoBg: 'rgba(14, 165, 233, 0.12)',
-  controlBg: '#1c2a38',
+/** Light-first: paper, ink, restrained navy CTAs */
+const lightTheme: Theme = {
+  mode: 'light',
+  isDark: false,
+  primary: ACCENT.navy,
+  primaryLight: ACCENT.sky,
+  navBg: '#FFFFFF',
+  screenBg: '#F4F6F8',
+  cardBg: '#FFFFFF',
+  cardBorder: '#DCE3EA',
+  text: '#121820',
+  textMuted: '#5A6572',
+  inputBg: '#FFFFFF',
+  inputBorder: '#D0D8E0',
+  tabActive: '#121820',
+  tabInactive: '#5A6572',
+  buttonBg: ACCENT.navy,
+  buttonText: '#FFFFFF',
+  onPrimary: '#FFFFFF',
+  error: '#B42318',
+  errorBg: '#FEF3F2',
+  warning: '#B54708',
+  warningBg: '#FFFAEB',
+  success: '#067647',
+  successBg: '#ECFDF3',
+  info: '#175CD3',
+  infoBg: '#EFF8FF',
+  controlBg: '#EEF2F6',
+  price: ACCENT.amber,
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(31, 184, 174, 0.16)',
+  atmosphere: 'rgba(22, 58, 95, 0.06)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
   ...SPACE,
 };
 
-/** Light: soft mist, welcoming teal */
-const lightTheme: Theme = {
-  mode: 'light',
-  isDark: false,
-  primary: ACCENT.dark,
-  primaryLight: ACCENT.main,
-  navBg: '#ffffff',
-  screenBg: '#f3f7f8',
-  cardBg: '#ffffff',
-  cardBorder: '#d7e2e6',
-  text: '#0f172a',
-  textMuted: '#5b6b7c',
-  inputBg: '#ffffff',
-  inputBorder: '#d7e2e6',
-  tabActive: '#0f172a',
-  tabInactive: '#5b6b7c',
-  buttonBg: ACCENT.dark,
-  buttonText: '#ffffff',
-  onPrimary: '#ffffff',
-  error: '#dc2626',
-  errorBg: '#fef2f2',
-  warning: '#b45309',
-  warningBg: '#fffbeb',
-  success: '#065f46',
-  successBg: '#d1fae5',
-  info: '#0369a1',
-  infoBg: '#e0f2fe',
-  controlBg: '#e7eef1',
+/** Dark: charcoal cabin, sky blue actions, soft amber fares */
+const darkTheme: Theme = {
+  mode: 'dark',
+  isDark: true,
+  primary: ACCENT.sky,
+  primaryLight: '#6AA8D4',
+  navBg: '#12161C',
+  screenBg: '#0C0F13',
+  cardBg: '#171C24',
+  cardBorder: '#2A3340',
+  text: '#F2F4F7',
+  textMuted: '#9AA3B0',
+  inputBg: '#171C24',
+  inputBorder: '#2A3340',
+  tabActive: '#FFFFFF',
+  tabInactive: 'rgba(242,244,247,0.65)',
+  buttonBg: ACCENT.sky,
+  buttonText: '#0C0F13',
+  onPrimary: '#0C0F13',
+  error: '#F97066',
+  errorBg: 'rgba(185, 35, 24, 0.16)',
+  warning: '#FDB022',
+  warningBg: 'rgba(181, 71, 8, 0.16)',
+  success: '#6CE9A6',
+  successBg: 'rgba(6, 118, 71, 0.22)',
+  info: '#84CAFF',
+  infoBg: 'rgba(23, 92, 211, 0.16)',
+  controlBg: '#222933',
+  price: ACCENT.amberSoft,
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(14, 122, 114, 0.10)',
+  atmosphere: 'rgba(61, 126, 181, 0.12)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
   ...SPACE,
@@ -142,7 +151,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({
   children,
-  defaultMode = 'dark',
+  defaultMode = 'light',
 }: {
   children: React.ReactNode;
   defaultMode?: ThemeMode;

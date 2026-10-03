@@ -21,17 +21,17 @@ const BY_CODE: Record<string, DestinationMood> = {
   PRG: {
     labelEn: 'Prague',
     imageUrl: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?auto=format&fit=crop&w=1600&q=80',
-    accent: '#1BA7A0',
+    accent: '#163A5F',
   },
   PAR: {
     labelEn: 'Paris',
     imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80',
-    accent: '#0F766E',
+    accent: '#163A5F',
   },
   CDG: {
     labelEn: 'Paris',
     imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80',
-    accent: '#0F766E',
+    accent: '#163A5F',
   },
   ORY: {
     labelEn: 'Paris',
@@ -303,7 +303,7 @@ const BY_COUNTRY: Record<string, DestinationMood> = {
 const FALLBACK: DestinationMood = {
   labelEn: 'Your trip',
   imageUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1600&q=80',
-  accent: '#1BA7A0',
+  accent: '#163A5F',
 };
 
 /** Destinations surfaced on the landing “get in the mood” strip. */

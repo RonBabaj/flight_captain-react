@@ -11,6 +11,8 @@ frontend/dist/
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
 !.cursor/environment.json
 .idea/
 .vscode/

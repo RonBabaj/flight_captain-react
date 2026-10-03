@@ -3,12 +3,12 @@ import type { Theme } from '../../theme/ThemeContext';
 
 /** Shared card shell for search / deals / dynamic-destinations forms. */
 export const formCardStyles = StyleSheet.create({
-  card: { borderRadius: 20, padding: 22, borderWidth: 1 },
-  cardCompact: { borderRadius: 16, padding: 14 },
+  card: { borderRadius: 14, padding: 20, borderWidth: 1 },
+  cardCompact: { borderRadius: 12, padding: 14 },
   tripRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   tripRowCompact: { marginBottom: 4 },
-  tab: { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  dateBtn: { marginBottom: 4, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, borderWidth: 1 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  dateBtn: { marginBottom: 4, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1 },
   dateBtnCompact: { paddingVertical: 8 },
   btnDisabled: { opacity: 0.6 },
   sectionLabel: {
@@ -22,10 +22,10 @@ export const formCardStyles = StyleSheet.create({
   searchBtn: {
     marginTop: 20,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 48,
   },
   searchBtnCompact: { marginTop: 12, paddingVertical: 10 },
   searchBtnText: { fontSize: 16, fontWeight: '600' },

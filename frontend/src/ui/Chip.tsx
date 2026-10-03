@@ -61,9 +61,9 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
 
 const styles = StyleSheet.create({
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
     borderWidth: 1,
   },
   label: {

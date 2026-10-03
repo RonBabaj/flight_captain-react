@@ -1,0 +1,15 @@
+---
+description: Fly-Fix UI/UX — boarding-pass design language (anti AI-generic)
+globs:
+  - frontend/src/**/*.{tsx,ts}
+  - frontend/public/index.html
+alwaysApply: false
+---
+
+When changing Fly-Fix visuals or interaction chrome, follow `.cursor/skills/flyfix-ui-ux/SKILL.md`.
+
+Quick constraints:
+- Light-first boarding-pass palette (ink navy CTAs, amber `theme.price`, paper neutrals)
+- No neon teal SaaS look, purple gradients, cream/terracotta AI cluster, glow shadows, pill forests
+- Sort = segmented control; destination mood photos via `destinationMood.ts`
+- Prefer theme tokens over hardcoded accent hex

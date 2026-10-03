@@ -314,7 +314,7 @@ export function FlightResultCard({
         </View>
 
         <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
-          <Text style={[c.price, { color: theme.primary, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+          <Text style={[c.price, { color: theme.price, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
             {priceStr}
           </Text>
           {option.priceIsEstimate ? (
@@ -355,7 +355,7 @@ export function FlightResultCard({
             </Text>
           ) : null}
           <TouchableOpacity
-            style={[c.bookBtn, { backgroundColor: theme.primary }, isRTL && { alignSelf: 'stretch' }]}
+            style={[c.bookBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }, isRTL && { alignSelf: 'stretch' }]}
             onPress={(e) => {
               e.stopPropagation();
               onDetails();
@@ -365,7 +365,7 @@ export function FlightResultCard({
             accessibilityRole="button"
             accessibilityLabel={bookLabel ?? t('select_flight')}
           >
-            <Text style={[c.bookBtnText, { color: theme.onPrimary, fontFamily: theme.fontBody }]}>
+            <Text style={[c.bookBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
               {bookLoading ? '…' : bookLabel ?? t('select_flight')}
             </Text>
           </TouchableOpacity>
@@ -406,7 +406,7 @@ const c = StyleSheet.create({
   card: {
     marginHorizontal: 12,
     marginVertical: 5,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     padding: 14,
   },

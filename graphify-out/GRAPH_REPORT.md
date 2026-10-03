@@ -1,17 +1,17 @@
 # Graph Report - workspace  (2026-10-03)
 
 ## Corpus Check
-- 232 files · ~220,682 words
+- 232 files · ~220,921 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .example 2, .mdc 1)
+- Unclassified: 13 file(s) not represented in the graph (top: (none) 7, .mdc 2, .example 2)
 
 ## Summary
-- 2044 nodes · 6643 edges · 89 communities (75 shown, 14 thin omitted)
+- 2044 nodes · 6640 edges · 90 communities (76 shown, 14 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 497 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `de982397`
+- Built from commit: `af2b79c3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -20,13 +20,13 @@
 - App.tsx
 - useSearchParams.ts
 - Issue
-- FiltersPanel.tsx
+- FlightDetailsModal.tsx
 - types/index.ts
 - package.json
 - useTheme
 - Features
 - handleExplore
-- FlightDetailsModal.tsx
+- flightTimeDisplay.ts
 - booking_resolve.go
 - ui/index.ts
 - compilerOptions
@@ -77,7 +77,7 @@
 - itinerary_test.go
 - api.ts
 - FlightResultCard.tsx
-- ThemeContext.tsx
+- SearchLoadingOverlay.tsx
 - GF2SearchAirports
 - AirportLocation
 - SearchFormScreen.tsx
@@ -91,14 +91,15 @@
 - affiliate.ts
 - DatePickerCalendar.tsx
 - net/http.Request
-- react
+- CalendarModal.tsx
 - affiliate.go
 - ValidateBookingURL
 - TestApplySoftStrictBaggage
 - backend_api_contracts.md
-- itineraryStops.ts
+- FiltersPanel.tsx
 - newGF2Cache
 - go_pkg_net_http
+- react
 
 ## God Nodes (most connected - your core abstractions)
 1. `useTheme()` - 90 edges
@@ -127,7 +128,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (89 total, 14 thin omitted)
+## Communities (90 total, 14 thin omitted)
 
 ### Community 0 - "context.Context"
 Cohesion: 0.15
@@ -145,9 +146,9 @@ Nodes (30): buildSearchString(), getParam(), getParams(), isWeb(), parseSearchPa
 Cohesion: 0.10
 Nodes (29): Issue, relPathForDisplay(), RunPlainNodeSyntaxCheck(), RunTypeScriptCheck(), truncateRunes(), filterPythonModelFieldFalsePositives(), leadingSpaceLen(), shouldDropPythonUnusedVar() (+21 more)
 
-### Community 4 - "FiltersPanel.tsx"
-Cohesion: 0.24
-Nodes (12): AIRLINE_NAMES, getAirlineName(), resolveAirlineLabel(), AIRLINE_FULL_NAMES, f, FiltersPanel(), FiltersPanelProps, SearchFilters (+4 more)
+### Community 4 - "FlightDetailsModal.tsx"
+Cohesion: 0.17
+Nodes (17): AIRLINE_NAMES, getAirlineName(), resolveAirlineLabel(), AIRLINE_FULL_NAMES, cabinLabel(), FlightDetailsModal(), formatDuration(), layoverBetween() (+9 more)
 
 ### Community 5 - "types/index.ts"
 Cohesion: 0.15
@@ -158,8 +159,8 @@ Cohesion: 0.05
 Nodes (39): config, { getDefaultConfig }, dependencies, expo, @expo/metro-runtime, expo-status-bar, react, react-dom (+31 more)
 
 ### Community 7 - "useTheme"
-Cohesion: 0.12
-Nodes (35): ClearableTextInput(), ClearableTextInputProps, styles, useAuth(), useLocale(), useRuntimeConfig(), useRuntimeConfigActions(), AdminRuntimeConfigPanel() (+27 more)
+Cohesion: 0.15
+Nodes (32): ClearableTextInput(), useAuth(), useLocale(), useRuntimeConfigActions(), AdminRuntimeConfigPanel(), ConfigFieldRow(), SECTION_LABEL_KEYS, SECTION_ORDER (+24 more)
 
 ### Community 8 - "Features"
 Cohesion: 0.06
@@ -169,9 +170,9 @@ Nodes (32): AdSense & consent (CMP), Affiliate setup (optional), Backend, Bookin
 Cohesion: 0.18
 Nodes (10): exploreSessionKey(), getExploreSession(), newExploreSessionID(), putExploreSession(), startExploreSessionCleanup(), corsMiddleware(), fetchExchangeRates(), handleExplore() (+2 more)
 
-### Community 10 - "FlightDetailsModal.tsx"
-Cohesion: 0.15
-Nodes (22): airportTimeZones, getAirportTimeZone(), cabinLabel(), FlightDetailsModal(), formatDuration(), layoverBetween(), legDuration(), s (+14 more)
+### Community 10 - "flightTimeDisplay.ts"
+Cohesion: 0.24
+Nodes (12): airportTimeZones, getAirportTimeZone(), fmtDur(), layoverBetween(), legDuration(), renderLeg(), flightMinutesBetween(), flightTimeToMs() (+4 more)
 
 ### Community 11 - "booking_resolve.go"
 Cohesion: 0.08
@@ -314,12 +315,12 @@ Cohesion: 0.17
 Nodes (31): airlineDomainForCarrier(), bookingMatchPriceNormalizer(), isAffiliateTemplateBookingURL(), normalizedGF2OfferPrice(), preferAirlineDirectWhenCheaperThanMarkedUpOTA(), publicAlternativesFromOffers(), buildDualBookingResolveResponse(), collectVerifiedBookingOffers() (+23 more)
 
 ### Community 58 - "react-native"
-Cohesion: 0.16
-Nodes (26): AppIcon(), FormHeroHeader(), FormHeroHeaderProps, styles, formCardStyles, makeFormThemedStyles(), SearchSubmitButton(), SearchSubmitButtonProps (+18 more)
+Cohesion: 0.12
+Nodes (34): AppIcon(), AppIconLibrary, AppIconProps, styles, FormHeroHeader(), FormHeroHeaderProps, styles, formCardStyles (+26 more)
 
 ### Community 59 - "LocaleContext.tsx"
-Cohesion: 0.23
-Nodes (12): getStorage(), languageToLocale(), loadSaved(), LocaleContext, LocaleContextValue, LocaleProvider(), save(), VALID_CURRENCIES (+4 more)
+Cohesion: 0.22
+Nodes (13): getStorage(), languageToLocale(), loadSaved(), LocaleContext, LocaleContextValue, LocaleProvider(), save(), VALID_CURRENCIES (+5 more)
 
 ### Community 60 - "ExploreScreen.tsx"
 Cohesion: 0.12
@@ -345,9 +346,9 @@ Nodes (20): 5. Guarantees to the Frontend, FlightDetailsModalProps, FlightResult
 Cohesion: 0.20
 Nodes (15): buildRoutePath(), c, FlightResultCard(), LegScheduleBlock(), LayoverSummary, hasMultipleAirlines(), getDisplayPrice(), buildLegPreviewSummary() (+7 more)
 
-### Community 66 - "ThemeContext.tsx"
-Cohesion: 0.10
-Nodes (22): getPhrasesForLanguage(), SEARCH_BUTTON_PHRASES, SEARCH_PROGRESS_PHRASES, s, SearchProgressBanner(), SearchProgressBannerProps, ExtraLeg, Props (+14 more)
+### Community 66 - "SearchLoadingOverlay.tsx"
+Cohesion: 0.22
+Nodes (11): getPhrasesForLanguage(), SEARCH_BUTTON_PHRASES, SEARCH_PROGRESS_PHRASES, s, SearchProgressBanner(), SearchProgressBannerProps, ExtraLeg, Props (+3 more)
 
 ### Community 67 - "GF2SearchAirports"
 Cohesion: 0.22
@@ -401,9 +402,9 @@ Nodes (7): DatePickerCalendar(), DatePickerCalendarProps, getNext14Dates(), getR
 Cohesion: 0.23
 Nodes (21): GetSessionAndOption(), RecordClick(), handleAuthLogout(), normalizeProviderBookingURL(), handleAdminVerify(), handleGetRuntimeConfig(), handleFlyFixRefineIssues(), handleAffiliateClicksSummary() (+13 more)
 
-### Community 81 - "react"
-Cohesion: 0.09
-Nodes (22): AppIconLibrary, AppIconProps, styles, styles, getSvgMarkup(), getWebIconSvgDataUri(), hasWebSvgFallback(), LOCAL_ICON_NAMES (+14 more)
+### Community 81 - "CalendarModal.tsx"
+Cohesion: 0.38
+Nodes (6): buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WEEKDAYS
 
 ### Community 82 - "affiliate.go"
 Cohesion: 0.19
@@ -421,13 +422,17 @@ Nodes (6): applySoftStrictBaggage(), makeOfferWithBags(), makeOfferWithMissingBa
 Cohesion: 0.18
 Nodes (10): 1.1 Create Search Session, 1.2 Get Search Session Status & Results, 1.3 Cancel Search Session (Optional, MVP+), 1. Flight Search Sessions, 2.1 Get Monthly Deals, 2. Monthly Deals API, 3.1 Search Airports & Cities, 3. Airport & City Autocomplete (+2 more)
 
-### Community 86 - "itineraryStops.ts"
-Cohesion: 0.48
-Nodes (5): countByStopsFilter(), matchesStopsFilter(), maxStopsPerLeg(), stopsPerLeg(), totalStops()
+### Community 86 - "FiltersPanel.tsx"
+Cohesion: 0.24
+Nodes (11): f, FiltersPanel(), FiltersPanelProps, SearchFilters, Chip(), distinctMarketingCarriers(), countByStopsFilter(), matchesStopsFilter() (+3 more)
 
 ### Community 87 - "newGF2Cache"
 Cohesion: 0.29
 Nodes (7): classicRoundTripMissingReturn(), TestClassicRoundTripMissingReturn(), TestDoSearchWithRetry_doesNotCacheRoundTrip(), TestSearch_ignoresIncompleteClassicRTCache(), TestSearch_servesCompleteClassicRTCache(), newGF2Cache(), TestSearchLegCached_usesCache()
+
+### Community 89 - "react"
+Cohesion: 0.08
+Nodes (20): ClearableTextInputProps, styles, styles, Props, styles, KEYS, s, SortOption (+12 more)
 
 ## Knowledge Gaps
 - **307 isolated node(s):** `ClicksByProvider`, `BookingResolveRequest`, `PublicBookingAlternative`, `exploreLiveCandidate`, `flightcaptainweb` (+302 more)
@@ -437,12 +442,12 @@ Nodes (7): classicRoundTripMissingReturn(), TestClassicRoundTripMissingReturn(),
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `App.tsx`, `useSearchParams.ts`, `FiltersPanel.tsx`, `package.json`, `useTheme`, `FlightDetailsModal.tsx`, `ui/index.ts`, `MonthDealsScreen.tsx`, `RuntimeConfigContext.tsx`, `AirportAutocomplete.tsx`, `ResultsScreen.tsx`, `react-native`, `LocaleContext.tsx`, `ExploreScreen.tsx`, `FlightResultCard.tsx`, `ThemeContext.tsx`, `SearchFormScreen.tsx`, `AuthContext.tsx`, `ErrorBoundary`, `exchangeRates.ts`, `DatePickerCalendar.tsx`?**
+- **Why does `react` connect `react` to `App.tsx`, `useSearchParams.ts`, `FlightDetailsModal.tsx`, `package.json`, `useTheme`, `ui/index.ts`, `MonthDealsScreen.tsx`, `RuntimeConfigContext.tsx`, `AirportAutocomplete.tsx`, `ResultsScreen.tsx`, `react-native`, `LocaleContext.tsx`, `ExploreScreen.tsx`, `FlightResultCard.tsx`, `SearchLoadingOverlay.tsx`, `SearchFormScreen.tsx`, `AuthContext.tsx`, `ErrorBoundary`, `exchangeRates.ts`, `DatePickerCalendar.tsx`, `CalendarModal.tsx`, `FiltersPanel.tsx`?**
   _High betweenness centrality (0.025) - this node is a cross-community bridge._
-- **Why does `react-native` connect `react-native` to `App.tsx`, `ThemeContext.tsx`, `FlightResultCard.tsx`, `FiltersPanel.tsx`, `SearchFormScreen.tsx`, `package.json`, `useTheme`, `AirportAutocomplete.tsx`, `ErrorBoundary`, `FlightDetailsModal.tsx`, `exchangeRates.ts`, `ui/index.ts`, `DatePickerCalendar.tsx`, `MonthDealsScreen.tsx`, `react`, `ResultsScreen.tsx`, `ExploreScreen.tsx`?**
+- **Why does `react-native` connect `react-native` to `App.tsx`, `FlightDetailsModal.tsx`, `package.json`, `useTheme`, `ui/index.ts`, `MonthDealsScreen.tsx`, `AirportAutocomplete.tsx`, `ResultsScreen.tsx`, `LocaleContext.tsx`, `ExploreScreen.tsx`, `FlightResultCard.tsx`, `SearchLoadingOverlay.tsx`, `SearchFormScreen.tsx`, `ErrorBoundary`, `exchangeRates.ts`, `DatePickerCalendar.tsx`, `CalendarModal.tsx`, `FiltersPanel.tsx`, `react`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
-- **Why does `useTheme()` connect `useTheme` to `FlightResultCard.tsx`, `ThemeContext.tsx`, `App.tsx`, `FiltersPanel.tsx`, `SearchFormScreen.tsx`, `AirportAutocomplete.tsx`, `FlightDetailsModal.tsx`, `ui/index.ts`, `exchangeRates.ts`, `MonthDealsScreen.tsx`, `react`, `ResultsScreen.tsx`, `react-native`, `ExploreScreen.tsx`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Why does `useTheme()` connect `useTheme` to `FlightResultCard.tsx`, `SearchLoadingOverlay.tsx`, `App.tsx`, `FlightDetailsModal.tsx`, `SearchFormScreen.tsx`, `AirportAutocomplete.tsx`, `ui/index.ts`, `exchangeRates.ts`, `MonthDealsScreen.tsx`, `FiltersPanel.tsx`, `ResultsScreen.tsx`, `react`, `react-native`, `LocaleContext.tsx`, `ExploreScreen.tsx`?**
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **What connects `ClicksByProvider`, `BookingResolveRequest`, `PublicBookingAlternative` to the rest of the system?**
   _307 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `context.Context` be split into smaller, more focused modules?**

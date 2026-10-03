@@ -387,8 +387,8 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   moodCard: {
-    width: 156,
-    height: 196,
+    width: 152,
+    height: 190,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: 'flex-end',
