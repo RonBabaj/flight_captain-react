@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
@@ -1357,6 +1358,13 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       {summaryBar}
+      {showResultsShell &&
+        !!destination.trim() &&
+        destination.trim().toUpperCase() !== ANYWHERE_CODE && (
+          <View style={{ paddingHorizontal: isMobile ? 12 : 16, paddingTop: 8 }}>
+            <DestinationMoodBanner destinationCode={destination} variant="results" />
+          </View>
+        )}
       {/* Full-screen overlay only on the form route. Results uses skeletons / inline banner. */}
       <SearchLoadingOverlay visible={isLoading && showForm} origin={origin} destination={destination} />
       {isLoading && showResultsShell ? (

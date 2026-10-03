@@ -41,7 +41,11 @@ import { FlightResultCard } from '../components/FlightResultCard';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
-import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
+import {
+  DestinationMoodBanner,
+  DestinationMoodStrip,
+  collectTripDestinationCodes,
+} from '../../../components/DestinationMoodBanner';
 import {
   addExtraDestinationLeg,
   isDynamicDestinationsSearch,
@@ -1619,6 +1623,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   );
 
   const destinationMoodCode = (params?.destination || formParams.destination || '').trim();
+  const tripMoodCodes = isDynamicDestinations
+    ? collectTripDestinationCodes({ ...formParams, ...params })
+    : destinationMoodCode
+      ? [destinationMoodCode]
+      : [];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
@@ -1627,9 +1636,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         showEditButton={isMobile}
         onEditPress={openEditSearch}
       />
-      {!!destinationMoodCode && (
+      {tripMoodCodes.length > 0 && (
         <View style={styles.moodStrip}>
-          <DestinationMoodBanner destinationCode={destinationMoodCode} variant="results" />
+          {tripMoodCodes.length === 1 ? (
+            <DestinationMoodBanner destinationCode={tripMoodCodes[0]} variant="results" />
+          ) : (
+            <DestinationMoodStrip destinationCodes={tripMoodCodes} variant="results" />
+          )}
         </View>
       )}
 

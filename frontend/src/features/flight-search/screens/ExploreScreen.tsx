@@ -14,9 +14,8 @@ import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getExploreDestinations } from '../../../api';
-import { createSearchSessionWithRetry } from '../../../api';
 import { getMonthDeals } from '../../../api/deals';
-import { searchActions, dealsActions, isCurrentSearchGeneration } from '../../../store';
+import { searchActions, dealsActions } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
 import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
@@ -36,6 +35,8 @@ import type { CreateSearchSessionRequest } from '../../../types';
 import type { ExploreScreenParams } from '../../../navigation/types';
 import { updateSearchUrl } from '../../../hooks/useSearchParams';
 import { setCachedSearch } from '../../../utils/searchCache';
+import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
+import { classicSearchPayload } from '../../../utils/skyscanner';
 import {
   addDaysYmdUtc,
   clampExploreDealsDates,
@@ -568,34 +569,50 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       return;
     }
 
-    try {
-      const payload: CreateSearchSessionRequest = {
-        origin,
-        destination: dest.destination,
-        departureDate: departureDate || dest.departureDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-        returnDate: (tripType === 'round-trip' ? returnDate : undefined) || undefined,
-        cabinClass: formParams.cabinClass ?? 'ECONOMY',
-        cabinPreference: formParams.cabinPreference ?? 'ECONOMY',
-        includeCheckedBag: false,
-        adults: formParams.adults ?? adults ?? 1,
-        children: formParams.children ?? 0,
-        infants: 0,
-        currency: routeCurrency || 'USD',
-        locale: locale || 'en-US',
-      };
-      setCachedSearch(payload);
-      const generation = searchActions.beginSearch(payload, { clearSession: false });
-      const session = await createSearchSessionWithRetry(payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      searchActions.setSession(session.id, session, session.status);
-      searchActions.setResults([], 0);
-      updateSearchUrl({ ...payload, sessionId: session.id });
-      navigation.navigate('Results', { sessionId: session.id });
-    } catch {
-      setError(t('search_failed'));
-    } finally {
+    // Stop in-flight explore refresh so a late failure cannot paint
+    // "Could not load destinations" over the Results navigation.
+    exploreFetchGenRef.current += 1;
+    setLiveRefreshing(false);
+    setError(null);
+
+    const dep =
+      departureDate ||
+      dest.departureDate ||
+      new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const ret = tripType === 'round-trip' ? (returnDate || undefined) : undefined;
+    if (tripType === 'round-trip' && !ret) {
       setSearchingDest(null);
+      setFormSearchError(t('please_choose_return'));
+      return;
     }
+
+    // Optimistic navigation — same path as SearchFormScreen. Awaiting
+    // createSearchSession here raced with live explore refresh and surfaced
+    // session failures as a false "Could not load destinations" error.
+    const payload = classicSearchPayload({
+      origin: origin.trim().toUpperCase(),
+      destination: dest.destination.trim().toUpperCase(),
+      departureDate: dep,
+      returnDate: ret,
+      cabinClass: formParams.cabinClass ?? 'ECONOMY',
+      cabinPreference: formParams.cabinPreference ?? 'ECONOMY',
+      includeCheckedBags: false,
+      adults: formParams.adults ?? adults ?? 1,
+      children: formParams.children ?? 0,
+      infants: 0,
+      currency: routeCurrency || 'USD',
+      locale: locale || 'en-US',
+    });
+    setCachedSearch(payload);
+    clearSharedLinkCache();
+    searchActions.beginSearch(payload);
+    updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
+    navigation.navigate({
+      name: 'Results',
+      params: { sessionId: '', searchNonce: Date.now() },
+      merge: false,
+    } as any);
+    setSearchingDest(null)
   };
 
   const availableRegions = useMemo(() => {
@@ -734,45 +751,43 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
 
     setFormSearchError(null);
     setShowEditSearchModal(false);
-    setLoading(true);
-    try {
-      const cabin: CreateSearchSessionRequest['cabinClass'] =
-        formParams.cabinClass === 'ECONOMY' || formParams.cabinClass === 'PREMIUM_ECONOMY' ||
-        formParams.cabinClass === 'BUSINESS' || formParams.cabinClass === 'FIRST'
-          ? formParams.cabinClass
-          : 'ECONOMY';
-      const payload: CreateSearchSessionRequest = {
-        ...formParams,
-        origin: newOrigin.toUpperCase(),
-        destination: destRaw,
-        departureDate: newDep,
-        returnDate: tripType === 'one-way' ? undefined : newRet || undefined,
-        cabinClass: cabin,
-        cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
-        includeCheckedBag: false,
-        currency: localeCurrency || formParams.currency || 'USD',
-        locale: locale || formParams.locale || 'en-US',
-        adults: formParams.adults ?? adults ?? 1,
-        children: formParams.children ?? 0,
-        infants: formParams.infants ?? 0,
-      };
-      setOrigin(payload.origin);
-      setDepartureDate(newDep);
-      setReturnDate(newRet);
-      setFormParams((p) => ({ ...p, ...payload }));
-      setCachedSearch(payload);
-      const generation = searchActions.beginSearch(payload, { clearSession: false });
-      const session = await createSearchSessionWithRetry(payload);
-      if (!isCurrentSearchGeneration(generation)) return;
-      searchActions.setSession(session.id, session, session.status);
-      searchActions.setResults([], 0);
-      updateSearchUrl({ ...payload, sessionId: session.id });
-      navigation.navigate('Results', { sessionId: session.id });
-    } catch (e) {
-      setFormSearchError(e instanceof Error ? e.message : t('search_failed'));
-    } finally {
-      setLoading(false);
-    }
+    exploreFetchGenRef.current += 1;
+    setLiveRefreshing(false);
+    setError(null);
+
+    const cabin: CreateSearchSessionRequest['cabinClass'] =
+      formParams.cabinClass === 'ECONOMY' || formParams.cabinClass === 'PREMIUM_ECONOMY' ||
+      formParams.cabinClass === 'BUSINESS' || formParams.cabinClass === 'FIRST'
+        ? formParams.cabinClass
+        : 'ECONOMY';
+    const payload = classicSearchPayload({
+      ...formParams,
+      origin: newOrigin.toUpperCase(),
+      destination: destRaw,
+      departureDate: newDep,
+      returnDate: tripType === 'one-way' ? undefined : newRet || undefined,
+      cabinClass: cabin,
+      cabinPreference: cabin as CreateSearchSessionRequest['cabinPreference'],
+      includeCheckedBags: false,
+      currency: localeCurrency || formParams.currency || 'USD',
+      locale: locale || formParams.locale || 'en-US',
+      adults: formParams.adults ?? adults ?? 1,
+      children: formParams.children ?? 0,
+      infants: formParams.infants ?? 0,
+    });
+    setOrigin(payload.origin);
+    setDepartureDate(newDep);
+    setReturnDate(newRet);
+    setFormParams((p) => ({ ...p, ...payload }));
+    setCachedSearch(payload);
+    clearSharedLinkCache();
+    searchActions.beginSearch(payload);
+    updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
+    navigation.navigate({
+      name: 'Results',
+      params: { sessionId: '', searchNonce: Date.now() },
+      merge: false,
+    } as any)
   };
 
   // ── Search / deals form fields (desktop sidebar + mobile Edit modal) ───────
