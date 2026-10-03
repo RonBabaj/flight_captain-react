@@ -1506,7 +1506,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             option={item}
             onDetails={() => openDetails(item)}
             bookLoading={false}
-            bookLabel={t('view_and_book')}
+            bookLabel={t('select_flight')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
             searchReturnRoute={searchReturnRoute}
