@@ -1,7 +1,7 @@
 # Graph Report - workspace  (2026-10-03)
 
 ## Corpus Check
-- 234 files · ~222,570 words
+- 234 files · ~222,697 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 7, .mdc 2, .example 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `20bdff1c`
+- Built from commit: `257e773d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -417,7 +417,7 @@ Nodes (8): BookingResolveRequest, BookingResolveStatus, bookingRetryDelayMs(), f
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `react` connect `react` to `useSearchParams.ts`, `FiltersPanel.tsx`, `package.json`, `ThemeContext.tsx`, `AppIcon.tsx`, `BookingOptionsFooter.tsx`, `MonthDealsScreen.tsx`, `RuntimeConfigContext.tsx`, `ExploreScreen.tsx`, `ResultsScreen.tsx`, `useTheme`, `LocaleContext.tsx`, `DateRangePicker.tsx`, `SearchLoadingOverlay.tsx`, `FlightDetailsModal.tsx`, `AuthContext.tsx`, `exchangeRates.ts`, `DatePickerCalendar.tsx`, `FlightResultCard.tsx`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
 - **Why does `useTheme()` connect `useTheme` to `react`, `SearchLoadingOverlay.tsx`, `FiltersPanel.tsx`, `FlightDetailsModal.tsx`, `AuthContext.tsx`, `ThemeContext.tsx`, `ExploreScreen.tsx`, `AppIcon.tsx`, `BookingOptionsFooter.tsx`, `MonthDealsScreen.tsx`, `FlightResultCard.tsx`, `ResultsScreen.tsx`, `LocaleContext.tsx`, `DateRangePicker.tsx`?**
   _High betweenness centrality (0.013) - this node is a cross-community bridge._
 - **Why does `react-native` connect `ThemeContext.tsx` to `react`, `SearchLoadingOverlay.tsx`, `useSearchParams.ts`, `FiltersPanel.tsx`, `FlightDetailsModal.tsx`, `package.json`, `AuthContext.tsx`, `ExploreScreen.tsx`, `AppIcon.tsx`, `BookingOptionsFooter.tsx`, `exchangeRates.ts`, `DatePickerCalendar.tsx`, `MonthDealsScreen.tsx`, `FlightResultCard.tsx`, `ResultsScreen.tsx`, `useTheme`, `LocaleContext.tsx`, `DateRangePicker.tsx`?**

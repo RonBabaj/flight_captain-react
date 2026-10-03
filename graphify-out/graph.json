@@ -5382,7 +5382,7 @@
       "file_type": "code",
       "norm_label": "gettranslation()",
       "source_file": "frontend/src/data/translations.ts",
-      "source_location": "L1089"
+      "source_location": "L1105"
     },
     {
       "id": "frontend_src_features_flight_search_components_daterangepicker_buildmonthdays",
@@ -16812,7 +16812,7 @@
       "file_type": "code",
       "norm_label": "styles",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1899"
+      "source_location": "L1913"
     },
     {
       "id": "frontend_src_features_flight_search_screens_searchformscreen",
@@ -16892,7 +16892,7 @@
       "source_location": "L1"
     },
     {
-      "id": "frontend_src_features_flight_search_screens_resultsscreen_rationale_599",
+      "id": "frontend_src_features_flight_search_screens_resultsscreen_rationale_600",
       "label": "NOTE: params are read through refs, NOT effect deps. When this effect calls",
       "_origin": "ast",
       "community": 55,
@@ -16900,7 +16900,7 @@
       "file_type": "rationale",
       "norm_label": "note: params are read through refs, not effect deps. when this effect calls",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L599"
+      "source_location": "L600"
     },
     {
       "id": "backend_booking_gf2_resolve_bookingmatchpricenormalizer",
@@ -34927,7 +34927,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1095",
+      "source_location": "L1096",
       "weight": 1.0
     },
     {
@@ -34939,7 +34939,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1112",
+      "source_location": "L1113",
       "weight": 1.0
     },
     {
@@ -34951,7 +34951,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1169",
+      "source_location": "L1170",
       "weight": 1.0
     },
     {
@@ -34963,7 +34963,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1174",
+      "source_location": "L1175",
       "weight": 1.0
     },
     {
@@ -34975,7 +34975,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1182",
+      "source_location": "L1183",
       "weight": 1.0
     },
     {
@@ -34987,7 +34987,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1296",
+      "source_location": "L1297",
       "weight": 1.0
     },
     {
@@ -34999,7 +34999,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1332",
+      "source_location": "L1333",
       "weight": 1.0
     },
     {
@@ -35011,7 +35011,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1414",
+      "source_location": "L1415",
       "weight": 1.0
     },
     {
@@ -35023,7 +35023,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1464",
+      "source_location": "L1473",
       "weight": 1.0
     },
     {
@@ -35035,7 +35035,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1481",
+      "source_location": "L1491",
       "weight": 1.0
     },
     {
@@ -35047,7 +35047,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1511",
+      "source_location": "L1527",
       "weight": 1.0
     },
     {
@@ -35059,7 +35059,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1566",
+      "source_location": "L1583",
       "weight": 1.0
     },
     {
@@ -35071,7 +35071,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1578",
+      "source_location": "L1595",
       "weight": 1.0
     },
     {
@@ -35083,7 +35083,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1627",
+      "source_location": "L1644",
       "weight": 1.0
     },
     {
@@ -35095,7 +35095,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1634",
+      "source_location": "L1651",
       "weight": 1.0
     },
     {
@@ -35107,7 +35107,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1642",
+      "source_location": "L1659",
       "weight": 1.0
     },
     {
@@ -35119,7 +35119,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1644",
+      "source_location": "L1661",
       "weight": 1.0
     },
     {
@@ -35131,7 +35131,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1649",
+      "source_location": "L1666",
       "weight": 1.0
     },
     {
@@ -35143,7 +35143,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1658",
+      "source_location": "L1675",
       "weight": 1.0
     },
     {
@@ -35155,7 +35155,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1681",
+      "source_location": "L1698",
       "weight": 1.0
     },
     {
@@ -35167,7 +35167,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1693",
+      "source_location": "L1709",
       "weight": 1.0
     },
     {
@@ -35179,7 +35179,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1802",
+      "source_location": "L1816",
       "weight": 1.0
     },
     {
@@ -35196,18 +35196,6 @@
     },
     {
       "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
-      "target": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodal",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1860",
-      "weight": 1.0
-    },
-    {
-      "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
       "target": "frontend_src_context_localecontext_uselocale",
       "relation": "calls",
       "_origin": "ast",
@@ -35216,6 +35204,18 @@
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
       "source_location": "L187",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_features_flight_search_screens_resultsscreen_resultsscreen",
+      "target": "frontend_src_features_flight_search_components_flightdetailsmodal_flightdetailsmodal",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
+      "source_location": "L1874",
       "weight": 1.0
     },
     {
@@ -35359,7 +35359,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L402",
+      "source_location": "L403",
       "weight": 1.0
     },
     {
@@ -35371,7 +35371,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L405",
+      "source_location": "L406",
       "weight": 1.0
     },
     {
@@ -35383,7 +35383,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L409",
+      "source_location": "L410",
       "weight": 1.0
     },
     {
@@ -35395,7 +35395,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L413",
+      "source_location": "L414",
       "weight": 1.0
     },
     {
@@ -35407,7 +35407,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L422",
+      "source_location": "L423",
       "weight": 1.0
     },
     {
@@ -35419,7 +35419,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L426",
+      "source_location": "L427",
       "weight": 1.0
     },
     {
@@ -35431,7 +35431,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L427",
+      "source_location": "L428",
       "weight": 1.0
     },
     {
@@ -35443,7 +35443,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L428",
+      "source_location": "L429",
       "weight": 1.0
     },
     {
@@ -35455,7 +35455,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L452",
+      "source_location": "L453",
       "weight": 1.0
     },
     {
@@ -35467,7 +35467,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L466",
+      "source_location": "L467",
       "weight": 1.0
     },
     {
@@ -35479,7 +35479,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L479",
+      "source_location": "L480",
       "weight": 1.0
     },
     {
@@ -35491,7 +35491,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L482",
+      "source_location": "L483",
       "weight": 1.0
     },
     {
@@ -35503,7 +35503,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L493",
+      "source_location": "L494",
       "weight": 1.0
     },
     {
@@ -35515,7 +35515,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L591",
+      "source_location": "L592",
       "weight": 1.0
     },
     {
@@ -35527,7 +35527,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L641",
+      "source_location": "L642",
       "weight": 1.0
     },
     {
@@ -35539,7 +35539,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L842",
+      "source_location": "L843",
       "weight": 1.0
     },
     {
@@ -35551,7 +35551,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L917",
+      "source_location": "L918",
       "weight": 1.0
     },
     {
@@ -89362,7 +89362,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/data/translations.ts",
-      "source_location": "L1089",
+      "source_location": "L1105",
       "weight": 1.0
     },
     {
@@ -90594,7 +90594,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L1899",
+      "source_location": "L1913",
       "weight": 1.0
     },
     {
@@ -96142,14 +96142,14 @@
       "weight": 1.0
     },
     {
-      "source": "frontend_src_features_flight_search_screens_resultsscreen_rationale_599",
+      "source": "frontend_src_features_flight_search_screens_resultsscreen_rationale_600",
       "target": "frontend_src_features_flight_search_screens_resultsscreen",
       "relation": "rationale_for",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "frontend/src/features/flight-search/screens/ResultsScreen.tsx",
-      "source_location": "L599",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -102544,5 +102544,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "20bdff1cae62f5cf1f09ef2590d2e9dcb22ac3f1"
+  "built_at_commit": "257e773d8d005a55d14ee5978aa43f0d152b7eb9"
 }

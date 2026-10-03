@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1791012759.3086212,
-    "seen": 1791012767.9118917,
-    "ast_hash": "ccf752aed47fface92a4fe1197f2b340",
+    "mtime": 1791053196.3356898,
+    "seen": 1791053234.9733825,
+    "ast_hash": "31be1d49c8de17e6f4a5b7d0faad3aae",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1791023974.8485434,
-    "seen": 1791023981.6585803,
-    "ast_hash": "327c01c0f6b4d3fcecfc0bd3e49cbc6f",
+    "mtime": 1791053230.086744,
+    "seen": 1791053234.9734006,
+    "ast_hash": "3a1fe5701ffc931fa27dca52b0767dfd",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
