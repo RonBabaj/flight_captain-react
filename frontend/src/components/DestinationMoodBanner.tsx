@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
   Animated,
+  ScrollView,
   type ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
@@ -12,8 +13,28 @@ import { useLocale } from '../context/LocaleContext';
 import { getAirportEntry, getCityDisplayName } from '../data/airports';
 import { resolveDestinationMood } from '../data/destinationMood';
 import { useBreakpoint } from '../hooks/useResponsive';
+import { ANYWHERE_CODE } from '../types';
+import type { CreateSearchSessionRequest } from '../types';
 
 type Variant = 'hero' | 'form' | 'results' | 'compact';
+
+/** Unique destination codes for a trip (outbound + extras + open-jaw return city). */
+export function collectTripDestinationCodes(
+  params?: Partial<CreateSearchSessionRequest> | null,
+): string[] {
+  if (!params) return [];
+  const out: string[] = [];
+  const add = (raw?: string | null) => {
+    const code = (raw || '').trim().toUpperCase();
+    if (!code || code === ANYWHERE_CODE || out.includes(code)) return;
+    if (!resolveDestinationMood(code)) return;
+    out.push(code);
+  };
+  add(params.destination);
+  for (const leg of params.extraLegs ?? []) add(leg.destination);
+  add(params.returnOrigin);
+  return out;
+}
 
 export function DestinationMoodBanner({
   destinationCode,
@@ -142,6 +163,57 @@ export function DestinationMoodBanner({
   );
 }
 
+/** One or many destination mood photos (Dynamic Destinations shows all stops). */
+export function DestinationMoodStrip({
+  destinationCodes,
+  variant = 'form',
+  style,
+}: {
+  destinationCodes?: Array<string | null | undefined> | null;
+  variant?: Variant;
+  style?: ViewStyle;
+}) {
+  const { isRTL } = useLocale();
+  const codes = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const raw of destinationCodes ?? []) {
+      const code = (raw || '').trim().toUpperCase();
+      if (!code || code === ANYWHERE_CODE || seen.has(code)) continue;
+      if (!resolveDestinationMood(code)) continue;
+      seen.add(code);
+      list.push(code);
+    }
+    return list;
+  }, [destinationCodes]);
+
+  if (codes.length === 0) return null;
+  if (codes.length === 1) {
+    return <DestinationMoodBanner destinationCode={codes[0]} variant={variant} style={style} />;
+  }
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[stripStyles.scroll, style]}
+      contentContainerStyle={[
+        stripStyles.row,
+        isRTL && { flexDirection: 'row-reverse' },
+      ]}
+    >
+      {codes.map((code) => (
+        <DestinationMoodBanner
+          key={code}
+          destinationCode={code}
+          variant="compact"
+          style={stripStyles.tile}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
@@ -182,5 +254,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.3,
+  },
+});
+
+const stripStyles = StyleSheet.create({
+  scroll: {
+    marginBottom: 14,
+    maxHeight: 110,
+  },
+  row: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  tile: {
+    width: 200,
+    marginBottom: 0,
   },
 });

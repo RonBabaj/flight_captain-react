@@ -8,6 +8,10 @@ import {
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
+import {
+  DestinationMoodStrip,
+  collectTripDestinationCodes,
+} from '../../../components/DestinationMoodBanner';
 import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
 import { formCardStyles } from '../../../components/search/formStyles';
@@ -51,6 +55,7 @@ export function DynamicDestinationsFormContent({
   const [showCalendar, setShowCalendar] = useState(false);
   const [extraDateIndex, setExtraDateIndex] = useState<number | null>(null);
   const extras = params.extraLegs ?? [];
+  const moodCodes = collectTripDestinationCodes(params);
 
   const dateLabel =
     params.departureDate && params.returnDate
@@ -79,6 +84,13 @@ export function DynamicDestinationsFormContent({
         compactLabel={t('dd_title')}
         iconColor={theme.primary}
       />
+
+      {moodCodes.length > 0 && (
+        <DestinationMoodStrip
+          destinationCodes={moodCodes}
+          variant={compact || embedded ? 'compact' : 'form'}
+        />
+      )}
 
       <Text style={[formCardStyles.sectionLabel, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
         {t('dd_outbound_section')}
