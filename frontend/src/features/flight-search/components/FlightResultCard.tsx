@@ -81,19 +81,19 @@ function LegScheduleBlock({
     <View style={c.legBlock}>
       {showTimes && summary ? (
         <View style={[c.timesRow, ...row()]}>
-          <Text style={[c.time, { color: theme.text }]}>{dep}</Text>
+          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{dep}</Text>
           <Text style={[c.timeSep, { color: theme.textMuted, marginInline: 2 }]}>{timeSep}</Text>
-          <Text style={[c.time, { color: theme.text }]}>{arr}</Text>
+          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{arr}</Text>
         </View>
       ) : null}
       {routeStr ? (
-        <Text style={[c.route, { color: routeColor }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
+        <Text style={[c.route, { color: routeColor, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
           {routeStr}
         </Text>
       ) : null}
       {showTimes && summary ? (
         <View style={[c.metaRow, ...row({ flexWrap: 'wrap' as const })]}>
-          <Text style={[c.metaText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>{dur}</Text>
+          <Text style={[c.metaText, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>{dur}</Text>
           <View
             style={[
               c.stopsChip,
@@ -314,7 +314,7 @@ export function FlightResultCard({
         </View>
 
         <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
-          <Text style={[c.price, { color: theme.primary }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+          <Text style={[c.price, { color: theme.primary, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
             {priceStr}
           </Text>
           {option.priceIsEstimate ? (
@@ -363,10 +363,10 @@ export function FlightResultCard({
             disabled={bookLoading}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={bookLabel ?? t('view_and_book')}
+            accessibilityLabel={bookLabel ?? t('select_flight')}
           >
-            <Text style={[c.bookBtnText, { color: theme.onPrimary }]}>
-              {bookLoading ? '…' : bookLabel ?? t('view_and_book')}
+            <Text style={[c.bookBtnText, { color: theme.onPrimary, fontFamily: theme.fontBody }]}>
+              {bookLoading ? '…' : bookLabel ?? t('select_flight')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -374,7 +374,7 @@ export function FlightResultCard({
 
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
         <View style={[c.airlineCol, isRTL && { alignItems: 'flex-end' }]}>
-          <Text style={[c.airlineText, { color: theme.text }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
+          <Text style={[c.airlineText, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
             {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
           </Text>
           {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
@@ -405,30 +405,30 @@ export function FlightResultCard({
 const c = StyleSheet.create({
   card: {
     marginHorizontal: 12,
-    marginVertical: 5,
-    borderRadius: 14,
+    marginVertical: 4,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 14,
+    padding: 12,
   },
   row1: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   scheduleCol: { flex: 1, minWidth: 0 },
-  legBlock: { marginBottom: 6 },
+  legBlock: { marginBottom: 8 },
   timesRow: { flexDirection: 'row', alignItems: 'baseline' },
-  time: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
-  timeSep: { fontSize: 13 },
-  route: { fontSize: 12, marginTop: 1, letterSpacing: 0.3 },
-  dateStr: { fontSize: 12, marginTop: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  metaText: { fontSize: 13, fontWeight: '500' },
-  stopsChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  stopsChipText: { fontSize: 12, fontWeight: '600' },
-  layoverHint: { fontSize: 12, flexShrink: 1 },
-  priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 100 },
-  price: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  time: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
+  timeSep: { fontSize: 12 },
+  route: { fontSize: 12, marginTop: 2, letterSpacing: 0.2 },
+  dateStr: { fontSize: 11, marginTop: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  metaText: { fontSize: 12, fontWeight: '500' },
+  stopsChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  stopsChipText: { fontSize: 11, fontWeight: '600' },
+  layoverHint: { fontSize: 11, flexShrink: 1 },
+  priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 96 },
+  price: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   estBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -436,26 +436,26 @@ const c = StyleSheet.create({
   perPerson: { fontSize: 11, marginTop: 2 },
   selfTransferWarn: { fontSize: 11, marginTop: 6, fontWeight: '600', lineHeight: 15 },
   bookBtn: {
-    marginTop: 8,
+    marginTop: 10,
     paddingVertical: 9,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderRadius: 10,
-    minWidth: 96,
+    minWidth: 88,
     alignItems: 'center',
   },
-  bookBtnText: { fontSize: 14, fontWeight: '700' },
+  bookBtnText: { fontSize: 13, fontWeight: '700' },
 
   row2: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
   airlineCol: { flex: 1, minWidth: 0 },
-  airlineText: { fontSize: 13, fontWeight: '500' },
+  airlineText: { fontSize: 12, fontWeight: '500' },
   codeshareText: { fontSize: 11, marginTop: 2 },
   bagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   bagBadgeText: { fontSize: 11 },

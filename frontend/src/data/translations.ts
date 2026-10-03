@@ -694,6 +694,32 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'צפייה והזמנה',
     ru: 'Смотреть и забронировать',
   },
+  select_flight: {
+    en: 'Select',
+    he: 'בחירה',
+    ru: 'Выбрать',
+  },
+  results_count: {
+    en: '{n} flights',
+    he: '{n} טיסות',
+    ru: '{n} рейсов',
+  },
+  cheaper_cities_found: {
+    en: '{n} nearby options that may save money',
+    he: '{n} אפשרויות קרובות שעשויות לחסוך',
+    ru: '{n} соседних вариантов с возможной экономией',
+  },
+  checking_cheaper_cities_short: {
+    en: 'Nearby hubs…',
+    he: 'יציאות קרובות…',
+    ru: 'Соседние хабы…',
+  },
+  show: { en: 'Show', he: 'הצג', ru: 'Показать' },
+  cheaper_cities_ready: {
+    en: '{n} cheaper cities',
+    he: '{n} ערים זולות יותר',
+    ru: '{n} дешевле из других городов',
+  },
   airline_direct_prefill_hint: {
     en: 'Opens airline site with your route prefilled — select your flight and verify the fare.',
     he: 'פותח את אתר חברת התעופה עם המסלול — בחרו את הטיסה ואמתו את המחיר.',

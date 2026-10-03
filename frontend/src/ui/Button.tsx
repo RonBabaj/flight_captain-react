@@ -72,7 +72,15 @@ export function Button({
       {loading ? (
         <ActivityIndicator size="small" color={labelColor} />
       ) : (
-        <Text style={[styles.label, size === 'sm' && styles.labelSm, { color: labelColor }, textStyle]} numberOfLines={2}>
+        <Text
+          style={[
+            styles.label,
+            size === 'sm' && styles.labelSm,
+            { color: labelColor, fontFamily: theme.fontBody },
+            textStyle,
+          ]}
+          numberOfLines={2}
+        >
           {label}
         </Text>
       )}

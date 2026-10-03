@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
+import { Platform } from 'react-native';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -32,79 +33,103 @@ export type Theme = {
   controlBg: string;
   radiusMd: number;
   radiusLg: number;
+  /** Horizon wash for atmosphere (gradients / hero planes). */
+  atmosphere: string;
+  fontDisplay: string | undefined;
+  fontBody: string | undefined;
+  spaceXs: number;
+  spaceSm: number;
+  spaceMd: number;
+  spaceLg: number;
+  spaceXl: number;
 };
 
-// Shared accent – indigo/violet, works on both themes
+/** Travel-rooted teal (sky/horizon) — not the default indigo/purple cluster. */
 const ACCENT = {
-  main: '#6366f1',
-  light: '#818cf8',
-  dark: '#4f46e5',
+  main: '#1BA7A0',
+  light: '#3BC4BC',
+  dark: '#0F766E',
 };
 
-const RADIUS = { md: 14, lg: 20 };
+const RADIUS = { md: 12, lg: 18 };
 
-/** Dark: high contrast, easy to read, rich but not harsh */
+const FONTS = {
+  display: Platform.OS === 'web' ? 'Sora, ui-sans-serif, sans-serif' : undefined,
+  body: Platform.OS === 'web' ? 'Figtree, ui-sans-serif, sans-serif' : undefined,
+};
+
+const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 14, spaceLg: 20, spaceXl: 32 };
+
+/** Dark: deep slate night sky, teal accent */
 const darkTheme: Theme = {
   mode: 'dark',
   isDark: true,
   primary: ACCENT.main,
   primaryLight: ACCENT.light,
-  navBg: '#18181b',
-  screenBg: '#09090b',
-  cardBg: '#18181b',
-  cardBorder: '#27272a',
-  text: '#fafafa',
-  textMuted: '#a1a1aa',
-  inputBg: '#18181b',
-  inputBorder: '#27272a',
+  navBg: '#0e1620',
+  screenBg: '#081018',
+  cardBg: '#121c27',
+  cardBorder: '#243041',
+  text: '#f1f5f9',
+  textMuted: '#94a3b8',
+  inputBg: '#121c27',
+  inputBorder: '#243041',
   tabActive: '#fff',
-  tabInactive: 'rgba(255,255,255,0.7)',
+  tabInactive: 'rgba(241,245,249,0.65)',
   buttonBg: ACCENT.main,
-  buttonText: '#fff',
-  onPrimary: '#fff',
+  buttonText: '#041016',
+  onPrimary: '#041016',
   error: '#f87171',
   errorBg: 'rgba(248, 113, 113, 0.12)',
   warning: '#fbbf24',
   warningBg: 'rgba(251, 191, 36, 0.12)',
   success: '#6ee7b7',
   successBg: 'rgba(6, 78, 59, 0.55)',
-  info: '#93c5fd',
-  infoBg: 'rgba(59, 130, 246, 0.12)',
-  controlBg: '#27272a',
+  info: '#7dd3fc',
+  infoBg: 'rgba(14, 165, 233, 0.12)',
+  controlBg: '#1a2736',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
+  atmosphere: 'rgba(27, 167, 160, 0.14)',
+  fontDisplay: FONTS.display,
+  fontBody: FONTS.body,
+  ...SPACE,
 };
 
-/** Light: same accent, soft background, clear hierarchy */
+/** Light: cool mist background, deep teal accent */
 const lightTheme: Theme = {
   mode: 'light',
   isDark: false,
   primary: ACCENT.dark,
   primaryLight: ACCENT.main,
   navBg: '#ffffff',
-  screenBg: '#fafafa',
+  screenBg: '#eef3f6',
   cardBg: '#ffffff',
-  cardBorder: '#e4e4e7',
-  text: '#18181b',
-  textMuted: '#71717a',
+  cardBorder: '#d5dee7',
+  text: '#0f172a',
+  textMuted: '#64748b',
   inputBg: '#ffffff',
-  inputBorder: '#e4e4e7',
-  tabActive: '#18181b',
-  tabInactive: '#71717a',
+  inputBorder: '#d5dee7',
+  tabActive: '#0f172a',
+  tabInactive: '#64748b',
   buttonBg: ACCENT.dark,
-  buttonText: '#fff',
-  onPrimary: '#fff',
+  buttonText: '#ffffff',
+  onPrimary: '#ffffff',
   error: '#dc2626',
   errorBg: '#fef2f2',
   warning: '#b45309',
   warningBg: '#fffbeb',
   success: '#065f46',
   successBg: '#d1fae5',
-  info: '#1d4ed8',
-  infoBg: '#eff6ff',
-  controlBg: '#f4f4f5',
+  info: '#0369a1',
+  infoBg: '#e0f2fe',
+  controlBg: '#e8eef3',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
+  atmosphere: 'rgba(15, 118, 110, 0.08)',
+  fontDisplay: FONTS.display,
+  fontBody: FONTS.body,
+  ...SPACE,
 };
 
 type ThemeContextValue = {
@@ -128,12 +153,14 @@ export function ThemeProvider({
     () => ({
       theme,
       setMode: setModeState,
-      toggleTheme: () => setModeState(m => (m === 'dark' ? 'light' : 'dark')),
+      toggleTheme: () => setModeState((m) => (m === 'dark' ? 'light' : 'dark')),
     }),
     [theme]
   );
   return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>
+      {children}
+    </ThemeContext.Provider>
   );
 }
 

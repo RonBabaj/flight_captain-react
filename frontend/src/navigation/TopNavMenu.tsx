@@ -199,7 +199,7 @@ export function TopNavMenu() {
               </TouchableOpacity>
             </View>
             <View style={styles.titleWrap}>
-              <Text style={[styles.title, { color: theme.tabActive }]} numberOfLines={1}>
+              <Text style={[styles.title, { color: theme.tabActive, fontFamily: theme.fontDisplay }]} numberOfLines={1}>
                 {title}
               </Text>
             </View>
@@ -209,7 +209,7 @@ export function TopNavMenu() {
           <>
             {navActions}
             <View style={styles.titleWrap}>
-              <Text style={[styles.title, { color: theme.tabActive }]} numberOfLines={1}>
+              <Text style={[styles.title, { color: theme.tabActive, fontFamily: theme.fontDisplay }]} numberOfLines={1}>
                 {title}
               </Text>
             </View>
@@ -239,7 +239,7 @@ export function TopNavMenu() {
         ) : (
           <>
             <View style={styles.titleWrap}>
-              <Text style={[styles.title, { color: theme.tabActive }]} numberOfLines={1}>
+              <Text style={[styles.title, { color: theme.tabActive, fontFamily: theme.fontDisplay }]} numberOfLines={1}>
                 {title}
               </Text>
             </View>

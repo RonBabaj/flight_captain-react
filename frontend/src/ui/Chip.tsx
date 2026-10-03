@@ -62,12 +62,12 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
 const styles = StyleSheet.create({
   chip: {
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
   labelActive: {

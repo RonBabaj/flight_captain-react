@@ -1422,6 +1422,38 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
   };
 
+  const cheaperCitiesChip =
+    positioningLoading || positioningOptions.length > 0 ? (
+      <TouchableOpacity
+        style={[
+          styles.cheaperChip,
+          {
+            backgroundColor: positioningOptions.length ? theme.primary + '18' : theme.controlBg,
+            borderColor: positioningOptions.length ? theme.primary + '44' : theme.cardBorder,
+          },
+        ]}
+        onPress={() => {
+          if (positioningOptions.length > 0) {
+            setCheaperCitiesFolded(false);
+          }
+        }}
+        activeOpacity={positioningOptions.length ? 0.75 : 1}
+        disabled={positioningLoading || positioningOptions.length === 0}
+        accessibilityRole="button"
+        accessibilityLabel={
+          positioningLoading
+            ? t('checking_cheaper_cities_short')
+            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))
+        }
+      >
+        <Text style={[styles.cheaperChipText, { color: positioningOptions.length ? theme.primary : theme.textMuted }]}>
+          {positioningLoading
+            ? t('checking_cheaper_cities_short')
+            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))}
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+
   const positioningSection = (
     <CheaperCitiesSection
       loading={positioningLoading}
@@ -1429,6 +1461,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       isMobile={isMobile}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+      quietLoading
       onView={(hub) => {
         const opt = positioningOptions.find((o) => o.hubAirport === hub);
         if (opt) setPositioningDetails(opt);
@@ -1615,9 +1648,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
+                  {positioningSection}
                 </Animated.View>
                 <FiltersPanel
                   variant="sidebar"
@@ -1626,7 +1668,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                   onFiltersChange={(f) => searchActions.setFilters(f)}
                   results={results}
                   noResults={results.length === 0}
-                  footer={positioningSection}
                 />
               </>
             ) : (
@@ -1638,11 +1679,20 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
+                  {positioningSection}
                 </Animated.View>
-                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} footer={positioningSection} />
+                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} />
               </>
             )}
           </>
@@ -1663,46 +1713,47 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 style={[
                   styles.toolbar,
                   { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+                  isRTL && { flexDirection: 'row-reverse' },
                 ]}
               >
                 <View style={styles.toolbarSortWrap}>
-                  <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                  <SortBar
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSort={toggleSort}
+                    resultCount={filtered.length}
+                  />
                 </View>
-                {!isMobile && (
+                <View style={[styles.toolbarActions, isRTL && { flexDirection: 'row-reverse' }]}>
+                  {cheaperCitiesChip}
                   <TouchableOpacity
-                    style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+                    style={[
+                      styles.filtersBtn,
+                      {
+                        backgroundColor: theme.controlBg,
+                        flexDirection: isRTL ? 'row-reverse' : 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      },
+                    ]}
                     onPress={() => setShowFiltersModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('filters')}
                   >
                     <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
                     <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
                   </TouchableOpacity>
-                )}
+                </View>
               </View>
-              {isMobile && (
-                <TouchableOpacity
-                  style={[
-                    styles.filtersRowMobile,
-                    { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-                    isRTL && { flexDirection: 'row-reverse' },
-                  ]}
-                  onPress={() => setShowFiltersModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <AppIcon name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
-                  <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
-                </TouchableOpacity>
-              )}
-              {isMobile && (
-                <FiltersPanel
-                  variant="modal"
-                  visible={showFiltersModal}
-                  onClose={() => setShowFiltersModal(false)}
-                  filters={filters}
-                  onFiltersChange={(f) => searchActions.setFilters(f)}
-                  results={results}
-                  noResults={results.length === 0}
-                />
-              )}
+              <FiltersPanel
+                variant="modal"
+                visible={showFiltersModal}
+                onClose={() => setShowFiltersModal(false)}
+                filters={filters}
+                onFiltersChange={(f) => searchActions.setFilters(f)}
+                results={results}
+                noResults={results.length === 0}
+              />
               <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {resultsList}
                 {positioningSection}
@@ -1901,25 +1952,28 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  toolbarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    paddingRight: 4,
+  },
   filtersBtn: {
     flexShrink: 0,
     paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginLeft: 4,
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
-  filtersBtnText: { fontSize: 13, fontWeight: '600' },
-
-  filtersRowMobile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
+  filtersBtnText: { fontSize: 12, fontWeight: '600' },
+  cheaperChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: 140,
   },
-  filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
+  cheaperChipText: { fontSize: 11, fontWeight: '600' },
 
   listContent: { paddingVertical: 6, paddingBottom: 20 },
   listContentEmpty: { flex: 1, justifyContent: 'center', padding: 24 },
