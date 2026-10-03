@@ -1734,11 +1734,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               <View
                 style={[
                   styles.toolbar,
+                  styles.toolbarStacked,
                   { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-                  isRTL && { flexDirection: 'row-reverse' },
                 ]}
               >
-                <View style={styles.toolbarSortWrap}>
+                <View style={styles.toolbarSortWrapFull}>
                   <SortBar
                     sortField={sortField}
                     sortOrder={sortOrder}
@@ -1746,7 +1746,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     resultCount={filtered.length}
                   />
                 </View>
-                <View style={[styles.toolbarActions, isRTL && { flexDirection: 'row-reverse' }]}>
+                <View style={[styles.toolbarActions, styles.toolbarActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
                   {cheaperCitiesChip}
                   <TouchableOpacity
                     style={[
@@ -1972,38 +1972,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
     position: 'sticky' as any,
     top: 0,
     minWidth: 0,
     overflow: 'hidden',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  toolbarStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   toolbarSortWrap: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 380,
+  },
+  toolbarSortWrapFull: {
+    width: '100%',
+    maxWidth: '100%',
   },
   toolbarActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexShrink: 0,
-    paddingRight: 4,
+    paddingRight: 2,
+  },
+  toolbarActionsRow: {
+    width: '100%',
+    justifyContent: 'flex-end',
   },
   filtersBtn: {
     flexShrink: 0,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    borderRadius: 12,
   },
   filtersBtnText: { fontSize: 12, fontWeight: '600' },
   cheaperChip: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    maxWidth: 140,
+    maxWidth: 132,
   },
   cheaperChipText: { fontSize: 11, fontWeight: '600' },
 

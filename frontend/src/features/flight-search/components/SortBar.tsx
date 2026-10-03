@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import type { SortField } from '../../../store/searchStore';
-import { Chip } from '../../../ui';
 
 export type SortOption = 'price' | 'duration' | 'best';
 
@@ -24,7 +23,7 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
 
   return (
     <View style={[s.bar, isRTL && { direction: 'rtl' }]}>
-      <View style={[s.topRow, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={[s.metaRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <Text style={[s.label, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('sort_by')}
         </Text>
@@ -34,20 +33,62 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
           </Text>
         ) : null}
       </View>
-      <View style={[s.pills, isRTL && s.pillsRTL]}>
-        {opts.map((opt) => {
+
+      <View
+        style={[
+          s.segment,
+          {
+            backgroundColor: theme.controlBg,
+            borderColor: theme.cardBorder,
+          },
+          isRTL && { flexDirection: 'row-reverse' },
+        ]}
+        accessibilityRole="tablist"
+      >
+        {opts.map((opt, index) => {
           const active = sortField === opt;
           const arrow =
             active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↓' : ' ↑') : '';
+          const isFirst = index === 0;
+          const isLast = index === opts.length - 1;
           return (
-            <Chip
+            <TouchableOpacity
               key={opt}
-              label={`${t(KEYS[opt])}${arrow}`}
-              active={active}
+              style={[
+                s.segBtn,
+                active && {
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                  shadowOpacity: theme.isDark ? 0.35 : 0.2,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 2,
+                },
+                // Keep outer corners rounded on the track ends
+                isFirst && (isRTL ? s.segEndRTL : s.segStart),
+                isLast && (isRTL ? s.segStartRTL : s.segEnd),
+              ]}
               onPress={() => onSort(opt as SortField)}
+              activeOpacity={0.85}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
               accessibilityLabel={`${t('sort_by')} ${t(KEYS[opt])}`}
-              style={s.chip}
-            />
+            >
+              <Text
+                style={[
+                  s.segLabel,
+                  {
+                    color: active ? theme.onPrimary : theme.textMuted,
+                    fontFamily: theme.fontBody,
+                    fontWeight: active ? '700' : '600',
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {t(KEYS[opt])}
+                {arrow}
+              </Text>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -57,35 +98,52 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
 
 const s = StyleSheet.create({
   bar: {
-    paddingHorizontal: 4,
-    paddingVertical: 8,
+    paddingHorizontal: 2,
+    paddingVertical: 6,
     gap: 8,
+    minWidth: 0,
+    flexShrink: 1,
   },
-  topRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 10,
   },
   label: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.55,
   },
   count: {
     fontSize: 12,
     fontWeight: '600',
   },
-  pills: {
+  segment: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    alignItems: 'stretch',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 3,
+    gap: 2,
+    alignSelf: 'stretch',
+    maxWidth: '100%',
   },
-  pillsRTL: {
-    flexDirection: 'row-reverse',
+  segBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
   },
-  chip: {
-    marginRight: 0,
+  segStart: { borderTopLeftRadius: 9, borderBottomLeftRadius: 9 },
+  segEnd: { borderTopRightRadius: 9, borderBottomRightRadius: 9 },
+  segStartRTL: { borderTopRightRadius: 9, borderBottomRightRadius: 9 },
+  segEndRTL: { borderTopLeftRadius: 9, borderBottomLeftRadius: 9 },
+  segLabel: {
+    fontSize: 13,
+    letterSpacing: -0.1,
   },
 });
