@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1791011491.6017604,
-    "seen": 1791011600.723117,
-    "ast_hash": "0dc93e0180fa6a00656ce40fdfb9f377",
+    "mtime": 1791012759.3086212,
+    "seen": 1791012767.9118917,
+    "ast_hash": "ccf752aed47fface92a4fe1197f2b340",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
-    "mtime": 1791011492.8897517,
-    "seen": 1791011600.7231305,
-    "ast_hash": "57abd7f41c9fa98377d3d516b18dbfbb",
+    "mtime": 1791012739.6809592,
+    "seen": 1791012767.9119055,
+    "ast_hash": "4eee247d90f3b0ca72b1f5f8587892e5",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/PassengerCabinPicker.tsx": {
@@ -396,15 +396,15 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/SearchFormContent.tsx": {
-    "mtime": 1790729409.0,
-    "seen": 1791011600.7231326,
-    "ast_hash": "b6293b45298a6f748fd2de670d5ea8cd",
+    "mtime": 1791012746.844837,
+    "seen": 1791012767.911908,
+    "ast_hash": "4007337781da26656624a0ae760b840a",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/SortBar.tsx": {
-    "mtime": 1791011467.8097582,
-    "seen": 1791011600.7231333,
-    "ast_hash": "7a6ce7bdf32cf6ac4cba96c20926eb31",
+    "mtime": 1791012753.8607159,
+    "seen": 1791012767.9119086,
+    "ast_hash": "fb965768275c0fc1a2bfaccfc7dae455",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ExploreScreen.tsx": {
@@ -414,15 +414,15 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1791011514.9694932,
-    "seen": 1791011600.723135,
-    "ast_hash": "22c9a89b631a3af232c35c46b162b75a",
+    "mtime": 1791012713.4653971,
+    "seen": 1791012767.91191,
+    "ast_hash": "2a0004aa9753d1f4ea34b306b8b2f0e5",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
-    "mtime": 1790754203.3108528,
-    "seen": 1791011600.7231357,
-    "ast_hash": "e8b2dbf0d87c91a6f3d15c6e8e38e8fb",
+    "mtime": 1791012740.468946,
+    "seen": 1791012767.9119108,
+    "ast_hash": "d08e4aa9c0a0e19062476aad3db3f66c",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/index.ts": {
@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/landing/LandingScreen.tsx": {
-    "mtime": 1791011468.04976,
-    "seen": 1791011600.7231371,
-    "ast_hash": "dbd9172e93abfb45d82fccfc03f56038",
+    "mtime": 1791012746.904836,
+    "seen": 1791012767.9119122,
+    "ast_hash": "b27e07889d34c20041024a18f477ffe4",
     "semantic_hash": ""
   },
   "frontend/src/features/landing/index.ts": {
@@ -462,9 +462,9 @@
     "semantic_hash": ""
   },
   "frontend/src/hooks/useResponsive.ts": {
-    "mtime": 1790729409.0,
-    "seen": 1791011600.7231443,
-    "ast_hash": "da808c610390b1f94c285b65b64bd5b3",
+    "mtime": 1791012690.4977663,
+    "seen": 1791012767.9119189,
+    "ast_hash": "fd022883e37cf4bdcd56ee6d2d8a8f3d",
     "semantic_hash": ""
   },
   "frontend/src/hooks/useSearchParams.ts": {
@@ -528,9 +528,9 @@
     "semantic_hash": ""
   },
   "frontend/src/theme/ThemeContext.tsx": {
-    "mtime": 1791011568.808268,
-    "seen": 1791011600.7231524,
-    "ast_hash": "fb4eb056f6985532fc26e0e791ee4098",
+    "mtime": 1791012690.577765,
+    "seen": 1791012767.9119272,
+    "ast_hash": "b7606f0521f630a2dfe0e3318a33dcfe",
     "semantic_hash": ""
   },
   "frontend/src/types/api.ts": {
@@ -744,9 +744,9 @@
     "semantic_hash": ""
   },
   "frontend/public/index.html": {
-    "mtime": 1791011446.09741,
-    "seen": 1791011600.7231953,
-    "ast_hash": "d8576ee63a36df214ea8bf893e0b7abf",
+    "mtime": 1791012739.704959,
+    "seen": 1791012767.9119704,
+    "ast_hash": "e1b923085c5fcc9217a7c2645dabe4c3",
     "semantic_hash": ""
   },
   "qa/README.md": {
@@ -1068,9 +1068,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/search/formStyles.ts": {
-    "mtime": 1790729409.0,
-    "seen": 1791011600.7231083,
-    "ast_hash": "40073243541bcce7030123a64c51afe5",
+    "mtime": 1791012700.5256069,
+    "seen": 1791012767.9118817,
+    "ast_hash": "6b22d3be1e1da6a4bfb9a22761a23746",
     "semantic_hash": ""
   },
   "frontend/src/components/search/searchLoadingPhrases.ts": {
@@ -1314,9 +1314,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/Chip.tsx": {
-    "mtime": 1791011445.7134001,
-    "seen": 1791011600.7231588,
-    "ast_hash": "0a8fe142b36f5ba0be287f85b41a8b90",
+    "mtime": 1791011610.4270034,
+    "seen": 1791012259.520805,
+    "ast_hash": "91c77a8ee1365e4ce4fd36a77e6b8bef",
     "semantic_hash": ""
   },
   "frontend/src/ui/SearchStatusBanner.tsx": {
@@ -1425,6 +1425,18 @@
     "mtime": 1790754203.3308527,
     "seen": 1791011600.723198,
     "ast_hash": "a493a22f1d3c1862fecfedbb48916d12",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/DestinationMoodBanner.tsx": {
+    "mtime": 1791012700.5376067,
+    "seen": 1791012767.9118714,
+    "ast_hash": "913a2fc729a8d52c386090b954ea4894",
+    "semantic_hash": ""
+  },
+  "frontend/src/data/destinationMood.ts": {
+    "mtime": 1791012679.2859414,
+    "seen": 1791012767.9118907,
+    "ast_hash": "de8c123bdd866ad32e697fc714832100",
     "semantic_hash": ""
   }
 }

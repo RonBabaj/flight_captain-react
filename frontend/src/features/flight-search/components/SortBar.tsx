@@ -58,8 +58,8 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
 const s = StyleSheet.create({
   bar: {
     paddingHorizontal: 4,
-    paddingVertical: 6,
-    gap: 6,
+    paddingVertical: 8,
+    gap: 8,
   },
   topRow: {
     flexDirection: 'row',

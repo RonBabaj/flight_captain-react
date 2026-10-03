@@ -405,10 +405,10 @@ export function FlightResultCard({
 const c = StyleSheet.create({
   card: {
     marginHorizontal: 12,
-    marginVertical: 4,
-    borderRadius: 12,
+    marginVertical: 5,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 12,
+    padding: 14,
   },
   row1: {
     flexDirection: 'row',

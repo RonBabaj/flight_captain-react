@@ -5,8 +5,8 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Platform,
   Animated,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,7 +15,11 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
-import { useIsMobile } from '../../hooks/useResponsive';
+import { useBreakpoint } from '../../hooks/useResponsive';
+import { LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
+import { getAirportEntry, getCityDisplayName } from '../../data/airports';
+import { setCachedSearch } from '../../utils/searchCache';
+import { updateSearchUrl } from '../../hooks/useSearchParams';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,10 +27,11 @@ const MAX_CONTENT = 1040;
 
 export function LandingScreen() {
   const { theme } = useTheme();
-  const { t, isRTL } = useLocale();
+  const { t, isRTL, language } = useLocale();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const isMobile = useIsMobile();
+  const breakpoint = useBreakpoint();
+  const isMobile = breakpoint === 'mobile';
 
   const brandOpacity = useRef(new Animated.Value(0)).current;
   const brandY = useRef(new Animated.Value(18)).current;
@@ -45,45 +50,61 @@ export function LandingScreen() {
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
 
+  const goDestination = (code: string) => {
+    const dest = code.toUpperCase();
+    setCachedSearch({
+      origin: '',
+      destination: dest,
+      departureDate: '',
+      returnDate: '',
+      cabinClass: 'ECONOMY',
+      cabinPreference: 'ECONOMY',
+      includeCheckedBag: false,
+      adults: 1,
+      children: 0,
+      infants: 0,
+      currency: 'USD',
+      locale: 'en-US',
+    });
+    updateSearchUrl({ destination: dest });
+    navigation.navigate('Search');
+  };
+
   const textAlign = isRTL ? 'right' : 'left';
+  const heroMin = isMobile ? 480 : breakpoint === 'tablet' ? 540 : 600;
+  const brandSize = isMobile ? 42 : breakpoint === 'tablet' ? 50 : 58;
+  const titleSize = isMobile ? 22 : breakpoint === 'tablet' ? 26 : 28;
 
   return (
     <ScrollView
       style={[styles.page, { backgroundColor: theme.screenBg }]}
       contentContainerStyle={[
         styles.scrollContent,
-        { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+        { paddingBottom: Math.max(insets.bottom, 24) + 28 },
       ]}
       showsVerticalScrollIndicator={false}
     >
       {/* Full-bleed hero — brand first, one composition */}
-      <View style={[styles.heroPlane, { minHeight: isMobile ? 520 : 620 }]}>
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            {
-              backgroundColor: theme.screenBg,
-            },
-          ]}
-        />
-        {/* Horizon atmosphere — not a flat fill */}
+      <View style={[styles.heroPlane, { minHeight: heroMin }]}>
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.screenBg }]} />
         <View
           pointerEvents="none"
-          style={[
-            styles.horizonBand,
-            {
-              backgroundColor: theme.atmosphere,
-            },
-          ]}
+          style={[styles.horizonBand, { backgroundColor: theme.atmosphere }]}
         />
         <View
           pointerEvents="none"
-          style={[
-            styles.horizonGlow,
-            { backgroundColor: theme.primary + '22' },
-          ]}
+          style={[styles.horizonGlow, { backgroundColor: theme.primary + '28' }]}
         />
-        <View style={[styles.heroInner, { maxWidth: MAX_CONTENT, paddingTop: isMobile ? 28 : 48 }]}>
+        <View
+          style={[
+            styles.heroInner,
+            {
+              maxWidth: MAX_CONTENT,
+              paddingTop: isMobile ? 24 : 40,
+              paddingHorizontal: isMobile ? 0 : 4,
+            },
+          ]}
+        >
           <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }] }}>
             <Text
               style={[
@@ -92,6 +113,8 @@ export function LandingScreen() {
                   color: theme.text,
                   fontFamily: theme.fontDisplay,
                   textAlign,
+                  fontSize: brandSize,
+                  lineHeight: brandSize + 4,
                 },
               ]}
               accessibilityRole="header"
@@ -105,6 +128,8 @@ export function LandingScreen() {
                   color: theme.text,
                   fontFamily: theme.fontDisplay,
                   textAlign,
+                  fontSize: titleSize,
+                  lineHeight: titleSize + 6,
                 },
               ]}
             >
@@ -130,7 +155,7 @@ export function LandingScreen() {
             <TouchableOpacity
               style={[
                 styles.btnPrimary,
-                { backgroundColor: theme.buttonBg },
+                { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
                 isMobile && styles.btnFullWidth,
               ]}
               onPress={goSearch}
@@ -156,8 +181,57 @@ export function LandingScreen() {
         </View>
       </View>
 
-      {/* One job: why Fly-Fix — stacked, not a card grid in the hero */}
-      <View style={[styles.section, { paddingHorizontal: 20 }]}>
+      {/* Mood destinations — below hero, one job: inspire */}
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
+          ]}
+        >
+          {t('landing_mood_title')}
+        </Text>
+        <Text
+          style={[
+            styles.sectionSubtitle,
+            { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
+          ]}
+        >
+          {t('landing_mood_subtitle')}
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.moodRow,
+            isRTL && { flexDirection: 'row-reverse' },
+          ]}
+        >
+          {LANDING_MOOD_DESTINATIONS.map(({ code, mood }) => {
+            const entry = getAirportEntry(code);
+            const label = entry ? getCityDisplayName(entry, language) : mood.labelEn;
+            return (
+              <TouchableOpacity
+                key={code}
+                style={[styles.moodCard, { borderRadius: theme.radiusLg, borderColor: theme.cardBorder }]}
+                onPress={() => goDestination(code)}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel={t('landing_mood_go').replace('{city}', label)}
+              >
+                <Image source={{ uri: mood.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                <View style={styles.moodScrim} />
+                <Text style={[styles.moodLabel, { fontFamily: theme.fontDisplay }]} numberOfLines={1}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Why Fly-Fix */}
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
         <Text
           style={[
             styles.sectionTitle,
@@ -188,9 +262,13 @@ export function LandingScreen() {
         ))}
       </View>
 
-      <View style={[styles.section, { paddingHorizontal: 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
         <TouchableOpacity
-          style={[styles.btnPrimary, styles.btnPrimaryBlock, { backgroundColor: theme.buttonBg }]}
+          style={[
+            styles.btnPrimary,
+            styles.btnPrimaryBlock,
+            { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
+          ]}
           onPress={goSearch}
           activeOpacity={0.85}
         >
@@ -213,7 +291,7 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     justifyContent: 'center',
-    paddingBottom: 48,
+    paddingBottom: 40,
     paddingHorizontal: 20,
   },
   horizonBand: {
@@ -238,24 +316,20 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   brand: {
-    fontSize: Platform.OS === 'web' ? 56 : 44,
     fontWeight: '800',
     letterSpacing: -1.2,
-    lineHeight: Platform.OS === 'web' ? 60 : 48,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   heroTitle: {
-    fontSize: Platform.OS === 'web' ? 28 : 24,
     fontWeight: '700',
-    letterSpacing: -0.4,
-    lineHeight: Platform.OS === 'web' ? 34 : 30,
+    letterSpacing: -0.35,
     marginBottom: 12,
     maxWidth: 520,
   },
   heroSubtitle: {
     fontSize: 16,
     lineHeight: 24,
-    marginBottom: 28,
+    marginBottom: 26,
     maxWidth: 480,
   },
   heroCtas: {
@@ -275,10 +349,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 22,
-    borderRadius: 12,
-    minHeight: 48,
+    minHeight: 50,
   },
   btnPrimaryBlock: {
     justifyContent: 'center',
@@ -290,8 +363,8 @@ const styles = StyleSheet.create({
   btnTextLink: { paddingVertical: 8, paddingHorizontal: 4 },
   btnTextLinkLabel: { fontSize: 15, fontWeight: '600' },
   section: {
-    paddingTop: 36,
-    paddingBottom: 12,
+    paddingTop: 32,
+    paddingBottom: 8,
     maxWidth: MAX_CONTENT,
     width: '100%',
     alignSelf: 'center',
@@ -299,8 +372,40 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 16,
+    maxWidth: 560,
+  },
+  moodRow: {
+    gap: 12,
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  moodCard: {
+    width: 156,
+    height: 196,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'flex-end',
+  },
+  moodScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8,16,24,0.28)',
+  },
+  moodLabel: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   featureRow: {
     paddingVertical: 18,

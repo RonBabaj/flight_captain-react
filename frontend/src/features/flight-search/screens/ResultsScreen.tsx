@@ -28,7 +28,7 @@ import {
   invalidateSearchSessionResultsCache,
 } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
-import { useIsMobile } from '../../../hooks/useResponsive';
+import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
@@ -41,6 +41,7 @@ import { FlightResultCard } from '../components/FlightResultCard';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import {
   addExtraDestinationLeg,
   isDynamicDestinationsSearch,
@@ -184,6 +185,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
+  const breakpoint = useBreakpoint();
   const {
     params: storeParams,
     sessionId: storeSessionId,
@@ -1616,6 +1618,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     />
   );
 
+  const destinationMoodCode = (params?.destination || formParams.destination || '').trim();
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       <SearchSummaryBar
@@ -1623,6 +1627,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         showEditButton={isMobile}
         onEditPress={openEditSearch}
       />
+      {!!destinationMoodCode && (
+        <View style={styles.moodStrip}>
+          <DestinationMoodBanner destinationCode={destinationMoodCode} variant="results" />
+        </View>
+      )}
 
       <EditSearchModal
         visible={showEditSearchModal}
@@ -1641,7 +1650,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             {/* RTL: Search (right) | Results (center) | Filters (left). LTR: Search (left) | Results (center) | Filters (right). */}
             {isRTL ? (
               <>
-                <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    styles.searchColumnRTL,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderLeftColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
@@ -1672,7 +1688,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               </>
             ) : (
               <>
-                <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderRightColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
@@ -1915,11 +1937,21 @@ const styles = StyleSheet.create({
   editSearchModalScrollTall: { maxHeight: 640 },
   editSearchModalContent: { padding: 18, paddingBottom: 28 },
 
+  moodStrip: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
   searchColumn: {
-    width: 280,
-    minWidth: 240,
-    maxWidth: 340,
+    width: 300,
+    minWidth: 260,
+    maxWidth: 360,
     borderRightWidth: 1,
+  },
+  searchColumnTablet: {
+    width: 240,
+    minWidth: 220,
+    maxWidth: 260,
   },
   searchColumnRTL: { borderRightWidth: 0, borderLeftWidth: 1 },
   searchColumnScroll: { flex: 1 },

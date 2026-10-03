@@ -44,38 +44,38 @@ export type Theme = {
   spaceXl: number;
 };
 
-/** Travel-rooted teal (sky/horizon) — not the default indigo/purple cluster. */
+/** Travel-rooted teal — warmer & friendlier than cold indigo. */
 const ACCENT = {
-  main: '#1BA7A0',
-  light: '#3BC4BC',
-  dark: '#0F766E',
+  main: '#1FB8AE',
+  light: '#4FD0C6',
+  dark: '#0E7A72',
 };
 
-const RADIUS = { md: 12, lg: 18 };
+const RADIUS = { md: 14, lg: 22 };
 
 const FONTS = {
   display: Platform.OS === 'web' ? 'Sora, ui-sans-serif, sans-serif' : undefined,
   body: Platform.OS === 'web' ? 'Figtree, ui-sans-serif, sans-serif' : undefined,
 };
 
-const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 14, spaceLg: 20, spaceXl: 32 };
+const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 16, spaceLg: 24, spaceXl: 36 };
 
-/** Dark: deep slate night sky, teal accent */
+/** Dark: soft night sky, approachable teal */
 const darkTheme: Theme = {
   mode: 'dark',
   isDark: true,
   primary: ACCENT.main,
   primaryLight: ACCENT.light,
-  navBg: '#0e1620',
-  screenBg: '#081018',
-  cardBg: '#121c27',
-  cardBorder: '#243041',
-  text: '#f1f5f9',
-  textMuted: '#94a3b8',
-  inputBg: '#121c27',
-  inputBorder: '#243041',
+  navBg: '#101820',
+  screenBg: '#0b1219',
+  cardBg: '#15202b',
+  cardBorder: '#2a3a4a',
+  text: '#f4f7fa',
+  textMuted: '#a8b6c5',
+  inputBg: '#15202b',
+  inputBorder: '#2a3a4a',
   tabActive: '#fff',
-  tabInactive: 'rgba(241,245,249,0.65)',
+  tabInactive: 'rgba(244,247,250,0.68)',
   buttonBg: ACCENT.main,
   buttonText: '#041016',
   onPrimary: '#041016',
@@ -87,31 +87,31 @@ const darkTheme: Theme = {
   successBg: 'rgba(6, 78, 59, 0.55)',
   info: '#7dd3fc',
   infoBg: 'rgba(14, 165, 233, 0.12)',
-  controlBg: '#1a2736',
+  controlBg: '#1c2a38',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(27, 167, 160, 0.14)',
+  atmosphere: 'rgba(31, 184, 174, 0.16)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
   ...SPACE,
 };
 
-/** Light: cool mist background, deep teal accent */
+/** Light: soft mist, welcoming teal */
 const lightTheme: Theme = {
   mode: 'light',
   isDark: false,
   primary: ACCENT.dark,
   primaryLight: ACCENT.main,
   navBg: '#ffffff',
-  screenBg: '#eef3f6',
+  screenBg: '#f3f7f8',
   cardBg: '#ffffff',
-  cardBorder: '#d5dee7',
+  cardBorder: '#d7e2e6',
   text: '#0f172a',
-  textMuted: '#64748b',
+  textMuted: '#5b6b7c',
   inputBg: '#ffffff',
-  inputBorder: '#d5dee7',
+  inputBorder: '#d7e2e6',
   tabActive: '#0f172a',
-  tabInactive: '#64748b',
+  tabInactive: '#5b6b7c',
   buttonBg: ACCENT.dark,
   buttonText: '#ffffff',
   onPrimary: '#ffffff',
@@ -123,10 +123,10 @@ const lightTheme: Theme = {
   successBg: '#d1fae5',
   info: '#0369a1',
   infoBg: '#e0f2fe',
-  controlBg: '#e8eef3',
+  controlBg: '#e7eef1',
   radiusMd: RADIUS.md,
   radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(15, 118, 110, 0.08)',
+  atmosphere: 'rgba(14, 122, 114, 0.10)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
   ...SPACE,
