@@ -40,13 +40,13 @@ export function SearchProgressBanner({ language, theme }: SearchProgressBannerPr
   const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['5%', '100%'] });
 
   return (
-    <View style={[s.wrap, { backgroundColor: theme.isDark ? theme.controlBg : '#eef2ff' }]}>
-      <View style={[s.track, { backgroundColor: theme.isDark ? '#334' : '#dde4ff' }]}>
+    <View style={[s.wrap, { backgroundColor: theme.isDark ? theme.controlBg : theme.infoBg }]}>
+      <View style={[s.track, { backgroundColor: theme.isDark ? theme.cardBorder : theme.controlBg }]}>
         <Animated.View style={[s.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
       </View>
       <View style={s.row}>
         <ActivityIndicator size="small" color={theme.primary} />
-        <Animated.Text style={[s.text, { color: theme.primary, opacity: fadeAnim }]}>
+        <Animated.Text style={[s.text, { color: theme.text, opacity: fadeAnim, fontFamily: theme.fontBody }]}>
           {phrases[phraseIdx]}
         </Animated.Text>
       </View>

@@ -17,7 +17,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <Text
       style={[
         styles.label,
-        { color: active ? theme.onPrimary : theme.text },
+        { color: active ? theme.onPrimary : theme.text, fontFamily: theme.fontBody },
         active && styles.labelActive,
       ]}
     >
@@ -61,13 +61,13 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
 
 const styles = StyleSheet.create({
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
     borderWidth: 1,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
   labelActive: {

@@ -28,7 +28,7 @@ import {
   invalidateSearchSessionResultsCache,
 } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
-import { useIsMobile } from '../../../hooks/useResponsive';
+import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
@@ -41,6 +41,7 @@ import { FlightResultCard } from '../components/FlightResultCard';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import {
   addExtraDestinationLeg,
   isDynamicDestinationsSearch,
@@ -184,6 +185,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
+  const breakpoint = useBreakpoint();
   const {
     params: storeParams,
     sessionId: storeSessionId,
@@ -1422,6 +1424,38 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
   };
 
+  const cheaperCitiesChip =
+    positioningLoading || positioningOptions.length > 0 ? (
+      <TouchableOpacity
+        style={[
+          styles.cheaperChip,
+          {
+            backgroundColor: positioningOptions.length ? theme.primary + '18' : theme.controlBg,
+            borderColor: positioningOptions.length ? theme.primary + '44' : theme.cardBorder,
+          },
+        ]}
+        onPress={() => {
+          if (positioningOptions.length > 0) {
+            setCheaperCitiesFolded(false);
+          }
+        }}
+        activeOpacity={positioningOptions.length ? 0.75 : 1}
+        disabled={positioningLoading || positioningOptions.length === 0}
+        accessibilityRole="button"
+        accessibilityLabel={
+          positioningLoading
+            ? t('checking_cheaper_cities_short')
+            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))
+        }
+      >
+        <Text style={[styles.cheaperChipText, { color: positioningOptions.length ? theme.primary : theme.textMuted }]}>
+          {positioningLoading
+            ? t('checking_cheaper_cities_short')
+            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))}
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+
   const positioningSection = (
     <CheaperCitiesSection
       loading={positioningLoading}
@@ -1429,6 +1463,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       isMobile={isMobile}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+      quietLoading
       onView={(hub) => {
         const opt = positioningOptions.find((o) => o.hubAirport === hub);
         if (opt) setPositioningDetails(opt);
@@ -1473,7 +1508,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             option={item}
             onDetails={() => openDetails(item)}
             bookLoading={false}
-            bookLabel={t('view_and_book')}
+            bookLabel={t('select_flight')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
             searchReturnRoute={searchReturnRoute}
@@ -1583,6 +1618,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     />
   );
 
+  const destinationMoodCode = (params?.destination || formParams.destination || '').trim();
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       <SearchSummaryBar
@@ -1590,6 +1627,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         showEditButton={isMobile}
         onEditPress={openEditSearch}
       />
+      {!!destinationMoodCode && (
+        <View style={styles.moodStrip}>
+          <DestinationMoodBanner destinationCode={destinationMoodCode} variant="results" />
+        </View>
+      )}
 
       <EditSearchModal
         visible={showEditSearchModal}
@@ -1608,16 +1650,32 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             {/* RTL: Search (right) | Results (center) | Filters (left). LTR: Search (left) | Results (center) | Filters (right). */}
             {isRTL ? (
               <>
-                <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    styles.searchColumnRTL,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderLeftColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
+                  {positioningSection}
                 </Animated.View>
                 <FiltersPanel
                   variant="sidebar"
@@ -1626,23 +1684,37 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                   onFiltersChange={(f) => searchActions.setFilters(f)}
                   results={results}
                   noResults={results.length === 0}
-                  footer={positioningSection}
                 />
               </>
             ) : (
               <>
-                <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderRightColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
+                  {positioningSection}
                 </Animated.View>
-                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} footer={positioningSection} />
+                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} />
               </>
             )}
           </>
@@ -1662,47 +1734,48 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               <View
                 style={[
                   styles.toolbar,
+                  styles.toolbarStacked,
                   { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
                 ]}
               >
-                <View style={styles.toolbarSortWrap}>
-                  <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                <View style={styles.toolbarSortWrapFull}>
+                  <SortBar
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSort={toggleSort}
+                    resultCount={filtered.length}
+                  />
                 </View>
-                {!isMobile && (
+                <View style={[styles.toolbarActions, styles.toolbarActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                  {cheaperCitiesChip}
                   <TouchableOpacity
-                    style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+                    style={[
+                      styles.filtersBtn,
+                      {
+                        backgroundColor: theme.controlBg,
+                        flexDirection: isRTL ? 'row-reverse' : 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      },
+                    ]}
                     onPress={() => setShowFiltersModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('filters')}
                   >
                     <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
                     <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
                   </TouchableOpacity>
-                )}
+                </View>
               </View>
-              {isMobile && (
-                <TouchableOpacity
-                  style={[
-                    styles.filtersRowMobile,
-                    { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-                    isRTL && { flexDirection: 'row-reverse' },
-                  ]}
-                  onPress={() => setShowFiltersModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <AppIcon name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
-                  <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
-                </TouchableOpacity>
-              )}
-              {isMobile && (
-                <FiltersPanel
-                  variant="modal"
-                  visible={showFiltersModal}
-                  onClose={() => setShowFiltersModal(false)}
-                  filters={filters}
-                  onFiltersChange={(f) => searchActions.setFilters(f)}
-                  results={results}
-                  noResults={results.length === 0}
-                />
-              )}
+              <FiltersPanel
+                variant="modal"
+                visible={showFiltersModal}
+                onClose={() => setShowFiltersModal(false)}
+                filters={filters}
+                onFiltersChange={(f) => searchActions.setFilters(f)}
+                results={results}
+                noResults={results.length === 0}
+              />
               <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {resultsList}
                 {positioningSection}
@@ -1864,11 +1937,21 @@ const styles = StyleSheet.create({
   editSearchModalScrollTall: { maxHeight: 640 },
   editSearchModalContent: { padding: 18, paddingBottom: 28 },
 
+  moodStrip: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
   searchColumn: {
-    width: 280,
-    minWidth: 240,
-    maxWidth: 340,
+    width: 300,
+    minWidth: 260,
+    maxWidth: 360,
     borderRightWidth: 1,
+  },
+  searchColumnTablet: {
+    width: 240,
+    minWidth: 220,
+    maxWidth: 260,
   },
   searchColumnRTL: { borderRightWidth: 0, borderLeftWidth: 1 },
   searchColumnScroll: { flex: 1 },
@@ -1889,37 +1972,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
     position: 'sticky' as any,
     top: 0,
     minWidth: 0,
     overflow: 'hidden',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  toolbarStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   toolbarSortWrap: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 380,
+  },
+  toolbarSortWrapFull: {
+    width: '100%',
+    maxWidth: '100%',
+  },
+  toolbarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    paddingRight: 2,
+  },
+  toolbarActionsRow: {
+    width: '100%',
+    justifyContent: 'flex-end',
   },
   filtersBtn: {
     flexShrink: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+  },
+  filtersBtnText: { fontSize: 12, fontWeight: '600' },
+  cheaperChip: {
     paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginLeft: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: 132,
   },
-  filtersBtnText: { fontSize: 13, fontWeight: '600' },
-
-  filtersRowMobile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
+  cheaperChipText: { fontSize: 11, fontWeight: '600' },
 
   listContent: { paddingVertical: 6, paddingBottom: 20 },
   listContentEmpty: { flex: 1, justifyContent: 'center', padding: 24 },

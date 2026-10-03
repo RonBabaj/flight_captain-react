@@ -319,20 +319,45 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Прилетайте в один город и возвращайтесь из другого — без двух отдельных бронирований.',
   },
   landing_hero_title: {
-    en: 'Find cheaper flights smarter',
-    he: 'מצא טיסות זולות יותר — בחכמה',
-    ru: 'Находите дешёвые рейсы умнее',
+    en: 'Find your next trip — for less',
+    he: 'מצאו את הטיול הבא — בפחות כסף',
+    ru: 'Найдите следующую поездку — дешевле',
   },
   landing_hero_subtitle: {
-    en: 'Compare routes, nearby departures, and hidden savings. Fly-Fix helps you discover cheaper ways to travel.',
-    he: 'השוו מסלולים, יציאות קרובות וחיסכון נסתר. Fly-Fix עוזר לגלות דרכים זולות יותר לטוס.',
-    ru: 'Сравнивайте маршруты, вылеты из соседних городов и скрытую экономию. Fly-Fix помогает путешествовать дешевле.',
+    en: 'Friendly flight search with smarter routes and nearby-city savings. We’ll help you travel with more joy and less stress.',
+    he: 'חיפוש טיסות ידידותי עם מסלולים חכמים וחיסכון מערי יציאה קרובות. נעזור לטוס בשמחה ועם פחות לחץ.',
+    ru: 'Дружелюбный поиск рейсов с умными маршрутами и экономией на соседних городах. Путешествуйте спокойнее и выгоднее.',
   },
-  landing_cta_search: { en: 'Search flights', he: 'חפש טיסות', ru: 'Искать рейсы' },
+  landing_cta_search: { en: 'Start searching', he: 'התחילו לחפש', ru: 'Начать поиск' },
   landing_cta_deals: {
     en: 'Explore monthly deals',
     he: 'גלו דילים חודשיים',
     ru: 'Смотреть предложения месяца',
+  },
+  landing_mood_title: {
+    en: 'Get in the mood',
+    he: 'היכנסו לאווירה',
+    ru: 'Настройтесь на поездку',
+  },
+  landing_mood_subtitle: {
+    en: 'Tap a destination to start dreaming — we’ll drop it into your search.',
+    he: 'לחצו על יעד כדי להתחיל לחלום — נכניס אותו לחיפוש שלכם.',
+    ru: 'Нажмите на направление — мы подставим его в поиск.',
+  },
+  landing_mood_go: {
+    en: 'Search flights to {city}',
+    he: 'חפש טיסות ל{city}',
+    ru: 'Искать рейсы в {city}',
+  },
+  destination_mood_eyebrow: {
+    en: 'Your destination',
+    he: 'היעד שלכם',
+    ru: 'Ваше направление',
+  },
+  destination_mood_a11y: {
+    en: 'Travel mood photo for {city}',
+    he: 'תמונת אווירה ל{city}',
+    ru: 'Атмосферное фото: {city}',
   },
   landing_features_title: {
     en: 'Why Fly-Fix',
@@ -693,6 +718,32 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     en: 'View & book',
     he: 'צפייה והזמנה',
     ru: 'Смотреть и забронировать',
+  },
+  select_flight: {
+    en: 'Select',
+    he: 'בחירה',
+    ru: 'Выбрать',
+  },
+  results_count: {
+    en: '{n} flights',
+    he: '{n} טיסות',
+    ru: '{n} рейсов',
+  },
+  cheaper_cities_found: {
+    en: '{n} nearby options that may save money',
+    he: '{n} אפשרויות קרובות שעשויות לחסוך',
+    ru: '{n} соседних вариантов с возможной экономией',
+  },
+  checking_cheaper_cities_short: {
+    en: 'Nearby hubs…',
+    he: 'יציאות קרובות…',
+    ru: 'Соседние хабы…',
+  },
+  show: { en: 'Show', he: 'הצג', ru: 'Показать' },
+  cheaper_cities_ready: {
+    en: '{n} cheaper cities',
+    he: '{n} ערים זולות יותר',
+    ru: '{n} дешевле из других городов',
   },
   airline_direct_prefill_hint: {
     en: 'Opens airline site with your route prefilled — select your flight and verify the fare.',

@@ -13,6 +13,7 @@ import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../.
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { classicSearchPayload } from '../../../utils/skyscanner';
+import { useBreakpoint } from '../../../hooks/useResponsive';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -33,6 +34,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const { currency, locale, t } = useLocale();
   const { paramsFromUrl, updateUrl } = useSearchParams();
+  const breakpoint = useBreakpoint();
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('round-trip');
   const [params, setParams] = useState<CreateSearchSessionRequest>(() => {
     const cached = getCachedSearch();
@@ -202,7 +204,13 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingHorizontal: breakpoint === 'mobile' ? 14 : 24,
+            maxWidth: breakpoint === 'desktop' ? 680 : 640,
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <SearchFormContent

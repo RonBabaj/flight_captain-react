@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Platform,
+  Animated,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,7 +15,11 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
-import { useIsMobile } from '../../hooks/useResponsive';
+import { useBreakpoint } from '../../hooks/useResponsive';
+import { LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
+import { getAirportEntry, getCityDisplayName } from '../../data/airports';
+import { setCachedSearch } from '../../utils/searchCache';
+import { updateSearchUrl } from '../../hooks/useSearchParams';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,226 +27,258 @@ const MAX_CONTENT = 1040;
 
 export function LandingScreen() {
   const { theme } = useTheme();
-  const { t, isRTL } = useLocale();
+  const { t, isRTL, language } = useLocale();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const isMobile = useIsMobile();
+  const breakpoint = useBreakpoint();
+  const isMobile = breakpoint === 'mobile';
+
+  const brandOpacity = useRef(new Animated.Value(0)).current;
+  const brandY = useRef(new Animated.Value(18)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(brandOpacity, { toValue: 1, duration: 520, useNativeDriver: true }),
+        Animated.timing(brandY, { toValue: 0, duration: 520, useNativeDriver: true }),
+      ]),
+      Animated.timing(ctaOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+    ]).start();
+  }, [brandOpacity, brandY, ctaOpacity]);
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
-  const goDynamic = () => navigation.navigate('DynamicDestinations');
 
-  const dir = isRTL ? 'rtl' : 'ltr';
+  const goDestination = (code: string) => {
+    const dest = code.toUpperCase();
+    setCachedSearch({
+      origin: '',
+      destination: dest,
+      departureDate: '',
+      returnDate: '',
+      cabinClass: 'ECONOMY',
+      cabinPreference: 'ECONOMY',
+      includeCheckedBag: false,
+      adults: 1,
+      children: 0,
+      infants: 0,
+      currency: 'USD',
+      locale: 'en-US',
+    });
+    updateSearchUrl({ destination: dest });
+    navigation.navigate('Search');
+  };
+
   const textAlign = isRTL ? 'right' : 'left';
+  const heroMin = isMobile ? 480 : breakpoint === 'tablet' ? 540 : 600;
+  const brandSize = isMobile ? 42 : breakpoint === 'tablet' ? 50 : 58;
+  const titleSize = isMobile ? 22 : breakpoint === 'tablet' ? 26 : 28;
 
   return (
     <ScrollView
       style={[styles.page, { backgroundColor: theme.screenBg }]}
       contentContainerStyle={[
         styles.scrollContent,
-        { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+        { paddingBottom: Math.max(insets.bottom, 24) + 28 },
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero */}
-      <View
-        style={[
-          styles.heroWrap,
-          {
-            paddingTop: 8,
-            paddingHorizontal: 20,
-            borderBottomColor: theme.cardBorder,
-          },
-        ]}
-      >
+      {/* Full-bleed hero — brand first, one composition */}
+      <View style={[styles.heroPlane, { minHeight: heroMin }]}>
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.screenBg }]} />
+        <View
+          pointerEvents="none"
+          style={[styles.horizonBand, { backgroundColor: theme.atmosphere }]}
+        />
+        <View
+          pointerEvents="none"
+          style={[styles.horizonGlow, { backgroundColor: theme.primary + '28' }]}
+        />
         <View
           style={[
-            styles.heroGlow,
+            styles.heroInner,
             {
-              backgroundColor: theme.primary + '18',
-              opacity: Platform.OS === 'web' ? 1 : 0.9,
+              maxWidth: MAX_CONTENT,
+              paddingTop: isMobile ? 24 : 40,
+              paddingHorizontal: isMobile ? 0 : 4,
             },
           ]}
-        />
-        <View style={[styles.heroInner, { maxWidth: MAX_CONTENT }]}>
-          <View style={[styles.heroBadge, { borderColor: theme.primary + '55' }]}>
-            <AppIcon name="airplane-outline" size={18} color={theme.primaryLight} fallbackText="" />
-            <Text style={[styles.heroBadgeText, { color: theme.primaryLight }]}>
+        >
+          <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }] }}>
+            <Text
+              style={[
+                styles.brand,
+                {
+                  color: theme.text,
+                  fontFamily: theme.fontDisplay,
+                  textAlign,
+                  fontSize: brandSize,
+                  lineHeight: brandSize + 4,
+                },
+              ]}
+              accessibilityRole="header"
+            >
               Fly-Fix
             </Text>
-          </View>
-          <Text style={[styles.heroTitle, { color: theme.text, textAlign }]} accessibilityRole="header">
-            {t('landing_hero_title')}
-          </Text>
-          <Text style={[styles.heroSubtitle, { color: theme.textMuted, textAlign }]}>
-            {t('landing_hero_subtitle')}
-          </Text>
-          <View
+            <Text
+              style={[
+                styles.heroTitle,
+                {
+                  color: theme.text,
+                  fontFamily: theme.fontDisplay,
+                  textAlign,
+                  fontSize: titleSize,
+                  lineHeight: titleSize + 6,
+                },
+              ]}
+            >
+              {t('landing_hero_title')}
+            </Text>
+            <Text
+              style={[
+                styles.heroSubtitle,
+                { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
+              ]}
+            >
+              {t('landing_hero_subtitle')}
+            </Text>
+          </Animated.View>
+
+          <Animated.View
             style={[
               styles.heroCtas,
               isMobile ? styles.heroCtasMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
+              { opacity: ctaOpacity },
             ]}
           >
             <TouchableOpacity
               style={[
                 styles.btnPrimary,
-                { backgroundColor: theme.buttonBg },
+                { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
                 isMobile && styles.btnFullWidth,
               ]}
               onPress={goSearch}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('landing_cta_search')}
             >
               <AppIcon name="search" size={20} color={theme.buttonText} fallbackText="" />
-              <Text style={[styles.btnPrimaryText, { color: theme.buttonText }]}>
+              <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
                 {t('landing_cta_search')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.btnSecondary,
-                { borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
-                isMobile && styles.btnFullWidth,
-              ]}
+              style={[styles.btnTextLink, isMobile && { alignSelf: 'center' }]}
               onPress={goDeals}
-              activeOpacity={0.85}
+              activeOpacity={0.75}
             >
-              <Text style={[styles.btnSecondaryText, { color: theme.text }]}>
+              <Text style={[styles.btnTextLinkLabel, { color: theme.primaryLight, fontFamily: theme.fontBody }]}>
                 {t('landing_cta_deals')}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.btnSecondary,
-                { borderColor: theme.cardBorder, backgroundColor: theme.cardBg },
-                isMobile && styles.btnFullWidth,
-              ]}
-              onPress={goDynamic}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.btnSecondaryText, { color: theme.text }]}>
-                {t('landing_cta_dynamic')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.heroVisual, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.routeLine, { backgroundColor: theme.cardBorder }]} />
-            <View style={[styles.planeDot, { backgroundColor: theme.primary + '35' }]}>
-              <AppIcon name="airplane-outline" size={22} color={theme.primaryLight} fallbackText="" />
-            </View>
-            <View style={[styles.routeLine, { backgroundColor: theme.cardBorder }]} />
-          </View>
+          </Animated.View>
         </View>
       </View>
 
-      {/* Features */}
-      <View style={[styles.section, { paddingHorizontal: 20 }]}>
-        <Text style={[styles.sectionTitle, { color: theme.text, textAlign: 'center' }]}>{t('landing_features_title')}</Text>
-        <View style={[styles.featureGrid, { direction: dir as 'ltr' | 'rtl' }]}>
-          {[
-            { icon: 'filter-outline' as const, titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc' },
-            { icon: 'globe-outline' as const, titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc' },
-            { icon: 'calendar-outline' as const, titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc' },
-            { icon: 'options-outline' as const, titleKey: 'landing_feature_4_title', descKey: 'landing_feature_4_desc' },
-            { icon: 'airplane-outline' as const, titleKey: 'landing_feature_dd_title', descKey: 'landing_feature_dd_body' },
-          ].map((f) => (
-            <View
-              key={f.titleKey}
-              style={[
-                styles.featureCard,
-                isMobile && styles.featureCardMobile,
-                {
-                  backgroundColor: theme.cardBg,
-                  borderColor: theme.cardBorder,
-                  borderRadius: theme.radiusLg,
-                },
-              ]}
-            >
-              <View style={[styles.featureIconWrap, { backgroundColor: theme.primary + '22' }]}>
-                <AppIcon name={f.icon} size={26} color={theme.primaryLight} fallbackText="" />
-              </View>
-              <Text style={[styles.featureCardTitle, { color: theme.text, textAlign }]}>{t(f.titleKey)}</Text>
-              <Text style={[styles.featureCardDesc, { color: theme.textMuted, textAlign }]}>{t(f.descKey)}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* How it works */}
-      <View style={[styles.section, styles.sectionAlt, { backgroundColor: theme.cardBg, borderTopColor: theme.cardBorder, borderBottomColor: theme.cardBorder }]}>
-        <View style={{ maxWidth: MAX_CONTENT, alignSelf: 'center', width: '100%', paddingHorizontal: 20 }}>
-          <Text style={[styles.sectionTitle, { color: theme.text, textAlign }]}>{t('landing_how_title')}</Text>
-          <View style={[styles.stepsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            {[
-              { n: '1', titleKey: 'landing_step_1_title', descKey: 'landing_step_1_desc' },
-              { n: '2', titleKey: 'landing_step_2_title', descKey: 'landing_step_2_desc' },
-              { n: '3', titleKey: 'landing_step_3_title', descKey: 'landing_step_3_desc' },
-            ].map((step, i) => (
-              <View key={step.n} style={[styles.step, i < 2 && styles.stepWithDivider]}>
-                <View style={[styles.stepNum, { backgroundColor: theme.primary, borderRadius: theme.radiusMd }]}>
-                  <Text style={styles.stepNumText}>{step.n}</Text>
-                </View>
-                <Text style={[styles.stepTitle, { color: theme.text, textAlign }]}>{t(step.titleKey)}</Text>
-                <Text style={[styles.stepDesc, { color: theme.textMuted, textAlign }]}>{t(step.descKey)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Bottom CTA */}
-      <View style={[styles.section, { paddingHorizontal: 20 }]}>
-        <View
+      {/* Mood destinations — below hero, one job: inspire */}
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+        <Text
           style={[
-            styles.bottomCta,
-            {
-              backgroundColor: theme.cardBg,
-              borderColor: theme.cardBorder,
-              borderRadius: theme.radiusLg,
-              maxWidth: MAX_CONTENT,
-              alignSelf: 'center',
-              width: '100%',
-            },
+            styles.sectionTitle,
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
           ]}
         >
-          <Text style={[styles.bottomCtaTitle, { color: theme.text, textAlign }]}>{t('landing_bottom_title')}</Text>
-          <Text style={[styles.bottomCtaSub, { color: theme.textMuted, textAlign }]}>{t('landing_bottom_subtitle')}</Text>
-          <View
-            style={[
-              styles.bottomCtaRow,
-              isMobile ? styles.bottomCtaRowMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.btnPrimary,
-                styles.btnPrimarySmall,
-                { backgroundColor: theme.buttonBg },
-                isMobile && styles.btnFullWidth,
-              ]}
-              onPress={goSearch}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.btnPrimaryText, { color: theme.buttonText }]}>{t('landing_cta_search')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.btnGhost,
-                { borderColor: theme.primary + '55' },
-                isMobile && styles.btnFullWidth,
-              ]}
-              onPress={goDeals}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.btnGhostText, { color: theme.primaryLight }]}>{t('landing_cta_deals')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          {t('landing_mood_title')}
+        </Text>
+        <Text
+          style={[
+            styles.sectionSubtitle,
+            { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
+          ]}
+        >
+          {t('landing_mood_subtitle')}
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.moodRow,
+            isRTL && { flexDirection: 'row-reverse' },
+          ]}
+        >
+          {LANDING_MOOD_DESTINATIONS.map(({ code, mood }) => {
+            const entry = getAirportEntry(code);
+            const label = entry ? getCityDisplayName(entry, language) : mood.labelEn;
+            return (
+              <TouchableOpacity
+                key={code}
+                style={[styles.moodCard, { borderRadius: theme.radiusLg, borderColor: theme.cardBorder }]}
+                onPress={() => goDestination(code)}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel={t('landing_mood_go').replace('{city}', label)}
+              >
+                <Image source={{ uri: mood.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                <View style={styles.moodScrim} />
+                <Text style={[styles.moodLabel, { fontFamily: theme.fontDisplay }]} numberOfLines={1}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      {/* Footer */}
-      <View style={[styles.footer, { borderTopColor: theme.cardBorder }]}>
-        <Text style={[styles.footerBrand, { color: theme.text }]}>Fly-Fix</Text>
-        <Text style={[styles.footerTag, { color: theme.textMuted }]}>{t('landing_footer_tagline')}</Text>
+      {/* Why Fly-Fix */}
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
+          ]}
+        >
+          {t('landing_features_title')}
+        </Text>
+        {[
+          { titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc' },
+          { titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc' },
+          { titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc' },
+        ].map((f, i) => (
+          <View
+            key={f.titleKey}
+            style={[
+              styles.featureRow,
+              i < 2 && { borderBottomColor: theme.cardBorder, borderBottomWidth: StyleSheet.hairlineWidth },
+            ]}
+          >
+            <Text style={[styles.featureTitle, { color: theme.text, fontFamily: theme.fontBody, textAlign }]}>
+              {t(f.titleKey)}
+            </Text>
+            <Text style={[styles.featureDesc, { color: theme.textMuted, fontFamily: theme.fontBody, textAlign }]}>
+              {t(f.descKey)}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+        <TouchableOpacity
+          style={[
+            styles.btnPrimary,
+            styles.btnPrimaryBlock,
+            { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
+          ]}
+          onPress={goSearch}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+            {t('landing_cta_search')}
+          </Text>
+        </TouchableOpacity>
+        <Text style={[styles.footerTag, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
+          {t('landing_footer_tagline')}
+        </Text>
       </View>
     </ScrollView>
   );
@@ -250,63 +287,59 @@ export function LandingScreen() {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  heroWrap: {
-    paddingBottom: 40,
-    borderBottomWidth: 1,
+  heroPlane: {
+    width: '100%',
     overflow: 'hidden',
-    position: 'relative',
+    justifyContent: 'center',
+    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
-  heroGlow: {
+  horizonBand: {
     position: 'absolute',
-    width: 420,
-    height: 420,
-    borderRadius: 210,
-    top: -180,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  horizonGlow: {
+    position: 'absolute',
+    width: '160%',
+    height: '70%',
+    borderRadius: 999,
+    bottom: '-18%',
     alignSelf: 'center',
+    left: '-30%',
   },
   heroInner: {
     width: '100%',
     alignSelf: 'center',
+    zIndex: 1,
   },
-  heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  heroBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  heroTitle: {
-    fontSize: Platform.OS === 'web' ? 40 : 32,
+  brand: {
     fontWeight: '800',
     letterSpacing: -0.5,
-    lineHeight: Platform.OS === 'web' ? 46 : 38,
+    marginBottom: 10,
+  },
+  heroTitle: {
+    fontWeight: '700',
+    letterSpacing: -0.2,
     marginBottom: 12,
+    maxWidth: 520,
   },
   heroSubtitle: {
-    fontSize: 17,
-    lineHeight: 26,
-    marginBottom: 28,
-    maxWidth: 560,
+    fontSize: 16.5,
+    lineHeight: 25,
+    marginBottom: 26,
+    maxWidth: 480,
   },
   heroCtas: {
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 14,
     alignItems: 'center',
-    marginBottom: 32,
   },
   heroCtasMobile: {
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 10,
+    gap: 12,
   },
   btnFullWidth: {
     width: '100%',
@@ -316,189 +349,73 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 22,
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 4,
+    minHeight: 50,
   },
-  btnPrimarySmall: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  btnPrimaryText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  btnSecondary: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  btnSecondaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  btnGhost: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    borderWidth: 1,
-    backgroundColor: 'transparent',
-  },
-  btnGhostText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  heroVisual: {
-    alignItems: 'center',
+  btnPrimaryBlock: {
     justifyContent: 'center',
-    gap: 12,
-    opacity: 0.85,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
-  routeLine: {
-    flex: 1,
-    height: 2,
-    maxWidth: 120,
-    borderRadius: 2,
-  },
-  planeDot: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  btnPrimaryText: { fontSize: 16, fontWeight: '700' },
+  btnTextLink: { paddingVertical: 8, paddingHorizontal: 4 },
+  btnTextLinkLabel: { fontSize: 15, fontWeight: '600' },
   section: {
-    paddingVertical: 40,
-  },
-  sectionAlt: {
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
+    paddingTop: 32,
+    paddingBottom: 8,
+    maxWidth: MAX_CONTENT,
+    width: '100%',
+    alignSelf: 'center',
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 20,
-    letterSpacing: -0.2,
-  },
-  featureGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-    maxWidth: MAX_CONTENT,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  featureCard: {
-    flexGrow: 1,
-    flexBasis: '45%',
-    minWidth: 260,
-    padding: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  featureCardMobile: {
-    flexBasis: '100%',
-    minWidth: 0,
-  },
-  featureIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  featureCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  featureCardDesc: {
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  stepsRow: {
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  step: {
-    flex: 1,
-    minWidth: 200,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  stepWithDivider: {},
-  stepNum: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  stepNumText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  stepTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  stepDesc: {
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  bottomCta: {
-    padding: 28,
-    borderWidth: 1,
-    alignItems: 'stretch',
-  },
-  bottomCtaTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 8,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
-  bottomCtaSub: {
+  sectionSubtitle: {
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 20,
+    marginBottom: 16,
+    maxWidth: 560,
   },
-  bottomCtaRow: {
-    flexWrap: 'wrap',
+  moodRow: {
     gap: 12,
-    alignItems: 'center',
+    paddingVertical: 4,
+    paddingRight: 8,
   },
-  bottomCtaRowMobile: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 10,
+  moodCard: {
+    width: 152,
+    height: 190,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'flex-end',
   },
-  footer: {
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    marginTop: 8,
+  moodScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8,16,24,0.28)',
   },
-  footerBrand: {
-    fontSize: 15,
+  moodLabel: {
+    color: '#fff',
+    fontSize: 17,
     fontWeight: '700',
-    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
+  featureRow: {
+    paddingVertical: 18,
+  },
+  featureTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  featureDesc: { fontSize: 15, lineHeight: 22 },
   footerTag: {
+    marginTop: 20,
     fontSize: 13,
     textAlign: 'center',
+    lineHeight: 18,
   },
 });

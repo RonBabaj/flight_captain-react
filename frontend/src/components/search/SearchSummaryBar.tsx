@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { AppIcon } from '../AppIcon';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
@@ -22,6 +22,55 @@ export function SearchSummaryBar({
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
 
+  const content = (
+    <>
+      {leading}
+      <Text
+        style={[
+          s.text,
+          { color: theme.text, fontFamily: theme.fontBody },
+          leading ? { flex: 1 } : undefined,
+        ]}
+        numberOfLines={1}
+      >
+        {summary}
+      </Text>
+      {showEditButton && onEditPress ? (
+        <View
+          style={[
+            s.editChip,
+            { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+            { flexDirection: isRTL ? 'row-reverse' : 'row' },
+          ]}
+        >
+          <AppIcon name="create-outline" size={15} color={theme.primary} fallbackText="" />
+          <Text style={[s.editBtnText, { color: theme.primary, fontFamily: theme.fontBody }]}>
+            {t('edit_search')}
+          </Text>
+        </View>
+      ) : null}
+    </>
+  );
+
+  // Whole bar is tappable on mobile when edit is available — saves a chrome row.
+  if (showEditButton && onEditPress) {
+    return (
+      <TouchableOpacity
+        style={[
+          s.bar,
+          { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+          isRTL && { flexDirection: 'row-reverse' },
+        ]}
+        onPress={onEditPress}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={t('edit_search')}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View
       style={[
@@ -30,42 +79,29 @@ export function SearchSummaryBar({
         isRTL && { flexDirection: 'row-reverse' },
       ]}
     >
-      {leading}
-      <Text style={[s.text, { color: theme.text }, leading ? { flex: 1 } : undefined]} numberOfLines={1}>
-        {summary}
-      </Text>
-      {showEditButton && onEditPress ? (
-        <TouchableOpacity
-          style={[s.editBtn, { borderColor: theme.cardBorder, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-          onPress={onEditPress}
-          activeOpacity={0.7}
-        >
-          <AppIcon name="create-outline" size={16} color={theme.primary} fallbackText={t('change_search')} />
-          <Text style={[s.editBtnText, { color: theme.primary }]}>{t('edit_search')}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {content}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   bar: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'web' ? 8 : 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  text: { flex: 1, fontSize: 14, fontWeight: '600' },
-  editBtn: {
+  text: { flex: 1, fontSize: 13, fontWeight: '600' },
+  editChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    gap: 5,
+    gap: 4,
   },
-  editBtnText: { fontSize: 13, fontWeight: '600' },
+  editBtnText: { fontSize: 12, fontWeight: '600' },
 });
