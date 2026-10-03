@@ -378,6 +378,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [positioningOptions, setPositioningOptions] = useState<PositioningOption[]>([]);
   const [positioningLoading, setPositioningLoading] = useState(false);
   const optimizerSessionRef = useRef<string | null>(null);
+  const resultsListRef = useRef<FlatList<FlightOption>>(null);
   const [positioningDetails, setPositioningDetails] = useState<PositioningOption | null>(null);
   const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
 
@@ -1445,34 +1446,42 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
   };
 
+  // Only show when hubs are ready — hide the old disabled "Nearby hubs…" loading
+  // chip that looked tappable but did nothing.
   const cheaperCitiesChip =
-    positioningLoading || positioningOptions.length > 0 ? (
+    !positioningLoading && positioningOptions.length > 0 ? (
       <TouchableOpacity
         style={[
           styles.cheaperChip,
           {
-            backgroundColor: positioningOptions.length ? theme.primary + '18' : theme.controlBg,
-            borderColor: positioningOptions.length ? theme.primary + '44' : theme.cardBorder,
+            backgroundColor: theme.primary + '18',
+            borderColor: theme.primary + '44',
           },
         ]}
         onPress={() => {
-          if (positioningOptions.length > 0) {
-            setCheaperCitiesFolded(false);
-          }
+          setCheaperCitiesFolded((f) => {
+            const nextFolded = !f;
+            if (!nextFolded) {
+              // Section lives in the list footer — scroll so the reveal is visible.
+              requestAnimationFrame(() => {
+                resultsListRef.current?.scrollToEnd({ animated: true });
+              });
+            }
+            return nextFolded;
+          });
         }}
-        activeOpacity={positioningOptions.length ? 0.75 : 1}
-        disabled={positioningLoading || positioningOptions.length === 0}
+        activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel={
-          positioningLoading
-            ? t('checking_cheaper_cities_short')
-            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))
-        }
+        accessibilityState={{ expanded: !cheaperCitiesFolded }}
+        accessibilityLabel={t('cheaper_cities_chip_a11y').replace(
+          '{n}',
+          String(positioningOptions.length),
+        )}
       >
-        <Text style={[styles.cheaperChipText, { color: positioningOptions.length ? theme.primary : theme.textMuted }]}>
-          {positioningLoading
-            ? t('checking_cheaper_cities_short')
-            : t('cheaper_cities_ready').replace('{n}', String(positioningOptions.length))}
+        <Text style={[styles.cheaperChipText, { color: theme.primary }]} numberOfLines={1}>
+          {cheaperCitiesFolded
+            ? t('cheaper_cities_show').replace('{n}', String(positioningOptions.length))
+            : t('cheaper_cities_hide')}
         </Text>
       </TouchableOpacity>
     ) : null;
@@ -1494,34 +1503,41 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (
-      <View style={styles.listContent}>
-        <ResultsSkeletonList theme={theme} count={4} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.listContent}>
+          <ResultsSkeletonList theme={theme} count={4} />
+        </View>
+        {positioningSection}
       </View>
     ) : showEmpty ? (
-      <View style={styles.listContentEmpty}>
-        <View
-          style={[
-            styles.emptyWrap,
-            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
-          ]}
-        >
-          <View style={{ marginBottom: 12 }}>
-            <AppIcon name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.listContentEmpty}>
+          <View
+            style={[
+              styles.emptyWrap,
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+            ]}
+          >
+            <View style={{ marginBottom: 12 }}>
+              <AppIcon name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+                ? t('no_flights_cabin')
+                : t('no_flights_found')}
+            </Text>
+            <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+              {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+                ? t('no_flights_cabin_tip')
+                : t('no_flights_tip')}
+            </Text>
           </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
-              ? t('no_flights_cabin')
-              : t('no_flights_found')}
-          </Text>
-          <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
-              ? t('no_flights_cabin_tip')
-              : t('no_flights_tip')}
-          </Text>
         </View>
+        {positioningSection}
       </View>
     ) : (
       <FlatList
+        ref={resultsListRef}
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -1540,6 +1556,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             }
           />
         )}
+        ListFooterComponent={positioningSection}
         ListEmptyComponent={
           showNoMatch ? (
             <View
@@ -1705,7 +1722,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     {cheaperCitiesChip}
                   </View>
                   {resultsList}
-                  {positioningSection}
                 </Animated.View>
                 <FiltersPanel
                   variant="sidebar"
@@ -1742,7 +1758,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     {cheaperCitiesChip}
                   </View>
                   {resultsList}
-                  {positioningSection}
                 </Animated.View>
                 <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} />
               </>
@@ -1808,7 +1823,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               />
               <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {resultsList}
-                {positioningSection}
               </Animated.View>
             </View>
           </>
@@ -2051,7 +2065,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
-    maxWidth: 132,
+    maxWidth: 200,
+    flexShrink: 1,
   },
   cheaperChipText: { fontSize: 11, fontWeight: '600' },
 

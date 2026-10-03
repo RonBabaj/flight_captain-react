@@ -745,6 +745,22 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: '{n} ערים זולות יותר',
     ru: '{n} дешевле из других городов',
   },
+  /** Toolbar chip — only shown when options are ready (not while loading). */
+  cheaper_cities_show: {
+    en: 'Show {n} cheaper cities',
+    he: 'הצג {n} ערים זולות יותר',
+    ru: 'Показать {n} дешевле',
+  },
+  cheaper_cities_hide: {
+    en: 'Hide cheaper cities',
+    he: 'הסתר ערים זולות יותר',
+    ru: 'Скрыть дешёвые города',
+  },
+  cheaper_cities_chip_a11y: {
+    en: 'Toggle {n} cheaper departure city options',
+    he: 'הצג או הסתר {n} אפשרויות יציאה זולות יותר',
+    ru: 'Показать или скрыть {n} более дешёвых городов вылета',
+  },
   airline_direct_prefill_hint: {
     en: 'Opens airline site with your route prefilled — select your flight and verify the fare.',
     he: 'פותח את אתר חברת התעופה עם המסלול — בחרו את הטיסה ואמתו את המחיר.',
