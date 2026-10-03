@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,10 @@ export function DestinationMoodBanner({
   const bp = useBreakpoint();
   const mood = resolveDestinationMood(destinationCode);
   const opacity = useRef(new Animated.Value(0)).current;
+  const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
+    setImgFailed(false);
     opacity.setValue(0);
     if (!mood) return;
     Animated.timing(opacity, { toValue: 1, duration: 420, useNativeDriver: true }).start();
@@ -78,17 +80,26 @@ export function DestinationMoodBanner({
       accessibilityRole="image"
       accessibilityLabel={t('destination_mood_a11y').replace('{city}', cityLabel)}
     >
-      <Image
-        source={{ uri: mood.imageUrl }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
+      <View
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: theme.isDark ? '#163038' : '#c5ddd9' },
+        ]}
       />
+      {!imgFailed && (
+        <Image
+          source={{ uri: mood.imageUrl }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+          onError={() => setImgFailed(true)}
+        />
+      )}
       <View
         pointerEvents="none"
         style={[
           styles.scrim,
           {
-            backgroundColor: theme.isDark ? 'rgba(8,16,24,0.45)' : 'rgba(15,23,42,0.32)',
+            backgroundColor: theme.isDark ? 'rgba(8,16,24,0.42)' : 'rgba(15,23,42,0.28)',
           },
         ]}
       />

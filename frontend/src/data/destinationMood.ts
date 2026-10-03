@@ -20,7 +20,7 @@ const BY_CODE: Record<string, DestinationMood> = {
   // Europe
   PRG: {
     labelEn: 'Prague',
-    imageUrl: 'https://images.unsplash.com/photo-1541849546-216549ae45d7?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?auto=format&fit=crop&w=1600&q=80',
     accent: '#1BA7A0',
   },
   PAR: {
@@ -107,11 +107,11 @@ const BY_CODE: Record<string, DestinationMood> = {
   },
   DUB: {
     labelEn: 'Dublin',
-    imageUrl: 'https://images.unsplash.com/photo-1549918864-48ac0325b1c3?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1560707303-4e980ce876ad?auto=format&fit=crop&w=1600&q=80',
   },
   CPH: {
     labelEn: 'Copenhagen',
-    imageUrl: 'https://images.unsplash.com/photo-1513622475202-7a26cc3442d0?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?auto=format&fit=crop&w=1600&q=80',
   },
   ZRH: {
     labelEn: 'Zurich',
@@ -127,7 +127,7 @@ const BY_CODE: Record<string, DestinationMood> = {
   },
   FRA: {
     labelEn: 'Frankfurt',
-    imageUrl: 'https://images.unsplash.com/photo-1577469911270-243bd903bfb4?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1600&q=80',
   },
   MIL: {
     labelEn: 'Milan',
@@ -151,7 +151,7 @@ const BY_CODE: Record<string, DestinationMood> = {
   },
   WAW: {
     labelEn: 'Warsaw',
-    imageUrl: 'https://images.unsplash.com/photo-1519197924294-4ba991a11126?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1600&q=80',
   },
   KRK: {
     labelEn: 'Krakow',
@@ -168,7 +168,7 @@ const BY_CODE: Record<string, DestinationMood> = {
   },
   TLV: {
     labelEn: 'Tel Aviv',
-    imageUrl: 'https://images.unsplash.com/photo-1544976980-664c0c2f5d4d?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=1600&q=80',
   },
   ETH: {
     labelEn: 'Eilat',
@@ -228,7 +228,7 @@ const BY_CODE: Record<string, DestinationMood> = {
   },
   LAX: {
     labelEn: 'Los Angeles',
-    imageUrl: 'https://images.unsplash.com/photo-1534190760961-74e8a1c97b48?auto=format&fit=crop&w=1600&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=1600&q=80',
   },
   MIA: {
     labelEn: 'Miami',
