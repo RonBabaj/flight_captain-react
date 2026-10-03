@@ -17,7 +17,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <Text
       style={[
         styles.label,
-        { color: active ? theme.onPrimary : theme.text },
+        { color: active ? theme.onPrimary : theme.text, fontFamily: theme.fontBody },
         active && styles.labelActive,
       ]}
     >
