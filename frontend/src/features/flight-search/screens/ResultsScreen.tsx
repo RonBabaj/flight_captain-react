@@ -756,6 +756,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // Safety net: if bootstrap was cancelled/raced and never restarted, PENDING with
   // no sessionId hangs on skeletons forever. After a short wait, re-bump searchNonce
   // once; if still stuck, fail so the user can retry.
+  //
+  // IMPORTANT: POST /api/search/sessions often takes 20–90s (provider search runs
+  // inside create). A 25s fail timer raced real searches and painted a false
+  // "Search failed" on mobile — never fail while create is in flight.
   useEffect(() => {
     if (sessionId || status !== 'PENDING' || storeSessionId) return;
     let cancelled = false;
@@ -769,15 +773,28 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (cancelled) return;
       const st = useSearchStore.getState();
       if (st.status !== 'PENDING' || st.sessionId) return;
+      // createSearchSessionWithRetry may still be awaiting the ~90s backend timeout.
+      if (creatingSessionRef.current) return;
       searchActions.setError(t('search_failed'));
       searchActions.setSession(null, null, 'FAILED');
       setBootstrappingSession(false);
       creatingSessionRef.current = false;
-    }, 25000);
+    }, 120000);
+    // Absolute ceiling so a hung create cannot spin forever.
+    const hardFailTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId) return;
+      searchActions.setError(t('search_failed'));
+      searchActions.setSession(null, null, 'FAILED');
+      setBootstrappingSession(false);
+      creatingSessionRef.current = false;
+    }, 210000);
     return () => {
       cancelled = true;
       clearTimeout(retryTimer);
       clearTimeout(failTimer);
+      clearTimeout(hardFailTimer);
     };
   }, [sessionId, status, storeSessionId, searchNonce, navigation, t]);
 
