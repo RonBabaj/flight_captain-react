@@ -24,8 +24,8 @@ type Registry struct {
 // Examples:
 //
 //	FLIGHT_PROVIDERS=googleflights2
-//	FLIGHT_PROVIDERS=kiwi
-//	FLIGHT_PROVIDERS=googleflights2,kiwi
+//	FLIGHT_PROVIDERS=multisite
+//	FLIGHT_PROVIDERS=googleflights2,multisite
 func NewRegistryFromEnv() *Registry {
 	names := parseProviderNames(os.Getenv("FLIGHT_PROVIDERS"))
 	if len(names) == 0 {
@@ -46,12 +46,12 @@ func NewRegistryFromEnv() *Registry {
 			} else {
 				log.Printf("[PROVIDERS] skipped googleflights2 (not configured)")
 			}
-		case "kiwi", "kiwi_apify", "apify":
-			if p := NewKiwiApifyProvider(); p != nil {
+		case "multisite", "ota", "metascraper", "kiwi", "kiwi_scraper":
+			if p := NewOtaScraperProvider(); p != nil {
 				providers = append(providers, p)
-				log.Printf("[PROVIDERS] enabled: kiwi")
+				log.Printf("[PROVIDERS] enabled: multisite (sites=%v url=%s)", p.ConfiguredSites(), p.ScraperBaseURL())
 			} else {
-				log.Printf("[PROVIDERS] skipped kiwi (APIFY_API_TOKEN / APIFY_KIWI_ACTOR_ID missing)")
+				log.Printf("[PROVIDERS] skipped multisite (set FLIGHT_SCRAPER_URL or FLIGHT_SCRAPER_ENABLED=1)")
 			}
 		default:
 			log.Printf("[PROVIDERS] unknown provider %q (ignored)", name)
@@ -145,8 +145,11 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			pctx := ctx
 			var cancel context.CancelFunc
 			if !strings.EqualFold(p.Name(), "googleflights2") {
-				// Soft cap for secondary scrapers; primary GF2 keeps the full request deadline.
-				pctx, cancel = context.WithTimeout(ctx, 20*time.Second)
+				soft := 20 * time.Second
+				if strings.EqualFold(p.Name(), "multisite") {
+					soft = 45 * time.Second
+				}
+				pctx, cancel = context.WithTimeout(ctx, soft)
 				defer cancel()
 			}
 			results, err := p.Search(pctx, req)

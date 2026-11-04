@@ -184,8 +184,8 @@ func FilterProviderNamesForBudget(names []string) []string {
 	var out []string
 	for _, n := range names {
 		switch n {
-		case "kiwi", "kiwi_apify", "apify":
-			log.Printf("[BUDGET] skipping provider %q (Apify/Kiwi disabled — set FLIGHT_BUDGET_KEEP_KIWI=1 to allow in budget mode)", n)
+		case "multisite", "ota", "metascraper", "kiwi", "kiwi_scraper", "kiwi_apify", "apify":
+			log.Printf("[BUDGET] skipping provider %q (multisite OTA scraper disabled — set FLIGHT_BUDGET_KEEP_KIWI=1 to allow in budget mode)", n)
 			continue
 		default:
 			out = append(out, n)

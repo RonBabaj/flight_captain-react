@@ -1,5 +1,19 @@
 services:
 
+  flight-scraper:
+    container_name: flight-scraper
+    build:
+      context: ./services/flight-scraper
+    restart: unless-stopped
+    environment:
+      PORT: "3099"
+      PLAYWRIGHT_HEADLESS: "1"
+    networks:
+      - proxy
+    expose:
+      - "3099"
+    shm_size: "1gb"
+
   flyfix-api:
     container_name: flyfix-api
     build:
@@ -7,6 +21,10 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
+    environment:
+      FLIGHT_SCRAPER_URL: http://flight-scraper:3099
+    depends_on:
+      - flight-scraper
     volumes:
       - ./backend-data:/app/data
     networks:

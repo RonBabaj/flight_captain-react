@@ -998,10 +998,10 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	// server restarts, and beyond the in-memory TTL.
 	go persistSearchSession(resp)
 
-	// Include providerStats on create so operators can see why Kiwi/Apify returned 0
+	// Include providerStats on create so operators can see why multisite scraper returned 0
 	// without a follow-up GET (stats are also stored on the session for GET).
 	// Keep the historical SearchSession shape (id/status/…) and attach providerStats
-	// so operators can see Kiwi/Apify failures without SSH’ing into the VPS.
+		// so operators can see multisite scraper failures without SSH’ing into the VPS.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":            session.ID,
 		"status":        session.Status,
@@ -2789,20 +2789,22 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gf2 := "disabled"
-	kiwi := "disabled"
-	kiwiDetail := map[string]any{}
+	multisite := "disabled"
+	multisiteDetail := map[string]any{}
 	if googleFlights2Provider != nil {
 		gf2 = "enabled"
 	}
-	if flightProviderRegistry != nil && flightProviderRegistry.Get("kiwi") != nil {
-		kiwi = "enabled"
-		if kp, ok := flightProviderRegistry.Get("kiwi").(*search.KiwiApifyProvider); ok && kp != nil {
-			kiwiDetail["actor"] = kp.ActorID()
-			if st := kp.TokenStatus(); st != "" {
-				kiwiDetail["tokenStatus"] = st
-				if st != "ok" {
-					kiwi = st
-				}
+	if flightProviderRegistry != nil && flightProviderRegistry.Get("multisite") != nil {
+		multisite = "enabled"
+		if mp, ok := flightProviderRegistry.Get("multisite").(*search.OtaScraperProvider); ok && mp != nil {
+			multisiteDetail["url"] = mp.ScraperBaseURL()
+			multisiteDetail["sites"] = mp.ConfiguredSites()
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			ok, detail := mp.Ping(ctx)
+			cancel()
+			multisiteDetail["scraperPing"] = detail
+			if !ok && multisite == "enabled" {
+				multisite = "degraded"
 			}
 		}
 	}
@@ -2816,11 +2818,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	services := map[string]any{
 		"googleFlights2": gf2,
-		"kiwi":           kiwi,
+		"multisite":      multisite,
 		"providers":      providers,
 	}
-	for k, v := range kiwiDetail {
-		services["kiwi_"+k] = v
+	for k, v := range multisiteDetail {
+		services["multisite_"+k] = v
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
@@ -2855,7 +2857,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Load .env for GOOGLEFLIGHTS2_*, APIFY_*, FLIGHT_PROVIDERS, and other config.
+	// Load .env for GOOGLEFLIGHTS2_*, FLIGHT_SCRAPER_*, FLIGHT_PROVIDERS, and other config.
 	if err := godotenv.Load(); err != nil {
 		// Try backend/.env when run from project root
 		if err2 := godotenv.Load(filepath.Join("backend", ".env")); err2 != nil {
