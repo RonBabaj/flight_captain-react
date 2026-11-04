@@ -151,6 +151,10 @@ jobs:
             cd ..
             docker compose build
             docker compose up -d
+            if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
+              sudo mkdir -p /opt/stacks/nginx-proxy-manager
+              sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
+            fi
             if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
               sudo scripts/vps/ensure-edge-proxy.sh
             elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
