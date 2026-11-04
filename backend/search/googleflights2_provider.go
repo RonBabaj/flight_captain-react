@@ -3,12 +3,14 @@ package search
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,16 +23,29 @@ const (
 	// Default max calls to Search() per rolling minute (in-process). Explore uses up to 10 per request;
 	// the old default of 5 caused the follow-up "real" search after Anywhere to always hit rate limit.
 	gf2RateLimitPerMinDefault = 30
+	// Booking endpoints (getBookingDetails / getBookingURL) use a separate bucket so
+	// search-time enrich + Book-click resolve are not starved after a heavy search.
+	gf2BookingRateLimitPerMinDefault = 60
+	// Session create waits on Search(); brief backoff avoids failing the whole request when
+	// Explore/deals just consumed the in-process token bucket.
+	gf2SearchRateLimitRetries  = 5
+	gf2SearchRateLimitBackoff  = 3 * time.Second
+	gf2BookingRateLimitRetries = 5
+	gf2BookingRateLimitBackoff = 2 * time.Second
+	// Per-leg one-way searches (open-jaw / dynamic destinations) retry empty/transient GF2 responses.
+	gf2LegSearchRetries  = 4
+	gf2LegSearchBackoff  = 2 * time.Second
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
 type GoogleFlights2Provider struct {
-	apiKey  string
-	host    string
-	path    string // endpoint path e.g. /search or /
-	client  *http.Client
-	cache   *gf2Cache
-	limiter *gf2RateLimiter
+	apiKey          string
+	host            string
+	path            string // endpoint path e.g. /search or /
+	client          *http.Client
+	cache           *gf2Cache
+	limiter         *gf2RateLimiter
+	bookingLimiter  *gf2RateLimiter
 }
 
 type gf2Cache struct {
@@ -138,19 +153,83 @@ func NewGoogleFlights2Provider() *GoogleFlights2Provider {
 			maxPerMin = v
 		}
 	}
+	bookingMax := gf2BookingRateLimitPerMinDefault
+	if s := strings.TrimSpace(os.Getenv("GOOGLEFLIGHTS2_BOOKING_RATE_LIMIT_PER_MIN")); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 1 && v <= 500 {
+			bookingMax = v
+		}
+	}
 	log.Printf("[GF2] in-process rate limit: %d Search() calls per rolling minute (set GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN to override)", maxPerMin)
+	log.Printf("[GF2] booking rate limit: %d getBookingDetails/URL calls per rolling minute", bookingMax)
 	return &GoogleFlights2Provider{
-		apiKey:  apiKey,
-		host:    host,
-		path:    path,
-		client:  &http.Client{Timeout: gf2Timeout},
-		cache:   newGF2Cache(),
-		limiter: newGF2RateLimiter(maxPerMin),
+		apiKey:         apiKey,
+		host:           host,
+		path:           path,
+		client:         &http.Client{Timeout: gf2Timeout},
+		cache:          newGF2Cache(),
+		limiter:        newGF2RateLimiter(maxPerMin),
+		bookingLimiter: newGF2RateLimiter(bookingMax),
 	}
 }
 
 func (p *GoogleFlights2Provider) Name() string {
 	return "googleflights2"
+}
+
+func (p *GoogleFlights2Provider) waitForSearchRateLimit(ctx context.Context) bool {
+	if p == nil || p.limiter == nil {
+		return true
+	}
+	for attempt := 0; attempt < gf2SearchRateLimitRetries; attempt++ {
+		if p.limiter.allow() {
+			return true
+		}
+		if attempt == gf2SearchRateLimitRetries-1 {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(gf2SearchRateLimitBackoff):
+		}
+	}
+	return false
+}
+
+func (p *GoogleFlights2Provider) allowBooking() bool {
+	if p == nil || p.bookingLimiter == nil {
+		return p != nil && p.limiter != nil && p.limiter.allow()
+	}
+	return p.bookingLimiter.allow()
+}
+
+// waitForBookingRateLimit waits for a booking API token (getBookingDetails / getBookingURL).
+func (p *GoogleFlights2Provider) waitForBookingRateLimit(ctx context.Context) bool {
+	if p == nil {
+		return false
+	}
+	for attempt := 0; attempt < gf2BookingRateLimitRetries; attempt++ {
+		if p.allowBooking() {
+			return true
+		}
+		if attempt == gf2BookingRateLimitRetries-1 {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(gf2BookingRateLimitBackoff):
+		}
+	}
+	return false
+}
+
+// IsGF2RateLimitError reports GF2 in-process or upstream rate-limit failures.
+func IsGF2RateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "rate limit")
 }
 
 func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
@@ -172,25 +251,51 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	}()
 
 	// Serve cache before rate limit so repeat searches and burst traffic still get prior results.
+	// Incomplete classic RT cache (outbound-only) must not be served — that surfaces as
+	// "return not loaded" on result cards until TTL expires.
 	cacheKey := p.buildCacheKey(req)
 	if cached, ok := p.cache.get(cacheKey); ok {
-		cacheHit = true
-		resultCount = len(cached)
-		if len(cached) > 0 {
-			cheapest = cached[0].Price.Amount
+		incompleteRT := req.ReturnDate != "" && !IsOpenJaw(req) && !HasExtraLegs(req) &&
+			classicRoundTripMissingReturn(cached)
+		if incompleteRT {
+			log.Printf("[GF2_RT] ignoring incomplete cached RT results count=%d (missing return legs)", len(cached))
+		} else {
+			cacheHit = true
+			resultCount = len(cached)
+			if len(cached) > 0 {
+				cheapest = cached[0].Price.Amount
+			}
+			return cached, nil
 		}
-		return cached, nil
 	}
 
-	if !p.limiter.allow() {
+	if !p.waitForSearchRateLimit(ctx) {
 		errLog = "rate limited"
 		return nil, fmt.Errorf("flight search rate limited; try again in a minute")
 	}
 
-	// For round-trip: search outbound and return separately (one-way each), then combine legs
-	// so every result has both legs with full route data.
+	// Round-trip: native GF2 RT for classic routes; decomposed one-ways for open-jaw / extra legs.
 	if req.ReturnDate != "" {
-		results, err := p.searchRoundTrip(ctx, req)
+		var results []ProviderResult
+		var err error
+		if IsOpenJaw(req) || HasExtraLegs(req) {
+			results, err = p.searchRoundTrip(ctx, req)
+		} else {
+			results, err = p.doSearchWithRetry(ctx, req)
+			if err == nil && len(results) > 0 {
+				p.enrichNativeRoundTripReturnLegs(ctx, req, results)
+				// Native GF2 often returns outbound-only; if enrich could not attach returns,
+				// fall back to decomposed OW+OW so cards show real return schedules.
+				if classicRoundTripMissingReturn(results) {
+					log.Printf("[GF2_RT] native enrich incomplete (%d results); falling back to decomposed RT", len(results))
+					if alt, altErr := p.searchRoundTrip(ctx, req); altErr == nil && len(alt) > 0 && !classicRoundTripMissingReturn(alt) {
+						results = alt
+					} else if altErr != nil {
+						log.Printf("[GF2_RT] decomposed RT fallback failed: %v", altErr)
+					}
+				}
+			}
+		}
 		if err != nil {
 			errLog = err.Error()
 			return nil, err
@@ -198,7 +303,13 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		resultCount = len(results)
 		if len(results) > 0 {
 			cheapest = results[0].Price.Amount
-			p.cache.set(cacheKey, results)
+			// Only cache complete classic RT itineraries (both legs) so we never re-serve
+			// "return not loaded" shells from memory.
+			if IsOpenJaw(req) || HasExtraLegs(req) || !classicRoundTripMissingReturn(results) {
+				p.cache.set(cacheKey, results)
+			} else {
+				log.Printf("[GF2_RT] skipping cache for incomplete RT results count=%d", len(results))
+			}
 		}
 		return results, nil
 	}
@@ -257,17 +368,27 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 
 	batches := make([][]ProviderResult, 0, len(steps))
 	for i, step := range steps {
-		res, err := p.doSearch(ctx, step.req)
+		res, err := p.searchLegCachedWithRetry(ctx, step.req)
 		if err != nil || len(res) == 0 {
 			if i == 0 {
 				if IsOpenJaw(req) || len(extras) > 0 {
-					return nil, fmt.Errorf("outbound search failed for dynamic destination trip")
+					if err != nil {
+						return nil, fmt.Errorf("outbound search failed: %w", err)
+					}
+					return nil, fmt.Errorf("no flights found for outbound %s→%s", req.Origin, req.Destination)
 				}
-				return p.doSearch(ctx, req)
+				return p.doSearchWithRetry(ctx, req)
 			}
 			if i == len(steps)-1 && len(extras) == 0 {
-				log.Printf("[GF2_RT] return search failed or empty (err=%v results=%d); serving outbound-only results", err, len(res))
-				return batches[0], nil
+				if IsOpenJaw(req) {
+					return nil, fmt.Errorf("return search failed for open-jaw trip (%s)", step.label)
+				}
+				// Do not return outbound-only as a "round trip" — the UI shows
+				// "return not loaded". Fail so callers can keep native results or surface an error.
+				if err != nil {
+					return nil, fmt.Errorf("return search failed (%s): %w", step.label, err)
+				}
+				return nil, fmt.Errorf("no flights found for %s", step.label)
 			}
 			return nil, fmt.Errorf("no flights found for %s", step.label)
 		}
@@ -280,6 +401,154 @@ func (p *GoogleFlights2Provider) searchRoundTrip(ctx context.Context, req Search
 		idPrefix = "gf2oj"
 	}
 	return CombineOneWayBatches(batches, idPrefix), nil
+}
+
+func isTransientGF2SearchErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if IsGF2RateLimitError(err) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "gateway") ||
+		strings.Contains(msg, "status 5") ||
+		strings.Contains(msg, "temporarily unavailable")
+}
+
+func legSearchRetryable(err error, res []ProviderResult, attempt, maxAttempts int) bool {
+	if err == nil && len(res) > 0 {
+		return false
+	}
+	if attempt >= maxAttempts-1 {
+		return false
+	}
+	if err != nil {
+		return isTransientGF2SearchErr(err)
+	}
+	// Empty GF2 payload on first attempts is often transient (rate limit / upstream blip).
+	return len(res) == 0
+}
+
+func (p *GoogleFlights2Provider) searchLegCachedWithRetry(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	var lastErr error
+	var lastRes []ProviderResult
+	for attempt := 0; attempt < gf2LegSearchRetries; attempt++ {
+		res, err := p.searchLegCached(ctx, req)
+		if err == nil && len(res) > 0 {
+			return res, nil
+		}
+		lastErr = err
+		lastRes = res
+		if !legSearchRetryable(err, res, attempt, gf2LegSearchRetries) {
+			break
+		}
+		log.Printf("[GF2] leg search retry attempt=%d route=%s→%s err=%v results=%d",
+			attempt+1, req.Origin, req.Destination, err, len(res))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(gf2LegSearchBackoff):
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return lastRes, nil
+}
+
+func (p *GoogleFlights2Provider) doSearchWithRetry(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	var lastErr error
+	var lastRes []ProviderResult
+	for attempt := 0; attempt < gf2LegSearchRetries; attempt++ {
+		res, err := p.doSearch(ctx, req)
+		if err == nil && len(res) > 0 {
+			// Do not cache here. For classic RT, Search() enriches return legs then caches.
+			// Caching outbound-only results here races concurrent requests into
+			// "return not loaded" until TTL expires.
+			return res, nil
+		}
+		lastErr = err
+		lastRes = res
+		if !legSearchRetryable(err, res, attempt, gf2LegSearchRetries) {
+			break
+		}
+		log.Printf("[GF2] round-trip search retry attempt=%d route=%s→%s err=%v results=%d",
+			attempt+1, req.Origin, req.Destination, err, len(res))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(gf2LegSearchBackoff):
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return lastRes, nil
+}
+
+// searchLegCached runs a one-way GF2 search with the same in-memory cache as Search().
+func (p *GoogleFlights2Provider) searchLegCached(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	cacheKey := p.buildCacheKey(req)
+	if cached, ok := p.cache.get(cacheKey); ok && len(cached) > 0 {
+		return cached, nil
+	}
+	res, err := p.doSearch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 0 {
+		p.enrichResultsPartnerLinks(ctx, res, req.Currency)
+		p.cache.set(cacheKey, res)
+	}
+	return res, nil
+}
+
+const enrichPartnerLinksMaxResults = 1
+
+// enrichResultsPartnerLinks resolves GF2 getBookingDetails for the cheapest hits so
+// open-jaw CombineOneWayBatches can store real partner checkout URLs in LegDeepLinks.
+func (p *GoogleFlights2Provider) enrichResultsPartnerLinks(ctx context.Context, results []ProviderResult, currency string) {
+	if p == nil || len(results) == 0 {
+		return
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+	n := enrichPartnerLinksMaxResults
+	if n > len(results) {
+		n = len(results)
+	}
+	for i := 0; i < n; i++ {
+		r := &results[i]
+		if u := strings.TrimSpace(r.DeepLink); u != "" && isLikelyPartnerCheckoutURL(u) {
+			continue
+		}
+		tok := strings.TrimSpace(r.BookingToken)
+		if tok == "" {
+			continue
+		}
+		if !p.waitForBookingRateLimit(ctx) {
+			return
+		}
+		partners, err := p.ResolveAllPartnerBookingsFromToken(ctx, tok, currency)
+		if err != nil || len(partners) == 0 {
+			continue
+		}
+		cheapest := SelectCheapestResolvedPartner(partners)
+		if cheapest == nil || strings.TrimSpace(cheapest.URL) == "" {
+			continue
+		}
+		r.DeepLink = cheapest.URL
+		if strings.TrimSpace(r.VendorName) == "" && strings.TrimSpace(cheapest.Provider) != "" {
+			r.VendorName = cheapest.Provider
+		}
+	}
 }
 
 func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
@@ -302,6 +571,65 @@ func (p *GoogleFlights2Provider) buildCacheKey(req SearchRequest) string {
 }
 
 func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	origins := GF2SearchAirports(req.Origin)
+	dests := GF2SearchAirports(req.Destination)
+	if len(origins) == 0 || len(dests) == 0 {
+		return nil, fmt.Errorf("invalid origin or destination")
+	}
+	if len(origins) == 1 && len(dests) == 1 {
+		return p.doSearchOne(ctx, req, origins[0], dests[0])
+	}
+
+	type route struct{ origin, dest string }
+	routes := make([]route, 0, len(origins)*len(dests))
+	for _, o := range origins {
+		for _, d := range dests {
+			routes = append(routes, route{origin: o, dest: d})
+		}
+	}
+
+	var (
+		mu      sync.Mutex
+		all     []ProviderResult
+		firstErr error
+	)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 3)
+	for _, rt := range routes {
+		wg.Add(1)
+		go func(o, d string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			res, err := p.doSearchOne(ctx, req, o, d)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			if len(res) == 0 {
+				return
+			}
+			mu.Lock()
+			all = append(all, res...)
+			mu.Unlock()
+		}(rt.origin, rt.dest)
+	}
+	wg.Wait()
+	if len(all) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	all = DedupeProviderResults(all)
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Price.Amount < all[j].Price.Amount
+	})
+	return all, nil
+}
+
+func (p *GoogleFlights2Provider) doSearchOne(ctx context.Context, req SearchRequest, originIATA, destIATA string) ([]ProviderResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, gf2Timeout)
 	defer cancel()
 
@@ -334,27 +662,24 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 	}
 
 	params := url.Values{}
-	params.Set("departure_id", strings.ToUpper(req.Origin))
-	params.Set("arrival_id", strings.ToUpper(req.Destination))
+	params.Set("departure_id", originIATA)
+	params.Set("arrival_id", destIATA)
 	params.Set("outbound_date", req.DepartureDate)
 	if req.ReturnDate != "" {
 		params.Set("return_date", req.ReturnDate)
 	}
 	params.Set("travel_class", travelClass)
 	params.Set("adults", fmt.Sprintf("%d", adults))
-	// Optional passenger breakdown – follow documented param names
 	if req.Children > 0 {
 		params.Set("children", fmt.Sprintf("%d", max(0, req.Children)))
 	}
 	if req.Infants > 0 {
-		// Assume infant on lap by default; could be split later if needed
 		params.Set("infant_on_lap", fmt.Sprintf("%d", max(0, req.Infants)))
 	}
 	params.Set("show_hidden", "1")
 	params.Set("currency", currency)
 	params.Set("language_code", "en-US")
 	params.Set("country_code", "US")
-	params.Set("search_type", "best")
 
 	base := "https://" + p.host
 	if p.path != "" && p.path != "/" {
@@ -378,14 +703,14 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[GF2_ERROR] status=%d body=%s", resp.StatusCode, truncateGF2(string(body), 300))
+		log.Printf("[GF2_ERROR] status=%d route=%s→%s body=%s", resp.StatusCode, originIATA, destIATA, truncateGF2(string(body), 300))
 		return nil, fmt.Errorf("GF2 status %d", resp.StatusCode)
 	}
 
-	return parseGF2Response(body, req.Origin, req.Destination, currency, req.DepartureDate, cabin)
+	return parseGF2Response(body, originIATA, destIATA, currency, req.DepartureDate, req.ReturnDate, cabin)
 }
 
-func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin string) ([]ProviderResult, error) {
+func parseGF2Response(body []byte, origin, dest, currency, departureDate, returnDate, cabin string) ([]ProviderResult, error) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("parse GF2 response: %w", err)
@@ -550,7 +875,7 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 
 	// SerpAPI round-trip: top-level return_flights array holds return options separate from best_flights.
 	// Attach the best available return leg to any outbound-only result (1 leg).
-	attachReturnLegsFromArray := func(retArr []interface{}) {
+	attachReturnLegsFromArray := func(retArr []interface{}, returnDate string) {
 		var bestReturnLeg *Leg
 		for _, rAny := range retArr {
 			r, _ := rAny.(map[string]interface{})
@@ -558,10 +883,14 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 				continue
 			}
 			if flightsArr, ok := r["flights"].([]interface{}); ok && len(flightsArr) > 0 {
-				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, departureDate, cabin); leg != nil {
+				if leg := extractGF2LegFromFlightsArray(flightsArr, dest, origin, returnDate, cabin); leg != nil {
 					bestReturnLeg = leg
 					break
 				}
+			}
+			if leg := gf2ReturnLegFromFlatItem(r, dest, origin, returnDate, cabin); leg != nil {
+				bestReturnLeg = leg
+				break
 			}
 		}
 		if bestReturnLeg != nil {
@@ -573,11 +902,11 @@ func parseGF2Response(body []byte, origin, dest, currency, departureDate, cabin 
 		}
 	}
 	if retFlights, ok := raw["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
-		attachReturnLegsFromArray(retFlights)
+		attachReturnLegsFromArray(retFlights, returnDate)
 	}
 	if data, ok := raw["data"].(map[string]interface{}); ok {
 		if retFlights, ok := data["return_flights"].([]interface{}); ok && len(retFlights) > 0 {
-			attachReturnLegsFromArray(retFlights)
+			attachReturnLegsFromArray(retFlights, returnDate)
 		}
 	}
 
@@ -774,6 +1103,82 @@ func extractGF2Itineraries(itins []interface{}, priceHistory interface{}, origin
 	}
 }
 
+// gf2SegmentFromFlatItinerary parses RapidAPI topFlights items that expose itinerary-level
+// departure_time / arrival_time / duration without nested flights[] arrays.
+func gf2SegmentFromFlatItinerary(itin map[string]interface{}, origin, dest, departureDate, cabin string) *Segment {
+	if cabin == "" {
+		cabin = "ECONOMY"
+	}
+	depS, _ := itin["departure_time"].(string)
+	arrS, _ := itin["arrival_time"].(string)
+	if strings.TrimSpace(depS) == "" || strings.TrimSpace(arrS) == "" {
+		return nil
+	}
+	from := firstNonEmpty(
+		gf2ItineraryAirportCode(itin, "departure", "origin", "departure_airport"),
+		origin,
+	)
+	to := firstNonEmpty(
+		gf2ItineraryAirportCode(itin, "arrival", "destination", "arrival_airport"),
+		dest,
+	)
+	depTime, _ := parseGF2TimeWithDateHint(depS, departureDate, from)
+	arrTime, _ := parseGF2TimeWithDateHint(arrS, departureDate, to)
+	durMin := extractGF2DurationMinutes(itin, "duration", "total_duration", "duration_minutes")
+	if durMin == 0 && !depTime.IsZero() && !arrTime.IsZero() {
+		durMin = int(arrTime.Sub(depTime).Minutes())
+	}
+	if arrTime.IsZero() && !depTime.IsZero() && durMin > 0 {
+		arrTime = depTime.Add(time.Duration(durMin) * time.Minute)
+	}
+	if depTime.IsZero() && !arrTime.IsZero() && durMin > 0 {
+		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
+	}
+	carrier := ""
+	flightNum := ""
+	if c, ok := itin["airline"].(string); ok {
+		carrier = c
+	}
+	if fn, ok := itin["flight_number"].(string); ok {
+		flightNum = fn
+	}
+	var carrierName string
+	carrier, flightNum, carrierName = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	return &Segment{
+		From:                 from,
+		To:                   to,
+		DepartureTime:        depTime,
+		ArrivalTime:          arrTime,
+		MarketingCarrier:     carrier,
+		MarketingCarrierName: carrierName,
+		FlightNumber:         flightNum,
+		DurationMinutes:      durMin,
+		CabinClass:           cabin,
+	}
+}
+
+func gf2ReturnLegFromFlatItem(item map[string]interface{}, defaultFrom, defaultTo, returnDate, cabin string) *Leg {
+	seg := gf2SegmentFromFlatItinerary(item, defaultFrom, defaultTo, returnDate, cabin)
+	if seg == nil {
+		return nil
+	}
+	return &Leg{Segments: []Segment{*seg}}
+}
+
+func gf2ItineraryAirportCode(itin map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if s, ok := itin[key].(string); ok && strings.TrimSpace(s) != "" {
+			return strings.ToUpper(strings.TrimSpace(s))
+		}
+		if m, ok := itin[key].(map[string]interface{}); ok {
+			if code := gf2AirportCode(m); code != "" {
+				return code
+			}
+		}
+	}
+	return ""
+}
+
 func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, currency string, amount float64, idx int, departureDate, cabin string) *ProviderResult {
 	if cabin == "" {
 		cabin = "ECONOMY"
@@ -854,8 +1259,8 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 	if totalDur == 0 {
 		if depS, _ := itin["departure_time"].(string); depS != "" {
 			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
-				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
-					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate, origin); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate, dest); err == nil && !arrT.IsZero() {
 						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
 							totalDur = mins
 						}
@@ -870,6 +1275,14 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 		arrVal := itin["arrival_time"]
 		log.Printf("[GF2_DEBUG] itinerary totalDur=0; duration=%v(%T) departure_time=%v(%T) arrival_time=%v(%T)",
 			durVal, durVal, depVal, depVal, arrVal, arrVal)
+	}
+	if len(legs) == 0 {
+		if seg := gf2SegmentFromFlatItinerary(itin, origin, dest, departureDate, cabin); seg != nil {
+			legs = append(legs, Leg{Segments: []Segment{*seg}})
+			if totalDur == 0 {
+				totalDur = seg.DurationMinutes
+			}
+		}
 	}
 	if len(legs) == 0 {
 		return nil
@@ -889,14 +1302,14 @@ func buildGF2ResultFromItinerary(itin map[string]interface{}, origin, dest, curr
 
 		if firstSeg.DepartureTime.IsZero() {
 			if depS, _ := itin["departure_time"].(string); depS != "" {
-				if t, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil {
+				if t, err := parseGF2TimeWithDateHint(depS, departureDate, firstSeg.From); err == nil {
 					firstSeg.DepartureTime = t
 				}
 			}
 		}
 		if lastSeg.ArrivalTime.IsZero() {
 			if arrS, _ := itin["arrival_time"].(string); arrS != "" {
-				if t, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil {
+				if t, err := parseGF2TimeWithDateHint(arrS, departureDate, lastSeg.To); err == nil {
 					lastSeg.ArrivalTime = t
 				}
 			}
@@ -1020,8 +1433,8 @@ func extractGF2Flight(f map[string]interface{}, origin, dest, currency string, i
 	if totalDur == 0 {
 		if depS, _ := f["departure_time"].(string); depS != "" {
 			if arrS, _ := f["arrival_time"].(string); arrS != "" {
-				if depT, err := parseGF2TimeWithDateHint(depS, departureDate); err == nil && !depT.IsZero() {
-					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate); err == nil && !arrT.IsZero() {
+				if depT, err := parseGF2TimeWithDateHint(depS, departureDate, origin); err == nil && !depT.IsZero() {
+					if arrT, err := parseGF2TimeWithDateHint(arrS, departureDate, dest); err == nil && !arrT.IsZero() {
 						if mins := int(arrT.Sub(depT).Minutes()); mins > 0 {
 							totalDur = mins
 						}
@@ -1177,12 +1590,6 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 	if a, ok := leg["arrival"].(string); ok && a != "" {
 		to = a
 	}
-	if dt, ok := leg["departure_time"].(string); ok {
-		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
-	}
-	if at, ok := leg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
-	}
 	if c, ok := leg["airline"].(string); ok {
 		carrier = c
 	}
@@ -1211,6 +1618,13 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 		if code := gf2AirportCode(arrMap); code != "" {
 			to = code
 		}
+	}
+
+	if dt, ok := leg["departure_time"].(string); ok {
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate, from)
+	}
+	if at, ok := leg["arrival_time"].(string); ok {
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate, to)
 	}
 
 	durMin := extractGF2DurationMinutes(leg, "duration", "duration_minutes", "total_duration")
@@ -1242,15 +1656,18 @@ func extractGF2Leg(leg map[string]interface{}, defaultFrom, defaultTo, departure
 		if !arr.IsZero() && depTime.IsZero() && durMin > 0 {
 			depTime = arr.Add(-time.Duration(durMin) * time.Minute)
 		}
+		var carrierName string
+		carrier, flightNum, carrierName = gf2NormalizeSegmentIdentity(carrier, flightNum)
 		segs = append(segs, Segment{
-			From:             from,
-			To:               to,
-			DepartureTime:    depTime,
-			ArrivalTime:      arr,
-			MarketingCarrier: carrier,
-			FlightNumber:     flightNum,
-			DurationMinutes:  durMin,
-			CabinClass:       cabin,
+			From:                 from,
+			To:                   to,
+			DepartureTime:        depTime,
+			ArrivalTime:          arr,
+			MarketingCarrier:     carrier,
+			MarketingCarrierName: carrierName,
+			FlightNumber:         flightNum,
+			DurationMinutes:      durMin,
+			CabinClass:           cabin,
 		})
 		totalDur = durMin
 	}
@@ -1286,7 +1703,7 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			from = code
 		}
 		if t, ok := dep["time"].(string); ok {
-			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate, from)
 		}
 	}
 	if arr, ok := s["arrival_airport"].(map[string]interface{}); ok {
@@ -1294,20 +1711,21 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			to = code
 		}
 		if t, ok := arr["time"].(string); ok {
-			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate, to)
 		}
 	}
 	if depTime.IsZero() && arrTime.IsZero() {
 		if t, ok := s["departure_time"].(string); ok {
-			depTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			depTime, _ = parseGF2TimeWithDateHint(t, departureDate, from)
 		}
 		if t, ok := s["arrival_time"].(string); ok {
-			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate)
+			arrTime, _ = parseGF2TimeWithDateHint(t, departureDate, to)
 		}
 	}
 	if c, ok := s["airline"].(string); ok {
 		carrier = c
 	}
+	operatingCarrier := gf2OperatingCarrier(s)
 	if fn, ok := s["flight_number"].(string); ok {
 		flightNum = fn
 		// Extract carrier code from "NH 962" -> "NH" when airline not set
@@ -1318,6 +1736,7 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			}
 		}
 	}
+	operatingFlightNum := gf2OperatingFlightNumber(s)
 	if durMin == 0 {
 		durMin = extractGF2DurationMinutes(s, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
@@ -1340,16 +1759,60 @@ func extractGF2SegmentFromFlight(s map[string]interface{}, defaultFrom, defaultT
 			depTime.IsZero(), arrTime.IsZero(), rawDep, rawDep, rawArr, rawArr, rawDepT, rawDepT, rawArrT, rawArrT, departureDate)
 	}
 
-	return &Segment{
-		From:             from,
-		To:               to,
-		DepartureTime:    depTime,
-		ArrivalTime:      arrTime,
-		MarketingCarrier: carrier,
-		FlightNumber:     flightNum,
-		DurationMinutes:  durMin,
-		CabinClass:       cabin,
+	var carrierName, operatingCarrierName string
+	carrier, flightNum, carrierName = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum, operatingCarrierName = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
 	}
+
+	return &Segment{
+		From:                  from,
+		To:                    to,
+		DepartureTime:         depTime,
+		ArrivalTime:           arrTime,
+		MarketingCarrier:      carrier,
+		MarketingCarrierName:  carrierName,
+		OperatingCarrier:      operatingCarrier,
+		OperatingCarrierName:  operatingCarrierName,
+		FlightNumber:          flightNum,
+		OperatingFlightNumber: operatingFlightNum,
+		DurationMinutes:       durMin,
+		CabinClass:            cabin,
+	}
+}
+
+func gf2OperatingCarrier(s map[string]interface{}) string {
+	for _, key := range []string{
+		"operating_airline", "operatingAirline", "operated_by", "operatedBy",
+		"operating_carrier", "operatingCarrier", "operating_airline_iata",
+	} {
+		if v, ok := s[key].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	if m, ok := s["operating_airline"].(map[string]interface{}); ok {
+		if code := gf2AirportCode(m); code != "" {
+			return code
+		}
+	}
+	return ""
+}
+
+func gf2OperatingFlightNumber(s map[string]interface{}) string {
+	for _, key := range []string{
+		"operating_flight_number", "operatingFlightNumber", "operated_flight_number",
+	} {
+		if v, ok := s[key].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func gf2NormalizeSegmentIdentity(carrier, flightNum string) (code, fn, displayName string) {
+	displayName = CarrierDisplayName(carrier)
+	code, fn = ResolveFlightIdentity(carrier, flightNum)
+	return code, fn, displayName
 }
 
 func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, departureDate, cabin string) (*Segment, int) {
@@ -1371,17 +1834,19 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		to = d
 	}
 	if dt, ok := seg["departure_time"].(string); ok {
-		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate)
+		depTime, _ = parseGF2TimeWithDateHint(dt, departureDate, from)
 	}
 	if at, ok := seg["arrival_time"].(string); ok {
-		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate)
+		arrTime, _ = parseGF2TimeWithDateHint(at, departureDate, to)
 	}
 	if c, ok := seg["airline"].(string); ok {
 		carrier = c
 	}
+	operatingCarrier := gf2OperatingCarrier(seg)
 	if fn, ok := seg["flight_number"].(string); ok {
 		flightNum = fn
 	}
+	operatingFlightNum := gf2OperatingFlightNumber(seg)
 	if durMin == 0 {
 		durMin = extractGF2DurationMinutes(seg, "duration", "duration_minutes", "extended_duration", "flight_duration")
 	}
@@ -1395,15 +1860,25 @@ func extractGF2Segment(seg map[string]interface{}, defaultFrom, defaultTo, depar
 		depTime = arrTime.Add(-time.Duration(durMin) * time.Minute)
 	}
 
+	var carrierName, operatingCarrierName string
+	carrier, flightNum, carrierName = gf2NormalizeSegmentIdentity(carrier, flightNum)
+	if operatingCarrier != "" {
+		operatingCarrier, operatingFlightNum, operatingCarrierName = gf2NormalizeSegmentIdentity(operatingCarrier, operatingFlightNum)
+	}
+
 	return &Segment{
-		From:             from,
-		To:               to,
-		DepartureTime:    depTime,
-		ArrivalTime:      arrTime,
-		MarketingCarrier: carrier,
-		FlightNumber:     flightNum,
-		DurationMinutes:  durMin,
-		CabinClass:       cabin,
+		From:                  from,
+		To:                    to,
+		DepartureTime:         depTime,
+		ArrivalTime:           arrTime,
+		MarketingCarrier:      carrier,
+		MarketingCarrierName:  carrierName,
+		OperatingCarrier:      operatingCarrier,
+		OperatingCarrierName:  operatingCarrierName,
+		FlightNumber:          flightNum,
+		OperatingFlightNumber: operatingFlightNum,
+		DurationMinutes:       durMin,
+		CabinClass:            cabin,
 	}, durMin
 }
 
@@ -1420,17 +1895,40 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 	if m == nil {
 		return ""
 	}
-	for _, key := range []string{"booking_token", "bookingToken", "departure_token", "token"} {
-		if s, ok := m[key].(string); ok && strings.TrimSpace(s) != "" {
-			// Prefer booking_token-shaped values; skip bare URLs.
+	for _, key := range []string{"booking_token", "bookingToken"} {
+		if s, ok := m[key].(string); ok {
 			v := strings.TrimSpace(s)
-			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+			if v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+				return v
+			}
+		}
+	}
+	// GF2 sometimes nests the bookable token under offer/booking/tokens.
+	// Never treat departure_token as bookable — getBookingDetails rejects it.
+	for _, nest := range []string{"booking", "offer", "tokens", "purchase", "pricing", "fare"} {
+		child, _ := m[nest].(map[string]interface{})
+		if child == nil {
+			continue
+		}
+		if tok := extractGF2BookingToken(child); tok != "" {
+			return tok
+		}
+	}
+	for k, v := range m {
+		lk := strings.ToLower(k)
+		if strings.Contains(lk, "departure") {
+			continue
+		}
+		if s, ok := v.(string); ok {
+			s = strings.TrimSpace(s)
+			if s == "" || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
 				continue
 			}
-			if key == "token" && len(v) < 12 {
-				continue
+			if (strings.Contains(lk, "booking") && strings.Contains(lk, "token")) || lk == "book_token" {
+				if len(s) >= 12 {
+					return s
+				}
 			}
-			return v
 		}
 	}
 	return ""
@@ -1438,56 +1936,16 @@ func extractGF2BookingToken(m map[string]interface{}) string {
 
 // ResolvePartnerBookingURL turns a GF2 search booking_token into a partner checkout URL
 // (the site Google Flights redirects to) via getBookingDetails → getBookingURL.
+// Prefer ResolveQuotedPartnerBooking when the search fare amount is known.
 func (p *GoogleFlights2Provider) ResolvePartnerBookingURL(ctx context.Context, bookingToken, currency string) (string, error) {
-	if p == nil {
-		return "", fmt.Errorf("google flights provider not configured")
-	}
-	token := strings.TrimSpace(bookingToken)
-	if token == "" {
-		return "", fmt.Errorf("missing booking token")
-	}
-	if currency == "" {
-		currency = "USD"
-	}
-	if !p.limiter.allow() {
-		return "", fmt.Errorf("flight search rate limited; try again in a minute")
-	}
-
-	detailsURL := fmt.Sprintf("https://%s/api/v1/getBookingDetails?%s", p.host, url.Values{
-		"booking_token": {token},
-		"currency":      {currency},
-		"language_code": {"en-US"},
-		"country_code":  {"US"},
-	}.Encode())
-
-	detailsBody, err := p.doGF2GET(ctx, detailsURL)
+	resolved, err := p.ResolveQuotedPartnerBooking(ctx, bookingToken, currency, QuoteBinding{})
 	if err != nil {
 		return "", err
 	}
-
-	partnerToken, directURL := extractGF2PartnerBookingToken(detailsBody)
-	if directURL != "" {
-		return directURL, nil
+	if resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+		return "", fmt.Errorf("empty booking URL")
 	}
-	if partnerToken == "" {
-		return "", fmt.Errorf("no partner booking token in getBookingDetails")
-	}
-
-	bookingURLReq := fmt.Sprintf("https://%s/api/v1/getBookingURL?%s", p.host, url.Values{
-		"token": {partnerToken},
-	}.Encode())
-	if !p.limiter.allow() {
-		return "", fmt.Errorf("flight search rate limited; try again in a minute")
-	}
-	urlBody, err := p.doGF2GET(ctx, bookingURLReq)
-	if err != nil {
-		return "", err
-	}
-	out := extractGF2BookingURL(urlBody)
-	if out == "" {
-		return "", fmt.Errorf("empty booking URL from getBookingURL")
-	}
-	return out, nil
+	return resolved.URL, nil
 }
 
 func (p *GoogleFlights2Provider) doGF2GET(ctx context.Context, fullURL string) ([]byte, error) {
@@ -1552,10 +2010,10 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 	if adults < 1 {
 		adults = 1
 	}
-	if !p.limiter.allow() {
+	if !p.waitForBookingRateLimit(ctx) {
 		return "", fmt.Errorf("flight search rate limited; try again in a minute")
 	}
-	results, err := p.doSearch(ctx, SearchRequest{
+	results, err := p.searchLegCached(ctx, SearchRequest{
 		Origin:        origin,
 		Destination:   destination,
 		DepartureDate: departureDate,
@@ -1578,6 +2036,23 @@ func (p *GoogleFlights2Provider) ResolvePartnerBookingForRoute(ctx context.Conte
 		return "", fmt.Errorf("no booking_token in route search")
 	}
 	return p.ResolvePartnerBookingURL(ctx, token, currency)
+}
+
+// ResolvePartnerBookingForFingerprint re-runs GF2 search and resolves the partner checkout URL
+// for the result whose itinerary fingerprint matches wantFP.
+func (p *GoogleFlights2Provider) ResolvePartnerBookingForFingerprint(ctx context.Context, req SearchRequest, wantItin CanonicalItinerary, currency string) (string, error) {
+	resolved, err := p.ResolveQuotedPartnerBookingForFingerprint(ctx, req, wantItin, currency, QuoteBinding{})
+	if err != nil {
+		return "", err
+	}
+	if resolved == nil || strings.TrimSpace(resolved.URL) == "" {
+		return "", fmt.Errorf("empty booking URL")
+	}
+	return resolved.URL, nil
+}
+
+func IsLikelyPartnerCheckoutURL(u string) bool {
+	return isLikelyPartnerCheckoutURL(u)
 }
 
 func isLikelyPartnerCheckoutURL(u string) bool {
@@ -1699,13 +2174,15 @@ func truncateGF2(s string, max int) string {
 
 // parseGF2TimeWithDateHint first tries parseGF2Time (full datetime), then combines
 // time-only strings with the provided date hint (e.g. "2026-04-10") to produce a full datetime.
-func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
+// airportCode selects the local timezone for time-only strings (airport wall clock).
+func parseGF2TimeWithDateHint(s, dateHint, airportCode string) (time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
+	loc := AirportLocation(airportCode)
 	// Try full datetime first.
-	if t, err := parseGF2Time(s); err == nil {
+	if t, err := parseGF2Time(s, airportCode); err == nil {
 		return t, nil
 	}
 	// If no date hint available, we cannot resolve time-only strings.
@@ -1726,7 +2203,7 @@ func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
 	for _, tf := range timeOnlyFormats {
 		combined := dateHint + " " + s
 		fullFmt := "2006-01-02 " + tf
-		if t, err := time.ParseInLocation(fullFmt, combined, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(fullFmt, combined, loc); err == nil {
 			return t, nil
 		}
 	}
@@ -1745,25 +2222,78 @@ func parseGF2TimeWithDateHint(s, dateHint string) (time.Time, error) {
 		"Mon, Jan 2, 3:04 PM",
 	}
 	for _, cf := range compositeFormats {
-		if t, err := time.ParseInLocation(cf, s, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(cf, s, loc); err == nil {
 			return t, nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("could not parse %q with date hint %q", s, dateHint)
 }
 
+// gf2HasNumericUTCOffset reports whether s includes an explicit ±HH:MM / ±HHMM offset
+// (not a trailing Z). Those are treated as absolute instants.
+func gf2HasNumericUTCOffset(s string) bool {
+	// RFC3339-style: ...±HH:MM or ...±HHMM at end
+	if len(s) < 6 {
+		return false
+	}
+	for i := len(s) - 1; i >= 0; i-- {
+		c := s[i]
+		if c == '+' || c == '-' {
+			// Avoid matching date separators in "2006-01-02..."
+			if i < 10 {
+				return false
+			}
+			rest := s[i+1:]
+			if len(rest) == 5 && rest[2] == ':' { // HH:MM
+				return true
+			}
+			if len(rest) == 4 { // HHMM
+				return true
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// gf2WallClockString strips a trailing Z so GF2/SerpAPI "local labeled as Z" values
+// can be parsed in the airport timezone. Numeric offsets are left intact.
+func gf2WallClockString(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "Z") || strings.HasSuffix(s, "z") {
+		return strings.TrimSpace(s[:len(s)-1])
+	}
+	return s
+}
+
 // parseGF2Time parses full date-time strings only. Time-only (e.g. "15:04") is rejected
 // to avoid 0001-01-01 and identical depart/arrive display ("02:20 → 02:20" bug).
-func parseGF2Time(s string) (time.Time, error) {
+//
+// Google Flights / SerpAPI segment times are airport wall clocks. They often arrive as
+// "2027-01-14T06:30:00Z" where the clock face is local and Z is misleading. We parse
+// Z / zoneless values in airportCode's timezone so airline sites and our "Airport local"
+// display match. Strings with a numeric UTC offset are parsed as absolute instants.
+func parseGF2Time(s, airportCode string) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, fmt.Errorf("empty")
 	}
-	// Only full date-time formats; do NOT include "15:04" (time-only)
+	s = strings.TrimSpace(s)
+	loc := AirportLocation(airportCode)
+
+	// Explicit ±offset → absolute instant.
+	if gf2HasNumericUTCOffset(s) {
+		for _, f := range []string{time.RFC3339Nano, time.RFC3339} {
+			if t, err := time.Parse(f, s); err == nil {
+				return t.UTC(), nil
+			}
+		}
+	}
+
+	// Z or zoneless → airport wall clock (matches airline / Google Flights UI).
+	wall := gf2WallClockString(s)
 	formats := []string{
-		time.RFC3339,
-		time.RFC3339Nano,
-		"2006-01-02T15:04:05.999Z",
-		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05.999",
 		"2006-01-02T15:04:05",
 		"2006-01-02T15:04",
 		"2006-01-02 15:04:05",
@@ -1775,13 +2305,14 @@ func parseGF2Time(s string) (time.Time, error) {
 		"Jan 2, 2006, 3:04 PM",
 		"Jan 2, 2006 3:04 PM",
 		"Jan 2, 3:04 PM",
+		"02-01-2006 03:04 PM",
+		"02-01-2006 3:04 PM",
+		"02-01-2006 15:04",
+		"02-01-2006 15:04:05",
 	}
 	for _, f := range formats {
-		if t, err := time.ParseInLocation(f, s, time.UTC); err == nil {
+		if t, err := time.ParseInLocation(f, wall, loc); err == nil {
 			return t, nil
-		}
-		if t, err := time.Parse(f, s); err == nil {
-			return t.UTC(), nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("could not parse %q", s)
@@ -1809,8 +2340,8 @@ func extractGF2DurationMinutes(m map[string]interface{}, keys ...string) int {
 				return n
 			}
 		case map[string]interface{}:
-			// Direct: minutes, min, value, text (number or string)
-			for _, k := range []string{"minutes", "min", "value", "text"} {
+			// Direct: minutes, min, value, raw, text (number or string)
+			for _, k := range []string{"minutes", "min", "value", "raw", "text"} {
 				if n, ok := x[k]; ok {
 					switch vv := n.(type) {
 					case float64:

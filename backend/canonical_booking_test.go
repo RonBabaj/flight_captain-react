@@ -149,12 +149,31 @@ func TestBookingRouteFromSessionOption_splitOmitsReturn(t *testing.T) {
 func TestBuildOneWayLegBookingURL(t *testing.T) {
 	opt := openJawOption()
 	out := BuildOneWayLegBookingURL(nil, opt, 0)
-	if !strings.Contains(out, "/transport/flights/tlv/vie/261007/") || !strings.Contains(out, "rtn=0") {
-		t.Fatalf("outbound hop %q", out)
+	if !strings.Contains(out, "google.com/travel/flights") || !strings.Contains(out, "TLV") || !strings.Contains(out, "VIE") {
+		t.Fatalf("outbound hop should be Google Flights prefill, got %q", out)
 	}
 	inb := BuildOneWayLegBookingURL(nil, opt, 1)
-	if !strings.Contains(inb, "/transport/flights/muc/tlv/261014/") || !strings.Contains(inb, "rtn=0") {
-		t.Fatalf("return hop should be MUC→TLV one-way, got %q", inb)
+	if !strings.Contains(inb, "google.com/travel/flights") || !strings.Contains(inb, "MUC") || !strings.Contains(inb, "TLV") {
+		t.Fatalf("return hop should be Google Flights one-way, got %q", inb)
+	}
+}
+
+func TestBuildLegOrSegmentBookingURL_segment(t *testing.T) {
+	depOut := time.Date(2027, 1, 7, 18, 20, 0, 0, time.UTC)
+	opt := &FlightOption{
+		Legs: []FlightLeg{{
+			Segments: []FlightSegment{
+				{From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "ZRH"}, DepartureTime: depOut, MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY343"},
+				{From: AirportLike{Code: "ZRH"}, To: AirportLike{Code: "VIE"}, MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS134"},
+			},
+		}},
+	}
+	u := buildLegOrSegmentBookingURL(nil, opt, 0, 0)
+	if !strings.Contains(u, "google.com/travel/flights") || !strings.Contains(u, "TLV") || !strings.Contains(u, "ZRH") {
+		t.Fatalf("segment prefill %q", u)
+	}
+	if !strings.Contains(u, "LY") {
+		t.Fatalf("segment prefill should include carrier: %q", u)
 	}
 }
 

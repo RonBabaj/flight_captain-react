@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { CreateSearchSessionRequest } from '../types';
+import { readSharedLinkCache, resultsPathFromSharedCache } from '../utils/sharedLinkCache';
 
 export type SearchUrlState = Partial<CreateSearchSessionRequest> & {
   sessionId?: string;
@@ -115,7 +116,16 @@ export function buildSearchString(params: SearchUrlState): string {
 export function updateSearchUrl(params: SearchUrlState): void {
   if (!isWeb()) return;
   const q = buildSearchString(params);
-  const url = q ? `${window.location.pathname}?${q}` : window.location.pathname;
+  let pathname = window.location.pathname || '/';
+  // Chrome/iOS shared-link sync often rewrites the path to `/` while Results is
+  // still mounted. Put the Results path back so reload / share keep working.
+  if (
+    (pathname === '/' || pathname === '') &&
+    (params.sessionId || params.origin || params.destination)
+  ) {
+    pathname = resultsPathFromSharedCache(readSharedLinkCache());
+  }
+  const url = q ? `${pathname}?${q}` : pathname;
   window.history.replaceState({}, '', url);
 }
 

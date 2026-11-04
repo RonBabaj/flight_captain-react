@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"flightcaptainweb/search"
 )
 
 // BOOKING_LINK_MODE: "google_prefill" | "skyscanner_prefill" | "direct_provider"
@@ -84,6 +86,43 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 	}
 }
 
+// bookingPrefillURL returns a search prefill URL for one leg/segment or the whole itinerary when partner checkout fails.
+func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex int, segmentIndex int) string {
+	if legIndex >= 0 && option != nil && legIndex < len(option.Legs) {
+		if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+			return u
+		}
+		if u := buildLegOrSegmentBookingURL(session, option, legIndex, segmentIndex); u != "" {
+			return u
+		}
+		leg := option.Legs[legIndex]
+		var origin, dest, dep string
+		if segmentIndex >= 0 && segmentIndex < len(leg.Segments) {
+			origin, dest, dep = routeFromFlightSegment(leg.Segments[segmentIndex])
+		} else {
+			origin, dest, dep = routeFromFlightLeg(leg)
+		}
+		if origin != "" && dest != "" {
+			cabin := ""
+			adults := 1
+			if session != nil {
+				cabin = session.Params.CabinClass
+				if session.Params.Adults > 0 {
+					adults = session.Params.Adults
+				}
+			}
+			if bookingLinkMode() == BookingModeSkyscannerPrefill {
+				return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+			}
+			u := buildGoogleFlightsPrefillURL(origin, dest, dep, "")
+			if u != "" {
+				return u
+			}
+		}
+	}
+	return BuildUniformBookingLink(session, option)
+}
+
 func firstAirport(leg FlightLeg) string {
 	if len(leg.Segments) == 0 {
 		return ""
@@ -106,6 +145,15 @@ func routeFromFlightLeg(leg FlightLeg) (origin, dest, dep string) {
 	dest = lastAirport(leg)
 	if !leg.Segments[0].DepartureTime.IsZero() {
 		dep = leg.Segments[0].DepartureTime.Format("2006-01-02")
+	}
+	return
+}
+
+func routeFromFlightSegment(seg FlightSegment) (origin, dest, dep string) {
+	origin = strings.ToUpper(strings.TrimSpace(seg.From.Code))
+	dest = strings.ToUpper(strings.TrimSpace(seg.To.Code))
+	if !seg.DepartureTime.IsZero() {
+		dep = seg.DepartureTime.Format("2006-01-02")
 	}
 	return
 }
@@ -185,6 +233,21 @@ func buildGoogleFlightsPrefillURL(origin, dest, dep, ret string) string {
 	return "https://www.google.com/travel/flights?q=" + url.QueryEscape(q)
 }
 
+func buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, flightNum string) string {
+	q := fmt.Sprintf("Flights to %s from %s", dest, origin)
+	if dep != "" {
+		q += " " + dep
+	}
+	carrier = strings.ToUpper(strings.TrimSpace(carrier))
+	flightNum = strings.TrimSpace(flightNum)
+	if carrier != "" && flightNum != "" {
+		q += " " + carrier + " " + flightNum
+	} else if carrier != "" {
+		q += " " + carrier
+	}
+	return "https://www.google.com/travel/flights?q=" + url.QueryEscape(q)
+}
+
 func buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin string, adults int) string {
 	origin = strings.ToLower(strings.TrimSpace(origin))
 	dest = strings.ToLower(strings.TrimSpace(dest))
@@ -235,15 +298,16 @@ func BuildSkyscannerFallbackFromParams(origin, destination, departureDate, retur
 	return buildSkyscannerPrefillURL(origin, destination, departureDate, returnDate, "", 1)
 }
 
-// BuildOneWayLegBookingURL is a Skyscanner one-way prefill for a single hop of a split itinerary.
+// BuildOneWayLegBookingURL is a one-way search prefill for a single hop of a split itinerary.
 func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legIdx int) string {
+	return buildLegOrSegmentBookingURL(session, option, legIdx, -1)
+}
+
+func buildLegOrSegmentBookingURL(session *SearchSession, option *FlightOption, legIdx int, segIdx int) string {
 	if option == nil || legIdx < 0 || legIdx >= len(option.Legs) {
 		return ""
 	}
-	origin, dest, dep := routeFromFlightLeg(option.Legs[legIdx])
-	if origin == "" || dest == "" {
-		return ""
-	}
+	leg := option.Legs[legIdx]
 	cabin := ""
 	adults := 1
 	if session != nil {
@@ -252,7 +316,26 @@ func BuildOneWayLegBookingURL(session *SearchSession, option *FlightOption, legI
 			adults = session.Params.Adults
 		}
 	}
-	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	if segIdx >= 0 && segIdx < len(leg.Segments) {
+		seg := leg.Segments[segIdx]
+		origin, dest, dep := routeFromFlightSegment(seg)
+		if origin == "" || dest == "" {
+			return ""
+		}
+		if bookingLinkMode() == BookingModeSkyscannerPrefill {
+			return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+		}
+		carrier := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+		return buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, seg.FlightNumber)
+	}
+	origin, dest, dep := routeFromFlightLeg(leg)
+	if origin == "" || dest == "" {
+		return ""
+	}
+	if bookingLinkMode() == BookingModeSkyscannerPrefill {
+		return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	}
+	return buildGoogleFlightsPrefillURL(origin, dest, dep, "")
 }
 
 // BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.
@@ -264,34 +347,19 @@ func BuildGoogleFlightsFallbackFromParams(origin, destination, departureDate, re
 	return u
 }
 
-// CanonicalFingerprint returns a stable hash for dedupe: origin, dest, departAt, arriveAt, carrierCodes, flightNumbers, stopsCount, totalDuration. Does not include price so same flight from different providers dedupes to cheapest.
+// CanonicalFingerprint returns a stable hash for dedupe based on physical itinerary identity (not price).
 func CanonicalFingerprint(option *FlightOption) string {
-	if option == nil || len(option.Legs) == 0 {
+	if option == nil {
 		return ""
 	}
-	var parts []string
-	for _, leg := range option.Legs {
-		if len(leg.Segments) == 0 {
-			continue
-		}
-		first := leg.Segments[0]
-		last := leg.Segments[len(leg.Segments)-1]
-		parts = append(parts, first.From.Code, last.To.Code)
-		parts = append(parts, first.DepartureTime.Format(time.RFC3339), last.ArrivalTime.Format(time.RFC3339))
-		var carriers, numbers []string
-		stops := len(leg.Segments) - 1
-		parts = append(parts, fmt.Sprintf("%d", stops))
-		for _, s := range leg.Segments {
-			carriers = append(carriers, s.MarketingCarrier.Code)
-			numbers = append(numbers, s.FlightNumber)
-		}
-		sort.Strings(carriers)
-		sort.Strings(numbers)
-		parts = append(parts, strings.Join(carriers, ","), strings.Join(numbers, ","))
+	if fp := strings.TrimSpace(option.ItineraryFingerprint); fp != "" {
+		return fp
 	}
-	parts = append(parts, fmt.Sprintf("%d", option.DurationMinutes))
-	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
-	return hex.EncodeToString(h[:16])
+	if option.CanonicalItinerary != nil {
+		return search.CanonicalItineraryFingerprint(*option.CanonicalItinerary)
+	}
+	pr := providerResultFromFlightOption(option)
+	return search.CanonicalItineraryFingerprint(search.BuildCanonicalItinerary(pr))
 }
 
 // roundTimeToMinutes rounds t to the nearest 5-minute bucket (e.g. for fingerprint tolerance).

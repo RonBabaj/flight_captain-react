@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
 import { formCardStyles } from '../../../components/search/formStyles';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { formatMonthYear } from '../../../utils/monthNames';
+import { ANYWHERE_CODE } from '../../../types';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
 import { PassengerCabinPicker } from '../../flight-search/components/PassengerCabinPicker';
 
@@ -80,6 +82,14 @@ export function MonthDealsFormContent({
           subtitle={t('monthly_deals_hero')}
         />
       )}
+
+      {!!destination.trim() &&
+        destination.trim().toUpperCase() !== ANYWHERE_CODE && (
+          <DestinationMoodBanner
+            destinationCode={destination}
+            variant={compact ? 'compact' : 'form'}
+          />
+        )}
 
       <AirportAutocomplete
         label={t('from')}

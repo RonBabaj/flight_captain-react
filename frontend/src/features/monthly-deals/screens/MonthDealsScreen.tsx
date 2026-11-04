@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,23 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Linking,
   useWindowDimensions,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import { useDealsStore, dealsActions, clampDealsMonth, getMinimumAllowedDealsYearMonth } from '../../../store';
 import type { DealsSortField } from '../../../store/dealsStore';
-import { getMonthDeals, getFlightDetails, getUniformBookingRedirectUrl, createSearchSession, getSearchSessionResults } from '../../../api';
+import { getMonthDeals, getFlightDetails, resolveBookingOffer, createSearchSessionWithRetry, getSearchSessionResults } from '../../../api';
+import { isSafeBookingUrl } from '../../../api/booking';
+import type { BookingResolveResponse } from '../../../api/booking';
+import { BookingOptionsFooter } from '../../../ui';
+import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
-import { getAirlineName } from '../../../data/airlines';
+import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -70,7 +75,7 @@ async function findCheapestFlightForDate(params: {
 
   const promise = (async (): Promise<PositioningLegResult | null> => {
     try {
-      const session = await createSearchSession({
+      const session = await createSearchSessionWithRetry({
         origin: params.origin,
         destination: params.destination,
         departureDate: params.departureDate,
@@ -155,25 +160,6 @@ function sortDeals(
 
 // ─── Shared helpers (same logic as FlightDetailsModal) ──────────────────────
 
-function toValidMs(iso: string | undefined | null): number {
-  if (!iso) return NaN;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms) || new Date(ms).getUTCFullYear() < 2000) return NaN;
-  return ms;
-}
-
-function safeTime(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
-  if (!Number.isFinite(ms)) return '—';
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function safeDate(iso: string | undefined | null): string {
-  const ms = toValidMs(iso);
-  if (!Number.isFinite(ms)) return '';
-  return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
 function fmtDur(min: number): string {
   if (min <= 0) return '—';
   const h = Math.floor(min / 60);
@@ -183,8 +169,8 @@ function fmtDur(min: number): string {
 
 function legDuration(segs: FlightSegment[]): number {
   if (!segs?.length) return 0;
-  const d = toValidMs(segs[0].departureTime);
-  const a = toValidMs(segs[segs.length - 1].arrivalTime);
+  const d = flightTimeToMs(segs[0].departureTime);
+  const a = flightTimeToMs(segs[segs.length - 1].arrivalTime);
   if (Number.isFinite(d) && Number.isFinite(a) && a > d) return Math.round((a - d) / 60000);
   return segs.reduce((s, seg) => s + Math.max(0, seg.durationMinutes || 0), 0);
 }
@@ -194,8 +180,8 @@ function layoverBetween(segs: FlightSegment[], idx: number): number {
   const dest = segs[segs.length - 1].to?.code || '';
   const con = segs[idx - 1].to?.code || '';
   if (con && con === dest) return 0;
-  const prev = toValidMs(segs[idx - 1].arrivalTime);
-  const dep = toValidMs(segs[idx].departureTime);
+  const prev = flightTimeToMs(segs[idx - 1].arrivalTime);
+  const dep = flightTimeToMs(segs[idx].departureTime);
   if (!Number.isFinite(prev) || !Number.isFinite(dep) || dep <= prev) return 0;
   return Math.round((dep - prev) / 60000);
 }
@@ -240,7 +226,7 @@ function buildDealsPositioningSignature(
 
 export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: any; view?: 'form' | 'results' }) {
   const { theme } = useTheme();
-  const { currency, locale, t, isRTL, language } = useLocale();
+  const { currency, locale, t, isRTL, language, timeDisplay } = useLocale();
   const isMobile = useIsMobile();
   const { width: screenW } = useWindowDimensions();
   const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
@@ -259,6 +245,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const [details, setDetails] = useState<FlightDetailsResponse | null>(null);
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [bookingResolve, setBookingResolve] = useState<BookingResolveResponse | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const [stopsOpen, setStopsOpen] = useState(true);
@@ -865,6 +852,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     setShowDetails(true);
     setDetails(null);
     setDetailsError(null);
+    setBookingResolve(null);
+    setBookError(null);
     setDetailsLoading(true);
     try {
       setDetails(await getFlightDetails({ origin: o, destination: d, date, durationDays, currency, adults, children }));
@@ -875,35 +864,36 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     }
   };
 
-  const handleBookFromDetails = async () => {
-    if (!selectedDate || !details) return;
-    const o = origin.trim().toUpperCase(), d = destination.trim().toUpperCase();
-
-    const depDate = new Date(selectedDate + 'T00:00:00Z');
-    const retDate = new Date(depDate);
-    retDate.setUTCDate(retDate.getUTCDate() + durationDays);
-    const returnDateStr = retDate.toISOString().slice(0, 10);
-
-    const url = getUniformBookingRedirectUrl(
-      details.sessionId || '',
-      details.optionId || '',
-      {
-        origin: o,
-        destination: d,
-        departureDate: selectedDate,
-        returnDate: returnDateStr,
-      }
-    );
-
+  const handleBookFromDetails = useCallback(async () => {
+    if (!details?.sessionId || !details?.optionId) {
+      setBookError(t('booking_search_unavailable'));
+      return;
+    }
     setBookLoading(true);
     setBookError(null);
+    setBookingResolve(null);
     try {
-      await Linking.openURL(url);
+      const res = await resolveBookingOffer(details.sessionId, details.optionId);
+      setBookingResolve(res);
+      if (!res.found) {
+        setBookError(res.message || t('no_verified_booking'));
+      }
     } catch {
-      setBookError('Cannot open booking link.');
+      setBookError(t('booking_search_unavailable'));
     } finally {
       setBookLoading(false);
     }
+  }, [details?.sessionId, details?.optionId, t]);
+
+  useEffect(() => {
+    if (!showDetails || !details?.sessionId || !details?.optionId) return;
+    void handleBookFromDetails();
+  }, [showDetails, details?.sessionId, details?.optionId, handleBookFromDetails]);
+
+  const handleOpenBookingUrl = async (url: string) => {
+    if (!isSafeBookingUrl(url)) return;
+    const ok = await openUrlInNewTab(url);
+    if (!ok) setBookError('Cannot open booking link.');
   };
 
   const handleDealSort = (field: DealsSortField) => {
@@ -1054,7 +1044,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           {airlinesOpen && (
             <View style={fl.secBody}>
               {dealsAirlines.map(({ code, count }) => {
-                const name = getAirlineName(code) || code;
+                const name = resolveAirlineLabel(code);
                 const sel = selectedAirlines.includes(code);
                 return (
                   <TouchableOpacity
@@ -1293,29 +1283,22 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               </View>
 
               {/* Legs — pass isRTL so segments mirror correctly */}
-              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language, isRTL)}
-              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language, isRTL)}
+              {renderLeg(details.outbound.segments, t('outbound'), details.departureDate, theme, t, language, timeDisplay, locale, isRTL)}
+              {renderLeg(details.return.segments, t('return_leg'), details.returnDate, theme, t, language, timeDisplay, locale, isRTL)}
             </ScrollView>
           )}
 
           {/* Footer */}
           <View style={[m.footer, { borderTopColor: theme.cardBorder }]}>
-            {bookError ? (
-              <Text style={[m.bookError, { color: theme.error }]}>{bookError}</Text>
-            ) : null}
-            <TouchableOpacity
-              style={[m.bookBtn, { backgroundColor: details && !bookLoading ? theme.primary : theme.controlBg }]}
-              onPress={handleBookFromDetails}
-              disabled={!details || bookLoading}
-              activeOpacity={0.8}
-            >
-              {bookLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[m.bookBtnText, { color: details ? '#fff' : theme.textMuted }]}>{t('book_now')}</Text>
-              )}
-            </TouchableOpacity>
-            <Text style={[m.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+            <BookingOptionsFooter
+              resolved={bookingResolve}
+              loading={bookLoading}
+              errorMessage={bookError}
+              onResolve={handleBookFromDetails}
+              onOpenUrl={handleOpenBookingUrl}
+              carrierCode={details?.outbound?.segments?.[0]?.marketingCarrier?.code}
+              compact={isMobile}
+            />
           </View>
         </View>
       </View>
@@ -1375,6 +1358,13 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   return (
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       {summaryBar}
+      {showResultsShell &&
+        !!destination.trim() &&
+        destination.trim().toUpperCase() !== ANYWHERE_CODE && (
+          <View style={{ paddingHorizontal: isMobile ? 12 : 16, paddingTop: 8 }}>
+            <DestinationMoodBanner destinationCode={destination} variant="results" />
+          </View>
+        )}
       {/* Full-screen overlay only on the form route. Results uses skeletons / inline banner. */}
       <SearchLoadingOverlay visible={isLoading && showForm} origin={origin} destination={destination} />
       {isLoading && showResultsShell ? (
@@ -1493,13 +1483,16 @@ function renderLeg(
   theme: import('../../../theme/ThemeContext').Theme,
   t: (k: string) => string,
   language: LanguageCode,
+  timeDisplay: FlightTimeDisplayMode,
+  locale: string,
   isRTL = false,
 ) {
   if (!segs?.length) return null;
   const stops = Math.max(0, segs.length - 1);
   const stopsLabel = stops === 0 ? t('direct') : stops === 1 ? `1 ${t('stop')}` : `${stops} ${t('stops')}`;
   const dur = legDuration(segs);
-  const legDate = safeDate(segs[0].departureTime) || dateStr;
+  const legDate =
+    formatFlightWeekdayDate(segs[0].departureTime, segs[0].from?.code, timeDisplay, 'en-US') || dateStr;
 
   return (
     <View style={[m.legBlock, { borderTopColor: theme.cardBorder }]}>
@@ -1512,7 +1505,7 @@ function renderLeg(
       {segs.map((seg, idx) => {
         const lo = layoverBetween(segs, idx);
         const carrier = seg.marketingCarrier?.code || '';
-        const carrierName = carrier ? (getAirlineName(carrier) || carrier) : '';
+        const carrierName = carrier ? resolveAirlineLabel(carrier) : '';
 
         return (
           <View key={idx}>
@@ -1526,7 +1519,7 @@ function renderLeg(
             {/* In RTL, mirror dep/arr: arrival on right (visual start), departure on left */}
             <View style={[m.segRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View style={[m.segEnd, isRTL && { alignItems: 'center' }]}>
-                <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.departureTime)}</Text>
+                <Text style={[m.segTime, { color: theme.text }]}>{formatFlightTime(seg.departureTime, seg.from?.code, timeDisplay, locale)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.from?.code, language)}</Text>
               </View>
               <View style={m.segMid}>
@@ -1535,7 +1528,7 @@ function renderLeg(
                 <View style={[m.segLine, { backgroundColor: theme.cardBorder }]} />
               </View>
               <View style={[m.segEnd, m.segEndRight, isRTL && { alignItems: 'center' }]}>
-                <Text style={[m.segTime, { color: theme.text }]}>{safeTime(seg.arrivalTime)}</Text>
+                <Text style={[m.segTime, { color: theme.text }]}>{formatFlightTime(seg.arrivalTime, seg.to?.code, timeDisplay, locale)}</Text>
                 <Text style={[m.segAirport, { color: theme.textMuted }]}>{getAirportNameByCode(seg.to?.code, language)}</Text>
               </View>
             </View>
@@ -1693,6 +1686,9 @@ const m = StyleSheet.create({
 
   footer: { padding: 20, borderTopWidth: 1 },
   bookError: { fontSize: 14, marginBottom: 10, textAlign: 'center' },
+  bookVerifyBlock: { marginBottom: 12, gap: 8 },
+  bookVerifyTitle: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  bookVerifyPrice: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
   bookBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
   bookBtnText: { fontSize: 17, fontWeight: '600' },
   disclaimer: { marginTop: 10, fontSize: 12, textAlign: 'center' },

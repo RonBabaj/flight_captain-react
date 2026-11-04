@@ -2,12 +2,17 @@ package search
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 )
+
+// ErrProviderSkipped marks providers that intentionally did not run (e.g. Kiwi on open-jaw).
+// SearchAll ignores these when deciding whether the overall search failed.
+var ErrProviderSkipped = errors.New("provider skipped for this itinerary type")
 
 // Registry holds enabled flight providers and runs multi-provider search.
 type Registry struct {
@@ -157,11 +162,12 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 		out.Stats = append(out.Stats, p.stats)
 		out.Results = append(out.Results, p.results...)
 	}
+	out.Results = AttachCanonicalIdentityAll(out.Results)
 	out.Results = DedupeProviderResults(out.Results)
 	return out
 }
 
-// AllFailed returns true when every provider reported an error and there are no results.
+// AllFailed returns true when every provider that actually ran reported an error and there are no results.
 func (m MultiSearchResult) AllFailed() bool {
 	if len(m.Results) > 0 {
 		return false
@@ -169,10 +175,94 @@ func (m MultiSearchResult) AllFailed() bool {
 	if len(m.Stats) == 0 {
 		return true
 	}
+	attempted := 0
+	failed := 0
 	for _, s := range m.Stats {
-		if s.Err == "" {
-			return false
+		if isSkippedProviderErr(s.Err) {
+			continue
+		}
+		attempted++
+		if s.Err != "" {
+			failed++
 		}
 	}
-	return true
+	if attempted == 0 {
+		return true
+	}
+	return failed == attempted
+}
+
+func isSkippedProviderErr(errMsg string) bool {
+	return strings.Contains(errMsg, ErrProviderSkipped.Error())
+}
+
+// IsTransientFailure reports whether all provider errors look retryable (rate limit, timeout, gateway).
+func (m MultiSearchResult) IsTransientFailure() bool {
+	if len(m.Results) > 0 {
+		return false
+	}
+	attempted := 0
+	transient := 0
+	for _, s := range m.Stats {
+		if s.Err == "" || isSkippedProviderErr(s.Err) {
+			continue
+		}
+		attempted++
+		if IsTransientSearchErrMsg(s.Err) {
+			transient++
+		}
+	}
+	if attempted == 0 {
+		return true
+	}
+	return transient == attempted
+}
+
+// IsTransientSearchErrMsg classifies provider error strings that often succeed on retry.
+func IsTransientSearchErrMsg(errMsg string) bool {
+	if errMsg == "" {
+		return false
+	}
+	msg := strings.ToLower(errMsg)
+	if strings.Contains(msg, "rate limit") ||
+		strings.Contains(msg, "try again") ||
+		strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "gateway") ||
+		strings.Contains(msg, "temporarily unavailable") ||
+		strings.Contains(msg, "status 5") {
+		return true
+	}
+	// Empty or blipped GF2 leg responses during open-jaw combine — not a true "no flights" outcome.
+	if strings.Contains(msg, "outbound search failed") {
+		return true
+	}
+	return false
+}
+
+// FailureMessage returns a user-facing error when SearchAll produced no results.
+func (m MultiSearchResult) FailureMessage() string {
+	if m.IsTransientFailure() {
+		return "Flight search is temporarily unavailable. Please try again."
+	}
+	for _, s := range m.Stats {
+		if s.Err == "" || isSkippedProviderErr(s.Err) {
+			continue
+		}
+		if strings.Contains(s.Err, "no flights found for") {
+			return s.Err
+		}
+		if strings.Contains(s.Err, "outbound search failed") {
+			return "No flights found for the outbound leg. Try different dates or airports."
+		}
+		if strings.Contains(s.Err, "rate limited") {
+			return "Flight search is temporarily rate limited. Please try again in a minute."
+		}
+	}
+	for _, s := range m.Stats {
+		if s.Err != "" && !isSkippedProviderErr(s.Err) {
+			return s.Err
+		}
+	}
+	return "flight search failed"
 }

@@ -10,9 +10,12 @@ import {
 } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
-import { getAirlineName } from '../../../data/airlines';
+import { Chip } from '../../../ui';
+import { resolveAirlineLabel } from '../../../data/airlines';
+import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
+import { countByStopsFilter } from '../../../utils/itineraryStops';
 
 interface FiltersPanelProps {
   filters: SearchFilters;
@@ -40,13 +43,9 @@ export function FiltersPanel({
   const airlines = useMemo(() => {
     const map: Record<string, number> = {};
     results.forEach((opt) => {
-      const primary =
-        opt.primaryDisplayCarrier ||
-        opt.validatingAirlines?.[0] ||
-        opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
-      if (!primary) return;
-      const code = primary.toUpperCase();
-      map[code] = (map[code] ?? 0) + 1;
+      for (const code of distinctMarketingCarriers(opt)) {
+        map[code] = (map[code] ?? 0) + 1;
+      }
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -61,8 +60,15 @@ export function FiltersPanel({
     onFiltersChange({ airlines: list });
   };
 
-  const stopsLabel = (max: number | null) =>
-    max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
+  const stopCounts = useMemo(() => countByStopsFilter(results), [results]);
+
+  const stopsLabel = (max: number | null) => {
+    const base =
+      max === null ? t('filter_any') : max === 0 ? t('direct') : max === 1 ? t('stops_1') : t('stops_2_plus');
+    const count =
+      max === null ? stopCounts.any : max === 0 ? stopCounts.direct : max === 1 ? stopCounts.one : stopCounts.twoPlus;
+    return noResults ? base : `${base} (${count})`;
+  };
 
   const SectionHeader = ({ title, open, toggle }: { title: string; open: boolean; toggle: () => void }) => (
     <TouchableOpacity style={[f.secHeader, { borderBottomColor: theme.cardBorder }]} onPress={toggle} activeOpacity={0.6}>
@@ -80,16 +86,12 @@ export function FiltersPanel({
             {([null, 0, 1, 2] as const).map((max) => {
               const active = filters.maxStops === max;
               return (
-                <TouchableOpacity
+                <Chip
                   key={max ?? 'any'}
-                  style={[f.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  label={stopsLabel(max)}
+                  active={active}
                   onPress={() => onFiltersChange({ maxStops: max })}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[f.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>
-                    {stopsLabel(max)}
-                  </Text>
-                </TouchableOpacity>
+                />
               );
             })}
           </View>
@@ -102,7 +104,7 @@ export function FiltersPanel({
           {airlinesOpen && (
             <View style={f.secBody}>
               {airlines.map(({ code, count }) => {
-                const name = getAirlineName(code) || code;
+                const name = resolveAirlineLabel(code);
                 const sel = filters.airlines.includes(code);
                 return (
                   <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>

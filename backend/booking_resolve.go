@@ -1,0 +1,1143 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"flightcaptainweb/bookingmatch"
+	"flightcaptainweb/search"
+)
+
+const bookingResolveTimeout = 45 * time.Second
+
+// Booking resolve status codes exposed to clients.
+const (
+	BookingResolveVerified          = "verified"
+	BookingResolveNotFound          = "not_found"
+	BookingResolveSearchUnavailable = "search_unavailable"
+	BookingResolveTimeout           = "timeout"
+	BookingResolveInvalidItinerary  = "invalid_itinerary"
+)
+
+// BookingResolveRequest identifies a flight option to match via web search.
+type BookingResolveRequest struct {
+	SessionID    string `json:"sessionId"`
+	OptionID     string `json:"optionId"`
+	LegIndex     *int   `json:"legIndex,omitempty"`
+	SegmentIndex *int   `json:"segmentIndex,omitempty"`
+	Force        bool   `json:"force,omitempty"`
+}
+
+// PublicBookingOffer is the client-facing verified booking offer (no internal search details).
+type PublicBookingOffer struct {
+	Provider        string   `json:"provider"`
+	Domain          string   `json:"domain"`
+	URL             string   `json:"url"`
+	URLType         string   `json:"urlType"`
+	Price           *float64 `json:"price,omitempty"`
+	Currency        string   `json:"currency,omitempty"`
+	MatchConfidence int      `json:"matchConfidence"`
+	PriceLabel      string   `json:"priceLabel,omitempty"`
+	CheckedAt       string   `json:"checkedAt"`
+}
+
+// BookingResolveResponse is returned by POST /api/booking/resolve.
+type BookingResolveResponse struct {
+	Found                bool                `json:"found"`
+	Status               string              `json:"status"`
+	ItineraryFingerprint string              `json:"itineraryFingerprint,omitempty"`
+	Offer                *PublicBookingOffer `json:"offer,omitempty"`
+	CheapestOta          *PublicBookingOffer `json:"cheapestOta,omitempty"`
+	AirlineDirect        *PublicBookingOffer `json:"airlineDirect,omitempty"`
+	Message              string              `json:"message,omitempty"`
+	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
+	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
+	PriceMismatch        bool                        `json:"priceMismatch,omitempty"`
+	CandidatesConsidered int                         `json:"candidatesConsidered,omitempty"`
+	Alternatives         []PublicBookingAlternative  `json:"alternatives,omitempty"`
+}
+
+// PublicBookingAlternative is a runner-up verified checkout (for transparency).
+type PublicBookingAlternative struct {
+	Provider string   `json:"provider"`
+	Domain   string   `json:"domain"`
+	URL      string   `json:"url,omitempty"`
+	Price    *float64 `json:"price,omitempty"`
+	Currency string   `json:"currency,omitempty"`
+}
+
+type bookingResolveCacheEntry struct {
+	resp      BookingResolveResponse
+	expiresAt time.Time
+}
+
+type bookingResolveLogEvent struct {
+	Event                string `json:"event"`
+	SessionID            string `json:"sessionId,omitempty"`
+	OptionID             string `json:"optionId,omitempty"`
+	LegIndex             *int   `json:"legIndex,omitempty"`
+	SegmentIndex         *int   `json:"segmentIndex,omitempty"`
+	LegRoute             string `json:"legRoute,omitempty"`
+	SegmentCount         int    `json:"segmentCount,omitempty"`
+	ItineraryFingerprint string `json:"itineraryFingerprint,omitempty"`
+	Status               string `json:"status,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	DurationMs           int64  `json:"durationMs,omitempty"`
+	CacheHit             bool   `json:"cacheHit,omitempty"`
+	CandidateCount       int    `json:"candidateCount,omitempty"`
+	FailureReason        string `json:"failureReason,omitempty"`
+}
+
+type inflightResolveEntry struct {
+	done chan struct{}
+	resp *BookingResolveResponse
+}
+
+var (
+	bookingResolveCache        sync.Map
+	bookingResolveInflight     sync.Map // cacheKey -> *inflightResolveEntry
+	bookingResolveCacheTTL     = 30 * time.Minute
+	bookingResolveNegativeTTL  = 5 * time.Minute
+	bookingResolveSem          chan struct{}
+	bookingMatchRunner         = defaultBookingMatchRunner
+	bookingGF2OffersResolver   = resolveGF2PartnerOffers
+)
+
+func init() {
+	bookingResolveSem = make(chan struct{}, bookingResolveMaxConcurrentFromEnv())
+	if v := envDurationMinutes("BOOKING_RESOLVE_CACHE_TTL_MIN", 30); v > 0 {
+		bookingResolveCacheTTL = v
+	}
+	if v := envDurationMinutes("BOOKING_RESOLVE_NEGATIVE_CACHE_TTL_MIN", 5); v > 0 {
+		bookingResolveNegativeTTL = v
+	}
+	cfg := bookingmatch.DefaultConfig()
+	if cfg.Enabled && cfg.SerpAPIKey != "" {
+		log.Printf("[BOOKING_RESOLVE] web search matcher enabled (engine=%s)", cfg.SerpAPIEngine)
+	} else {
+		log.Printf("[BOOKING_RESOLVE] web search matcher disabled — set SERPAPI_API_KEY to race OTAs for cheapest checkout")
+	}
+}
+
+func envDurationMinutes(key string, def int) time.Duration {
+	s := strings.TrimSpace(os.Getenv(key))
+	if s == "" {
+		return time.Duration(def) * time.Minute
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return time.Duration(def) * time.Minute
+	}
+	return time.Duration(n) * time.Minute
+}
+
+func bookingResolveMaxConcurrentFromEnv() int {
+	s := strings.TrimSpace(os.Getenv("BOOKING_RESOLVE_MAX_CONCURRENT"))
+	if s == "" {
+		return 5
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 5
+	}
+	return n
+}
+
+func logBookingResolve(ev bookingResolveLogEvent) {
+	b, err := json.Marshal(ev)
+	if err != nil {
+		log.Printf("[BOOKING_RESOLVE] event=%s status=%s", ev.Event, ev.Status)
+		return
+	}
+	log.Printf("[BOOKING_RESOLVE] %s", string(b))
+}
+
+func defaultBookingMatchRunner(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+	cfg := bookingmatch.DefaultConfig()
+	if !cfg.Enabled || cfg.SerpAPIKey == "" {
+		return nil, errBookingSearchUnavailable
+	}
+	cfg.PriceNormalizer = bookingMatchPriceNormalizer()
+	return bookingmatch.NewResolver(cfg).Match(ctx, it)
+}
+
+func webBookingMatchEnabled() bool {
+	cfg := bookingmatch.DefaultConfig()
+	return cfg.Enabled && cfg.SerpAPIKey != ""
+}
+
+func collectVerifiedBookingOffers(gf2 []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
+	byURL := map[string]bookingmatch.BookingOffer{}
+	normalize := bookingMatchPriceNormalizer()
+	merge := func(o bookingmatch.BookingOffer) {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if o.URLType == bookingmatch.URLTypeGenericSearch {
+			return
+		}
+		if o.URLType == bookingmatch.URLTypeExactSearch {
+			return
+		}
+		if bookingmatch.IsNonBookableDomain(o.Domain) || bookingmatch.IsNonBookableDomain(o.Provider) {
+			return
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			return
+		}
+		key := strings.ToLower(strings.TrimSpace(o.URL))
+		if key == "" {
+			return
+		}
+		existing, ok := byURL[key]
+		if !ok {
+			byURL[key] = o
+			return
+		}
+		// Prefer checkout-extracted price (web) over GF2 partner URL metadata.
+		if existing.Price == nil && o.Price != nil {
+			byURL[key] = o
+			return
+		}
+		if existing.Price != nil && o.Price == nil {
+			return
+		}
+		if existing.Price != nil && o.Price != nil {
+			exNorm, exOk := normalizedGF2OfferPrice(existing, normalize)
+			oNorm, oOk := normalizedGF2OfferPrice(o, normalize)
+			if exOk && oOk {
+				if oNorm < exNorm {
+					byURL[key] = o
+				}
+				return
+			}
+		}
+		if o.MatchScore > existing.MatchScore {
+			byURL[key] = o
+		}
+	}
+	if match != nil {
+		for _, o := range match.Offers {
+			merge(o)
+		}
+		if match.BestOffer != nil {
+			merge(*match.BestOffer)
+		}
+	}
+	for _, o := range gf2 {
+		merge(o)
+	}
+	out := make([]bookingmatch.BookingOffer, 0, len(byURL))
+	for _, o := range byURL {
+		out = append(out, o)
+	}
+	return out
+}
+
+func gf2CheckoutOffers(gf2 []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
+	var out []bookingmatch.BookingOffer
+	for _, o := range gf2 {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			continue
+		}
+		if o.URLType == bookingmatch.URLTypeGenericSearch || o.URLType == bookingmatch.URLTypeExactSearch {
+			continue
+		}
+		if bookingmatch.IsNonBookableDomain(o.Domain) || bookingmatch.IsNonBookableDomain(o.Provider) {
+			continue
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+func buildDualBookingResolveResponse(
+	primaryPick, cheapestOtaPick, airlineDirectPick *bookingmatch.BookingOffer,
+	gf2Offers []bookingmatch.BookingOffer,
+	allOffers []bookingmatch.BookingOffer,
+	matchResult *bookingmatch.MatchResult,
+	hadMultiple bool,
+	session *SearchSession,
+	option *FlightOption,
+	legIndex int,
+	fp string,
+) (BookingResolveResponse, string, bool) {
+	if primaryPick == nil {
+		return BookingResolveResponse{}, "", false
+	}
+	normalize := bookingMatchPriceNormalizer()
+	fromGF2 := bookingOfferInGF2Sources(primaryPick, gf2Offers)
+	var extractedBeforeQuote *float64
+	if primaryPick.Price != nil {
+		p := *primaryPick.Price
+		extractedBeforeQuote = &p
+	}
+
+	offer := publicBookingOfferFromPick(primaryPick, gf2Offers, "cheapest_ota", hadMultiple)
+	if offer != nil && cheapestOtaPick == nil && airlineDirectPick != nil {
+		label := "airline_direct"
+		if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+			label = "airline_direct_prefill"
+		}
+		offer = publicBookingOfferFromPick(primaryPick, gf2Offers, label, false)
+	}
+	if offer == nil {
+		return BookingResolveResponse{}, "", false
+	}
+
+	var cheapestOta *PublicBookingOffer
+	if cheapestOtaPick != nil {
+		cheapestOta = publicBookingOfferFromPick(cheapestOtaPick, gf2Offers, "cheapest_ota", hadMultiple)
+	}
+	var airlineDirect *PublicBookingOffer
+	if airlineDirectPick != nil {
+		label := "airline_direct"
+		if isAffiliateTemplateBookingURL(airlineDirectPick.URL) {
+			label = "airline_direct_prefill"
+		}
+		airlineDirect = publicBookingOfferFromPick(airlineDirectPick, gf2Offers, label, false)
+	}
+
+	candidateCount := len(allOffers)
+	if matchResult != nil && matchResult.CandidatesConsidered > candidateCount {
+		candidateCount = matchResult.CandidatesConsidered
+	}
+	if len(gf2Offers) > candidateCount {
+		candidateCount = len(gf2Offers)
+	}
+
+	var alternatives []PublicBookingAlternative
+	if cheapestOtaPick != nil {
+		carrier := marketingCarrierForLegIndex(option, legIndex)
+		otaPool := offersExcludingAirlineDirect(allOffers, carrier)
+		alternatives = publicAlternativesFromOffers(otaPool, cheapestOtaPick, normalize, 4)
+	}
+
+	event := "resolve_verified"
+	if cheapestOta != nil && airlineDirect != nil {
+		event = "resolve_verified_dual"
+	} else if hadMultiple {
+		event = "resolve_verified_cheapest"
+	} else if fromGF2 {
+		event = "resolve_verified_gf2"
+	}
+	resp := BookingResolveResponse{
+		Found:                true,
+		Status:               BookingResolveVerified,
+		ItineraryFingerprint: fp,
+		Offer:                offer,
+		CheapestOta:          cheapestOta,
+		AirlineDirect:        airlineDirect,
+		CandidatesConsidered: candidateCount,
+		Alternatives:         alternatives,
+	}
+	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
+	return resp, event, true
+}
+
+func pickDualBookingOffers(
+	sourceOffers []bookingmatch.BookingOffer,
+	gf2Offers []bookingmatch.BookingOffer,
+	matchResult *bookingmatch.MatchResult,
+	session *SearchSession,
+	option *FlightOption,
+	legIndex, segmentIndex int,
+	fp string,
+	normalize bookingmatch.PriceNormalizer,
+) (primary, cheapestOta, airlineDirect *bookingmatch.BookingOffer) {
+	cheapestOta = pickCheapestOTAOffer(sourceOffers, matchResult, session, option, legIndex, normalize)
+	airlineDirect = pickAirlineDirectOffer(sourceOffers, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
+	switch {
+	case cheapestOta != nil:
+		primary = cheapestOta
+	case airlineDirect != nil:
+		primary = airlineDirect
+	default:
+		primary = selectBestBookingOffer(sourceOffers, matchResult, session, option, legIndex, normalize)
+	}
+	return primary, cheapestOta, airlineDirect
+}
+
+func webVerifiedBookingOffers(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult) []bookingmatch.BookingOffer {
+	if match == nil || len(all) == 0 {
+		return nil
+	}
+	webURL := map[string]struct{}{}
+	addWeb := func(o bookingmatch.BookingOffer) {
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if u := strings.ToLower(strings.TrimSpace(o.URL)); u != "" {
+			webURL[u] = struct{}{}
+		}
+	}
+	for _, o := range match.Offers {
+		addWeb(o)
+	}
+	if match.BestOffer != nil {
+		addWeb(*match.BestOffer)
+	}
+	if len(webURL) == 0 {
+		return nil
+	}
+	var out []bookingmatch.BookingOffer
+	for _, o := range all {
+		if _, ok := webURL[strings.ToLower(strings.TrimSpace(o.URL))]; ok {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+func normalizedBookingOfferPrice(o bookingmatch.BookingOffer, normalize bookingmatch.PriceNormalizer) (float64, bool) {
+	if normalize == nil {
+		normalize = bookingMatchPriceNormalizer()
+	}
+	if o.Price == nil || *o.Price <= 0 {
+		return 0, false
+	}
+	from := o.Currency
+	if from == "" {
+		from = bookingmatch.DefaultCompareCurrency
+	}
+	amount, cur := normalize(*o.Price, from, bookingmatch.DefaultCompareCurrency)
+	if amount <= 0 {
+		return 0, false
+	}
+	if cur == "" {
+		cur = bookingmatch.DefaultCompareCurrency
+	}
+	return amount, true
+}
+
+// selectBestFromVerifiedOffers prefers web-extracted checkout prices over GF2 listing metadata,
+// then quote-matching fares, then the lowest verified price.
+func selectBestFromVerifiedOffers(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	if len(all) == 0 {
+		return nil
+	}
+	quote := quoteBindingForMatch(session, option, legIndex)
+
+	webOffers := webVerifiedBookingOffers(all, match)
+	var webBest, gf2Best, overallBest *bookingmatch.BookingOffer
+	if len(webOffers) > 0 {
+		webBest = bookingmatch.SelectBestOffer(webOffers, normalize, quote)
+	}
+	gf2Only := filterOffersNotIn(webOffers, all)
+	if len(gf2Only) > 0 {
+		gf2Best = bookingmatch.SelectBestOffer(gf2Only, normalize, quote)
+	}
+	overallBest = bookingmatch.SelectBestOffer(all, normalize, quote)
+
+	switch {
+	case webBest != nil && gf2Best != nil:
+		wNorm, wOk := normalizedBookingOfferPrice(*webBest, normalize)
+		gNorm, gOk := normalizedBookingOfferPrice(*gf2Best, normalize)
+		if wOk && gOk {
+			if gNorm < wNorm {
+				return gf2Best
+			}
+			return webBest
+		}
+		if wOk {
+			return webBest
+		}
+		if gOk {
+			return gf2Best
+		}
+		return webBest
+	case webBest != nil:
+		return webBest
+	case gf2Best != nil:
+		return gf2Best
+	default:
+		return overallBest
+	}
+}
+
+// selectBestBookingOffer picks the best verified offer and may swap in airline direct when it
+// beats a marked-up OTA (legacy single-offer path).
+func selectBestBookingOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	best := selectBestFromVerifiedOffers(all, match, session, option, legIndex, normalize)
+	if best == nil {
+		return nil
+	}
+	q := quoteBindingFromOption(session, option, legIndex)
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	return preferAirlineDirectWhenCheaperThanMarkedUpOTA(best, all, q, carrier, normalize)
+}
+
+func offersExcludingAirlineDirect(all []bookingmatch.BookingOffer, carrier string) []bookingmatch.BookingOffer {
+	if carrier == "" {
+		return all
+	}
+	out := make([]bookingmatch.BookingOffer, 0, len(all))
+	for _, o := range all {
+		if airlineDomainForCarrier(o.Domain, carrier) || airlineDomainForCarrier(o.Provider, carrier) {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+func pickCheapestOTAOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	otaOffers := offersExcludingAirlineDirect(all, carrier)
+	return selectBestFromVerifiedOffers(otaOffers, match, session, option, legIndex, normalize)
+}
+
+func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, gf2Raw []bookingmatch.BookingOffer, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, fp string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	carrier := marketingCarrierForLegIndex(option, legIndex)
+	if carrier == "" {
+		return nil
+	}
+	var airlineVerified []bookingmatch.BookingOffer
+	collect := func(o bookingmatch.BookingOffer) {
+		if !airlineDomainForCarrier(o.Domain, carrier) && !airlineDomainForCarrier(o.Provider, carrier) {
+			return
+		}
+		if isAffiliateTemplateBookingURL(o.URL) {
+			return
+		}
+		if o.VerificationStatus != bookingmatch.StatusVerifiedExact {
+			return
+		}
+		if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+			return
+		}
+		airlineVerified = append(airlineVerified, o)
+	}
+	for _, o := range verified {
+		collect(o)
+	}
+	// GF2 may attach airline checkout URLs that were filtered from verified set.
+	for _, o := range gf2Raw {
+		collect(o)
+	}
+	if len(airlineVerified) > 0 {
+		quote := quoteBindingForMatch(session, option, legIndex)
+		return bookingmatch.SelectBestOffer(airlineVerified, normalize, quote)
+	}
+	if legIndex < 0 {
+		return nil
+	}
+	if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+		quote := quoteBindingFromOption(session, option, legIndex)
+		if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
+			offer.URLType = bookingmatch.URLTypeExactSearch
+			return offer
+		}
+	}
+	return nil
+}
+
+func publicBookingOfferFromPick(o *bookingmatch.BookingOffer, gf2 []bookingmatch.BookingOffer, semanticLabel string, hadMultiple bool) *PublicBookingOffer {
+	if o == nil {
+		return nil
+	}
+	offer := publicOfferFromMatch(o, hadMultiple)
+	if offer == nil {
+		return nil
+	}
+	fromGF2 := bookingOfferInGF2Sources(o, gf2)
+	switch semanticLabel {
+	case "cheapest_ota":
+		if fromGF2 && offer.Price != nil {
+			offer.PriceLabel = "google_flights_partner"
+		} else if offer.Price != nil {
+			if hadMultiple {
+				offer.PriceLabel = "cheapest_matching_offer"
+			} else {
+				offer.PriceLabel = "partner_checkout_price"
+			}
+		} else {
+			offer.PriceLabel = semanticLabel
+		}
+	default:
+		offer.PriceLabel = semanticLabel
+	}
+	return offer
+}
+
+func filterOffersNotIn(subset, all []bookingmatch.BookingOffer) []bookingmatch.BookingOffer {
+	inSubset := map[string]struct{}{}
+	for _, o := range subset {
+		if u := strings.ToLower(strings.TrimSpace(o.URL)); u != "" {
+			inSubset[u] = struct{}{}
+		}
+	}
+	var out []bookingmatch.BookingOffer
+	for _, o := range all {
+		u := strings.ToLower(strings.TrimSpace(o.URL))
+		if u == "" {
+			continue
+		}
+		if _, ok := inSubset[u]; !ok {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+func bookingOfferInGF2Sources(offer *bookingmatch.BookingOffer, gf2 []bookingmatch.BookingOffer) bool {
+	if offer == nil {
+		return false
+	}
+	for i := range gf2 {
+		if bookingOfferSameURL(offer, &gf2[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func bookingOfferSameURL(a, b *bookingmatch.BookingOffer) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(a.URL), strings.TrimSpace(b.URL))
+}
+
+var errBookingSearchUnavailable = errors.New("web search not configured")
+
+func canonicalItineraryForOption(option *FlightOption, legIndex int, segmentIndex int) (search.CanonicalItinerary, error) {
+	if option == nil {
+		return search.CanonicalItinerary{}, fmt.Errorf("missing option")
+	}
+	if legIndex >= 0 && segmentIndex >= 0 {
+		if legIndex >= len(option.Legs) {
+			return search.CanonicalItinerary{}, fmt.Errorf("legIndex out of range")
+		}
+		segs := option.Legs[legIndex].Segments
+		if segmentIndex >= len(segs) {
+			return search.CanonicalItinerary{}, fmt.Errorf("segmentIndex out of range")
+		}
+		single := &FlightOption{
+			Legs:   []FlightLeg{{Segments: []FlightSegment{segs[segmentIndex]}}},
+			Source: option.Source,
+			Price:  option.Price,
+		}
+		pr := providerResultFromFlightOption(single)
+		sub := search.BuildCanonicalItinerary(pr)
+		if len(sub.Segments) == 0 {
+			return search.CanonicalItinerary{}, fmt.Errorf("segment has no identity")
+		}
+		sub.StopsCount = 0
+		return sub, nil
+	}
+	// Always rebuild from leg segments so booking uses corrected flight identity
+	// (stored canonicalItinerary may predate carrier/name normalization fixes).
+	pr := providerResultFromFlightOption(option)
+	base := search.BuildCanonicalItinerary(pr)
+	if len(base.Segments) == 0 {
+		return search.CanonicalItinerary{}, fmt.Errorf("itinerary has no segments")
+	}
+	if legIndex < 0 {
+		return base, nil
+	}
+	if legIndex >= len(base.Legs) {
+		return search.CanonicalItinerary{}, fmt.Errorf("legIndex out of range")
+	}
+	leg := base.Legs[legIndex]
+	if len(leg.Segments) == 0 {
+		return search.CanonicalItinerary{}, fmt.Errorf("leg has no segments")
+	}
+	sub := search.CanonicalItinerary{
+		Legs:   []search.CanonicalLeg{leg},
+		Source: base.Source,
+		Price:  base.Price,
+	}
+	sub.Segments = append([]search.CanonicalSegment(nil), leg.Segments...)
+	sub.StopsCount = leg.StopsCount
+	if sub.StopsCount == 0 && len(sub.Segments) > 1 {
+		sub.StopsCount = len(sub.Segments) - 1
+	}
+	return sub, nil
+}
+
+func bookingResolveCacheKey(fp string, legIndex int, segmentIndex int) string {
+	if legIndex < 0 {
+		return fp
+	}
+	if segmentIndex >= 0 {
+		return fmt.Sprintf("%s:leg:%d:seg:%d", fp, legIndex, segmentIndex)
+	}
+	return fmt.Sprintf("%s:leg:%d", fp, legIndex)
+}
+
+func getCachedBookingResolve(key string) (BookingResolveResponse, bool) {
+	if key == "" {
+		return BookingResolveResponse{}, false
+	}
+	if v, ok := bookingResolveCache.Load(key); ok {
+		e := v.(bookingResolveCacheEntry)
+		if time.Now().Before(e.expiresAt) {
+			return e.resp, true
+		}
+		bookingResolveCache.Delete(key)
+	}
+	return BookingResolveResponse{}, false
+}
+
+func setCachedBookingResolve(key string, resp BookingResolveResponse, ttl time.Duration) {
+	if key == "" || ttl <= 0 {
+		return
+	}
+	bookingResolveCache.Store(key, bookingResolveCacheEntry{
+		resp:      resp,
+		expiresAt: time.Now().Add(ttl),
+	})
+}
+
+func cacheTTLForStatus(status string) time.Duration {
+	switch status {
+	case BookingResolveVerified:
+		if webBookingMatchEnabled() {
+			return 5 * time.Minute
+		}
+		return bookingResolveCacheTTL
+	case BookingResolveNotFound:
+		// Do not cache misses. Try again must re-resolve; a 5-minute negative
+		// cache made booking look permanently broken after the first failure.
+		return 0
+	default:
+		return 0
+	}
+}
+
+func publicOfferFromMatch(o *bookingmatch.BookingOffer, hadMultipleVerified bool) *PublicBookingOffer {
+	if o == nil {
+		return nil
+	}
+	if err := bookingmatch.ValidateBookingURL(o.URL); err != nil {
+		return nil
+	}
+	provider := strings.TrimSpace(o.Domain)
+	if provider == "" {
+		provider = strings.TrimSpace(o.Provider)
+	}
+	priceLabel := ""
+	if o.Price != nil {
+		if hadMultipleVerified {
+			priceLabel = "cheapest_matching_offer"
+		} else {
+			priceLabel = "best_matching_price"
+		}
+	}
+	return &PublicBookingOffer{
+		Provider:        provider,
+		Domain:          o.Domain,
+		URL:             o.URL,
+		URLType:         string(o.URLType),
+		Price:           o.Price,
+		Currency:        o.Currency,
+		MatchConfidence: o.MatchScore,
+		PriceLabel:      priceLabel,
+		CheckedAt:       o.CheckedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func acquireBookingResolveSlot(ctx context.Context) error {
+	select {
+	case bookingResolveSem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func releaseBookingResolveSlot() {
+	select {
+	case <-bookingResolveSem:
+	default:
+	}
+}
+
+func resolveBookingOffer(ctx context.Context, session *SearchSession, option *FlightOption, legIndex int, segmentIndex int, force bool) BookingResolveResponse {
+	it, err := canonicalItineraryForOption(option, legIndex, segmentIndex)
+	if err != nil {
+		return BookingResolveResponse{
+			Found:   false,
+			Status:  BookingResolveInvalidItinerary,
+			Message: "Could not build itinerary identity for this flight.",
+		}
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	cacheKey := bookingResolveCacheKey(fp, legIndex, segmentIndex)
+	if !force {
+		if cached, ok := getCachedBookingResolve(cacheKey); ok {
+			return cached
+		}
+	}
+
+	waitEntry, leader := beginInflightResolve(cacheKey)
+	if !leader {
+		select {
+		case <-waitEntry.done:
+		case <-ctx.Done():
+			return BookingResolveResponse{
+				Found:                false,
+				Status:               BookingResolveTimeout,
+				ItineraryFingerprint: fp,
+				Message:              "Booking search timed out. Please try again.",
+			}
+		}
+		if waitEntry.resp != nil {
+			return *waitEntry.resp
+		}
+		if !force {
+			if cached, ok := getCachedBookingResolve(cacheKey); ok {
+				return cached
+			}
+		}
+		return BookingResolveResponse{
+			Found:                false,
+			Status:               BookingResolveSearchUnavailable,
+			ItineraryFingerprint: fp,
+			Message:              "Booking search is temporarily unavailable.",
+		}
+	}
+
+	defer finishInflightResolve(cacheKey, waitEntry)
+
+	if err := acquireBookingResolveSlot(ctx); err != nil {
+		resp := BookingResolveResponse{
+			Found:                false,
+			Status:               BookingResolveTimeout,
+			ItineraryFingerprint: fp,
+			Message:              "Booking search timed out. Please try again.",
+		}
+		waitEntry.resp = &resp
+		return resp
+	}
+	defer releaseBookingResolveSlot()
+
+	if !force {
+		if cached, ok := getCachedBookingResolve(cacheKey); ok {
+			waitEntry.resp = &cached
+			return cached
+		}
+	}
+
+	resp := runBookingMatch(ctx, session, option, it, fp, legIndex, segmentIndex)
+	waitEntry.resp = &resp
+	if ttl := cacheTTLForStatus(resp.Status); ttl > 0 {
+		setCachedBookingResolve(cacheKey, resp, ttl)
+	}
+	return resp
+}
+
+func beginInflightResolve(key string) (*inflightResolveEntry, bool) {
+	entry := &inflightResolveEntry{done: make(chan struct{})}
+	actual, loaded := bookingResolveInflight.LoadOrStore(key, entry)
+	if loaded {
+		return actual.(*inflightResolveEntry), false
+	}
+	return entry, true
+}
+
+func finishInflightResolve(key string, entry *inflightResolveEntry) {
+	close(entry.done)
+	bookingResolveInflight.Delete(key)
+}
+
+func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
+	start := time.Now()
+	legRoute := legRouteLabel(it)
+	normalize := bookingMatchPriceNormalizer()
+
+	var (
+		gf2Offers   []bookingmatch.BookingOffer
+		gf2Err      error
+		matchResult *bookingmatch.MatchResult
+		matchErr    error
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+	}()
+
+	if webBookingMatchEnabled() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			matchResult, matchErr = bookingMatchRunner(ctx, it)
+		}()
+	}
+
+	wg.Wait()
+
+	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
+	tryResolve := func(sourceOffers []bookingmatch.BookingOffer) (BookingResolveResponse, string, bool) {
+		if len(sourceOffers) == 0 && legIndex < 0 {
+			return BookingResolveResponse{}, "", false
+		}
+		hadMultiple := len(sourceOffers) > 1
+		primaryPick, cheapestOtaPick, airlineDirectPick := pickDualBookingOffers(
+			sourceOffers, gf2Offers, matchResult, session, option, legIndex, segmentIndex, fp, normalize,
+		)
+		return buildDualBookingResolveResponse(
+			primaryPick, cheapestOtaPick, airlineDirectPick,
+			gf2Offers, sourceOffers, matchResult, hadMultiple, session, option, legIndex, fp,
+		)
+	}
+
+	if resp, event, ok := tryResolve(offers); ok {
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                event,
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			Provider:             resp.Offer.Provider,
+			CandidateCount:       resp.CandidatesConsidered,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
+	}
+
+	// GF2 partner checkout and airline templates before generic Google prefill.
+	if gf2Only := gf2CheckoutOffers(gf2Offers); len(gf2Only) > 0 || legIndex >= 0 {
+		source := gf2Only
+		if len(source) == 0 {
+			source = nil
+		}
+		if resp, event, ok := tryResolve(source); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                event,
+				ItineraryFingerprint: fp,
+				LegIndex:             intPtrOrNil(legIndex),
+				LegRoute:             legRoute,
+				Status:               resp.Status,
+				Provider:             resp.Offer.Provider,
+				CandidateCount:       resp.CandidatesConsidered,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			return resp
+		}
+	}
+
+	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
+		resp := bookingResolveFailureResponse(fp, gf2Err)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        gf2Err.Error(),
+		})
+		return resp
+	}
+
+	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
+		resp := bookingResolveFailureResponse(fp, matchErr)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        matchErr.Error(),
+		})
+		return resp
+	}
+
+	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" {
+		if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
+			offer := publicOfferFromMatch(gf2Prefill, false)
+			if offer != nil {
+				priceLabel := "search_prefill"
+				message := "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying."
+				if isAffiliateTemplateBookingURL(prefill) {
+					priceLabel = "airline_direct_prefill"
+					message = "Opens airline site with your route prefilled — select your flight and verify the fare."
+				}
+				offer.PriceLabel = priceLabel
+				offer.MatchConfidence = 0
+				resp := BookingResolveResponse{
+					Found:                true,
+					Status:               BookingResolveVerified,
+					ItineraryFingerprint: fp,
+					Offer:                offer,
+					Message:              message,
+				}
+				logBookingResolve(bookingResolveLogEvent{
+					Event:                "resolve_verified_prefill",
+					ItineraryFingerprint: fp,
+					LegIndex:             intPtrOrNil(legIndex),
+					LegRoute:             legRoute,
+					Status:               resp.Status,
+					Provider:             offer.Provider,
+					DurationMs:           time.Since(start).Milliseconds(),
+				})
+				return resp
+			}
+		}
+	}
+	resp := BookingResolveResponse{
+		Found:                false,
+		Status:               BookingResolveNotFound,
+		ItineraryFingerprint: fp,
+		Message:              "No verified booking offer found yet",
+	}
+	logBookingResolve(bookingResolveLogEvent{
+		Event:                "resolve_not_found",
+		ItineraryFingerprint: fp,
+		LegIndex:             intPtrOrNil(legIndex),
+		LegRoute:             legRoute,
+		Status:               resp.Status,
+		DurationMs:           time.Since(start).Milliseconds(),
+	})
+	return resp
+}
+
+func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	start := time.Now()
+	var req BookingResolveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	sessionID := strings.TrimSpace(req.SessionID)
+	optionID := strings.TrimSpace(req.OptionID)
+	if sessionID == "" || optionID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sessionId and optionId are required"})
+		return
+	}
+
+	resp, option := GetSessionAndOption(sessionID, optionID)
+	if resp == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	if option == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "option not found"})
+		return
+	}
+
+	legIndex := -1
+	if req.LegIndex != nil {
+		legIndex = *req.LegIndex
+	}
+	segmentIndex := -1
+	if req.SegmentIndex != nil {
+		segmentIndex = *req.SegmentIndex
+	}
+
+	if !req.Force {
+		if cached, ok := getCachedBookingResolve(bookingResolveCacheKey(
+			search.CanonicalItineraryFingerprint(mustCanonicalForLog(option, legIndex, segmentIndex)), legIndex, segmentIndex)); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_request",
+				SessionID:            sessionID,
+				OptionID:             optionID,
+				ItineraryFingerprint: cached.ItineraryFingerprint,
+				Status:               cached.Status,
+				CacheHit:             true,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			writeJSON(w, http.StatusOK, cached)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), bookingResolveTimeout)
+	defer cancel()
+
+	out := resolveBookingOffer(ctx, &resp.Session, option, legIndex, segmentIndex, req.Force)
+	statusCode := http.StatusOK
+	if out.Status == BookingResolveInvalidItinerary {
+		statusCode = http.StatusBadRequest
+	}
+	logBookingResolve(bookingResolveLogEvent{
+		Event:                "resolve_request",
+		SessionID:            sessionID,
+		OptionID:             optionID,
+		ItineraryFingerprint: out.ItineraryFingerprint,
+		Status:               out.Status,
+		Provider:             providerFromOffer(out.Offer),
+		DurationMs:           time.Since(start).Milliseconds(),
+	})
+	writeJSON(w, statusCode, out)
+}
+
+func providerFromOffer(o *PublicBookingOffer) string {
+	if o == nil {
+		return ""
+	}
+	return o.Provider
+}
+
+func bookingResolveFailureResponse(fp string, err error) BookingResolveResponse {
+	resp := BookingResolveResponse{
+		Found:                false,
+		ItineraryFingerprint: fp,
+		Message:              "Booking search is temporarily unavailable.",
+		Status:               BookingResolveSearchUnavailable,
+	}
+	if err == nil {
+		return resp
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		resp.Status = BookingResolveTimeout
+		resp.Message = "Booking search timed out. Please try again."
+	} else if errors.Is(err, errBookingSearchUnavailable) {
+		resp.Message = "Exact-flight booking search is not configured on this server."
+	} else if search.IsGF2RateLimitError(err) {
+		resp.Message = "Booking lookup is busy. Please try again in a moment."
+	}
+	return resp
+}
+
+func mustCanonicalForLog(option *FlightOption, legIndex int, segmentIndex int) search.CanonicalItinerary {
+	it, err := canonicalItineraryForOption(option, legIndex, segmentIndex)
+	if err != nil {
+		return search.CanonicalItinerary{}
+	}
+	return it
+}
+
+func legRouteLabel(it search.CanonicalItinerary) string {
+	if len(it.Segments) == 0 {
+		return ""
+	}
+	first := it.Segments[0]
+	last := it.Segments[len(it.Segments)-1]
+	return search.NormalizeAirportCode(first.From) + "→" + search.NormalizeAirportCode(last.To)
+}
+
+func intPtrOrNil(legIndex int) *int {
+	if legIndex < 0 {
+		return nil
+	}
+	v := legIndex
+	return &v
+}

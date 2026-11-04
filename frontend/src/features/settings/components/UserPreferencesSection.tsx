@@ -6,10 +6,18 @@ import { LANGUAGES, CURRENCIES } from '../../../data/translations';
 import type { LanguageCode, CurrencyCode } from '../../../data/translations';
 import { SettingsSection } from './SettingsSection';
 import { AppIcon } from '../../../components/AppIcon';
+import type { FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
+import { FLIGHT_TIME_DISPLAY_MODES } from '../../../utils/flightTimeDisplay';
 
 export function UserPreferencesSection() {
   const { theme, toggleTheme } = useTheme();
-  const { t, language, currency, setLanguage, setCurrency } = useLocale();
+  const { t, language, currency, timeDisplay, setLanguage, setCurrency, setTimeDisplay } = useLocale();
+
+  const timeDisplayLabels: Record<FlightTimeDisplayMode, string> = {
+    airport: t('time_display_airport'),
+    local: t('time_display_local'),
+    utc: t('time_display_utc'),
+  };
 
   return (
     <SettingsSection
@@ -63,6 +71,29 @@ export function UserPreferencesSection() {
         })}
       </View>
 
+      <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>{t('settings_time_display_label')}</Text>
+      <Text style={[styles.hint, { color: theme.textMuted }]}>{t('settings_time_display_hint')}</Text>
+      <View style={styles.optionRow}>
+        {FLIGHT_TIME_DISPLAY_MODES.map((mode) => {
+          const active = timeDisplay === mode;
+          return (
+            <TouchableOpacity
+              key={mode}
+              style={[
+                styles.chip,
+                {
+                  borderColor: active ? theme.primary : theme.cardBorder,
+                  backgroundColor: active ? theme.primary + '18' : theme.screenBg,
+                },
+              ]}
+              onPress={() => setTimeDisplay(mode)}
+            >
+              <Text style={[styles.chipText, { color: active ? theme.primary : theme.text }]}>{timeDisplayLabels[mode]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>{t('settings_theme_label')}</Text>
       <TouchableOpacity
         style={[styles.themeRow, { borderColor: theme.cardBorder, backgroundColor: theme.screenBg }]}
@@ -91,6 +122,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  hint: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+    marginTop: -4,
   },
   optionRow: {
     flexDirection: 'row',

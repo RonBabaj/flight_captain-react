@@ -36,3 +36,27 @@ func TestIsOpenJaw(t *testing.T) {
 		t.Fatal("one-way should not be open-jaw")
 	}
 }
+
+func TestSanitizeStandardSearchRequest(t *testing.T) {
+	staleClassic := SearchRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
+		ReturnOrigin: "VIE", ReturnDestination: "TLV",
+	}
+	got := SanitizeStandardSearchRequest(staleClassic)
+	if got.ReturnOrigin != "" || got.ReturnDestination != "" {
+		t.Fatalf("expected redundant classic fields stripped, got %+v", got)
+	}
+	if IsOpenJaw(got) {
+		t.Fatal("sanitized classic RT must not be open-jaw")
+	}
+
+	openJaw := SearchRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
+		ReturnOrigin: "SZG", ReturnDestination: "TLV",
+	}
+	if SanitizeStandardSearchRequest(openJaw).ReturnOrigin != "SZG" {
+		t.Fatal("open-jaw params must be preserved")
+	}
+}

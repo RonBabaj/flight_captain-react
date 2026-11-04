@@ -21,19 +21,31 @@ import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '..
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
-import { getSearchSessionResults, createSearchSession, getUniformBookingRedirectUrl } from '../../../api';
+import {
+  getSearchSessionResults,
+  createSearchSessionWithRetry,
+  searchParamsMatch,
+  invalidateSearchSessionResultsCache,
+} from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
-import { useIsMobile } from '../../../hooks/useResponsive';
+import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
+import { clearSharedLinkCache, readSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
+import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
+import {
+  DestinationMoodBanner,
+  DestinationMoodStrip,
+  collectTripDestinationCodes,
+} from '../../../components/DestinationMoodBanner';
 import {
   addExtraDestinationLeg,
   isDynamicDestinationsSearch,
@@ -43,11 +55,14 @@ import {
   validateDynamicDestinationsSearch,
 } from '../../../utils/dynamicDestinations';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
+import { classicSearchPayload } from '../../../utils/skyscanner';
+import { matchesStopsFilter } from '../../../utils/itineraryStops';
+import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
-import { isSplitBookingItinerary } from '../../../utils/skyscanner';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
+import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
@@ -102,33 +117,6 @@ const defaultFormParams: CreateSearchSessionRequest = {
   locale: 'en-US',
 };
 
-function SkeletonCard({ theme }: { theme: import('../../../theme/ThemeContext').Theme }) {
-  const bg = theme.controlBg;
-  return (
-    <View style={[sk.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-      <View style={sk.topRow}>
-        <View style={{ flex: 1 }}>
-          <View style={[sk.line, { backgroundColor: bg, width: '75%' }]} />
-          <View style={[sk.line, { backgroundColor: bg, width: '50%', height: 12 }]} />
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <View style={[sk.line, { backgroundColor: bg, width: 64, height: 22 }]} />
-          <View style={[sk.line, { backgroundColor: bg, width: 80, height: 30, borderRadius: 8, marginTop: 6 }]} />
-        </View>
-      </View>
-      <View style={[sk.divider, { backgroundColor: theme.cardBorder }]} />
-      <View style={[sk.line, { backgroundColor: bg, width: '40%', height: 12 }]} />
-    </View>
-  );
-}
-
-const sk = StyleSheet.create({
-  card: { marginHorizontal: 12, marginVertical: 5, padding: 14, borderRadius: 14, borderWidth: 1 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  line: { height: 18, borderRadius: 6, marginBottom: 6 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
-});
-
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
 function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
   const priceNorm = maxPrice > 0 ? opt.price.amount / maxPrice : 0;
@@ -170,7 +158,7 @@ type CheapestOption = {
 async function findCheapestOptionForParams(
   base: CreateSearchSessionRequest
 ): Promise<CheapestOption | null> {
-  const session = await createSearchSession(base);
+  const session = await createSearchSessionWithRetry(base);
   let attempts = 0;
   let lastResults: FlightOption[] = [];
   let status: string | undefined;
@@ -201,6 +189,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
   const isMobile = useIsMobile();
+  const breakpoint = useBreakpoint();
   const {
     params: storeParams,
     sessionId: storeSessionId,
@@ -229,20 +218,23 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // WebKit the address bar can lose query params after history sync while
   // route.params still holds sessionId/optionId from the original shared URL.
   const deepLinkParams = mergeDeepLinkParams(route.params);
-  const mergedSearchParams = { ...paramsFromUrl, ...deepLinkParams };
+  // Prefer deep-link merge (URL + route + sessionStorage stash). Do not re-spread
+  // paramsFromUrl on top — an emptied address bar would wipe a recovered sessionId.
+  const mergedSearchParams = deepLinkParams;
 
   const routeSessionId = typeof deepLinkParams.sessionId === 'string' ? deepLinkParams.sessionId.trim() : '';
   const urlSessionId = typeof mergedSearchParams.sessionId === 'string' ? mergedSearchParams.sessionId.trim() : '';
-  const hasSharedSessionInLink = !!(routeSessionId || urlSessionId);
-
   /**
-   * Optimistic new searches clear the store (PENDING + sessionId=null) and navigate with
-   * sessionId="". Ignore route/URL ids only when starting a fresh in-app search — never
-   * when the link itself carries a sessionId (shared deep link opened from Telegram etc.).
+   * beginSearch leaves PENDING + sessionId=null. While that is active, ignore any
+   * sessionId still sitting in the URL/route/stash (Dynamic Destinations used to leave
+   * the previous id in the query string; React Navigation can also re-inject it).
+   * Shared deep links never arrive in PENDING — they open with a null store status
+   * and should still hydrate from the link sessionId.
    */
-  const optimisticNewSearch = status === 'PENDING' && !storeSessionId && !hasSharedSessionInLink;
+  const freshInAppSearch = status === 'PENDING' && !storeSessionId;
+  const hasSharedSessionInLink = !freshInAppSearch && !!(routeSessionId || urlSessionId);
 
-  const sessionId = optimisticNewSearch
+  const sessionId = freshInAppSearch
     ? ''
     : (storeSessionId || routeSessionId || urlSessionId || '');
   const searchNonce = (route.params as any)?.searchNonce ?? 0;
@@ -258,14 +250,73 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   );
   // Skip paramsMatch cache guard while hydrating a shared link — partial/stale URL
   // search fields must not block loading the server-side session snapshot.
-  const sharedLinkHydrationRef = useRef(!!(routeSessionId || urlSessionId) && !storeSessionId);
+  const sharedLinkHydrationRef = useRef(hasSharedSessionInLink && !storeSessionId);
+  // Keep the ref in sync when sessionId appears a frame late (Chrome address-bar strip).
+  if (hasSharedSessionInLink && !storeSessionId) {
+    sharedLinkHydrationRef.current = true;
+  }
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
-  const [bookLoadingId, setBookLoadingId] = useState<string | null>(null);
+  const emptyRetryRef = useRef(false);
+  const bootstrapEmptyRetryRef = useRef(false);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (status === 'PENDING' && !storeSessionId) {
+      emptyRetryRef.current = false;
+      bootstrapEmptyRetryRef.current = false;
+      // Do NOT clearSharedLinkCache here — a premature PENDING (bootstrap race before
+      // sessionId resolves) would wipe the stash Chrome needs after stripping the URL.
+    }
+  }, [status, storeSessionId, searchNonce]);
+
+  const restartFreshSearch = useCallback(
+    (params: Partial<CreateSearchSessionRequest>, staleSessionId?: string) => {
+      const origin = (params.origin ?? '').trim();
+      const destination = (params.destination ?? '').trim();
+      const departureDate = (params.departureDate ?? '').trim();
+      if (!origin || !destination || !departureDate || emptyRetryRef.current) return false;
+
+      emptyRetryRef.current = true;
+      const sid = staleSessionId ?? sessionId;
+      if (sid) invalidateSearchSessionResultsCache(sid);
+
+      const merged = {
+        ...defaultFormParams,
+        ...params,
+        origin: origin.toUpperCase(),
+        destination: destination.toUpperCase(),
+        departureDate,
+        returnDate: params.returnDate ? String(params.returnDate) : undefined,
+      } as CreateSearchSessionRequest;
+
+      const retryPayload = isDynamicDestinationsSearch(merged)
+        ? {
+            ...merged,
+            returnOrigin: (merged.returnOrigin || '').trim().toUpperCase(),
+            returnDestination: (merged.returnDestination || merged.origin).trim().toUpperCase(),
+            extraLegs: merged.extraLegs ?? [],
+          }
+        : classicSearchPayload(merged, {
+            origin: merged.origin,
+            destination: merged.destination,
+            departureDate: merged.departureDate,
+            returnDate: merged.returnDate,
+          });
+
+      searchActions.beginSearch(retryPayload);
+      clearSharedLinkCache();
+      updateUrl({ ...retryPayload, sessionId: undefined, optionId: undefined, flightId: undefined });
+      versionRef.current = 0;
+      creatingSessionRef.current = false;
+      navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
+      return true;
+    },
+    [sessionId, updateUrl, navigation],
+  );
 
   // iOS WebKit can deliver sessionId one frame late. If bootstrap already called
   // beginSearch (PENDING, no sessionId), the poll guard would block forever —
@@ -315,30 +366,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     setDetailsOption(null);
   }, []);
 
-  const handleBookFromCard = async (option: FlightOption) => {
-    if (isSplitBookingItinerary(option, storeParams)) {
-      openDetails(option);
-      return;
-    }
-    if (!sessionId) {
-      Alert.alert('', 'Session expired. Please run a new search.');
-      return;
-    }
-    setBookLoadingId(option.id);
-    try {
-      const url = getUniformBookingRedirectUrl(sessionId, option.id, option);
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('', 'Cannot open booking link.');
-      }
-    } catch {
-      Alert.alert('', 'Cannot open booking link.');
-    } finally {
-      setBookLoadingId(null);
-    }
-  };
 
   const [formParams, setFormParams] = useState<CreateSearchSessionRequest>(() =>
     storeParams ? { ...defaultFormParams, ...storeParams } : defaultFormParams
@@ -351,6 +378,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [positioningOptions, setPositioningOptions] = useState<PositioningOption[]>([]);
   const [positioningLoading, setPositioningLoading] = useState(false);
   const optimizerSessionRef = useRef<string | null>(null);
+  const resultsListRef = useRef<FlatList<FlightOption>>(null);
   const [positioningDetails, setPositioningDetails] = useState<PositioningOption | null>(null);
   const [cheaperCitiesFolded, setCheaperCitiesFolded] = useState(true);
 
@@ -394,9 +422,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     try {
       setCachedSearch(payload);
       const generation = searchActions.beginSearch(payload);
-      updateUrl(payload);
+      updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
       versionRef.current = 0;
-      const session = await createSearchSession(payload);
+      const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
       const res = await getSearchSessionResults(session.id, undefined, payload);
       if (!isCurrentSearchGeneration(generation)) return;
@@ -496,8 +524,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       p.cabinClass === 'BUSINESS' || p.cabinClass === 'FIRST'
         ? p.cabinClass
         : 'ECONOMY';
-    const payload: CreateSearchSessionRequest = {
-      ...p,
+    const payload: CreateSearchSessionRequest = classicSearchPayload(p, {
       origin: p.origin.trim().toUpperCase(),
       destination: p.destination.trim().toUpperCase(),
       returnDate: tripType === 'one-way' ? undefined : p.returnDate || undefined,
@@ -506,7 +533,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       includeCheckedBag: false,
       currency: currency || 'USD',
       locale: locale || 'en-US',
-    };
+    });
     await runEditedSearch(payload);
   };
 
@@ -517,7 +544,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
-      versionRef.current = 0;
+      const st = useSearchStore.getState();
+      // Bootstrap may have hydrated results before route sessionId caught up — keep version.
+      if (!(st.sessionId === sessionId && st.results.length > 0)) {
+        versionRef.current = 0;
+      }
     }
   }, [sessionId]);
 
@@ -549,13 +580,19 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   useEffect(() => {
     if (sessionId) return;
-    if (creatingSessionRef.current) return;
 
     // Shared links carry sessionId + search params. Never POST a new search when the
     // URL/route already names a session — that was the iPhone Chrome bug: bootstrap
     // fired on frame 1 (sessionId not resolved yet) and replaced the shared session.
     const linkParams = mergeDeepLinkParams(route.params as Record<string, unknown>);
-    if (linkParams.sessionId?.trim() || parseSearchParamsFromUrl().sessionId?.trim()) return;
+    const storeNow = useSearchStore.getState();
+    const pendingFreshSearch = storeNow.status === 'PENDING' && !storeNow.sessionId;
+    if (
+      !pendingFreshSearch &&
+      (linkParams.sessionId?.trim() || parseSearchParamsFromUrl().sessionId?.trim())
+    ) {
+      return;
+    }
 
     // Prefer in-memory store params over the URL. After "Edit search", storeParams
     // already reflect the new route while the URL can still hold the previous
@@ -578,8 +615,25 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const origin = (base.origin ?? '').trim();
     const destination = (base.destination ?? '').trim();
     const departureDate = (base.departureDate ?? '').trim();
-    if (!origin || !destination || !departureDate) return;
+    if (!origin || !destination || !departureDate) {
+      // beginSearch already flipped us to PENDING — without params we would spin
+      // "Comparing prices…" forever. Surface a retryable failure instead.
+      if (pendingFreshSearch) {
+        searchActions.setError(t('please_fill_origin_destination'));
+        searchActions.setSession(null, null, 'FAILED');
+      }
+      return;
+    }
 
+    if (isDynamicDestinationsSearch(base) && !(base.returnDate ?? '').trim()) {
+      searchActions.setError(t('choose_return_date'));
+      searchActions.setSession(null, null, 'FAILED');
+      return;
+    }
+
+    let cancelled = false;
+    // Clear any gate left by a previous Strict Mode / remount cycle so we never
+    // bail out permanently while status stays PENDING (infinite skeletons).
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
 
@@ -607,11 +661,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     searchActions.setError(null);
     versionRef.current = 0;
 
-    let cancelled = false;
     (async () => {
       try {
         const cabin = base.cabinClass ?? 'ECONOMY';
-        const payload: CreateSearchSessionRequest = {
+        const mergedBase = {
           ...defaultFormParams,
           ...base,
           origin: origin.toUpperCase(),
@@ -626,16 +679,41 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           infants: base.infants ?? 0,
           currency: (base.currency ?? currency ?? 'USD') as any,
           locale: (base.locale ?? locale ?? 'en-US') as any,
-        };
+        } as CreateSearchSessionRequest;
 
-        const session = await createSearchSession(payload);
+        // Keep open-jaw / extra-leg fields for Dynamic Destinations. classicSearchPayload
+        // strips them and turned DD bootstraps into plain TLV↔VIE round-trips.
+        const payload: CreateSearchSessionRequest = isDynamicDestinationsSearch(mergedBase)
+          ? {
+              ...mergedBase,
+              returnOrigin: (mergedBase.returnOrigin || '').trim().toUpperCase(),
+              returnDestination: (mergedBase.returnDestination || mergedBase.origin)
+                .trim()
+                .toUpperCase(),
+              extraLegs: mergedBase.extraLegs ?? [],
+            }
+          : classicSearchPayload(mergedBase);
+
+        let session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
         // POST /sessions returns COMPLETE but does not include offers. Hydrate
         // results here — the poll effect skips COMPLETE and would otherwise leave
         // the list empty ("No flights found") even when the API has offers.
-        const res = await getSearchSessionResults(session.id, undefined, payload);
+        let res = await getSearchSessionResults(session.id, undefined, payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
+
+        const bootstrapEmpty =
+          (res.session?.status ?? session.status) === 'COMPLETE' &&
+          (res.results?.length ?? 0) === 0;
+        if (bootstrapEmpty && !bootstrapEmptyRetryRef.current) {
+          bootstrapEmptyRetryRef.current = true;
+          invalidateSearchSessionResultsCache(session.id);
+          session = await createSearchSessionWithRetry(payload);
+          if (cancelled || !isCurrentSearchGeneration(generation)) return;
+          res = await getSearchSessionResults(session.id, undefined, payload);
+          if (cancelled || !isCurrentSearchGeneration(generation)) return;
+        }
 
         const applied = searchActions.applySessionResults({
           generation,
@@ -648,6 +726,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         });
         if (!applied) return;
         versionRef.current = res.version ?? 1;
+        updateUrl({ ...payload, sessionId: session.id, optionId: undefined, flightId: undefined });
         navigation.replace('Results', { sessionId: session.id });
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
@@ -664,12 +743,61 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
     return () => {
       cancelled = true;
+      // Let a remounted effect start a new create immediately (React Strict Mode /
+      // searchNonce bump). Leaving this true blocked the remount and left PENDING
+      // with empty results — "Comparing prices…" forever.
+      creatingSessionRef.current = false;
     };
     // Deliberately narrow deps: params/navigation/currency/locale are read via
     // refs or captured at execution time. Re-running on those (esp. storeParams,
     // which this effect itself mutates via beginSearch) self-cancelled the create.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, searchNonce]);
+
+  // Safety net: if bootstrap was cancelled/raced and never restarted, PENDING with
+  // no sessionId hangs on skeletons forever. After a short wait, re-bump searchNonce
+  // once; if still stuck, fail so the user can retry.
+  //
+  // IMPORTANT: POST /api/search/sessions often takes 20–90s (provider search runs
+  // inside create). A 25s fail timer raced real searches and painted a false
+  // "Search failed" on mobile — never fail while create is in flight.
+  useEffect(() => {
+    if (sessionId || status !== 'PENDING' || storeSessionId) return;
+    let cancelled = false;
+    const retryTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId || creatingSessionRef.current) return;
+      navigation.setParams({ sessionId: '', searchNonce: Date.now() });
+    }, 8000);
+    const failTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId) return;
+      // createSearchSessionWithRetry may still be awaiting the ~90s backend timeout.
+      if (creatingSessionRef.current) return;
+      searchActions.setError(t('search_failed'));
+      searchActions.setSession(null, null, 'FAILED');
+      setBootstrappingSession(false);
+      creatingSessionRef.current = false;
+    }, 120000);
+    // Absolute ceiling so a hung create cannot spin forever.
+    const hardFailTimer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.status !== 'PENDING' || st.sessionId) return;
+      searchActions.setError(t('search_failed'));
+      searchActions.setSession(null, null, 'FAILED');
+      setBootstrappingSession(false);
+      creatingSessionRef.current = false;
+    }, 210000);
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+      clearTimeout(failTimer);
+      clearTimeout(hardFailTimer);
+    };
+  }, [sessionId, status, storeSessionId, searchNonce, navigation, t]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -679,6 +807,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const MAX_NOT_FOUND = 3;
     const polledSessionId = sessionId;
     const generation = currentGeneration();
+
+    // Shared links may have a localStorage snapshot from before airport-time migration
+    // (…Z wall clocks → 07:30 instead of 06:30). Drop it so we GET the migrated session.
+    if (sharedLinkHydrationRef.current) {
+      invalidateSearchSessionResultsCache(polledSessionId);
+    }
 
     const poll = async () => {
       if (cancelled) return;
@@ -697,7 +831,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       // Otherwise a COMPLETE create with an empty store never GETs offers and the UI
       // falsely shows "No flights found".
       if (currentStatus === 'FAILED') return;
-      if (currentStatus === 'COMPLETE' && versionRef.current > 0) return;
+      if (
+        currentStatus === 'COMPLETE' &&
+        versionRef.current > 0 &&
+        useSearchStore.getState().results.length > 0
+      ) {
+        return;
+      }
       try {
         const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
         const matchParams =
@@ -713,6 +853,32 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         const latest = useSearchStore.getState();
         if (latest.sessionId != null && latest.sessionId !== polledSessionId) return;
         if (latest.sessionId == null && latest.status === 'PENDING' && !sharedLinkHydrationRef.current) return;
+
+        if (
+          storeParamsRef.current &&
+          res.session?.params &&
+          !searchParamsMatch(res.session.params, storeParamsRef.current)
+        ) {
+          logDeepLinkDiagnostics('poll-stale-session', {
+            routeParams: route.params as Record<string, unknown>,
+            resolvedSessionId: polledSessionId,
+            storeSessionId: useSearchStore.getState().sessionId,
+            storeStatus: statusRef.current,
+            resultsCount: useSearchStore.getState().results.length,
+            apiStatus: 'stale',
+          });
+          restartFreshSearch(storeParamsRef.current, polledSessionId);
+          return;
+        }
+
+        const pollEmptyComplete =
+          res.session?.status === 'COMPLETE' && (res.results?.length ?? 0) === 0;
+        if (pollEmptyComplete) {
+          const retryParams = storeParamsRef.current ?? res.session?.params;
+          if (retryParams && restartFreshSearch(retryParams, polledSessionId)) {
+            return;
+          }
+        }
 
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
@@ -766,7 +932,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             // retention, or an invalid id). Show a distinct expired-link state —
             // never the generic "No flights found".
             const urlP = parseSearchParamsFromUrl();
-            const canReRun = !!(urlP.origin && urlP.destination && urlP.departureDate);
+            const cached = readSharedLinkCache();
+            const canReRun = !!(
+              (urlP.origin || cached?.origin) &&
+              (urlP.destination || cached?.destination) &&
+              (urlP.departureDate || cached?.departureDate)
+            );
             setSharedLinkExpired(canReRun);
             searchActions.setError(
               canReRun ? t('shared_link_expired_body') : t('link_expired_invalid')
@@ -784,7 +955,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         clearInterval(id);
         return;
       }
-      if (st === 'COMPLETE' && versionRef.current > 0) {
+      if (st === 'COMPLETE' && versionRef.current > 0 && useSearchStore.getState().results.length > 0) {
         clearInterval(id);
         return;
       }
@@ -797,6 +968,44 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       clearInterval(id);
     };
   }, [sessionId]);
+
+  // Shared-link hang: sessionId present, store still null (never hydrated). Chrome
+  // often strips the URL before the GET completes. Prefer re-running the search from
+  // stashed params over a false "expired" screen.
+  useEffect(() => {
+    if (!sessionId || storeSessionId || status === 'COMPLETE' || status === 'FAILED') return;
+    if (status === 'PENDING' || status === 'PARTIAL') return; // in-app search path
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      const st = useSearchStore.getState();
+      if (st.sessionId || st.status === 'COMPLETE' || st.status === 'FAILED') return;
+      if (st.results.length > 0) return;
+      const cached = readSharedLinkCache();
+      const params = st.params ?? cached;
+      if (
+        params &&
+        (params.origin ?? '').trim() &&
+        (params.destination ?? '').trim() &&
+        (params.departureDate ?? '').trim()
+      ) {
+        restartFreshSearch(params, sessionId);
+        return;
+      }
+      const canReRun = !!(
+        (cached?.origin || storeParams?.origin) &&
+        (cached?.destination || storeParams?.destination) &&
+        (cached?.departureDate || storeParams?.departureDate)
+      );
+      setSharedLinkExpired(canReRun);
+      searchActions.setError(canReRun ? t('shared_link_expired_body') : t('link_expired_invalid'));
+      searchActions.setSession(null, null, 'FAILED');
+    }, 12000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sessionId, storeSessionId, status, storeParams, t, restartFreshSearch]);
 
   useEffect(() => {
     if (sessionId && storeParams) {
@@ -975,26 +1184,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const filtered = useMemo(() => {
     let list = results;
     if (filters.maxStops != null) {
-      list = list.filter((opt) => {
-        // Use max stops per leg (not sum), so a 2-stop outbound + 2-stop return = 2 max, not 4
-        const maxPerLeg = opt.legs.length > 0
-          ? Math.max(...opt.legs.map((leg) => Math.max(0, leg.segments.length - 1)))
-          : 0;
-        if (filters.maxStops === 0) return maxPerLeg === 0;       // Direct only
-        if (filters.maxStops === 1) return maxPerLeg === 1;       // Exactly 1 stop
-        if (filters.maxStops === 2) return maxPerLeg >= 2;        // 2+ stops
-        return true;
-      });
+      list = list.filter((opt) => matchesStopsFilter(opt, filters.maxStops));
     }
     if (filters.airlines.length > 0) {
       const set = new Set(filters.airlines.map((c) => c.toUpperCase()));
       list = list.filter((opt) => {
-        const primary =
-          opt.primaryDisplayCarrier ||
-          opt.validatingAirlines?.[0] ||
-          opt.legs?.[0]?.segments?.[0]?.marketingCarrier?.code;
-        if (!primary) return false;
-        return set.has(primary.toUpperCase());
+        const carriers = distinctMarketingCarriers(opt);
+        if (carriers.length === 0) return false;
+        return carriers.some((code) => set.has(code));
       });
     }
     if (filters.maxDurationMinutes != null) {
@@ -1074,15 +1271,41 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (sharedLinkExpired) {
       const rerunSharedSearch = () => {
         const urlP = parseSearchParamsFromUrl();
+        const cached = readSharedLinkCache() ?? {};
+        const merged = { ...cached, ...urlP };
         // Keep the canonical fingerprint so the shared flight re-opens after the
         // fresh search finds the same itinerary.
-        if (urlP.flightId) pendingFlightIdRef.current = urlP.flightId;
+        if (merged.flightId) pendingFlightIdRef.current = merged.flightId;
         pendingOptionIdRef.current = undefined;
         setSharedLinkExpired(false);
         searchActions.setError(null);
         searchActions.setSession(null, null, null);
         versionRef.current = 0;
         creatingSessionRef.current = false;
+        const origin = (merged.origin ?? '').trim();
+        const destination = (merged.destination ?? '').trim();
+        const departureDate = (merged.departureDate ?? '').trim();
+        if (origin && destination && departureDate) {
+          const payload = classicSearchPayload(
+            { ...defaultFormParams, ...merged } as CreateSearchSessionRequest,
+            {
+              origin: origin.toUpperCase(),
+              destination: destination.toUpperCase(),
+              departureDate,
+              returnDate: merged.returnDate ? String(merged.returnDate) : undefined,
+            },
+          );
+          clearSharedLinkCache();
+          searchActions.beginSearch(payload);
+          updateUrl({
+            ...payload,
+            sessionId: undefined,
+            optionId: undefined,
+            flightId: merged.flightId,
+          });
+          navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
+          return;
+        }
         clearDeadSessionEverywhere();
       };
       return (
@@ -1124,16 +1347,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     };
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>
-        <Text style={[styles.error, { color: theme.error }]}>
-          {storeError || t('search_failed_expired')}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryBtn, { borderColor: theme.primary, marginTop: 16 }]}
-          onPress={retrySearch}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.retryBtnText, { color: theme.primary }]}>{t('try_again')}</Text>
-        </TouchableOpacity>
+        <SearchStatusBanner
+          message={storeError || t('search_failed_expired')}
+          variant="error"
+          onRetry={retrySearch}
+          retryLabel={t('try_again')}
+          style={{ marginHorizontal: 0, width: '100%', maxWidth: 480 }}
+        />
       </View>
     );
   }
@@ -1169,6 +1389,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   }
   const summaryStr = summaryParts.join(' · ');
   const showSearchBesideResults = !isMobile;
+  const searchReturnRoute =
+    tripType === 'round-trip' && params?.origin && params?.destination
+      ? {
+          from: (isOpenJaw ? params.returnOrigin || params.destination : params.destination).toUpperCase(),
+          to: (isOpenJaw ? params.returnDestination || params.origin : params.origin).toUpperCase(),
+        }
+      : undefined;
 
   // Hide the top progress banner once we have results (or search finished).
   // bootstrappingSession used to stick true when create was cancelled mid-flight
@@ -1219,6 +1446,46 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
   };
 
+  // Only show when hubs are ready — hide the old disabled "Nearby hubs…" loading
+  // chip that looked tappable but did nothing.
+  const cheaperCitiesChip =
+    !positioningLoading && positioningOptions.length > 0 ? (
+      <TouchableOpacity
+        style={[
+          styles.cheaperChip,
+          {
+            backgroundColor: theme.primary + '18',
+            borderColor: theme.primary + '44',
+          },
+        ]}
+        onPress={() => {
+          setCheaperCitiesFolded((f) => {
+            const nextFolded = !f;
+            if (!nextFolded) {
+              // Section lives in the list footer — scroll so the reveal is visible.
+              requestAnimationFrame(() => {
+                resultsListRef.current?.scrollToEnd({ animated: true });
+              });
+            }
+            return nextFolded;
+          });
+        }}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: !cheaperCitiesFolded }}
+        accessibilityLabel={t('cheaper_cities_chip_a11y').replace(
+          '{n}',
+          String(positioningOptions.length),
+        )}
+      >
+        <Text style={[styles.cheaperChipText, { color: theme.primary }]} numberOfLines={1}>
+          {cheaperCitiesFolded
+            ? t('cheaper_cities_show').replace('{n}', String(positioningOptions.length))
+            : t('cheaper_cities_hide')}
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+
   const positioningSection = (
     <CheaperCitiesSection
       loading={positioningLoading}
@@ -1226,6 +1493,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       isMobile={isMobile}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+      quietLoading
       onView={(hub) => {
         const opt = positioningOptions.find((o) => o.hubAirport === hub);
         if (opt) setPositioningDetails(opt);
@@ -1235,47 +1503,52 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (
-      <View style={styles.listContent}>
-        {[1, 2, 3, 4].map((i) => (
-          <SkeletonCard key={i} theme={theme} />
-        ))}
+      <View style={{ flex: 1 }}>
+        <View style={styles.listContent}>
+          <ResultsSkeletonList theme={theme} count={4} />
+        </View>
+        {positioningSection}
       </View>
     ) : showEmpty ? (
-      <View style={styles.listContentEmpty}>
-        <View
-          style={[
-            styles.emptyWrap,
-            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
-          ]}
-        >
-          <View style={{ marginBottom: 12 }}>
-            <AppIcon name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.listContentEmpty}>
+          <View
+            style={[
+              styles.emptyWrap,
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+            ]}
+          >
+            <View style={{ marginBottom: 12 }}>
+              <AppIcon name="airplane-outline" size={48} color={theme.textMuted} fallbackText={t('no_flights_found')} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+                ? t('no_flights_cabin')
+                : t('no_flights_found')}
+            </Text>
+            <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+              {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
+                ? t('no_flights_cabin_tip')
+                : t('no_flights_tip')}
+            </Text>
           </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
-              ? t('no_flights_cabin')
-              : t('no_flights_found')}
-          </Text>
-          <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-            {storeParams?.cabinClass && storeParams.cabinClass !== 'ECONOMY'
-              ? t('no_flights_cabin_tip')
-              : t('no_flights_tip')}
-          </Text>
         </View>
+        {positioningSection}
       </View>
     ) : (
       <FlatList
+        ref={resultsListRef}
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <FlightResultCard
             option={item}
             onDetails={() => openDetails(item)}
-            onBook={() => handleBookFromCard(item)}
-            bookLoading={bookLoadingId === item.id}
-            bookLabel={isSplitBookingItinerary(item, storeParams) ? t('view_booking_options') : t('book_now')}
+            bookLoading={false}
+            bookLabel={t('select_flight')}
             tripType={tripType}
             searchReturnDate={formParams.returnDate || storeParams?.returnDate}
+            searchReturnRoute={searchReturnRoute}
             passengerCount={
               (storeParams?.adults ?? 0) +
               (storeParams?.children ?? 0) +
@@ -1283,6 +1556,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             }
           />
         )}
+        ListFooterComponent={positioningSection}
         ListEmptyComponent={
           showNoMatch ? (
             <View
@@ -1298,7 +1572,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 {t('no_flights_match')}
               </Text>
               <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                {t('try_filters')}
+                {filters.maxStops === 0
+                  ? t('no_direct_flights_tip')
+                  : t('try_filters')}
               </Text>
             </View>
           ) : null
@@ -1380,6 +1656,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     />
   );
 
+  const destinationMoodCode = (params?.destination || formParams.destination || '').trim();
+  const tripMoodCodes = isDynamicDestinations
+    ? collectTripDestinationCodes({ ...formParams, ...params })
+    : destinationMoodCode
+      ? [destinationMoodCode]
+      : [];
+
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       <SearchSummaryBar
@@ -1387,6 +1670,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         showEditButton={isMobile}
         onEditPress={openEditSearch}
       />
+      {tripMoodCodes.length > 0 && (
+        <View style={styles.moodStrip}>
+          {tripMoodCodes.length === 1 ? (
+            <DestinationMoodBanner destinationCode={tripMoodCodes[0]} variant="results" />
+          ) : (
+            <DestinationMoodStrip destinationCodes={tripMoodCodes} variant="results" />
+          )}
+        </View>
+      )}
 
       <EditSearchModal
         visible={showEditSearchModal}
@@ -1405,14 +1697,29 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             {/* RTL: Search (right) | Results (center) | Filters (left). LTR: Search (left) | Results (center) | Filters (right). */}
             {isRTL ? (
               <>
-                <View style={[styles.searchColumn, styles.searchColumnRTL, { borderLeftColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    styles.searchColumnRTL,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderLeftColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
                 </Animated.View>
@@ -1423,23 +1730,36 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                   onFiltersChange={(f) => searchActions.setFilters(f)}
                   results={results}
                   noResults={results.length === 0}
-                  footer={positioningSection}
                 />
               </>
             ) : (
               <>
-                <View style={[styles.searchColumn, { borderRightColor: theme.cardBorder }]}>
+                <View
+                  style={[
+                    styles.searchColumn,
+                    breakpoint === 'tablet' && styles.searchColumnTablet,
+                    { borderRightColor: theme.cardBorder },
+                  ]}
+                >
                     <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
                   <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
-                    <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                    <View style={styles.toolbarSortWrap}>
+                      <SortBar
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={toggleSort}
+                        resultCount={filtered.length}
+                      />
+                    </View>
+                    {cheaperCitiesChip}
                   </View>
                   {resultsList}
                 </Animated.View>
-                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} footer={positioningSection} />
+                <FiltersPanel variant="sidebar" sidebarPosition="right" filters={filters} onFiltersChange={(f) => searchActions.setFilters(f)} results={results} noResults={results.length === 0} />
               </>
             )}
           </>
@@ -1459,50 +1779,50 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               <View
                 style={[
                   styles.toolbar,
+                  styles.toolbarStacked,
                   { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
                 ]}
               >
-                <View style={styles.toolbarSortWrap}>
-                  <SortBar sortField={sortField} sortOrder={sortOrder} onSort={toggleSort} />
+                <View style={styles.toolbarSortWrapFull}>
+                  <SortBar
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSort={toggleSort}
+                    resultCount={filtered.length}
+                  />
                 </View>
-                {!isMobile && (
+                <View style={[styles.toolbarActions, styles.toolbarActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+                  {cheaperCitiesChip}
                   <TouchableOpacity
-                    style={[styles.filtersBtn, { backgroundColor: theme.controlBg, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}
+                    style={[
+                      styles.filtersBtn,
+                      {
+                        backgroundColor: theme.controlBg,
+                        flexDirection: isRTL ? 'row-reverse' : 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      },
+                    ]}
                     onPress={() => setShowFiltersModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('filters')}
                   >
                     <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
                     <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
                   </TouchableOpacity>
-                )}
+                </View>
               </View>
-              {isMobile && (
-                <TouchableOpacity
-                  style={[
-                    styles.filtersRowMobile,
-                    { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
-                    isRTL && { flexDirection: 'row-reverse' },
-                  ]}
-                  onPress={() => setShowFiltersModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <AppIcon name="filter-outline" size={20} color={theme.primary} fallbackText={t('filters')} />
-                  <Text style={[styles.filtersRowMobileText, { color: theme.primary }]}>{t('filters')}</Text>
-                </TouchableOpacity>
-              )}
-              {isMobile && (
-                <FiltersPanel
-                  variant="modal"
-                  visible={showFiltersModal}
-                  onClose={() => setShowFiltersModal(false)}
-                  filters={filters}
-                  onFiltersChange={(f) => searchActions.setFilters(f)}
-                  results={results}
-                  noResults={results.length === 0}
-                />
-              )}
+              <FiltersPanel
+                variant="modal"
+                visible={showFiltersModal}
+                onClose={() => setShowFiltersModal(false)}
+                filters={filters}
+                onFiltersChange={(f) => searchActions.setFilters(f)}
+                results={results}
+                noResults={results.length === 0}
+              />
               <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {resultsList}
-                {positioningSection}
               </Animated.View>
             </View>
           </>
@@ -1661,11 +1981,21 @@ const styles = StyleSheet.create({
   editSearchModalScrollTall: { maxHeight: 640 },
   editSearchModalContent: { padding: 18, paddingBottom: 28 },
 
+  moodStrip: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
   searchColumn: {
-    width: 280,
-    minWidth: 240,
-    maxWidth: 340,
+    width: 300,
+    minWidth: 260,
+    maxWidth: 360,
     borderRightWidth: 1,
+  },
+  searchColumnTablet: {
+    width: 240,
+    minWidth: 220,
+    maxWidth: 260,
   },
   searchColumnRTL: { borderRightWidth: 0, borderLeftWidth: 1 },
   searchColumnScroll: { flex: 1 },
@@ -1686,37 +2016,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
     position: 'sticky' as any,
     top: 0,
     minWidth: 0,
     overflow: 'hidden',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  toolbarStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   toolbarSortWrap: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 380,
+  },
+  toolbarSortWrapFull: {
+    width: '100%',
+    maxWidth: '100%',
+  },
+  toolbarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    paddingRight: 2,
+  },
+  toolbarActionsRow: {
+    width: '100%',
+    justifyContent: 'flex-end',
   },
   filtersBtn: {
     flexShrink: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+  },
+  filtersBtnText: { fontSize: 12, fontWeight: '600' },
+  cheaperChip: {
     paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginLeft: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: 200,
+    flexShrink: 1,
   },
-  filtersBtnText: { fontSize: 13, fontWeight: '600' },
-
-  filtersRowMobile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  filtersRowMobileText: { fontSize: 15, fontWeight: '600' },
+  cheaperChipText: { fontSize: 11, fontWeight: '600' },
 
   listContent: { paddingVertical: 6, paddingBottom: 20 },
   listContentEmpty: { flex: 1, justifyContent: 'center', padding: 24 },

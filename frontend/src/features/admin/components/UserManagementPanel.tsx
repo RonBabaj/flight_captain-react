@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -122,7 +122,7 @@ export function UserManagementPanel() {
 
       <View style={[styles.createCard, { backgroundColor: theme.screenBg, borderColor: theme.cardBorder }]}>
         <Text style={[styles.createTitle, { color: theme.text }]}>{t('settings_users_create_title')}</Text>
-        <TextInput
+        <ClearableTextInput
           style={[styles.input, { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}
           value={newEmail}
           onChangeText={setNewEmail}
@@ -131,7 +131,7 @@ export function UserManagementPanel() {
           autoCapitalize="none"
           keyboardType="email-address"
         />
-        <TextInput
+        <ClearableTextInput
           style={[styles.input, { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}
           value={newPassword}
           onChangeText={setNewPassword}

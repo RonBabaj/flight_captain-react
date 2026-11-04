@@ -19,6 +19,16 @@ func TestExtractGF2BookingToken(t *testing.T) {
 	if extractGF2BookingToken(map[string]interface{}{"token": "short"}) != "" {
 		t.Fatal("should skip short generic token")
 	}
+	if extractGF2BookingToken(map[string]interface{}{"departure_token": "dep-only-not-bookable"}) != "" {
+		t.Fatal("departure_token must not be treated as a booking_token")
+	}
+	nested := extractGF2BookingToken(map[string]interface{}{
+		"departure_token": "dep-only",
+		"booking":         map[string]interface{}{"booking_token": fakeToken},
+	})
+	if nested != fakeToken {
+		t.Fatalf("nested booking_token=%q", nested)
+	}
 }
 
 func TestExtractGF2BookingURL(t *testing.T) {
@@ -54,6 +64,111 @@ func TestIsLikelyPartnerCheckoutURL(t *testing.T) {
 	}
 	if !isLikelyPartnerCheckoutURL("https://www.example-airline.com/book") {
 		t.Fatal("airline URL should count")
+	}
+}
+
+func TestPricesMatchQuote(t *testing.T) {
+	if !PricesMatchQuote(600, 602) {
+		t.Fatal("602 should match 600")
+	}
+	if !PricesMatchQuote(600, 620) {
+		t.Fatal("620 within 4% should match 600")
+	}
+	if PricesMatchQuote(600, 1000) {
+		t.Fatal("1000 must not match 600")
+	}
+}
+
+func TestSelectCheapestResolvedPartner(t *testing.T) {
+	high := 324.0
+	low := 289.0
+	partners := []ResolvedPartnerBooking{
+		{URL: "https://www.budgetair.com/checkout", Price: high, Provider: "budgetair.com"},
+		{URL: "https://www.trip.com/book", Price: low, Provider: "trip.com"},
+	}
+	best := SelectCheapestResolvedPartner(partners)
+	if best == nil || best.Provider != "trip.com" || best.Price != low {
+		t.Fatalf("expected trip.com cheapest, got %+v", best)
+	}
+}
+
+func TestSelectBookingOptionForQuote_prefersPriceMatch(t *testing.T) {
+	options := []gf2BookingOption{
+		{URL: "https://www.lufthansa.com/book", Price: 1000, Provider: "lufthansa.com"},
+		{URL: "https://www.kayak.com/book", Price: 600, Provider: "kayak.com"},
+	}
+	quote := QuoteBinding{Amount: 600, Currency: "USD"}
+	picked := selectBookingOptionForQuote(options, quote)
+	if picked == nil || picked.Price != 600 {
+		t.Fatalf("expected kayak 600, got %+v", picked)
+	}
+}
+
+func TestSelectBookingOptionForQuote_prefersDeepLinkHost(t *testing.T) {
+	options := []gf2BookingOption{
+		{URL: "https://www.expedia.com/book", Price: 610, Provider: "expedia.com"},
+		{URL: "https://www.kayak.com/book", Price: 605, Provider: "kayak.com"},
+	}
+	quote := QuoteBinding{Amount: 600, Currency: "USD", DeepLink: "https://www.expedia.com/deep"}
+	picked := selectBookingOptionForQuote(options, quote)
+	if picked == nil || picked.Provider != "expedia.com" {
+		t.Fatalf("expected expedia deep link match, got %+v", picked)
+	}
+}
+
+func TestSelectBookingOptionForQuote_fallsBackWhenQuotePriceMismatch(t *testing.T) {
+	options := []gf2BookingOption{
+		{URL: "https://www.austrian.com/book", Price: 140, Provider: "austrian.com"},
+		{URL: "https://www.kayak.com/book", Price: 125, Provider: "kayak.com"},
+	}
+	quote := QuoteBinding{Amount: 125, Currency: "USD", DeepLink: "https://www.google.com/travel/flights"}
+	picked := selectBookingOptionForQuote(options, quote)
+	if picked == nil || picked.Provider != "kayak.com" {
+		t.Fatalf("expected closest-price fallback, got %+v", picked)
+	}
+}
+
+func TestParseGF2BookingOptions(t *testing.T) {
+	body := []byte(`{
+		"data": {
+			"booking_options": [
+				{"booking_request_token": "tok-a", "url": "https://www.example-ota.com/book", "price": 599, "book_with": "Example OTA"},
+				{"url": "https://www.airline.com/book", "price": 999}
+			]
+		}
+	}`)
+	opts := parseGF2BookingOptions(body, "USD")
+	if len(opts) != 2 {
+		t.Fatalf("expected 2 options, got %d", len(opts))
+	}
+	if opts[0].Price != 599 || opts[0].Provider != "Example OTA" {
+		t.Fatalf("first option=%+v", opts[0])
+	}
+}
+
+func TestParseGF2BookingOptions_rapidAPIPartnerList(t *testing.T) {
+	const fakeAirlineToken = "fake-gf2-partner-request-token-airline-001"
+	const fakeOTAToken = "fake-gf2-partner-request-token-ota-002"
+	body := []byte(`{
+		"status": true,
+		"message": "Success",
+		"data": [
+			{"partner": "Austrian Airlines", "price": 108, "token": "fake-gf2-partner-request-token-airline-001", "is_airline": true},
+			{"partner": "Kayak", "price": 125, "token": "fake-gf2-partner-request-token-ota-002", "is_airline": false}
+		]
+	}`)
+	opts := parseGF2BookingOptions(body, "EUR")
+	if len(opts) != 2 {
+		t.Fatalf("expected 2 partner options, got %d (%+v)", len(opts), opts)
+	}
+	if opts[0].Provider != "Austrian Airlines" || opts[0].BookingRequestToken != fakeAirlineToken {
+		t.Fatalf("first option=%+v", opts[0])
+	}
+	if opts[1].BookingRequestToken != fakeOTAToken {
+		t.Fatalf("second option=%+v", opts[1])
+	}
+	if opts[0].Price != 108 {
+		t.Fatalf("expected price 108, got %+v", opts[0])
 	}
 }
 

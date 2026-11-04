@@ -18,27 +18,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy over SSH
+        id: ssh1
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 15m
+          timeout: 300s
+          # npm build + docker compose regularly exceeds 15m when layers are cold
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
-            git pull origin main
+            git fetch origin main
+            git checkout -f main
+            git reset --hard origin/main
             cd frontend
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
+            docker compose build
             docker compose up -d
-            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
-              sudo scripts/vps/ensure-edge-proxy.sh
-            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
-              sudo /usr/local/bin/ensure-edge-proxy.sh
+            if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
+              sudo mkdir -p /opt/stacks/nginx-proxy-manager
+              sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
             fi
             if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
               sudo scripts/vps/ensure-edge-proxy.sh
@@ -47,27 +52,104 @@ jobs:
             fi
 
       - name: Wait before SSH retry
-        if: failure()
-        run: sleep 30
+        if: steps.ssh1.outcome == 'failure'
+        run: sleep 60
 
       - name: Deploy over SSH (retry)
-        if: failure()
+        id: ssh2
+        if: steps.ssh1.outcome == 'failure'
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 15m
+          timeout: 300s
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
-            git pull origin main
+            git fetch origin main
+            git checkout -f main
+            git reset --hard origin/main
             cd frontend
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
-            docker compose build --no-cache
+            docker compose build
+            docker compose up -d
+            if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
+              sudo mkdir -p /opt/stacks/nginx-proxy-manager
+              sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
+            fi
+            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
+              sudo scripts/vps/ensure-edge-proxy.sh
+            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
+              sudo /usr/local/bin/ensure-edge-proxy.sh
+            fi
+
+      - name: Wait before second SSH retry
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure'
+        run: sleep 120
+
+      - name: Deploy over SSH (second retry)
+        id: ssh3
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure'
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 300s
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+            cd /opt/apps/flight_captain-react
+            git fetch origin main
+            git checkout -f main
+            git reset --hard origin/main
+            cd frontend
+            npm ci
+            EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
+            cd ..
+            docker compose build
+            docker compose up -d
+            if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
+              sudo mkdir -p /opt/stacks/nginx-proxy-manager
+              sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
+            fi
+            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
+              sudo scripts/vps/ensure-edge-proxy.sh
+            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
+              sudo /usr/local/bin/ensure-edge-proxy.sh
+            fi
+
+      - name: Wait before third SSH retry
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure' && steps.ssh3.outcome == 'failure'
+        run: sleep 180
+
+      - name: Deploy over SSH (third retry)
+        id: ssh4
+        if: steps.ssh1.outcome == 'failure' && steps.ssh2.outcome == 'failure' && steps.ssh3.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 300s
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+            cd /opt/apps/flight_captain-react
+            git fetch origin main
+            git checkout -f main
+            git reset --hard origin/main
+            cd frontend
+            npm ci
+            EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
+            cd ..
+            docker compose build
             docker compose up -d
             if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
               sudo scripts/vps/ensure-edge-proxy.sh

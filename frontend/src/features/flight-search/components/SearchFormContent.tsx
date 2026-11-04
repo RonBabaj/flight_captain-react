@@ -6,6 +6,7 @@ import type { CreateSearchSessionRequest } from '../../../types';
 import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
 import { formCardStyles, makeFormThemedStyles } from '../../../components/search/formStyles';
+import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import { AirportAutocomplete } from './AirportAutocomplete';
 import { DateRangePicker } from './DateRangePicker';
 import { PassengerCabinPicker } from './PassengerCabinPicker';
@@ -77,6 +78,13 @@ export function SearchFormContent({
           icon="airplane-outline"
           title={t('find_flights')}
           subtitle={t('compare_prices')}
+        />
+      )}
+
+      {!!params.destination && (!compact || embedded) && (
+        <DestinationMoodBanner
+          destinationCode={params.destination}
+          variant={embedded ? 'compact' : 'form'}
         />
       )}
 

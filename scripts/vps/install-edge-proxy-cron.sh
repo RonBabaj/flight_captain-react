@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install systemd timer to re-check NPM every 15 minutes (cert renewal + crash recovery).
+# Install systemd service (boot) + timer (every 5 min) for nginx-proxy-manager edge guard.
 set -euo pipefail
 
 SCRIPT_SRC="$(cd "$(dirname "$0")" && pwd)/ensure-edge-proxy.sh"
@@ -21,6 +21,9 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/ensure-edge-proxy.sh
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
 cat >/etc/systemd/system/ensure-edge-proxy.timer <<'EOF'
@@ -28,8 +31,8 @@ cat >/etc/systemd/system/ensure-edge-proxy.timer <<'EOF'
 Description=Periodic edge proxy health check
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=15min
+OnBootSec=90sec
+OnUnitActiveSec=5min
 Persistent=true
 
 [Install]
@@ -37,7 +40,8 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
+systemctl enable ensure-edge-proxy.service
 systemctl enable --now ensure-edge-proxy.timer
 systemctl start ensure-edge-proxy.service
 
-echo "Installed ensure-edge-proxy.timer (every 15m + 2m after boot)."
+echo "Installed ensure-edge-proxy.service (boot) + timer (every 5m, first run 90s after boot)."

@@ -204,7 +204,7 @@ func (p *KiwiApifyProvider) Search(ctx context.Context, req SearchRequest) ([]Pr
 	if IsOpenJaw(req) || HasExtraLegs(req) {
 		retO, retD := ResolveReturnAirports(req)
 		log.Printf("[KIWI] skipping dynamic-destination search (return %s→%s extra=%s); use Google Flights provider", retO, retD, ExtraLegsFingerprint(req.ExtraLegs))
-		return nil, nil
+		return nil, ErrProviderSkipped
 	}
 	key := p.cacheKey(req)
 	if cached, ok := p.cache.get(key); ok {
@@ -669,8 +669,13 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 	}
 	dep := parseFlexibleTime(firstString(s, "departureTimeUtc", "departureTime", "dTimeUTC", "dTime", "local_departure", "utc_departure"))
 	arr := parseFlexibleTime(firstString(s, "arrivalTimeUtc", "arrivalTime", "aTimeUTC", "aTime", "local_arrival", "utc_arrival"))
-	carrier := firstString(s, "airlineCode", "airline", "carrier", "operatingAirline")
+	carrier := firstString(s, "airlineCode", "airline", "carrier", "marketingAirline")
+	operating := firstString(s, "operatingAirline", "operating_airline", "operatedBy", "operated_by")
+	if carrier == "" {
+		carrier = operating
+	}
 	flightNum := firstString(s, "flightNumber", "flight_no", "flightNo", "number")
+	opFlightNum := firstString(s, "operatingFlightNumber", "operating_flight_number")
 	dur := int(firstFloat(s, "durationMinutes"))
 	if dur <= 0 {
 		if h := firstFloat(s, "durationHours", "duration"); h > 0 {
@@ -688,14 +693,16 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 		cabin = "ECONOMY"
 	}
 	return &Segment{
-		From:             strings.ToUpper(from),
-		To:               strings.ToUpper(to),
-		DepartureTime:    dep,
-		ArrivalTime:      arr,
-		MarketingCarrier: strings.ToUpper(carrier),
-		FlightNumber:     flightNum,
-		DurationMinutes:  dur,
-		CabinClass:       cabin,
+		From:                  strings.ToUpper(from),
+		To:                    strings.ToUpper(to),
+		DepartureTime:         dep,
+		ArrivalTime:           arr,
+		MarketingCarrier:      strings.ToUpper(carrier),
+		OperatingCarrier:      strings.ToUpper(operating),
+		FlightNumber:          flightNum,
+		OperatingFlightNumber: opFlightNum,
+		DurationMinutes:       dur,
+		CabinClass:            cabin,
 	}
 }
 

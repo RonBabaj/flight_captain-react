@@ -1,0 +1,20 @@
+# Public TLS edge for all VPS sites. Live install path: /opt/stacks/nginx-proxy-manager
+# Persistent state stays on the server (./data, ./letsencrypt) — never commit those dirs.
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

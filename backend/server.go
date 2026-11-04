@@ -116,6 +116,9 @@ type SearchSession struct {
 	Status    SearchSessionStatus        `json:"status"`
 	CreatedAt time.Time                  `json:"createdAt"`
 	Params    CreateSearchSessionRequest `json:"params"`
+	// TimeSchemaVersion: 0/missing = legacy wall-clock-as-Z snapshots (shared links);
+	// 1+ = absolute instants from airport-local GF2 parsing.
+	TimeSchemaVersion int `json:"timeSchemaVersion,omitempty"`
 }
 
 func (r *CreateSearchSessionRequest) CabinPrefOrDefault() string {
@@ -157,6 +160,7 @@ type AirportLike struct {
 
 type Carrier struct {
 	Code string `json:"code"`
+	Name string `json:"name,omitempty"` // human-readable airline name when known
 }
 
 type FlightSegment struct {
@@ -214,13 +218,18 @@ type FlightOption struct {
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
-	BookingToken          string           `json:"-"`                               // GF2 booking_token; resolved to partner URL on Book
-	BookingURL            string           `json:"-"`                               // normalized internal booking URL used by /api/out/booking
+	BookingToken          string           `json:"bookingToken,omitempty"`          // GF2 booking_token; persisted for booking resolve
+	LegBookingTokens      []string         `json:"legBookingTokens,omitempty"`      // per-leg GF2 tokens for split/open-jaw itineraries
+	LegDeepLinks          []string         `json:"legDeepLinks,omitempty"`          // per-leg partner checkout URLs for split/open-jaw
+	LegPrices             []float64        `json:"legPrices,omitempty"`             // per-leg one-way fares for split/open-jaw
+	BookingURL            string           `json:"bookingUrl,omitempty"`            // normalized internal booking URL used by /api/out/booking
 	VendorName            string           `json:"vendorName,omitempty"`            // OTA name (kayak/expedia/kiwi etc)
 	SelfTransfer          bool             `json:"selfTransfer,omitempty"`          // separate tickets / virtual interlining
 	SelfTransferWarning   string           `json:"selfTransferWarning,omitempty"`   // user-facing warning when SelfTransfer
-	CanonicalFingerprint  string           `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
-	FetchedAt             *time.Time       `json:"fetchedAt,omitempty"`             // provider data freshness when known
+	CanonicalFingerprint  string                    `json:"canonicalFingerprint,omitempty"`  // stable hash for dedupe; optional in response
+	ItineraryFingerprint  string                    `json:"itineraryFingerprint,omitempty"`  // deterministic physical-itinerary hash
+	CanonicalItinerary    *search.CanonicalItinerary `json:"canonicalItinerary,omitempty"`     // normalized identity from GF scraper
+	FetchedAt             *time.Time                `json:"fetchedAt,omitempty"`             // provider data freshness when known
 
 	// Codeshare / multi-seller (additive)
 	PrimaryMarketingCarrier string         `json:"primaryMarketingCarrier,omitempty"` // first segment marketing
@@ -268,7 +277,20 @@ func loadSearchSession(id string) (SearchSessionResultsResponse, bool) {
 	if ok {
 		return resp, true
 	}
-	return loadPersistedSession(id)
+	persisted, found := loadPersistedSession(id)
+	if !found {
+		return SearchSessionResultsResponse{}, false
+	}
+	// Old shared-link snapshots stored GF2 wall clocks as UTC (…Z). Reinterpret
+	// once on durable load so Airport-local display matches airline sites, then
+	// re-persist with TimeSchemaVersion so we do not shift again.
+	if migrateLegacySessionTimes(&persisted) {
+		go persistSearchSession(persisted)
+	}
+	sessionsMu.Lock()
+	sessions[id] = persisted
+	sessionsMu.Unlock()
+	return persisted, true
 }
 
 func startSearchSessionCleanup() {
@@ -764,7 +786,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	sreq := search.SearchRequest{
+	sreq := search.SanitizeStandardSearchRequest(search.SearchRequest{
 		Origin:            req.Origin,
 		Destination:       req.Destination,
 		DepartureDate:     req.DepartureDate,
@@ -779,12 +801,38 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Children:          req.ChildrenOrDefault(),
 		Infants:           req.Infants,
 		Currency:          req.CurrencyOrDefault(),
+	})
+	// Persist sanitized params on the session so clients do not inherit stale open-jaw fields.
+	req.ReturnOrigin = sreq.ReturnOrigin
+	req.ReturnDestination = sreq.ReturnDestination
+	if len(sreq.ExtraLegs) == 0 {
+		req.ExtraLegs = nil
+	} else {
+		req.ExtraLegs = make([]ExtraSearchLeg, len(sreq.ExtraLegs))
+		for i, l := range sreq.ExtraLegs {
+			req.ExtraLegs[i] = ExtraSearchLeg{Origin: l.Origin, Destination: l.Destination, Date: l.Date}
+		}
 	}
 
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	for attempt := 0; attempt < 2 && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
+		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
+		wait := time.Duration(attempt+1) * 2 * time.Second
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+			if ctx.Err() == nil {
+				multi = flightProviderRegistry.SearchAll(ctx, sreq)
+			}
+		}
+	}
 	if multi.AllFailed() {
 		log.Printf("[SEARCH] all providers failed stats=%+v", multi.Stats)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "flight search failed"})
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": multi.FailureMessage(),
+		})
 		return
 	}
 	if len(multi.Results) == 0 {
@@ -793,6 +841,11 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 
 	prs := multi.Results
 	options := providerResultsToFlightOptions(prs)
+	for i := range options {
+		if options[i].CanonicalItinerary != nil {
+			options[i].CanonicalItinerary.SetPassengerContext(req.Adults, req.ChildrenOrDefault(), req.Infants)
+		}
+	}
 	offersInitial := options
 
 	offersAfterCabin := options
@@ -904,8 +957,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 				layoversStr += l.AirportCode + "(" + fmt.Sprintf("%d", l.Minutes) + "m)"
 			}
 			log.Printf("[NORMALIZED_SUMMARY] departure=%s arrival=%s durationMinutes=%d stops=%d layovers=[%s]",
-				sum.DepartureTime.Format("2006-01-02T15:04:05Z"),
-				sum.ArrivalTime.Format("2006-01-02T15:04:05Z"),
+				sum.DepartureTime.UTC().Format(time.RFC3339),
+				sum.ArrivalTime.UTC().Format(time.RFC3339),
 				sum.DurationMinutes, sum.StopsCount, layoversStr)
 		}
 	}
@@ -923,10 +976,11 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 
 	session := SearchSession{
-		ID:        id,
-		Status:    StatusComplete, // simple synchronous search for now
-		CreatedAt: now,
-		Params:    req,
+		ID:                id,
+		Status:            StatusComplete, // simple synchronous search for now
+		CreatedAt:         now,
+		Params:            req,
+		TimeSchemaVersion: timeSchemaAirportAbsolute,
 	}
 
 	resp := SearchSessionResultsResponse{
@@ -979,7 +1033,26 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[SESSION_GET] id=%s status=%s results=%d ua=%q", id, resp.Session.Status, len(resp.Results), truncateUA(r.UserAgent(), 80))
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, sanitizeSessionForClient(resp))
+}
+
+// sanitizeSessionForClient copies a session snapshot and removes booking tokens /
+// internal checkout URLs so GET /api/search/sessions/{id} does not expose them.
+// persistSearchSession still stores the unsanitized snapshot for booking resolve.
+func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionResultsResponse {
+	out := resp
+	if len(resp.Results) == 0 {
+		return out
+	}
+	out.Results = append([]FlightOption(nil), resp.Results...)
+	for i := range out.Results {
+		out.Results[i].BookingToken = ""
+		out.Results[i].LegBookingTokens = nil
+		out.Results[i].LegDeepLinks = nil
+		out.Results[i].BookingURL = ""
+		// Keep LegPrices — they are fares, not checkout secrets.
+	}
+	return out
 }
 
 func truncateUA(s string, max int) string {
@@ -1103,6 +1176,35 @@ func ensurePrimaryCarrier(opt *FlightOption) {
 	}
 }
 
+// ensureAllMarketingCarriers fills ValidatingAirlines from every segment so multi-airline itineraries are labeled honestly.
+func ensureAllMarketingCarriers(opt *FlightOption) {
+	if opt == nil {
+		return
+	}
+	seen := map[string]struct{}{}
+	var carriers []string
+	for _, leg := range opt.Legs {
+		for _, seg := range leg.Segments {
+			c := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+			if c == "" {
+				continue
+			}
+			if _, ok := seen[c]; ok {
+				continue
+			}
+			seen[c] = struct{}{}
+			carriers = append(carriers, c)
+		}
+	}
+	if len(carriers) == 0 {
+		return
+	}
+	opt.ValidatingAirlines = carriers
+	if opt.PrimaryDisplayCarrier == "" {
+		opt.PrimaryDisplayCarrier = carriers[0]
+	}
+}
+
 // sanitizeSegmentTimes ensures no segment has identical departure and arrival when duration is known (fixes "02:20 -> 02:20" and fake 0h layovers).
 func sanitizeSegmentTimes(legs []FlightLeg) {
 	for i := range legs {
@@ -1179,21 +1281,33 @@ func computeOutboundSummary(opt *FlightOption) *OutboundSummary {
 // providerResultsToFlightOptions converts search.ProviderResult to FlightOption.
 func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption {
 	var out []FlightOption
-	for _, pr := range prs {
+	for i := range prs {
+		pr := prs[i]
+		if pr.ItineraryFingerprint == "" {
+			search.AttachCanonicalIdentity(&prs[i])
+			pr = prs[i]
+		}
 		var legs []FlightLeg
 		for _, l := range pr.Legs {
 			var segs []FlightSegment
 			for _, s := range l.Segments {
-				segs = append(segs, FlightSegment{
+				fs := FlightSegment{
 					From:             AirportLike{Code: strings.ToUpper(s.From)},
 					To:               AirportLike{Code: strings.ToUpper(s.To)},
 					DepartureTime:    s.DepartureTime,
 					ArrivalTime:      s.ArrivalTime,
-					MarketingCarrier: Carrier{Code: s.MarketingCarrier},
+					MarketingCarrier: Carrier{Code: s.MarketingCarrier, Name: strings.TrimSpace(s.MarketingCarrierName)},
 					FlightNumber:     s.FlightNumber,
 					DurationMinutes:  s.DurationMinutes,
 					CabinClass:       s.CabinClass,
-				})
+				}
+				if op := strings.TrimSpace(s.OperatingCarrier); op != "" {
+					fs.OperatingCarrier = &Carrier{Code: op, Name: strings.TrimSpace(s.OperatingCarrierName)}
+				}
+				if opFn := strings.TrimSpace(s.OperatingFlightNumber); opFn != "" {
+					fs.OperatingFlightNum = opFn
+				}
+				segs = append(segs, fs)
 			}
 			legs = append(legs, FlightLeg{Segments: segs})
 		}
@@ -1214,6 +1328,9 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
 			BookingToken:          pr.BookingToken,
+			LegBookingTokens:      append([]string(nil), pr.LegBookingTokens...),
+			LegDeepLinks:          append([]string(nil), pr.LegDeepLinks...),
+			LegPrices:             append([]float64(nil), pr.LegPrices...),
 			VendorName:            pr.VendorName,
 			SelfTransfer:          pr.SelfTransfer,
 		}
@@ -1229,11 +1346,58 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 		}
 		sanitizeSegmentTimes(opt.Legs)
 		ensurePrimaryCarrier(&opt)
+		ensureAllMarketingCarriers(&opt)
 		opt.BookingURL = normalizeProviderBookingURL(opt.DeepLink)
 		opt.OutboundSummary = computeOutboundSummary(&opt)
+		it := pr.CanonicalItinerary
+		if len(it.Segments) == 0 {
+			it = search.BuildCanonicalItinerary(pr)
+		}
+		opt.CanonicalItinerary = &it
+		opt.ItineraryFingerprint = pr.ItineraryFingerprint
+		if opt.ItineraryFingerprint == "" {
+			opt.ItineraryFingerprint = search.CanonicalItineraryFingerprint(it)
+		}
+		opt.CanonicalFingerprint = opt.ItineraryFingerprint
 		out = append(out, opt)
 	}
 	return out
+}
+
+func providerResultFromFlightOption(o *FlightOption) search.ProviderResult {
+	if o == nil {
+		return search.ProviderResult{}
+	}
+	var legs []search.Leg
+	for _, leg := range o.Legs {
+		var segs []search.Segment
+		for _, s := range leg.Segments {
+			seg := search.Segment{
+				From:             s.From.Code,
+				To:               s.To.Code,
+				DepartureTime:    s.DepartureTime,
+				ArrivalTime:      s.ArrivalTime,
+				MarketingCarrier: s.MarketingCarrier.Code,
+				FlightNumber:     s.FlightNumber,
+				DurationMinutes:  s.DurationMinutes,
+				CabinClass:       s.CabinClass,
+			}
+			if s.OperatingCarrier != nil {
+				seg.OperatingCarrier = s.OperatingCarrier.Code
+			}
+			seg.OperatingFlightNumber = s.OperatingFlightNum
+			segs = append(segs, seg)
+		}
+		legs = append(legs, search.Leg{Segments: segs})
+	}
+	return search.ProviderResult{
+		ID:              o.ID,
+		Price:           search.Monetary{Currency: o.Price.Currency, Amount: o.Price.Amount},
+		DurationMinutes: o.DurationMinutes,
+		Legs:            legs,
+		Source:          o.Source,
+		SelfTransfer:    o.SelfTransfer,
+	}
 }
 
 // dedupeFlightOptions removes duplicates by canonicalFingerprint (when set), else by legacy key; keeps cheapest. Renumbers IDs to opt_0, opt_1, ...
@@ -1858,9 +2022,10 @@ func handleFlightDetails(w http.ResponseWriter, r *http.Request) {
 	sessID := randomID("sess_")
 	exploreSessResp := SearchSessionResultsResponse{
 		Session: SearchSession{
-			ID:        sessID,
-			Status:    StatusComplete,
-			CreatedAt: time.Now().UTC(),
+			ID:                sessID,
+			Status:            StatusComplete,
+			CreatedAt:         time.Now().UTC(),
+			TimeSchemaVersion: timeSchemaAirportAbsolute,
 			Params: CreateSearchSessionRequest{
 				Origin:        origin,
 				Destination:   destination,
@@ -2338,19 +2503,39 @@ func resolveBookingRedirectURL(ctx context.Context, session *SearchSession, opti
 	}
 
 	if !split && googleFlights2Provider != nil && option != nil && strings.TrimSpace(option.BookingToken) != "" {
-		u, err := googleFlights2Provider.ResolvePartnerBookingURL(ctx, option.BookingToken, currency)
-		if err == nil && normalizeProviderBookingURL(u) != "" {
-			log.Printf("[BOOKING] resolved partner URL from booking_token")
-			return u
-		}
-		if err != nil {
-			log.Printf("[BOOKING] booking_token resolve failed: %v", err)
+		quote := quoteBindingFromOption(session, option, -1)
+		if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBooking(ctx, option.BookingToken, currency, quote); err == nil {
+			if u := normalizeProviderBookingURL(resolved.URL); u != "" {
+				log.Printf("[BOOKING] resolved quoted partner URL from booking_token provider=%s", resolved.Provider)
+				return u
+			}
+		} else {
+			log.Printf("[BOOKING] quoted booking_token resolve failed: %v", err)
 		}
 	}
 
 	if !split && googleFlights2Provider != nil {
 		origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
 		if origin != "" && dest != "" && dep != "" {
+			quote := quoteBindingFromOption(session, option, -1)
+			sreq := search.SearchRequest{
+				Origin: origin, Destination: dest, DepartureDate: dep, ReturnDate: ret,
+				Adults: adults, Currency: currency, CabinClass: "ECONOMY",
+			}
+			if option != nil && option.ItineraryFingerprint != "" {
+				wantItin := search.CanonicalItinerary{}
+				if option.CanonicalItinerary != nil {
+					wantItin = *option.CanonicalItinerary
+				} else {
+					wantItin = search.BuildCanonicalItinerary(providerResultFromFlightOption(option))
+				}
+				if resolved, err := googleFlights2Provider.ResolveQuotedPartnerBookingForFingerprint(ctx, sreq, wantItin, currency, quote); err == nil {
+					if u := normalizeProviderBookingURL(resolved.URL); u != "" {
+						log.Printf("[BOOKING] resolved quoted partner URL from fingerprint provider=%s", resolved.Provider)
+						return u
+					}
+				}
+			}
 			u, err := googleFlights2Provider.ResolvePartnerBookingForRoute(ctx, origin, dest, dep, ret, currency, adults)
 			if err == nil && normalizeProviderBookingURL(u) != "" {
 				log.Printf("[BOOKING] resolved partner URL from route search %s→%s %s", origin, dest, dep)
@@ -2507,7 +2692,7 @@ func handleOutBooking(w http.ResponseWriter, r *http.Request) {
 		if resp != nil && option != nil {
 			var redirectURL string
 			if legIdx >= 0 {
-				redirectURL = BuildOneWayLegBookingURL(&resp.Session, option, legIdx)
+				redirectURL = resolveLegBookingRedirectURL(ctx, &resp.Session, option, legIdx)
 			}
 			if redirectURL == "" {
 				redirectURL = resolveBookingRedirectURL(ctx, &resp.Session, option)
@@ -2708,6 +2893,7 @@ func main() {
 	mux.HandleFunc("/api/affiliate/provider", handleAffiliateProvider)
 	mux.HandleFunc("/api/affiliate/clicks/summary", handleAffiliateClicksSummary)
 	mux.HandleFunc("/api/out/booking", handleOutBooking)
+	mux.HandleFunc("/api/booking/resolve", handleBookingResolve)
 	mux.HandleFunc("/api/flyfix/refine-issues", handleFlyFixRefineIssues)
 	mux.HandleFunc("/api/auth/login", handleAuthLogin)
 	mux.HandleFunc("/api/auth/logout", handleAuthLogout)

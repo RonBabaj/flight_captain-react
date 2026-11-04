@@ -6,6 +6,11 @@
   RewriteEngine On
   RewriteBase /
 
+  # Force HTTPS when hosted behind Apache/LiteSpeed (nginx edge should also 301).
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
   # Legacy SPA paths → new structure (301, query string preserved)
   RewriteRule ^results/?$ /search/results [R=301,L,QSA]
   RewriteRule ^deals/?$ /monthly-deals/ [R=301,L,QSA]

@@ -13,7 +13,10 @@
     <meta name="keywords" content="flight search, compare flight prices, cheap flights, best flight deals, round-trip flights, one-way flights, flight comparison, airline prices, travel deals, budget flights, hub city flights, monthly flight deals, book flights" />
     <meta name="robots" content="index, follow" />
     <meta name="author" content="Fly-Fix" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color" content="#163A5F" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Fly-Fix – Compare Flight Prices &amp; Find Cheap Deals" />
@@ -34,6 +37,8 @@
       }
       body {
         overflow: hidden;
+        font-family: "IBM Plex Sans", ui-sans-serif, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       #root {
         display: flex;
@@ -41,6 +46,58 @@
         flex: 1;
       }
     </style>
+    <!-- Force HTTPS as a client-side fallback. Production edge (Nginx Proxy Manager)
+         should 301 http→https; this covers caches / misconfigured hosts so Chrome
+         does not keep an insecure Origin that breaks CORS to api.fly-fix.com. -->
+    <script>
+      (function () {
+        try {
+          var loc = window.location;
+          if (!loc || loc.protocol !== 'http:') return;
+          var host = (loc.hostname || '').toLowerCase();
+          if (host === 'localhost' || host === '127.0.0.1') return;
+          loc.replace('https://' + loc.host + loc.pathname + loc.search + loc.hash);
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Capture shared-link query BEFORE React Navigation / Chrome rewrite the address bar.
+         Without this, iOS Chrome Incognito often shows bare fly-fix.com and Results hangs. -->
+    <script>
+      (function () {
+        try {
+          var href = window.location && window.location.href;
+          var q = window.location && window.location.search;
+          if (!q || q.indexOf('sessionId=') === -1) return;
+          if (href) window.sessionStorage.setItem('flyfix_boot_href_v1', href);
+          var p = new URLSearchParams(q);
+          var sid = (p.get('sessionId') || '').trim();
+          if (!sid) return;
+          var payload = {
+            sessionId: sid,
+            pathname: (window.location.pathname || ''),
+          };
+          [
+            'optionId',
+            'flightId',
+            'origin',
+            'destination',
+            'departureDate',
+            'returnDate',
+            'returnOrigin',
+            'returnDestination',
+            'adults',
+            'children',
+            'currency',
+            'cabinClass',
+            'extra',
+          ].forEach(function (k) {
+            var v = p.get(k);
+            if (v) payload[k] = v;
+          });
+          window.sessionStorage.setItem('flyfix_shared_link_v1', JSON.stringify(payload));
+        } catch (e) {}
+      })();
+    </script>
     <!-- Google AdSense. Consent message (CMP) for EEA/UK/CH: create & publish in AdSense → Privacy & messaging → European regulations; the tag above deploys it automatically. -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6901812004439947" crossorigin="anonymous"></script>
     <!-- Travelpayouts Drive (affiliate/tracking) -->

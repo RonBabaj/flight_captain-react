@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
-  TextInput,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { AppIcon } from '../../../components/AppIcon';
 import { getCityDisplayName, getAirportDisplayName } from '../../../data/airports';
 import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
@@ -155,31 +155,33 @@ export function AirportAutocomplete({
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.inputBg,
-              borderColor: theme.inputBorder,
-              color: theme.text,
-            },
-          ]}
-          placeholder={placeholder ?? t('city_country_or_airport')}
-          placeholderTextColor={theme.textMuted}
-          value={query}
-          onChangeText={(text) => {
-            setQuery(text);
-            setShowList(true);
-          }}
-          onFocus={() => setShowList(true)}
-          onBlur={() => tryResolveTypedQuery()}
-          onSubmitEditing={() => {
-            tryResolveTypedQuery();
-            setShowList(false);
-          }}
-        />
-      </View>
+      <ClearableTextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.inputBg,
+            borderColor: theme.inputBorder,
+            color: theme.text,
+          },
+        ]}
+        placeholder={placeholder ?? t('city_country_or_airport')}
+        placeholderTextColor={theme.textMuted}
+        value={query}
+        onChangeText={(text) => {
+          setQuery(text);
+          setShowList(true);
+        }}
+        onClear={() => {
+          onChange('');
+          setShowList(false);
+        }}
+        onFocus={() => setShowList(true)}
+        onBlur={() => tryResolveTypedQuery()}
+        onSubmitEditing={() => {
+          tryResolveTypedQuery();
+          setShowList(false);
+        }}
+      />
       {query.trim().length > 0 && query.trim().length < MIN_CHARS && !queryMatchesAnywhere && (
         <Text style={[styles.hint, { color: theme.textMuted }]}>
           {t('type_min_chars').replace('{n}', String(MIN_CHARS))}
@@ -266,7 +268,6 @@ export function AirportAutocomplete({
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  inputWrap: { position: 'relative' },
   input: {
     borderWidth: 1,
     borderRadius: 12,

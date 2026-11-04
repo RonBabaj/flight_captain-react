@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
-import { searchActions } from '../../../store';
+import { searchActions, useSearchStore } from '../../../store';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { getCachedSearch, setCachedSearch } from '../../../utils/searchCache';
+import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { classicSearchPayload } from '../../../utils/skyscanner';
+import { useBreakpoint } from '../../../hooks/useResponsive';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -31,6 +34,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const { currency, locale, t } = useLocale();
   const { paramsFromUrl, updateUrl } = useSearchParams();
+  const breakpoint = useBreakpoint();
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('round-trip');
   const [params, setParams] = useState<CreateSearchSessionRequest>(() => {
     const cached = getCachedSearch();
@@ -53,12 +57,13 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     const sid = paramsFromUrl.sessionId;
-    if (sid && typeof window !== 'undefined') {
-      // Pass sessionId='' so Results resolves it from the URL, not from a fixed route
-      // param. That lets the expired-session recovery clear the URL sessionId and have
-      // routeSessionId fall to '' so the bootstrap effect can re-run the search.
-      navigation.navigate('Results', { sessionId: '' });
-    }
+    if (!sid || typeof window === 'undefined') return;
+    // Shared-link recovery only: cold open on SearchForm with a sessionId in the URL
+    // and nothing in the store. Pass the real sessionId — navigating with '' used to
+    // make mergeDeepLinkParams drop the URL id and hang Chrome shared links forever.
+    const st = useSearchStore.getState();
+    if (st.sessionId || st.status === 'PENDING' || st.params) return;
+    navigation.navigate('Results', { sessionId: sid });
   }, [paramsFromUrl.sessionId, navigation]);
 
   // Do not merge URL on every render — that overwrote destination when switching Anywhere → real airport
@@ -165,8 +170,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
           ? params.cabinClass
           : 'ECONOMY';
-      const payload: CreateSearchSessionRequest = {
-        ...params,
+      const payload: CreateSearchSessionRequest = classicSearchPayload(params, {
         origin: params.origin.trim().toUpperCase(),
         destination: params.destination.trim().toUpperCase(),
         returnDate: tripType === 'one-way' ? undefined : params.returnDate || undefined,
@@ -175,14 +179,15 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         includeCheckedBag: false,
         currency: currency || 'USD',
         locale: locale || 'en-US',
-      };
+      });
       setCachedSearch(payload);
       // Optimistic navigation: create the session after the Results screen mounts.
       // beginSearch bumps generation + clears prior results so a late poll cannot
       // paint the previous route under the new summary header.
+      clearSharedLinkCache();
       searchActions.beginSearch(payload);
       // Clear any previous sessionId from the URL so Results does not poll a stale id.
-      updateUrl(payload);
+      updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
       navigation.navigate({
         name: 'Results',
         params: { sessionId: '', searchNonce: Date.now() },
@@ -199,7 +204,13 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
     <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingHorizontal: breakpoint === 'mobile' ? 14 : 24,
+            maxWidth: breakpoint === 'desktop' ? 680 : 640,
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <SearchFormContent

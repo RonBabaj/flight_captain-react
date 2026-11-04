@@ -105,7 +105,7 @@ func init() {
 			Code:   "LY",
 			Name:   "El Al",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.elal.com/en/Book/Flights?from={origin}&to={destination}&departure={departureDate}&return={returnDate}&cabin={cabin}&aff_id={aff_id}&subid={subid}",
+			URLTpl: "https://booking.elal.com/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
 		},
 		"UA": {
 			Code:   "UA",
@@ -130,6 +130,30 @@ func init() {
 			Name:   "Lufthansa",
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://www.lufthansa.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+		},
+		"OS": {
+			Code:   "OS",
+			Name:   "Austrian Airlines",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.austrian.com/at/en/booking?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
+		},
+		"LX": {
+			Code:   "LX",
+			Name:   "Swiss",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.swiss.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+		},
+		"AF": {
+			Code:   "AF",
+			Name:   "Air France",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://wwws.airfrance.fr/search/offers?origin={origin}&destination={destination}&departureDate={departureDate}&aff_id={aff_id}&subid={subid}",
+		},
+		"KL": {
+			Code:   "KL",
+			Name:   "KLM",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.klm.com/search/offers?origin={origin}&destination={destination}&departureDate={departureDate}&aff_id={aff_id}&subid={subid}",
 		},
 		"TK": {
 			Code:   "TK",
@@ -227,7 +251,90 @@ func BuildRedirectURL(session *SearchSession, option *FlightOption, provider *Pr
 	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
-	return s
+	return stripEmptyQueryParams(s)
+}
+
+func stripEmptyQueryParams(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	q := parsed.Query()
+	for k, vals := range q {
+		empty := len(vals) == 0
+		if !empty {
+			empty = true
+			for _, v := range vals {
+				if strings.TrimSpace(v) != "" {
+					empty = false
+					break
+				}
+			}
+		}
+		if empty {
+			q.Del(k)
+		}
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
+}
+
+// BuildLegAirlineDirectURL builds a one-way airline booking URL for a single leg when GF2 only surfaced OTAs.
+func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legIndex, segmentIndex int, sessionID, optionID string) string {
+	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
+		return ""
+	}
+	carrier := strings.ToUpper(strings.TrimSpace(marketingCarrierForLeg(option, legIndex)))
+	if carrier == "" {
+		return ""
+	}
+	providerRegistryMu.RLock()
+	provider, ok := providerRegistry[carrier]
+	providerRegistryMu.RUnlock()
+	if !ok || provider.Type != ProviderTypeAirline || strings.TrimSpace(provider.URLTpl) == "" {
+		return ""
+	}
+
+	leg := option.Legs[legIndex]
+	var origin, dest, dep string
+	if segmentIndex >= 0 && segmentIndex < len(leg.Segments) {
+		origin, dest, dep = routeFromFlightSegment(leg.Segments[segmentIndex])
+	} else {
+		origin, dest, dep = routeFromFlightLeg(leg)
+	}
+	if origin == "" || dest == "" || dep == "" {
+		return ""
+	}
+
+	cabin := "ECONOMY"
+	adults := 1
+	if session != nil {
+		if c := session.Params.CabinPrefOrDefault(); c != "" {
+			cabin = c
+		} else if c := session.Params.CabinClass; c != "" {
+			cabin = c
+		}
+		if session.Params.Adults > 0 {
+			adults = session.Params.Adults
+		}
+	}
+	_ = adults
+
+	affID := getAffiliateID(provider.Code)
+	subid := sessionID + "_" + optionID
+	if subid == "_" {
+		subid = ""
+	}
+
+	s := provider.URLTpl
+	s = strings.ReplaceAll(s, "{origin}", url.QueryEscape(origin))
+	s = strings.ReplaceAll(s, "{destination}", url.QueryEscape(dest))
+	s = strings.ReplaceAll(s, "{departureDate}", url.QueryEscape(dep))
+	s = strings.ReplaceAll(s, "{returnDate}", url.QueryEscape(""))
+	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
+	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
+	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
+	return stripEmptyQueryParams(s)
 }
 
 const maxClickStoreRecords = 100_000

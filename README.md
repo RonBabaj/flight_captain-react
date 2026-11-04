@@ -317,8 +317,8 @@ Legacy bookmarks (Apache/LiteSpeed, optional): **`frontend/public/.htaccess`** *
 
 - **SPA routing:** Docker/nginx serves the SPA using physical `index.html` route shells generated at build time by `frontend/scripts/write-spa-fallbacks.mjs`. `frontend/public/.htaccess` remains for legacy Apache/LiteSpeed hosting (optional).
 - **Deploy:** GitHub Actions deploys the Docker stack to the VPS on every push to `main` (see `.github/workflows/deploy.yml`).
-- **TLS / public URLs:** All domains (`fly-fix.com`, `api.fly-fix.com`, `rongurfinkel.com`, etc.) terminate HTTPS on the VPS via **nginx-proxy-manager** (`/opt/stacks/nginx-proxy-manager`). It renews Let’s Encrypt certs automatically **while the container is running**. Do **not** run host `nginx` on ports **80/443** — it prevents NPM from binding and every site looks “down” on HTTPS.
-- **Edge proxy guard:** `scripts/vps/ensure-edge-proxy.sh` stops conflicting host nginx and starts NPM. Install the systemd timer with `sudo scripts/vps/install-edge-proxy-cron.sh` on the VPS (runs every 15 minutes + after boot).
+- **TLS / public URLs:** All domains (`fly-fix.com`, `api.fly-fix.com`, `rongurfinkel.com`, etc.) terminate HTTPS on the VPS via **nginx-proxy-manager** (compose in `infra/nginx-proxy-manager/`, live path `/opt/stacks/nginx-proxy-manager`). NPM renews Let’s Encrypt certs automatically **while the container is running**. Do **not** run host `nginx` on ports **80/443** — it prevents NPM from binding and every site looks “down” on HTTPS. Fly-Fix cert/SAN checklist: `scripts/npm-ssl-flyfix.md`.
+- **Edge proxy guard:** `scripts/vps/ensure-edge-proxy.sh` masks host nginx and starts NPM. Install with `sudo scripts/vps/install-edge-proxy-cron.sh` (systemd **on boot** + every **5 minutes**).
 - **Legacy URLs:** **301** redirects for `/results` and `/deals` to the new paths; see **Web routes** above.
 
 ## Notes
