@@ -13,10 +13,13 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-if systemctl is-active --quiet nginx 2>/dev/null; then
-  log "Stopping host nginx (conflicts with NPM on ports 80/443)."
-  systemctl stop nginx
-  systemctl disable nginx || true
+# Host nginx must never bind 80/443 — NPM is the only public edge. `disable` is not
+# enough (apt/postinst or a manual enable can turn it back on); `mask` blocks start.
+if systemctl is-enabled nginx 2>/dev/null | grep -qv masked; then
+  log "Disabling host nginx (ports 80/443 belong to nginx-proxy-manager)."
+  systemctl stop nginx 2>/dev/null || true
+  systemctl disable nginx 2>/dev/null || true
+  systemctl mask nginx 2>/dev/null || true
 fi
 
 if [[ ! -d "$NPM_DIR" ]]; then
