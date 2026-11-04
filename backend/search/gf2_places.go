@@ -90,14 +90,21 @@ func GF2SearchAirports(code string) []string {
 	if gf2MetroCityCodes[code] {
 		metro := gf2MetroKey(code)
 		if airports, ok := gf2MetroAirports[metro]; ok && len(airports) > 0 {
-			out := append([]string(nil), airports...)
-			return out
+			return limitGF2SearchAirports(append([]string(nil), airports...))
 		}
 	}
 	if airport, ok := gf2CityToAirport[code]; ok {
-		return []string{airport}
+		return limitGF2SearchAirports([]string{airport})
 	}
-	return []string{code}
+	return limitGF2SearchAirports([]string{code})
+}
+
+func limitGF2SearchAirports(airports []string) []string {
+	max := GF2MetroMaxAirports()
+	if max <= 0 || len(airports) <= max {
+		return airports
+	}
+	return append([]string(nil), airports[:max]...)
 }
 
 // ResolveGF2PlaceCode returns a single IATA for callers that cannot fan out (legacy).

@@ -39,6 +39,7 @@ type KiwiApifyProvider struct {
 type kiwiCache struct {
 	mu    sync.RWMutex
 	items map[string]kiwiCacheEntry
+	ttl   time.Duration
 }
 
 type kiwiCacheEntry struct {
@@ -64,7 +65,11 @@ func NewKiwiApifyProvider() *KiwiApifyProvider {
 		base = "https://api.apify.com/v2"
 	}
 	base = strings.TrimRight(base, "/")
-	c := &kiwiCache{items: make(map[string]kiwiCacheEntry)}
+	ttl := KiwiEffectiveCacheTTL()
+	if ttl <= 0 {
+		ttl = kiwiCacheTTL
+	}
+	c := &kiwiCache{items: make(map[string]kiwiCacheEntry), ttl: ttl}
 	go func() {
 		t := time.NewTicker(2 * time.Minute)
 		defer t.Stop()
@@ -168,7 +173,7 @@ func (c *kiwiCache) get(key string) ([]ProviderResult, bool) {
 func (c *kiwiCache) set(key string, results []ProviderResult) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[key] = kiwiCacheEntry{results: results, expires: time.Now().Add(kiwiCacheTTL)}
+	c.items[key] = kiwiCacheEntry{results: results, expires: time.Now().Add(c.ttl)}
 }
 
 func (c *kiwiCache) evict() {
