@@ -558,7 +558,15 @@ export function FlightDetailsModal({
                 ) : null}
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {option.source === 'kiwi' ? t('source_kiwi') : option.source === 'googleflights2' ? t('source_googleflights2') : option.source}
+                    {option.source === 'kiwi'
+                      ? t('source_kiwi')
+                      : option.source === 'skyscanner'
+                        ? t('source_skyscanner')
+                        : option.source === 'expedia'
+                          ? t('source_expedia')
+                          : option.source === 'googleflights2'
+                            ? t('source_googleflights2')
+                            : option.source}
                     {option.vendorName && !multiAirline ? ` · ${option.vendorName}` : ''}
                   </Text>
                 ) : option.vendorName && !multiAirline ? (

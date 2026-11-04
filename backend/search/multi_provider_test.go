@@ -173,33 +173,40 @@ func TestRegistryFailureMessage_transientOutbound(t *testing.T) {
 	}
 }
 
-func TestKiwiApifyTimeout(t *testing.T) {
+func TestOtaScraperProviderSearch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/runs") && r.Method == http.MethodPost {
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": "run1", "defaultDatasetId": "ds1"}})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/actor-runs/") {
-			time.Sleep(50 * time.Millisecond)
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"status": "RUNNING", "defaultDatasetId": "ds1"}})
+		if r.URL.Path == "/v1/search" && r.Method == http.MethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sites": []map[string]any{{
+					"site": "kiwi",
+					"offers": []map[string]any{{
+						"originCode": "PRG", "destinationCode": "JFK", "price": 400.0, "currency": "USD",
+						"segments": []map[string]any{{
+							"leg": "outbound", "fromCode": "PRG", "toCode": "JFK",
+							"departureTime": "2026-08-01T10:00:00Z", "arrivalTime": "2026-08-01T18:00:00Z",
+							"airlineCode": "BA", "flightNumber": "BA117",
+						}},
+					}},
+				}},
+			})
 			return
 		}
 		w.WriteHeader(404)
 	}))
 	defer srv.Close()
 
-	p := &KiwiApifyProvider{
-		token:   "test-token",
-		actorID: "solidcode~kiwi-scraper",
+	p := &OtaScraperProvider{
 		baseURL: srv.URL,
+		sites:   []string{"kiwi"},
 		client:  srv.Client(),
-		cache:   &kiwiCache{items: map[string]kiwiCacheEntry{}},
+		cache:   &otaScraperCache{items: map[string]otaScraperCacheEntry{}},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-	defer cancel()
-	_, err := p.Search(ctx, SearchRequest{Origin: "PRG", Destination: "JFK", DepartureDate: "2026-08-01"})
-	if err == nil {
-		t.Fatal("expected timeout/cancel error")
+	out, err := p.Search(context.Background(), SearchRequest{Origin: "PRG", Destination: "JFK", DepartureDate: "2026-08-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 || out[0].Source != "kiwi" {
+		t.Fatalf("got %+v", out)
 	}
 }
 
@@ -214,27 +221,3 @@ func (s *stubProvider) Search(ctx context.Context, req SearchRequest) ([]Provide
 	return s.results, s.err
 }
 
-func TestApifyErrorMessage(t *testing.T) {
-	msg := apifyErrorMessage([]byte(`{"error":{"type":"token-not-provided","message":"Authentication token was not provided"}}`))
-	if !strings.Contains(msg, "token-not-provided") {
-		t.Fatalf("msg=%q", msg)
-	}
-}
-
-func TestBuildActorInputSolidcodeOnly(t *testing.T) {
-	p := &KiwiApifyProvider{}
-	in := p.buildActorInput(SearchRequest{
-		Origin: "tlv", Destination: "bcn",
-		DepartureDate: "2026-09-15", ReturnDate: "2026-09-22",
-		CabinClass: "ECONOMY", Currency: "USD",
-	})
-	if in["origin"] != "TLV" || in["destination"] != "BCN" {
-		t.Fatalf("iata=%v", in)
-	}
-	if _, ok := in["from"]; ok {
-		t.Fatal("should not send kazadoiyul 'from' key")
-	}
-	if in["returnDate"] != "2026-09-22" {
-		t.Fatalf("returnDate=%v", in["returnDate"])
-	}
-}

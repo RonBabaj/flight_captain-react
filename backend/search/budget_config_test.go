@@ -22,7 +22,7 @@ func TestFilterProviderNamesForBudget_disablesKiwi(t *testing.T) {
 	t.Setenv("FLIGHT_BUDGET_KEEP_KIWI", "")
 	flightBudget = flightBudgetConfig{} // reset sync.Once
 
-	got := FilterProviderNamesForBudget([]string{"googleflights2", "kiwi"})
+	got := FilterProviderNamesForBudget([]string{"googleflights2", "multisite"})
 	if len(got) != 1 || got[0] != "googleflights2" {
 		t.Fatalf("got %v", got)
 	}

@@ -1,0 +1,18 @@
+{
+  "name": "flight-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted multisite flight scraper (Kiwi, Skyscanner, Expedia) for Fly-Fix",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "playwright": "^1.49.1"
+  }
+}

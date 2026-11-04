@@ -6,7 +6,7 @@ A Skyscanner-style flight metasearch app: **Go backend** (Google Flights via Rap
 
 ## Overview
 
-- **Backend (`backend/`)** – Go HTTP API with a **multi-provider flight search** layer. Default provider: **Google Flights2** (RapidAPI). Optional: **Kiwi** via a configurable Apify Actor. REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
+- **Backend (`backend/`)** – Go HTTP API with a **multi-provider flight search** layer. **Google Flights2** (RapidAPI) covers the Google Flights half; optional **multisite** self-hosted Playwright scraper (`services/flight-scraper/`) covers Kiwi, Skyscanner, and Expedia. REST endpoints for flight search sessions, monthly/range deals, flight details, airport search, and affiliate booking redirects.
 - **Frontend (`frontend/`)** – Expo React Native app (web + native). **Landing page** at `/`, flight search at `/search`, monthly deals at `/monthly-deals`, **dynamic destinations** (open-jaw) at `/dynamic-destinations`. Top navbar (**Home | Search | Monthly Deals | Dynamic Destinations**), dark/light theme (indigo accent, dark default), full RTL support (Hebrew, Russian, English).
 
 Backend and frontend are decoupled; the frontend depends only on the HTTP API contracts.
@@ -51,8 +51,8 @@ Search results are normalized through `backend/search.Provider` into a shared of
 
 ```
 FlightProvider
-├── GoogleFlights2Provider   (default; RapidAPI)
-├── KiwiApifyProvider        (optional; Apify Actor)
+├── GoogleFlights2Provider   (default; RapidAPI — Google Flights data)
+├── OtaScraperProvider       (optional; multisite Playwright — Kiwi / Skyscanner / Expedia)
 └── Future providers…
 ```
 
@@ -63,25 +63,19 @@ FLIGHT_PROVIDERS=googleflights2
 GOOGLEFLIGHTS2_ENABLED=true
 GOOGLEFLIGHTS2_RAPIDAPI_KEY=…
 
-# Kiwi only
-FLIGHT_PROVIDERS=kiwi
-APIFY_API_TOKEN=…
-# APIFY_KIWI_ACTOR_ID=solidcode~kiwi-scraper   # optional override
-
-# Both (one provider failing does not fail the whole search)
-FLIGHT_PROVIDERS=googleflights2,kiwi
+# GF2 + self-hosted OTA scraper (docker-compose starts flight-scraper)
+FLIGHT_PROVIDERS=googleflights2,multisite
+FLIGHT_SCRAPER_URL=http://flight-scraper:3099
+# FLIGHT_SCRAPER_SITES=kiwi,skyscanner,expedia
 ```
 
-Put these in **`backend/.env` on the API host** (VPS/Docker), then restart the backend.
-Editing `.env.example` alone does nothing. `GET /health` shows `kiwi: enabled` when the
-token is loaded; create-session responses include `providerStats` with per-provider errors
-(e.g. invalid token, Apify payment required). The solidcode/kiwi-scraper actor is
-**pay-per-event** — a valid token still fails without Apify account credits.
+Put these in **`backend/.env` on the API host** (VPS/Docker), then restart the stack.
+Editing `.env.example` alone does nothing. `GET /health` shows `multisite: enabled` and pings the scraper service.
 
 **Behavior**
-- Frontend always calls Fly-Fix APIs only (never Apify/RapidAPI directly).
+- Frontend always calls Fly-Fix APIs only (never RapidAPI or OTA sites directly).
 - Providers run in parallel; results are fingerprint-deduped (keep cheapest fare per itinerary).
-- Optional providers (Kiwi) soft-timeout so a slow Apify run cannot block GF2 / cause browser "Load failed".
+- Multisite scraper has a soft timeout so a slow Playwright run does not block GF2.
 - Kiwi self-transfer / virtual-interlining flags surface as `selfTransfer` + a clear UI warning.
 - Monthly deals / Explore continue to use Google Flights2 when that provider is configured.
 - Each provider keeps its own short TTL cache where applicable.

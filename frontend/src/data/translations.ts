@@ -905,6 +905,8 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   },
   source_googleflights2: { en: 'Google Flights', he: 'Google Flights', ru: 'Google Flights' },
   source_kiwi: { en: 'Kiwi', he: 'Kiwi', ru: 'Kiwi' },
+  source_skyscanner: { en: 'Skyscanner', he: 'Skyscanner', ru: 'Skyscanner' },
+  source_expedia: { en: 'Expedia', he: 'Expedia', ru: 'Expedia' },
   prices_include: { en: 'Prices include taxes & fees. Final price may vary on partner site.', he: 'המחירים כוללים מסים ואגרות. המחיר הסופי עשוי להשתנות באתר השותף.', ru: 'Цены включают налоги и сборы. Итоговая цена может отличаться на сайте партнёра.' },
   source_ota: { en: 'OTA', he: 'OTA', ru: 'OTA' },
   include_ota_prices: { en: 'Include OTA prices (experimental)', he: 'כלול מחירי OTA (ניסיוני)', ru: 'Включить цены OTA (эксперимент)' },

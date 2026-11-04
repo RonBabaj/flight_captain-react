@@ -340,13 +340,20 @@ export function FlightResultCard({
               {option.selfTransferWarning || t('self_transfer_warning')}
             </Text>
           ) : null}
-          {option.source === 'kiwi' || (option.vendorName && !multiAirline) ? (
+          {(option.source === 'kiwi' ||
+            option.source === 'skyscanner' ||
+            option.source === 'expedia' ||
+            (option.vendorName && !multiAirline)) ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {option.vendorName && !multiAirline
                 ? t('via_vendor').replace('{vendor}', option.vendorName)
                 : option.source === 'kiwi'
                   ? t('source_kiwi')
-                  : option.vendorName}
+                  : option.source === 'skyscanner'
+                    ? t('source_skyscanner')
+                    : option.source === 'expedia'
+                      ? t('source_expedia')
+                      : option.vendorName}
             </Text>
           ) : null}
           {perPassengerStr ? (
