@@ -35,6 +35,16 @@ jobs:
             cd ..
             docker compose build --no-cache
             docker compose up -d
+            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
+              sudo scripts/vps/ensure-edge-proxy.sh
+            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
+              sudo /usr/local/bin/ensure-edge-proxy.sh
+            fi
+            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
+              sudo scripts/vps/ensure-edge-proxy.sh
+            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
+              sudo /usr/local/bin/ensure-edge-proxy.sh
+            fi
 
       - name: Wait before SSH retry
         if: failure()
@@ -59,3 +69,8 @@ jobs:
             cd ..
             docker compose build --no-cache
             docker compose up -d
+            if [[ -x scripts/vps/ensure-edge-proxy.sh ]]; then
+              sudo scripts/vps/ensure-edge-proxy.sh
+            elif [[ -x /usr/local/bin/ensure-edge-proxy.sh ]]; then
+              sudo /usr/local/bin/ensure-edge-proxy.sh
+            fi
