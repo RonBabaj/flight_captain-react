@@ -51,6 +51,7 @@ type GoogleFlights2Provider struct {
 type gf2Cache struct {
 	mu    sync.RWMutex
 	items map[string]gf2CacheEntry
+	ttl   time.Duration
 }
 
 type gf2CacheEntry struct {
@@ -88,8 +89,11 @@ func (r *gf2RateLimiter) allow() bool {
 	return true
 }
 
-func newGF2Cache() *gf2Cache {
-	c := &gf2Cache{items: make(map[string]gf2CacheEntry)}
+func newGF2Cache(ttl time.Duration) *gf2Cache {
+	if ttl <= 0 {
+		ttl = gf2CacheTTL
+	}
+	c := &gf2Cache{items: make(map[string]gf2CacheEntry), ttl: ttl}
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
@@ -113,7 +117,7 @@ func (c *gf2Cache) get(key string) ([]ProviderResult, bool) {
 func (c *gf2Cache) set(key string, results []ProviderResult) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[key] = gf2CacheEntry{results: results, expires: time.Now().Add(gf2CacheTTL)}
+	c.items[key] = gf2CacheEntry{results: results, expires: time.Now().Add(c.ttl)}
 }
 
 func (c *gf2Cache) evict() {
@@ -148,7 +152,9 @@ func NewGoogleFlights2Provider() *GoogleFlights2Provider {
 		path = "/" + path
 	}
 	maxPerMin := gf2RateLimitPerMinDefault
-	if s := strings.TrimSpace(os.Getenv("GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN")); s != "" {
+	if v := GF2EffectiveRateLimitPerMin(); v >= 1 {
+		maxPerMin = v
+	} else if s := strings.TrimSpace(os.Getenv("GOOGLEFLIGHTS2_RATE_LIMIT_PER_MIN")); s != "" {
 		if v, err := strconv.Atoi(s); err == nil && v >= 1 && v <= 500 {
 			maxPerMin = v
 		}
@@ -166,7 +172,7 @@ func NewGoogleFlights2Provider() *GoogleFlights2Provider {
 		host:           host,
 		path:           path,
 		client:         &http.Client{Timeout: gf2Timeout},
-		cache:          newGF2Cache(),
+		cache:          newGF2Cache(GF2EffectiveCacheTTL()),
 		limiter:        newGF2RateLimiter(maxPerMin),
 		bookingLimiter: newGF2RateLimiter(bookingMax),
 	}
@@ -283,7 +289,9 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 		} else {
 			results, err = p.doSearchWithRetry(ctx, req)
 			if err == nil && len(results) > 0 {
-				p.enrichNativeRoundTripReturnLegs(ctx, req, results)
+				if !GF2SkipRoundTripEnrich() {
+					p.enrichNativeRoundTripReturnLegs(ctx, req, results)
+				}
 				// Native GF2 often returns outbound-only; if enrich could not attach returns,
 				// fall back to decomposed OW+OW so cards show real return schedules.
 				if classicRoundTripMissingReturn(results) {
@@ -594,7 +602,11 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 		firstErr error
 	)
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, 3)
+	conc := GF2MetroConcurrency()
+	if conc < 1 {
+		conc = 3
+	}
+	sem := make(chan struct{}, conc)
 	for _, rt := range routes {
 		wg.Add(1)
 		go func(o, d string) {

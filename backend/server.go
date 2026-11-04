@@ -815,7 +815,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	multi := flightProviderRegistry.SearchAll(ctx, sreq)
-	for attempt := 0; attempt < 2 && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
+	maxTransientRetries := search.SearchTransientRetryMax()
+	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
 		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
 		wait := time.Duration(attempt+1) * 2 * time.Second
 		timer := time.NewTimer(wait)

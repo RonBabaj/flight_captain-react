@@ -71,7 +71,7 @@ func TestClassicRoundTripMissingReturn(t *testing.T) {
 }
 
 func TestSearch_servesCompleteClassicRTCache(t *testing.T) {
-	p := &GoogleFlights2Provider{cache: newGF2Cache()}
+	p := &GoogleFlights2Provider{cache: newGF2Cache(gf2CacheTTL)}
 	req := SearchRequest{
 		Origin: "TLV", Destination: "PRG",
 		DepartureDate: "2026-10-08", ReturnDate: "2026-10-15",
@@ -97,7 +97,7 @@ func TestSearch_servesCompleteClassicRTCache(t *testing.T) {
 }
 
 func TestSearch_ignoresIncompleteClassicRTCache(t *testing.T) {
-	p := &GoogleFlights2Provider{cache: newGF2Cache()}
+	p := &GoogleFlights2Provider{cache: newGF2Cache(gf2CacheTTL)}
 	req := SearchRequest{
 		Origin: "TLV", Destination: "PRG",
 		DepartureDate: "2026-10-08", ReturnDate: "2026-10-15",
@@ -135,7 +135,7 @@ func TestSearch_ignoresIncompleteClassicRTCache(t *testing.T) {
 
 func TestDoSearchWithRetry_doesNotCacheRoundTrip(t *testing.T) {
 	// Round-trip caching must happen only after return enrichment in Search().
-	p := &GoogleFlights2Provider{cache: newGF2Cache()}
+	p := &GoogleFlights2Provider{cache: newGF2Cache(gf2CacheTTL)}
 	req := SearchRequest{
 		Origin: "TLV", Destination: "PRG",
 		DepartureDate: "2026-10-08", ReturnDate: "2026-10-15",

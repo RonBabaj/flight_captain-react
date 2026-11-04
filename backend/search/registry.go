@@ -31,6 +31,11 @@ func NewRegistryFromEnv() *Registry {
 	if len(names) == 0 {
 		names = []string{"googleflights2"}
 	}
+	names = FilterProviderNamesForBudget(names)
+	if len(names) == 0 {
+		log.Printf("[BUDGET] all providers filtered — falling back to googleflights2 only")
+		names = []string{"googleflights2"}
+	}
 	var providers []Provider
 	for _, name := range names {
 		switch name {
@@ -261,8 +266,30 @@ func (m MultiSearchResult) FailureMessage() string {
 	}
 	for _, s := range m.Stats {
 		if s.Err != "" && !isSkippedProviderErr(s.Err) {
-			return s.Err
+			return SanitizeProviderErrorForUser(s.Err)
 		}
 	}
-	return "flight search failed"
+	return "Flight search is temporarily unavailable. Please try again."
+}
+
+// SanitizeProviderErrorForUser maps billing/auth failures to messages safe for end users.
+func SanitizeProviderErrorForUser(errMsg string) string {
+	if errMsg == "" {
+		return "Flight search is temporarily unavailable. Please try again."
+	}
+	lower := strings.ToLower(errMsg)
+	if strings.Contains(lower, "status 403") ||
+		strings.Contains(lower, "forbidden") && strings.Contains(lower, "rapid") ||
+		strings.Contains(lower, "subscription") && strings.Contains(lower, "rapid") {
+		return "Flight search is unavailable right now (provider access). The site operator needs to renew the flight API subscription."
+	}
+	if strings.Contains(lower, "payment required") ||
+		strings.Contains(lower, "actor-memory-limit") ||
+		strings.Contains(lower, "apify") && (strings.Contains(lower, "credit") || strings.Contains(lower, "billing") || strings.Contains(lower, "limit")) {
+		return "Extra flight sources are paused (usage limits). Try again later or use a simpler route."
+	}
+	if strings.Contains(lower, "unauthorized") && strings.Contains(lower, "apify") {
+		return "Extra flight sources are misconfigured. Main search may still work when the primary provider is active."
+	}
+	return errMsg
 }

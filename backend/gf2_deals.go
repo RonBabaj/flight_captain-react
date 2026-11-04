@@ -24,21 +24,37 @@ type FullRoundTrip struct {
 	Dictionaries   map[string]interface{}
 }
 
-const (
-	maxGF2CalendarSamples = 10 // cap RT searches per month/range request (cost control)
-	// Parallel calendar probes — sequential 12× RT regularly exceeds ~90s reverse-proxy timeouts (504).
-	gf2CalendarConcurrency = 4
+var (
+	maxGF2CalendarSamples         int
+	gf2CalendarConcurrency        int
+	exploreLiveFetchesPerRequest  int
+	exploreLiveConcurrency        int
+	exploreMaxLiveFetchesPerSession int
+)
 
-	// Explore: fixed destination pool + 24h cache; live GF2 only for small batches per request.
-	exploreLiveFetchesPerRequest    = 12 // max GF2 Search() calls per HTTP batch (each RT may do 2 upstream legs inside provider)
-	exploreLiveConcurrency          = 4  // parallel explore searches per batch (bounded to reduce in-process rate-limit spikes)
-	exploreMaxLiveFetchesPerSession = 36 // hard cap per explore session (~3 refresh rounds)
-	exploreRateLimitRetries         = 8  // per destination: wait for GF2 token bucket
+const (
+	// Parallel calendar probes — sequential 12× RT regularly exceeds ~90s reverse-proxy timeouts (504).
+	gf2CalendarConcurrencyDefault = 4
+	exploreRateLimitRetries         = 8 // per destination: wait for GF2 token bucket
 	exploreRateLimitBackoff         = 14 * time.Second
 	// Keep each ?live= HTTP request well under typical reverse-proxy limits (~60s)
-	// so the Explore UI is not stuck on a spinner while 12 GF2 searches finish.
 	exploreLiveBatchTimeout = 20 * time.Second
 )
+
+func init() {
+	lim := search.ExploreBudgetLimits()
+	maxGF2CalendarSamples = lim.CalendarMaxSamples
+	exploreLiveFetchesPerRequest = lim.LiveFetchesPerRequest
+	exploreLiveConcurrency = lim.LiveConcurrency
+	exploreMaxLiveFetchesPerSession = lim.MaxLiveFetchesPerSession
+	gf2CalendarConcurrency = gf2CalendarConcurrencyDefault
+	if search.BudgetModeEnabled() && lim.LiveConcurrency > 0 {
+		gf2CalendarConcurrency = lim.LiveConcurrency
+		if gf2CalendarConcurrency > gf2CalendarConcurrencyDefault {
+			gf2CalendarConcurrency = gf2CalendarConcurrencyDefault
+		}
+	}
+}
 
 func outboundDatesForMonthBookable(year, month int) []string {
 	tomorrow := time.Now().UTC()
