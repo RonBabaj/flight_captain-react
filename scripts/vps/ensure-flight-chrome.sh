@@ -25,6 +25,7 @@ fi
 sudo mkdir -p "$PROFILE"
 sudo chown -R "$USER_RUN:$USER_RUN" "$PROFILE"
 
+# Bind CDP on every host address so Docker bridge gateways (proxy/docker0) can connect.
 log "Starting Google Chrome on DISPLAY=${DISPLAY} port=${PORT} profile=${PROFILE}"
 sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --remote-debugging-port="${PORT}" \
@@ -33,9 +34,16 @@ sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --no-first-run \
   --no-default-browser-check \
   --disable-dev-shm-usage \
+  --disable-features=IsolateOrigins,site-per-process \
   --window-size=1400,900 \
   about:blank \
   >>"/var/log/flight-chrome.log" 2>&1 &
+
+# Hairpin: ensure CDP is also reachable via the proxy docker bridge IP.
+PROXY_GW="$(docker network inspect proxy --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)"
+if [ -n "$PROXY_GW" ]; then
+  log "proxy gateway ${PROXY_GW} — containers should use http://${PROXY_GW}:${PORT} for CDP"
+fi
 
 for _ in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
