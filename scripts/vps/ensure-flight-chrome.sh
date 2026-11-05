@@ -34,7 +34,10 @@ sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --no-first-run \
   --no-default-browser-check \
   --disable-dev-shm-usage \
-  --disable-features=IsolateOrigins,site-per-process \
+  --disable-extensions \
+  --disable-background-networking \
+  --disable-features=IsolateOrigins,site-per-process,ServiceWorker,InterestCohortAPI \
+  --disable-blink-features=AutomationControlled \
   --window-size=1400,900 \
   about:blank \
   >>"/var/log/flight-chrome.log" 2>&1 &

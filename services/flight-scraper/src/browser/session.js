@@ -35,16 +35,18 @@ async function getBrowser(engine, headless, config) {
   return browserPromises[key];
 }
 
-async function withPageViaCdp(cdpUrl, config, fn, proxyUrl) {
+async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
+  // Reuse the default Chrome context — newContext() + service workers crashes Playwright CDP
+  // (assert on service_worker target attach). Flight Chrome is started with SW disabled.
   const browser = await chromium.connectOverCDP(cdpUrl);
-  const context = await browser.newContext({
-    viewport: { width: 1400, height: 900 },
-    locale: 'en-US',
-    timezoneId: 'America/New_York',
-    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
-    ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
-  });
-  await context.addInitScript(stealthInitScript);
+  const contexts = browser.contexts();
+  const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
+  let ownedContext = contexts.length === 0;
+  try {
+    await context.addInitScript(stealthInitScript);
+  } catch {
+    /* already attached */
+  }
   const page = await context.newPage();
   try {
     return await fn(page, {
@@ -54,7 +56,18 @@ async function withPageViaCdp(cdpUrl, config, fn, proxyUrl) {
       cdpUrl,
     });
   } finally {
-    await context.close();
+    try {
+      await page.close();
+    } catch {
+      /* ignore */
+    }
+    if (ownedContext) {
+      try {
+        await context.close();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
