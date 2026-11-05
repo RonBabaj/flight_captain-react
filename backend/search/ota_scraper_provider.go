@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	otaScraperHTTPTimeout = 90 * time.Second
+	otaScraperHTTPTimeout = 3 * time.Minute
 	defaultOtaScraperURL  = "http://flight-scraper:3099"
 )
 

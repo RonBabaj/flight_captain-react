@@ -147,7 +147,7 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			if !strings.EqualFold(p.Name(), "googleflights2") {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					soft = 45 * time.Second
+					soft = 2*time.Minute + 30*time.Second
 				}
 				pctx, cancel = context.WithTimeout(ctx, soft)
 				defer cancel()
