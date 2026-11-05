@@ -1,6 +1,7 @@
 'use strict';
 
-const { withPage, yyyymmdd } = require('./shared');
+const { withPage, gotoAndSettle, yyyymmdd } = require('./shared');
+const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
 
 function expediaUrl(req) {
@@ -12,6 +13,7 @@ function expediaUrl(req) {
     leg1: `from:${req.origin},to:${req.destination},departure:${dep}TANYT`,
     passengers: `adults:${Math.max(1, req.adults || 1)}`,
     mode: 'search',
+    options: 'carrier:*',
   });
   if (ret) {
     params.set('leg2', `from:${req.destination},to:${req.origin},departure:${ret}TANYT`);
@@ -27,21 +29,39 @@ async function scrapeExpedia(req, config) {
 
   try {
     const offers = await withPage(config.headless, async (page) => {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
-      await page.waitForTimeout(10000);
+      attachJsonCapture(page, /expedia|graphql|flight/i);
+
+      await gotoAndSettle(page, url, config);
+
+      try {
+        await page.waitForSelector('[data-stid="offer-card"], [data-test-id="offer-listing"]', {
+          timeout: 22000,
+        });
+      } catch {
+        /* DOM scrape anyway */
+      }
 
       const rows = await page.evaluate(() => {
         const out = [];
-        document.querySelectorAll('[data-stid="offer-card"], .uitk-card, [class*="offer-card"]').forEach((card) => {
-          const priceEl =
-            card.querySelector('[data-stid="price-lockup-text"]') ||
-            card.querySelector('[class*="price"]') ||
-            card.querySelector('[data-test-id="offer-price"]');
-          const price = parseFloat(String(priceEl?.textContent || '').replace(/[^\d.]/g, ''));
-          if (!price || price < 20) return;
-          const link = card.querySelector('a[href*="expedia"]')?.href || window.location.href;
-          out.push({ price, link });
-        });
+        const selectors = [
+          '[data-stid="offer-card"]',
+          '[data-test-id="offer-listing"]',
+          'li[data-test-id="listing"]',
+          '[class*="uitk-card"]',
+        ];
+        for (const sel of selectors) {
+          document.querySelectorAll(sel).forEach((card) => {
+            const priceEl =
+              card.querySelector('[data-stid="price-lockup-text"]') ||
+              card.querySelector('[data-test-id="offer-price"]') ||
+              card.querySelector('[class*="price"]');
+            const price = parseFloat(String(priceEl?.textContent || '').replace(/[^\d.]/g, ''));
+            if (!price || price < 20) return;
+            const link = card.querySelector('a[href*="expedia"]')?.href || window.location.href;
+            out.push({ price, link });
+          });
+          if (out.length) break;
+        }
         return out.slice(0, 20);
       });
 
