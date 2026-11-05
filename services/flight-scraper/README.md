@@ -2,6 +2,22 @@
 
 Self-hosted **Playwright** service for **Kiwi**, **Skyscanner**, and **Expedia**. The Go API (`OtaScraperProvider`) calls `POST /v1/search` and merges offers with **Google Flights2 (RapidAPI)** results.
 
+## VPS (recommended): headed Chrome on `:99`
+
+The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment monitor). The scraper should attach to that real browser, not a nested xvfb inside Docker.
+
+1. Start dedicated flight Chrome (CDP port **9223**):
+
+   ```bash
+   sudo scripts/vps/ensure-flight-chrome.sh
+   ```
+
+2. `flight-scraper` uses **`network_mode: host`** + `SCRAPER_CDP_URL=http://127.0.0.1:9223` + `DISPLAY=:99` (see root `docker-compose.yml`).
+
+3. `flyfix-api` calls `http://host.docker.internal:3099`.
+
+Playwright opens **new tabs/contexts** via CDP — same headed Chrome session as a normal desktop.
+
 ## Run locally
 
 ```bash
@@ -10,23 +26,14 @@ npm install
 npm start
 ```
 
+Without `SCRAPER_CDP_URL`, Playwright launches its own Chromium (optionally headed with `PLAYWRIGHT_HEADLESS=0` + `DISPLAY`).
+
 Optional:
 
-- `SCRAPER_DRY_RUN=1` — return empty offers (smoke test wiring)
-- `FLIGHT_SCRAPER_SITES=kiwi,skyscanner,expedia`
-- `SCRAPER_SESSION_RETRIES=3` — fresh browser context per attempt (helps PerimeterX)
-- `SCRAPER_PROXY_URL=http://user:pass@host:port` — **residential sticky proxy** (required for reliable Skyscanner/Expedia from a VPS)
-- `PLAYWRIGHT_HEADLESS=0` — headed Chromium (sometimes passes bot checks; Docker needs xvfb)
-- `KIWI_USE_TEQUILA=1` + `KIWI_TEQUILA_API_KEY` — optional REST fallback (not used by default)
+- `SCRAPER_DRY_RUN=1` — empty offers (smoke test)
+- `SCRAPER_SESSION_RETRIES=3`
+- `SCRAPER_PROXY_URL` — only if you need a different egress IP
 
 ## Docker
 
-Built by root `docker-compose.yml` as `flight-scraper`. The API uses `FLIGHT_SCRAPER_URL=http://flight-scraper:3099`.
-
-## VPS notes
-
-OTAs run **PerimeterX / bot checks** on datacenter IPs. The scraper uses homepage warmup, stealth init scripts, JSON capture, DOM fallbacks, and **3 session retries** (Chromium then Firefox). That is still not enough for Skyscanner on most VPS IPs — use a **residential `SCRAPER_PROXY_URL`** (sticky session per search).
-
-Allocate enough RAM for Chromium (≈1GB+ `shm`; sites run **serially** by default).
-
-Sites change layout often — patch `src/sites/*.js` when DOM parsers break.
+Built as `flight-scraper`. On VPS, **host networking** is required so CDP can reach `127.0.0.1:9223` on the host.
