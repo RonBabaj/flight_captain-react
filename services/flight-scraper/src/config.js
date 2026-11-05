@@ -22,4 +22,6 @@ module.exports = {
   dryRun: process.env.SCRAPER_DRY_RUN === '1',
   // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
   serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
+  tequilaKey: (process.env.KIWI_TEQUILA_API_KEY || '').trim(),
+  proxyUrl: (process.env.SCRAPER_PROXY_URL || '').trim(),
 };

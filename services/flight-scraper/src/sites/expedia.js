@@ -83,7 +83,7 @@ async function scrapeExpedia(req, config) {
           ],
         }),
       );
-    });
+    }, { proxyUrl: config.proxyUrl });
     return { offers, error: offers.length ? undefined : 'no expedia offers parsed' };
   } catch (err) {
     return { offers: [], error: String(err.message || err) };

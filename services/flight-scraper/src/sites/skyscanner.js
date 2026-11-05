@@ -77,7 +77,7 @@ async function scrapeSkyscanner(req, config) {
           ],
         }),
       );
-    });
+    }, { proxyUrl: config.proxyUrl });
     return {
       offers,
       error: offers.length ? undefined : 'no skyscanner offers parsed',

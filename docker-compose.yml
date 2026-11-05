@@ -5,9 +5,13 @@ services:
     build:
       context: ./services/flight-scraper
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
       PORT: "3099"
       PLAYWRIGHT_HEADLESS: "1"
+      KIWI_TEQUILA_API_KEY: ${KIWI_TEQUILA_API_KEY:-}
+      SCRAPER_PROXY_URL: ${SCRAPER_PROXY_URL:-}
     networks:
       - proxy
     expose:

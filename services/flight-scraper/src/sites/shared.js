@@ -20,9 +20,9 @@ async function getBrowser(headless) {
   return browserPromise;
 }
 
-async function withPage(headless, fn) {
+async function withPage(headless, fn, options = {}) {
   const browser = await getBrowser(headless);
-  const context = await browser.newContext({
+  const ctxOpts = {
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     locale: 'en-US',
@@ -31,7 +31,11 @@ async function withPage(headless, fn) {
     extraHTTPHeaders: {
       'Accept-Language': 'en-US,en;q=0.9',
     },
-  });
+  };
+  if (options.proxyUrl) {
+    ctxOpts.proxy = { server: options.proxyUrl };
+  }
+  const context = await browser.newContext(ctxOpts);
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });

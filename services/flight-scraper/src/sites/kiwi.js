@@ -2,6 +2,7 @@
 
 const { withPage, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
+const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segment } = require('../normalize');
 
 function kiwiSearchUrl(req) {
@@ -18,6 +19,9 @@ function kiwiSearchUrl(req) {
 async function scrapeKiwi(req, config) {
   if (config.dryRun) {
     return { offers: [], error: 'dry run' };
+  }
+  if (config.tequilaKey) {
+    return scrapeKiwiTequila(req, config);
   }
   const url = kiwiSearchUrl(req);
 
@@ -80,8 +84,13 @@ async function scrapeKiwi(req, config) {
           ],
         }),
       );
-    });
-    return { offers, error: offers.length ? undefined : 'no kiwi offers parsed (site layout or bot check)' };
+    }, { proxyUrl: config.proxyUrl });
+    return {
+      offers,
+      error: offers.length
+        ? undefined
+        : 'Kiwi.com blocks datacenter browsers — set KIWI_TEQUILA_API_KEY in backend/.env (free at tequila.kiwi.com)',
+    };
   } catch (err) {
     return { offers: [], error: String(err.message || err) };
   }
