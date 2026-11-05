@@ -44,6 +44,9 @@ jobs:
             # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
             docker compose build
             docker compose up -d
+            if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
+              docker exec flight-scraper node scripts/warm-flight-chrome.js || true
+            fi
             if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
               sudo mkdir -p /opt/stacks/nginx-proxy-manager
               sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
@@ -79,8 +82,14 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
+            if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
+              sudo scripts/vps/ensure-flight-chrome.sh
+            fi
             docker compose build
             docker compose up -d
+            if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
+              docker exec flight-scraper node scripts/warm-flight-chrome.js || true
+            fi
             if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
               sudo mkdir -p /opt/stacks/nginx-proxy-manager
               sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
@@ -116,8 +125,14 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
+            if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
+              sudo scripts/vps/ensure-flight-chrome.sh
+            fi
             docker compose build
             docker compose up -d
+            if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
+              docker exec flight-scraper node scripts/warm-flight-chrome.js || true
+            fi
             if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
               sudo mkdir -p /opt/stacks/nginx-proxy-manager
               sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/
@@ -152,8 +167,14 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
+            if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
+              sudo scripts/vps/ensure-flight-chrome.sh
+            fi
             docker compose build
             docker compose up -d
+            if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
+              docker exec flight-scraper node scripts/warm-flight-chrome.js || true
+            fi
             if [[ -f infra/nginx-proxy-manager/docker-compose.yml ]]; then
               sudo mkdir -p /opt/stacks/nginx-proxy-manager
               sudo cp infra/nginx-proxy-manager/docker-compose.yml /opt/stacks/nginx-proxy-manager/

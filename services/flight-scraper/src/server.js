@@ -20,7 +20,8 @@ app.get('/health', (_req, res) => {
     service: 'flight-scraper',
     sites: config.defaultSites,
     dryRun: config.dryRun,
-    browser: config.cdpUrl ? 'chrome-cdp' : config.headless ? 'playwright-headless' : 'playwright-headed',
+    browser: config.cdpUrls?.length ? 'chrome-cdp' : config.headless ? 'playwright-headless' : 'playwright-headed',
+    cdpEndpoints: config.cdpUrls?.length ? config.cdpUrls.length : 0,
     display: config.display || undefined,
   });
 });

@@ -10,6 +10,17 @@ function parseSites(raw) {
     .filter(Boolean);
 }
 
+function parseCdpUrls() {
+  const raw =
+    process.env.SCRAPER_CDP_URLS ||
+    process.env.SCRAPER_CDP_URL ||
+    'http://127.0.0.1:9222,http://127.0.0.1:9223';
+  return String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 module.exports = {
   port: Number(process.env.PORT || 3099),
   token: (process.env.FLIGHT_SCRAPER_TOKEN || '').trim(),
@@ -23,8 +34,9 @@ module.exports = {
   // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
   serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
   proxyUrl: (process.env.SCRAPER_PROXY_URL || '').trim(),
-  /** Connect to headed Google Chrome on the VPS (see scripts/vps/ensure-flight-chrome.sh). */
-  cdpUrl: (process.env.SCRAPER_CDP_URL || '').trim(),
+  /** Headed Chrome on DISPLAY :99 — try warmed apartment Chrome (9222) then flight Chrome (9223). */
+  cdpUrls: parseCdpUrls(),
+  cdpUrl: parseCdpUrls()[0] || '',
   display: (process.env.DISPLAY || '').trim(),
   chromeExecutable: (process.env.CHROME_EXECUTABLE_PATH || '').trim(),
   sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 3), 1), 5),

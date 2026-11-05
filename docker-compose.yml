@@ -12,7 +12,7 @@ services:
       PORT: "3099"
       PLAYWRIGHT_HEADLESS: "0"
       DISPLAY: ":99"
-      SCRAPER_CDP_URL: ${SCRAPER_CDP_URL:-http://127.0.0.1:9223}
+      SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://127.0.0.1:9222,http://127.0.0.1:9223}
       SCRAPER_PROXY_URL: ${SCRAPER_PROXY_URL:-}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
