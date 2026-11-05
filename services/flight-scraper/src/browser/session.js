@@ -6,14 +6,6 @@ const { pageLooksBlocked } = require('./botWall');
 const { dismissCookieBanners } = require('../sites/cookies');
 
 let browserPromises = {};
-let cdpBrowserPromise;
-
-async function getCdpBrowser(cdpUrl) {
-  if (!cdpBrowserPromise) {
-    cdpBrowserPromise = chromium.connectOverCDP(cdpUrl);
-  }
-  return cdpBrowserPromise;
-}
 
 async function getBrowser(engine, headless, config) {
   const key = `${engine}:${headless}`;
@@ -43,25 +35,49 @@ async function getBrowser(engine, headless, config) {
   return browserPromises[key];
 }
 
+async function withPageViaCdp(cdpUrl, config, fn, proxyUrl) {
+  const browser = await chromium.connectOverCDP(cdpUrl);
+  const context = await browser.newContext({
+    viewport: { width: 1400, height: 900 },
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+    ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
+  });
+  await context.addInitScript(stealthInitScript);
+  const page = await context.newPage();
+  try {
+    return await fn(page, {
+      dismissCookieBanners,
+      pageLooksBlocked,
+      engine: 'chrome-cdp',
+      cdpUrl,
+    });
+  } finally {
+    await context.close();
+  }
+}
+
 async function withPage(config, fn, options = {}) {
   const proxyUrl = options.proxyUrl || config.proxyUrl;
+  const cdpUrls =
+    config.cdpUrls?.length > 0 ? config.cdpUrls : config.cdpUrl ? [config.cdpUrl] : [];
 
-  if (config.cdpUrl) {
-    const browser = await getCdpBrowser(config.cdpUrl);
-    const context = await browser.newContext({
-      viewport: { width: 1400, height: 900 },
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-      extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
-      ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
-    });
-    await context.addInitScript(stealthInitScript);
-    const page = await context.newPage();
-    try {
-      return await fn(page, { dismissCookieBanners, pageLooksBlocked, engine: 'chrome-cdp' });
-    } finally {
-      await context.close();
+  if (cdpUrls.length > 0) {
+    let lastErr;
+    for (const cdpUrl of cdpUrls) {
+      try {
+        const out = await withPageViaCdp(cdpUrl, config, fn, proxyUrl);
+        const empty = Array.isArray(out) ? out.length === 0 : !out;
+        if (!empty) {
+          return out;
+        }
+      } catch (err) {
+        lastErr = err;
+      }
     }
+    if (lastErr) throw lastErr;
+    return [];
   }
 
   const engines = options.engines || [config.browserEngine || 'chromium'];
