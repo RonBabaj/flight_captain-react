@@ -34,7 +34,7 @@ async function warmEndpoint(cdpUrl) {
 }
 
 async function main() {
-  const endpoints = config.cdpUrls.length ? config.cdpUrls : ['http://127.0.0.1:9223'];
+  const endpoints = config.cdpUrls.length ? config.cdpUrls : ['http://host.docker.internal:9223'];
   for (const cdpUrl of endpoints) {
     try {
       await warmEndpoint(cdpUrl);

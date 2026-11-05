@@ -28,7 +28,7 @@ sudo chown -R "$USER_RUN:$USER_RUN" "$PROFILE"
 log "Starting Google Chrome on DISPLAY=${DISPLAY} port=${PORT} profile=${PROFILE}"
 sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --remote-debugging-port="${PORT}" \
-  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-address=0.0.0.0 \
   --user-data-dir="${PROFILE}" \
   --no-first-run \
   --no-default-browser-check \

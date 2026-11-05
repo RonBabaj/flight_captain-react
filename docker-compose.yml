@@ -5,17 +5,19 @@ services:
     build:
       context: ./services/flight-scraper
     restart: unless-stopped
-    network_mode: host
     env_file:
       - ./backend/.env
     environment:
       PORT: "3099"
       PLAYWRIGHT_HEADLESS: "0"
-      DISPLAY: ":99"
-      SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://127.0.0.1:9222,http://127.0.0.1:9223}
+      SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://host.docker.internal:9223}
       SCRAPER_PROXY_URL: ${SCRAPER_PROXY_URL:-}
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - proxy
+    expose:
+      - "3099"
     shm_size: "1gb"
 
   flyfix-api:
@@ -26,9 +28,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      FLIGHT_SCRAPER_URL: http://host.docker.internal:3099
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      FLIGHT_SCRAPER_URL: http://flight-scraper:3099
     depends_on:
       - flight-scraper
     volumes:
