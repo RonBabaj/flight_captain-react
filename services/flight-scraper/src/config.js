@@ -23,6 +23,10 @@ module.exports = {
   // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
   serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
   proxyUrl: (process.env.SCRAPER_PROXY_URL || '').trim(),
+  /** Connect to headed Google Chrome on the VPS (see scripts/vps/ensure-flight-chrome.sh). */
+  cdpUrl: (process.env.SCRAPER_CDP_URL || '').trim(),
+  display: (process.env.DISPLAY || '').trim(),
+  chromeExecutable: (process.env.CHROME_EXECUTABLE_PATH || '').trim(),
   sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 3), 1), 5),
   browserEngine: (process.env.SCRAPER_BROWSER || 'chromium').trim().toLowerCase(),
   storageDir: (process.env.SCRAPER_STORAGE_DIR || '').trim(),

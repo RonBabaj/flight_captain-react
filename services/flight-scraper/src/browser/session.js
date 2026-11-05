@@ -6,8 +6,16 @@ const { pageLooksBlocked } = require('./botWall');
 const { dismissCookieBanners } = require('../sites/cookies');
 
 let browserPromises = {};
+let cdpBrowserPromise;
 
-async function getBrowser(engine, headless) {
+async function getCdpBrowser(cdpUrl) {
+  if (!cdpBrowserPromise) {
+    cdpBrowserPromise = chromium.connectOverCDP(cdpUrl);
+  }
+  return cdpBrowserPromise;
+}
+
+async function getBrowser(engine, headless, config) {
   const key = `${engine}:${headless}`;
   if (!browserPromises[key]) {
     const launchOpts = {
@@ -20,6 +28,12 @@ async function getBrowser(engine, headless) {
         '--window-size=1400,900',
       ],
     };
+    if (config.display) {
+      process.env.DISPLAY = config.display;
+    }
+    if (!headless && config.chromeExecutable) {
+      launchOpts.executablePath = config.chromeExecutable;
+    }
     if (engine === 'firefox') {
       browserPromises[key] = firefox.launch(launchOpts);
     } else {
@@ -30,13 +44,31 @@ async function getBrowser(engine, headless) {
 }
 
 async function withPage(config, fn, options = {}) {
-  const engines = options.engines || [config.browserEngine || 'chromium'];
   const proxyUrl = options.proxyUrl || config.proxyUrl;
+
+  if (config.cdpUrl) {
+    const browser = await getCdpBrowser(config.cdpUrl);
+    const context = await browser.newContext({
+      viewport: { width: 1400, height: 900 },
+      locale: 'en-US',
+      timezoneId: 'America/New_York',
+      extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+      ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
+    });
+    await context.addInitScript(stealthInitScript);
+    const page = await context.newPage();
+    try {
+      return await fn(page, { dismissCookieBanners, pageLooksBlocked, engine: 'chrome-cdp' });
+    } finally {
+      await context.close();
+    }
+  }
+
+  const engines = options.engines || [config.browserEngine || 'chromium'];
   let lastErr;
 
   for (const engine of engines) {
-    const browser = await getBrowser(engine, config.headless ? 'true' : 'false');
-    // eslint-disable-next-line no-await-in-loop
+    const browser = await getBrowser(engine, config.headless ? 'true' : 'false', config);
     const ctxOpts = {
       userAgent:
         engine === 'firefox'
@@ -56,10 +88,6 @@ async function withPage(config, fn, options = {}) {
       },
     };
     if (proxyUrl) ctxOpts.proxy = { server: proxyUrl };
-    if (config.storageDir) {
-      ctxOpts.storageState = undefined;
-    }
-
     const context = await browser.newContext(ctxOpts);
     await context.addInitScript(stealthInitScript);
     const page = await context.newPage();

@@ -8,4 +8,4 @@ COPY scripts ./scripts
 ENV PORT=3099
 ENV PLAYWRIGHT_HEADLESS=0
 EXPOSE 3099
-CMD ["sh", "-c", "xvfb-run --auto-servernum --server-args='-screen 0 1400x900x24' node src/server.js"]
+CMD ["node", "src/server.js"]

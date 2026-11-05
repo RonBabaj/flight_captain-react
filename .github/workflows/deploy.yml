@@ -38,6 +38,9 @@ jobs:
             npm ci
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
+            if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
+              sudo scripts/vps/ensure-flight-chrome.sh
+            fi
             # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
             docker compose build
             docker compose up -d
