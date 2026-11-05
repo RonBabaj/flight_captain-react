@@ -14,7 +14,7 @@ function parseCdpUrls() {
   const raw =
     process.env.SCRAPER_CDP_URLS ||
     process.env.SCRAPER_CDP_URL ||
-    'http://127.0.0.1:9222,http://127.0.0.1:9223';
+    'http://host.docker.internal:9223';
   return String(raw)
     .split(',')
     .map((s) => s.trim())
