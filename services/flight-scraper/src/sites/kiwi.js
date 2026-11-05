@@ -36,9 +36,8 @@ async function scrapeKiwi(req, config) {
   try {
     return await runWithRetries(config.headless, 'kiwi', async () => {
       const offers = await withPage(config.headless, async (page) => {
-      if (!(await warmHomepage(page, KIWI_HOME, config.headless))) {
-        return [];
-      }
+      // Best-effort homepage warm (cookies); do not abort — city-slug search URLs work cold.
+      await warmHomepage(page, KIWI_HOME, config.headless).catch(() => false);
 
       const captured = attachJsonCapture(page, /skypicker|kiwi\.com|graphql|search|itinerar|booking-api/i);
 

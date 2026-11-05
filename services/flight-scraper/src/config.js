@@ -24,12 +24,14 @@ function parseCdpUrls() {
 module.exports = {
   port: Number(process.env.PORT || 3099),
   token: (process.env.FLIGHT_SCRAPER_TOKEN || '').trim(),
-  defaultSites: DEFAULT_SITES,
+  defaultSites: process.env.FLIGHT_SCRAPER_SITES
+    ? parseSites(process.env.FLIGHT_SCRAPER_SITES)
+    : ['kiwi'],
   parseSites,
   headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
   maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 40), 80),
   navigationTimeoutMs: Number(process.env.SCRAPER_NAV_TIMEOUT_MS || 55000),
-  settleMs: Number(process.env.SCRAPER_SETTLE_MS || 8000),
+  settleMs: Number(process.env.SCRAPER_SETTLE_MS || 5000),
   dryRun: process.env.SCRAPER_DRY_RUN === '1',
   // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
   serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
@@ -39,7 +41,7 @@ module.exports = {
   cdpUrl: parseCdpUrls()[0] || '',
   display: (process.env.DISPLAY || '').trim(),
   chromeExecutable: (process.env.CHROME_EXECUTABLE_PATH || '').trim(),
-  sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 2), 1), 5),
+  sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 1), 1), 5),
   browserEngine: (process.env.SCRAPER_BROWSER || 'chromium').trim().toLowerCase(),
   storageDir: (process.env.SCRAPER_STORAGE_DIR || '').trim(),
   /** Optional legacy REST path — off by default; Playwright is the primary Kiwi scraper. */

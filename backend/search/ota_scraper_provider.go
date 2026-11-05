@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	otaScraperHTTPTimeout = 3 * time.Minute
+	otaScraperHTTPTimeout = 5 * time.Minute
 	defaultOtaScraperURL  = "http://flight-scraper:3099"
 )
 
@@ -99,7 +99,8 @@ func NewOtaScraperProvider() *OtaScraperProvider {
 func parseOtaScraperSites(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return []string{"kiwi", "skyscanner", "expedia"}
+		// Kiwi is the reliable CDP site today; Skyscanner/Expedia often bot-wall datacenter IPs.
+		return []string{"kiwi"}
 	}
 	var out []string
 	seen := map[string]bool{}
