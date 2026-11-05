@@ -6,7 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium"
+    "postinstall": "npx playwright install chromium firefox --with-deps || npx playwright install chromium firefox"
   },
   "engines": {
     "node": ">=20"
