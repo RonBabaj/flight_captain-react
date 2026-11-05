@@ -1,12 +1,15 @@
 'use strict';
 
-const { withPage, gotoAndSettle, yyyymmdd } = require('./shared');
+const { withPage, runWithRetries, warmHomepage, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
+const { pageLooksBlocked } = require('../browser/botWall');
+
+const EXPEDIA_HOME = 'https://www.expedia.com/';
 
 function expediaUrl(req) {
-  const dep = yyyymmdd(req.departureDate);
-  const ret = req.returnDate ? yyyymmdd(req.returnDate) : '';
+  const dep = String(req.departureDate || '').slice(0, 10);
+  const ret = req.returnDate ? String(req.returnDate).slice(0, 10) : '';
   const trip = ret ? 'roundtrip' : 'oneway';
   const params = new URLSearchParams({
     trip,
@@ -28,10 +31,18 @@ async function scrapeExpedia(req, config) {
   const url = expediaUrl(req);
 
   try {
-    const offers = await withPage(config.headless, async (page) => {
+    return await runWithRetries(config.headless, 'expedia', async () => {
+      const offers = await withPage(config.headless, async (page) => {
+      if (!(await warmHomepage(page, EXPEDIA_HOME, config.headless))) {
+        return [];
+      }
+
       attachJsonCapture(page, /expedia|graphql|flight/i);
 
       await gotoAndSettle(page, url, config);
+      if (await pageLooksBlocked(page)) {
+        return [];
+      }
 
       try {
         await page.waitForSelector('[data-stid="offer-card"], [data-test-id="offer-listing"]', {
@@ -83,8 +94,17 @@ async function scrapeExpedia(req, config) {
           ],
         }),
       );
-    }, { proxyUrl: config.proxyUrl });
-    return { offers, error: offers.length ? undefined : 'no expedia offers parsed' };
+    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
+
+      if (offers.length) return { offers, error: undefined };
+      return {
+        offers: [],
+        error: config.proxyUrl ? 'no expedia offers parsed' : 'Expedia bot check — set SCRAPER_PROXY_URL',
+      };
+    }).then(({ offers, error }) => ({
+      offers: offers || [],
+      error: offers?.length ? undefined : error,
+    }));
   } catch (err) {
     return { offers: [], error: String(err.message || err) };
   }

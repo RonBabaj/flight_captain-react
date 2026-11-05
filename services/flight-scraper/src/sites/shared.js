@@ -1,56 +1,11 @@
 'use strict';
 
-const { chromium } = require('playwright');
-const { dismissCookieBanners } = require('./cookies');
-
-let browserPromise;
-
-async function getBrowser(headless) {
-  if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-      ],
-    });
-  }
-  return browserPromise;
-}
-
-async function withPage(headless, fn, options = {}) {
-  const browser = await getBrowser(headless);
-  const ctxOpts = {
-    userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    locale: 'en-US',
-    timezoneId: 'America/New_York',
-    viewport: { width: 1400, height: 900 },
-    extraHTTPHeaders: {
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-  };
-  if (options.proxyUrl) {
-    ctxOpts.proxy = { server: options.proxyUrl };
-  }
-  const context = await browser.newContext(ctxOpts);
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  });
-  const page = await context.newPage();
-  try {
-    return await fn(page, { dismissCookieBanners });
-  } finally {
-    await context.close();
-  }
-}
+const { withPage, runWithRetries, warmHomepage } = require('../browser/session');
 
 async function gotoAndSettle(page, url, config) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
+  const { dismissCookieBanners } = require('./cookies');
   await dismissCookieBanners(page);
-  // Bot/challenge scripts (Kiwi Fastly) often need a beat after consent.
   await page.waitForTimeout(2500);
   try {
     await page.waitForLoadState('networkidle', { timeout: 12000 });
@@ -64,4 +19,24 @@ function yyyymmdd(isoDate) {
   return String(isoDate || '').replace(/-/g, '').slice(0, 8);
 }
 
-module.exports = { withPage, gotoAndSettle, yyyymmdd, dismissCookieBanners };
+/** Skyscanner URLs use YYMMDD (matches backend depToYYMMDD). */
+function skyscannerDate(isoDate) {
+  const iso = String(isoDate || '').trim();
+  if (iso.length < 10) return '';
+  return iso.slice(2, 4) + iso.slice(5, 7) + iso.slice(8, 10);
+}
+
+function mergeConfig(headless) {
+  const base = require('../config');
+  return { ...base, headless: headless !== false && headless !== '0' };
+}
+
+module.exports = {
+  withPage: (headless, fn, options) => withPage(mergeConfig(headless), fn, options),
+  runWithRetries: (headless, label, runner) => runWithRetries(mergeConfig(headless), label, runner),
+  warmHomepage: (page, url, headless) => warmHomepage(page, url, mergeConfig(headless)),
+  gotoAndSettle,
+  yyyymmdd,
+  skyscannerDate,
+  dismissCookieBanners: require('./cookies').dismissCookieBanners,
+};

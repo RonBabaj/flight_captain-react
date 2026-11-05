@@ -1,9 +1,12 @@
 'use strict';
 
-const { withPage, gotoAndSettle } = require('./shared');
+const { withPage, runWithRetries, warmHomepage, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segment } = require('../normalize');
+const { pageLooksBlocked } = require('../browser/botWall');
+
+const KIWI_HOME = 'https://www.kiwi.com/en/';
 
 function kiwiSearchUrl(req) {
   const o = String(req.origin).toLowerCase();
@@ -26,10 +29,18 @@ async function scrapeKiwi(req, config) {
   const url = kiwiSearchUrl(req);
 
   try {
-    const offers = await withPage(config.headless, async (page) => {
+    return await runWithRetries(config.headless, 'kiwi', async () => {
+      const offers = await withPage(config.headless, async (page) => {
+      if (!(await warmHomepage(page, KIWI_HOME, config.headless))) {
+        return [];
+      }
+
       const captured = attachJsonCapture(page, /skypicker|kiwi\.com|graphql|search|itinerar|booking-api/i);
 
       await gotoAndSettle(page, url, config);
+      if (await pageLooksBlocked(page)) {
+        return [];
+      }
 
       let fromNetwork = extractFromCaptured(captured, req);
       if (fromNetwork.length > 0) {
@@ -84,13 +95,19 @@ async function scrapeKiwi(req, config) {
           ],
         }),
       );
-    }, { proxyUrl: config.proxyUrl });
-    return {
-      offers,
-      error: offers.length
-        ? undefined
-        : 'Kiwi.com blocks datacenter browsers — set KIWI_TEQUILA_API_KEY in backend/.env (free at tequila.kiwi.com)',
-    };
+    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
+
+      if (offers.length) return { offers, error: undefined };
+      return {
+        offers: [],
+        error: config.proxyUrl
+          ? 'no kiwi offers parsed (layout or empty route)'
+          : 'Kiwi bot check — set SCRAPER_PROXY_URL (residential) or retry',
+      };
+    }).then(({ offers, error }) => ({
+      offers: offers || [],
+      error: offers?.length ? undefined : error,
+    }));
   } catch (err) {
     return { offers: [], error: String(err.message || err) };
   }
