@@ -1,18 +1,19 @@
 'use strict';
 
-const { withPage, gotoAndSettle, yyyymmdd } = require('./shared');
+const { withPage, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
 
 function skyscannerUrl(req) {
   const o = String(req.origin).toLowerCase();
   const d = String(req.destination).toLowerCase();
-  const dep = yyyymmdd(req.departureDate);
-  const ret = req.returnDate ? yyyymmdd(req.returnDate) : '';
+  const dep = skyscannerDate(req.departureDate);
+  const ret = req.returnDate ? skyscannerDate(req.returnDate) : '';
+  const adults = Math.max(1, req.adults || 1);
   if (ret) {
-    return `https://www.skyscanner.net/transport/flights/${o}/${d}/${dep}/${ret}/?adultsv2=${Math.max(1, req.adults || 1)}&cabinclass=economy&rtn=1`;
+    return `https://www.skyscanner.net/transport/flights/${o}/${d}/${dep}/${ret}/?adultsv2=${adults}&cabinclass=economy&rtn=1`;
   }
-  return `https://www.skyscanner.net/transport/flights/${o}/${d}/${dep}/?adultsv2=${Math.max(1, req.adults || 1)}&cabinclass=economy`;
+  return `https://www.skyscanner.net/transport/flights/${o}/${d}/${dep}/?adultsv2=${adults}&cabinclass=economy&rtn=0`;
 }
 
 async function scrapeSkyscanner(req, config) {
@@ -26,6 +27,16 @@ async function scrapeSkyscanner(req, config) {
       const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights/i);
 
       await gotoAndSettle(page, url, config);
+
+      const botWall = await page.evaluate(() =>
+        /person or a robot|remarkably lifelike|captcha/i.test(document.body?.innerText || ''),
+      );
+      if (botWall) {
+        return [];
+      }
+
+      await page.evaluate(() => window.scrollBy(0, 900)).catch(() => {});
+      await page.waitForTimeout(2000);
 
       let parsed = extractSkyscanner(captured, req);
       if (parsed.length) return parsed.slice(0, config.maxOffersPerSite);
@@ -78,9 +89,14 @@ async function scrapeSkyscanner(req, config) {
         }),
       );
     }, { proxyUrl: config.proxyUrl });
+    const needsProxy = offers.length === 0;
     return {
       offers,
-      error: offers.length ? undefined : 'no skyscanner offers parsed',
+      error: offers.length
+        ? undefined
+        : needsProxy
+          ? 'Skyscanner bot check (PerimeterX) — set SCRAPER_PROXY_URL to a residential proxy or rely on GF2 + Kiwi Tequila'
+          : 'no skyscanner offers parsed',
     };
   } catch (err) {
     return { offers: [], error: String(err.message || err) };

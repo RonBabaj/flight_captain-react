@@ -61,17 +61,30 @@ function parseTequilaData(json, req) {
   if (!Array.isArray(data)) return [];
   const out = [];
   for (const it of data) {
-    const price = it.price || it.conversion?.EUR || it.conversion?.USD;
-    if (typeof price !== 'number' || price <= 0) continue;
+    const price =
+      typeof it.price === 'number'
+        ? it.price
+        : typeof it.conversion?.EUR === 'number'
+          ? it.conversion.EUR
+          : typeof it.conversion?.USD === 'number'
+            ? it.conversion.USD
+            : 0;
+    if (price <= 0) continue;
     const route = it.route || [];
     if (!route.length) continue;
-    const segs = route.map((leg, idx) => {
-      const isReturn =
-        req.returnDate &&
-        idx > 0 &&
-        String(leg.flyFrom || '').toUpperCase() !== String(req.origin).toUpperCase();
+    const originU = String(req.origin).toUpperCase();
+    const destU = String(req.destination).toUpperCase();
+    let outboundDone = false;
+    const segs = route.map((leg) => {
+      const from = String(leg.flyFrom || '').toUpperCase();
+      const to = String(leg.flyTo || '').toUpperCase();
+      let legName = 'outbound';
+      if (req.returnDate) {
+        if (!outboundDone && to === destU) outboundDone = true;
+        else if (outboundDone || from === destU) legName = 'inbound';
+      }
       return {
-        leg: isReturn ? 'inbound' : 'outbound',
+        leg: legName,
         fromCode: leg.flyFrom,
         toCode: leg.flyTo,
         departureTime: leg.local_departure || leg.utc_departure,
@@ -80,12 +93,13 @@ function parseTequilaData(json, req) {
         flightNumber: leg.flight_no,
       };
     });
+    const curr = (req.currency || 'USD').toUpperCase();
     out.push(
       offerTemplate({
         origin: req.origin,
         destination: req.destination,
         price,
-        currency: (it.conversion && Object.keys(it.conversion)[0]) || req.currency || 'USD',
+        currency: curr,
         bookingUrl: it.deep_link || it.booking_token || '',
         selfTransfer: !!it.has_airport_change || route.some((l) => l.guarantee === false),
         segments: segs,

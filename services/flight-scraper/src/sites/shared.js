@@ -64,4 +64,11 @@ function yyyymmdd(isoDate) {
   return String(isoDate || '').replace(/-/g, '').slice(0, 8);
 }
 
-module.exports = { withPage, gotoAndSettle, yyyymmdd, dismissCookieBanners };
+/** Skyscanner URLs use YYMMDD (matches backend depToYYMMDD). */
+function skyscannerDate(isoDate) {
+  const iso = String(isoDate || '').trim();
+  if (iso.length < 10) return '';
+  return iso.slice(2, 4) + iso.slice(5, 7) + iso.slice(8, 10);
+}
+
+module.exports = { withPage, gotoAndSettle, yyyymmdd, skyscannerDate, dismissCookieBanners };

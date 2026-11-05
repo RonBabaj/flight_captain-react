@@ -1,12 +1,12 @@
 'use strict';
 
-const { withPage, gotoAndSettle, yyyymmdd } = require('./shared');
+const { withPage, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
 
 function expediaUrl(req) {
-  const dep = yyyymmdd(req.departureDate);
-  const ret = req.returnDate ? yyyymmdd(req.returnDate) : '';
+  const dep = String(req.departureDate || '').slice(0, 10);
+  const ret = req.returnDate ? String(req.returnDate).slice(0, 10) : '';
   const trip = ret ? 'roundtrip' : 'oneway';
   const params = new URLSearchParams({
     trip,
