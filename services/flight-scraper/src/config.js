@@ -39,7 +39,7 @@ module.exports = {
   cdpUrl: parseCdpUrls()[0] || '',
   display: (process.env.DISPLAY || '').trim(),
   chromeExecutable: (process.env.CHROME_EXECUTABLE_PATH || '').trim(),
-  sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 3), 1), 5),
+  sessionRetries: Math.min(Math.max(Number(process.env.SCRAPER_SESSION_RETRIES || 2), 1), 5),
   browserEngine: (process.env.SCRAPER_BROWSER || 'chromium').trim().toLowerCase(),
   storageDir: (process.env.SCRAPER_STORAGE_DIR || '').trim(),
   /** Optional legacy REST path — off by default; Playwright is the primary Kiwi scraper. */

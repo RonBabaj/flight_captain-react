@@ -5,18 +5,23 @@ const { attachJsonCapture } = require('./jsonCapture');
 const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segment } = require('../normalize');
 const { pageLooksBlocked } = require('../browser/botWall');
+const { kiwiPlaceSlug } = require('./kiwiPlaces');
 
 const KIWI_HOME = 'https://www.kiwi.com/en/';
 
 function kiwiSearchUrl(req) {
-  const o = String(req.origin).toLowerCase();
-  const d = String(req.destination).toLowerCase();
+  const o = kiwiPlaceSlug(req.origin, { cityName: req.originCity, countryCode: req.originCountry });
+  const d = kiwiPlaceSlug(req.destination, {
+    cityName: req.destinationCity,
+    countryCode: req.destinationCountry,
+  });
   const dep = req.departureDate;
   const ret = req.returnDate || '';
+  // Current Kiwi SPA ignores bare IATA path segments — needs city-country slugs + no-return.
   if (ret) {
     return `https://www.kiwi.com/en/search/results/${o}/${d}/${dep}/${ret}/`;
   }
-  return `https://www.kiwi.com/en/search/results/${o}/${d}/${dep}/`;
+  return `https://www.kiwi.com/en/search/results/${o}/${d}/${dep}/no-return/`;
 }
 
 async function scrapeKiwi(req, config) {
@@ -62,16 +67,21 @@ async function scrapeKiwi(req, config) {
       }
 
       const fromDom = await page.evaluate(() => {
-        const cards = document.querySelectorAll('[data-test="ResultCard"], [data-test="ResultCardWrapper"]');
+        const cards = document.querySelectorAll(
+          '[data-test="ResultCard"], [data-test="ResultCardWrapper"], [data-test="ResultList-result"]',
+        );
         const out = [];
         cards.forEach((card) => {
           const priceText =
             card.querySelector('[data-test="ResultCardPrice"]')?.textContent ||
             card.querySelector('[data-test*="Price"]')?.textContent ||
+            card.textContent ||
             '';
-          const num = parseFloat(String(priceText).replace(/[^\d.]/g, ''));
-          if (!num || Number.isNaN(num)) return;
-          const link = card.querySelector('a[href*="/booking"], a[href*="kiwi.com"]')?.href || '';
+          const m = String(priceText).match(/(\d[\d\s.,]*)\s*€|\$\s*(\d[\d\s.,]*)|(\d[\d\s.,]*)/);
+          const raw = (m && (m[1] || m[2] || m[3])) || '';
+          const num = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, ''));
+          if (!num || Number.isNaN(num) || num < 15) return;
+          const link = card.querySelector('a[href*="/booking"], a[href*="kiwi.com"]')?.href || window.location.href;
           out.push({ price: num, bookingUrl: link });
         });
         return out;
