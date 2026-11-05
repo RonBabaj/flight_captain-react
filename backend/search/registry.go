@@ -147,7 +147,8 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			if !strings.EqualFold(p.Name(), "googleflights2") {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					soft = 2*time.Minute + 30*time.Second
+					// Headed CDP + Kiwi SPA needs several minutes (warmup + settle + parse).
+					soft = 5 * time.Minute
 				}
 				pctx, cancel = context.WithTimeout(ctx, soft)
 				defer cancel()
