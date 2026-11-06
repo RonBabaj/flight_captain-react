@@ -4,6 +4,7 @@ const express = require('express');
 const config = require('./config');
 const { scrapeAll } = require('./scrape');
 const { startWarmLoop, warmStatus } = require('./warm');
+const { beginSearch, endSearch } = require('./searchBusy');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -60,11 +61,14 @@ app.post('/v1/search', async (req, res) => {
     sites: Array.isArray(body.sites) ? body.sites : config.parseSites(process.env.FLIGHT_SCRAPER_SITES),
   };
 
+  beginSearch();
   try {
     const result = await scrapeAll(searchReq, config);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
+  } finally {
+    endSearch();
   }
 });
 

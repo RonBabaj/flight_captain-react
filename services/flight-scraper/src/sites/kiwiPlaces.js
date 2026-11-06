@@ -16,7 +16,8 @@ const COUNTRY = {
   NL: 'netherlands',
   BE: 'belgium',
   CH: 'switzerland',
-  CZ: 'czech-republic',
+  // Kiwi path slugs use "czechia" (not "czech-republic") — wrong slug redirects to homepage.
+  CZ: 'czechia',
   HU: 'hungary',
   PL: 'poland',
   PT: 'portugal',
@@ -66,7 +67,7 @@ const IATA_SLUG = {
   TLV: 'tel-aviv-israel',
   VIE: 'vienna-austria',
   BUD: 'budapest-hungary',
-  PRG: 'prague-czech-republic',
+  PRG: 'prague-czechia',
   ATH: 'athens-greece',
   LCA: 'larnaca-cyprus',
   HER: 'heraklion-crete-greece',

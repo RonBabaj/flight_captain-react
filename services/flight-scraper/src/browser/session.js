@@ -4,8 +4,30 @@ const { chromium, firefox } = require('playwright');
 const { stealthInitScript } = require('./stealth');
 const { pageLooksBlocked } = require('./botWall');
 const { dismissCookieBanners } = require('../sites/cookies');
+const { withCdpLock } = require('./cdpLock');
 
 let browserPromises = {};
+
+/** Close ad/captcha/junk tabs so scrapes don't inherit a poisoned SPA tab. */
+async function pruneJunkPages(context) {
+  if (!context) return;
+  const pages = context.pages();
+  for (const p of pages) {
+    let href = '';
+    try {
+      href = p.url();
+    } catch {
+      continue;
+    }
+    if (
+      /safeframe|doubleclick|rubicon|onetag|px-cloud|captcha-v2|sttc\/px|googlesyndication|recaptcha|criteo|pubmatic|inmobi/i.test(
+        href,
+      )
+    ) {
+      await p.close().catch(() => {});
+    }
+  }
+}
 
 async function getBrowser(engine, headless, config) {
   const key = `${engine}:${headless}`;
@@ -36,45 +58,49 @@ async function getBrowser(engine, headless, config) {
 }
 
 async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
-  // Reuse the default Chrome context — newContext() + service workers crashes Playwright CDP
-  // (assert on service_worker target attach). Flight Chrome is started with SW disabled.
-  const browser = await chromium.connectOverCDP(cdpUrl);
-  const contexts = browser.contexts();
-  const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
-  let ownedContext = contexts.length === 0;
-  try {
-    await context.addInitScript(stealthInitScript);
-  } catch {
-    /* already attached */
-  }
-  const page = await context.newPage();
-  try {
-    return await fn(page, {
-      dismissCookieBanners,
-      pageLooksBlocked,
-      engine: 'chrome-cdp',
-      cdpUrl,
-    });
-  } finally {
+  return withCdpLock(async () => {
+    // Reuse the default Chrome context — newContext() + service workers crashes Playwright CDP
+    // (assert on service_worker target attach). Flight Chrome is started with SW disabled.
+    const browser = await chromium.connectOverCDP(cdpUrl);
+    const contexts = browser.contexts();
+    const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
+    let ownedContext = contexts.length === 0;
     try {
-      await page.close();
+      await context.addInitScript(stealthInitScript);
     } catch {
-      /* ignore */
+      /* already attached */
     }
-    if (ownedContext) {
+    await pruneJunkPages(context);
+    const page = await context.newPage();
+    try {
+      return await fn(page, {
+        dismissCookieBanners,
+        pageLooksBlocked,
+        engine: 'chrome-cdp',
+        cdpUrl,
+      });
+    } finally {
       try {
-        await context.close();
+        await page.close();
+      } catch {
+        /* ignore */
+      }
+      await pruneJunkPages(context);
+      if (ownedContext) {
+        try {
+          await context.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      // Disconnect CDP client only — does not kill host Chrome.
+      try {
+        await browser.close();
       } catch {
         /* ignore */
       }
     }
-    // Disconnect CDP client only — does not kill host Chrome.
-    try {
-      await browser.close();
-    } catch {
-      /* ignore */
-    }
-  }
+  });
 }
 
 async function withPage(config, fn, options = {}) {
@@ -142,6 +168,12 @@ async function withPage(config, fn, options = {}) {
   return [];
 }
 
+function isTransientScrapeError(msg) {
+  return /Target page|has been closed|Timeout|net::|ECONNREFUSED|cdp|browser has been/i.test(
+    String(msg || ''),
+  );
+}
+
 async function runWithRetries(config, label, runner) {
   const attempts = Math.max(1, config.sessionRetries || 1);
   let lastError = `${label}: no offers`;
@@ -152,8 +184,15 @@ async function runWithRetries(config, label, runner) {
         return { offers: result.offers, error: undefined };
       }
       if (result?.error) lastError = result.error;
+      // Empty result with a stable business error (bot wall / wrong URL) — don't burn another full scrape.
+      if (result?.error && !isTransientScrapeError(result.error)) {
+        break;
+      }
     } catch (err) {
       lastError = `${label}: ${err.message || err}`;
+      if (!isTransientScrapeError(lastError) || i === attempts - 1) {
+        break;
+      }
     }
   }
   return { offers: [], error: lastError };
@@ -175,4 +214,4 @@ async function warmHomepage(page, url, config) {
   return !(await pageLooksBlocked(page));
 }
 
-module.exports = { withPage, runWithRetries, warmHomepage, pageLooksBlocked };
+module.exports = { withPage, runWithRetries, warmHomepage, pageLooksBlocked, pruneJunkPages };

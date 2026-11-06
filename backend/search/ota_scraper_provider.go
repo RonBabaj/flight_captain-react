@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	otaScraperHTTPTimeout = 5 * time.Minute
+	// Kiwi + Skyscanner serial CDP scrapes often need >5m on a cold/contended VPS.
+	otaScraperHTTPTimeout = 8 * time.Minute
 	defaultOtaScraperURL  = "http://flight-scraper:3099"
 )
 
