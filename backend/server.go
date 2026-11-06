@@ -784,7 +784,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	cabinPref := req.CabinPrefOrDefault()
 	includeBag := req.IncludeCheckedBagOrDefault()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	// Multisite CDP scrapes (Kiwi + Skyscanner) need several minutes; GF2 alone is fast.
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 	sreq := search.SanitizeStandardSearchRequest(search.SearchRequest{
 		Origin:            req.Origin,
