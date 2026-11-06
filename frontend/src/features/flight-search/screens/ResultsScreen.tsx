@@ -1213,8 +1213,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const loading = status === 'PENDING' || status === 'PARTIAL';
-    if (!loading) {
+    // Only nag when the list is still empty. PARTIAL with GF2 results already on
+    // screen means scrapers are enriching in the background — not a stuck search.
+    const loadingEmpty =
+      (status === 'PENDING' || status === 'PARTIAL') && results.length === 0;
+    if (!loadingEmpty) {
       setShowSlowPopup(false);
       if (slowPopupTimerRef.current) {
         clearTimeout(slowPopupTimerRef.current);
@@ -1227,7 +1230,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
     slowPopupTimerRef.current = setTimeout(() => {
       slowPopupTimerRef.current = null;
-      if (status === 'PENDING' || status === 'PARTIAL') {
+      if ((status === 'PENDING' || status === 'PARTIAL') && results.length === 0) {
         setShowSlowPopup(true);
       }
     }, runtimeConfig.slowResultsPopupDelayMs);
@@ -1237,7 +1240,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         slowPopupTimerRef.current = null;
       }
     };
-  }, [status, sessionId, showSlowPopup, runtimeConfig.slowResultsPopupDelayMs]);
+  }, [status, sessionId, showSlowPopup, results.length, runtimeConfig.slowResultsPopupDelayMs]);
 
   // Must stay above any early return (Rules of Hooks).
   useEffect(() => {

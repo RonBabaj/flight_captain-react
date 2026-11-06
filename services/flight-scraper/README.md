@@ -20,6 +20,8 @@ The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment 
 
 Playwright opens **new tabs** via CDP on the dedicated flight Chrome profile (`/var/lib/flight-scraper-chrome`).
 
+On process start the scraper **warms** Kiwi + Skyscanner (cookie banners, culture) and re-warms every ~15 minutes (`SCRAPER_WARM_ON_START=0` to disable). The API returns GF2 results immediately as `PARTIAL`, then merges CDP offers in the background.
+
 ## Run locally
 
 ```bash

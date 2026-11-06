@@ -81,6 +81,7 @@ type SearchSessionStatus string
 
 const (
 	StatusPending  SearchSessionStatus = "PENDING"
+	StatusPartial  SearchSessionStatus = "PARTIAL" // GF2 ready; CDP scrapers still enriching
 	StatusComplete SearchSessionStatus = "COMPLETE"
 	StatusFailed   SearchSessionStatus = "FAILED"
 )
@@ -784,8 +785,9 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	cabinPref := req.CabinPrefOrDefault()
 	includeBag := req.IncludeCheckedBagOrDefault()
 
-	// Multisite CDP scrapes (Kiwi + Skyscanner) need several minutes; GF2 alone is fast.
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	// GF2 is fast; CDP scrapers (Kiwi/Skyscanner) enrich in the background as PARTIAL→COMPLETE
+	// so create-session returns in seconds instead of blocking on a cold scrape.
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 	sreq := search.SanitizeStandardSearchRequest(search.SearchRequest{
 		Origin:            req.Origin,
@@ -815,7 +817,19 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	enrichSecondary := false
+	var multi search.MultiSearchResult
+	if flightProviderRegistry.HasSecondary() {
+		multi = flightProviderRegistry.SearchPrimary(ctx, sreq)
+		if multi.AllFailed() || len(multi.Results) == 0 {
+			log.Printf("[SEARCH] primary empty/failed — falling back to full SearchAll stats=%+v", multi.Stats)
+			multi = flightProviderRegistry.SearchAll(ctx, sreq)
+		} else {
+			enrichSecondary = true
+		}
+	} else {
+		multi = flightProviderRegistry.SearchAll(ctx, sreq)
+	}
 	maxTransientRetries := search.SearchTransientRetryMax()
 	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
 		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
@@ -977,9 +991,14 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	id := randomID("sess_")
 	now := time.Now().UTC()
 
+	status := StatusComplete
+	if enrichSecondary {
+		status = StatusPartial
+	}
+
 	session := SearchSession{
 		ID:                id,
-		Status:            StatusComplete, // simple synchronous search for now
+		Status:            status,
 		CreatedAt:         now,
 		Params:            req,
 		TimeSchemaVersion: timeSchemaAirportAbsolute,
@@ -999,10 +1018,12 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	// server restarts, and beyond the in-memory TTL.
 	go persistSearchSession(resp)
 
-	// Include providerStats on create so operators can see why multisite scraper returned 0
-	// without a follow-up GET (stats are also stored on the session for GET).
+	if enrichSecondary {
+		go enrichSearchSessionWithSecondary(id, req, sreq, cabinPref, includeBag)
+	}
+
 	// Keep the historical SearchSession shape (id/status/…) and attach providerStats
-		// so operators can see multisite scraper failures without SSH’ing into the VPS.
+	// so operators can see multisite scraper failures without SSH’ing into the VPS.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":            session.ID,
 		"status":        session.Status,
@@ -1010,6 +1031,111 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		"params":        session.Params,
 		"providerStats": multi.Stats,
 	})
+}
+
+// enrichSearchSessionWithSecondary runs CDP scrapers after GF2 results are already visible.
+// Updates the session in-place (version++) and flips PARTIAL → COMPLETE.
+func enrichSearchSessionWithSecondary(
+	sessionID string,
+	req CreateSearchSessionRequest,
+	sreq search.SearchRequest,
+	cabinPref string,
+	includeBag bool,
+) {
+	if flightProviderRegistry == nil || sessionID == "" {
+		return
+	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("[SEARCH] secondary enrich panic session=%s: %v", sessionID, rec)
+			markSessionComplete(sessionID)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	started := time.Now()
+	log.Printf("[SEARCH] secondary enrich start session=%s", sessionID)
+	multi := flightProviderRegistry.SearchSecondary(ctx, sreq)
+	log.Printf("[SEARCH] secondary enrich session=%s durationMs=%d results=%d stats=%+v",
+		sessionID, time.Since(started).Milliseconds(), len(multi.Results), multi.Stats)
+
+	var ota []FlightOption
+	if len(multi.Results) > 0 {
+		ota = providerResultsToFlightOptions(multi.Results)
+		for i := range ota {
+			if ota[i].CanonicalItinerary != nil {
+				ota[i].CanonicalItinerary.SetPassengerContext(req.Adults, req.ChildrenOrDefault(), req.Infants)
+			}
+		}
+		if cabinPref != "" {
+			ota = filterFlightOptionsByCabinPref(ota, cabinPref)
+		}
+		selected, _, _, _, _, _ := applySoftStrictBaggageOptions(ota, includeBag)
+		if len(selected) > 0 {
+			ota = selected
+		}
+		convertOptionsToCurrency(ota, req.CurrencyOrDefault())
+		applyPriceNormalization(ota)
+		for i := range ota {
+			sanitizeSegmentTimes(ota[i].Legs)
+			ensurePrimaryCarrier(&ota[i])
+			ota[i].OutboundSummary = computeOutboundSummary(&ota[i])
+		}
+	}
+
+	sessionsMu.Lock()
+	cur, ok := sessions[sessionID]
+	if !ok {
+		sessionsMu.Unlock()
+		if persisted, pok := loadPersistedSession(sessionID); pok {
+			cur = persisted
+			ok = true
+		}
+		if !ok {
+			log.Printf("[SEARCH] secondary enrich aborted session=%s gone", sessionID)
+			return
+		}
+		sessionsMu.Lock()
+		// Another enrich/create may have restored it meanwhile.
+		if live, liveOK := sessions[sessionID]; liveOK {
+			cur = live
+		}
+	}
+	if len(ota) > 0 {
+		merged := append(append([]FlightOption{}, cur.Results...), ota...)
+		merged = groupCodeshareAndMerge(merged)
+		merged = dedupeFlightOptions(merged)
+		sort.Slice(merged, func(i, j int) bool {
+			return merged[i].Price.Amount < merged[j].Price.Amount
+		})
+		if len(merged) > maxOffersReturnedToClient {
+			merged = merged[:maxOffersReturnedToClient]
+		}
+		cur.Results = merged
+	}
+	cur.ProviderStats = append(append([]search.ProviderSearchStats{}, cur.ProviderStats...), multi.Stats...)
+	cur.Version++
+	cur.Session.Status = StatusComplete
+	sessions[sessionID] = cur
+	sessionsMu.Unlock()
+	go persistSearchSession(cur)
+	log.Printf("[SEARCH] secondary enrich done session=%s version=%d results=%d", sessionID, cur.Version, len(cur.Results))
+}
+
+func markSessionComplete(sessionID string) {
+	sessionsMu.Lock()
+	defer sessionsMu.Unlock()
+	cur, ok := sessions[sessionID]
+	if !ok {
+		return
+	}
+	if cur.Session.Status == StatusComplete {
+		return
+	}
+	cur.Session.Status = StatusComplete
+	cur.Version++
+	sessions[sessionID] = cur
+	go persistSearchSession(cur)
 }
 
 func handleGetSession(w http.ResponseWriter, r *http.Request) {
