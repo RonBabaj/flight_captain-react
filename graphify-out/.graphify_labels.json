@@ -1,7 +1,6 @@
 {
   "0": ".ResolveQuotedPartnerBooking",
   "3": "Issue",
-  "5": "dealsCache.ts",
   "8": "Features",
   "12": "BookingOptionsFooter.tsx",
   "13": "compilerOptions",
@@ -36,7 +35,6 @@
   "58": "AppIcon",
   "70": "UserManagementPanel.tsx",
   "71": "AuthContext.tsx",
-  "75": "time.Time",
   "76": "flyfix.ts",
   "78": "affiliate.ts",
   "83": "Fly-Fix UI / UX",
