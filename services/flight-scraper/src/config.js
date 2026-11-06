@@ -26,7 +26,7 @@ module.exports = {
   token: (process.env.FLIGHT_SCRAPER_TOKEN || '').trim(),
   defaultSites: process.env.FLIGHT_SCRAPER_SITES
     ? parseSites(process.env.FLIGHT_SCRAPER_SITES)
-    : ['kiwi'],
+    : ['kiwi', 'skyscanner'],
   parseSites,
   headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
   maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 40), 80),

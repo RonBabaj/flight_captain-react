@@ -99,8 +99,8 @@ func NewOtaScraperProvider() *OtaScraperProvider {
 func parseOtaScraperSites(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		// Kiwi is the reliable CDP site today; Skyscanner/Expedia often bot-wall datacenter IPs.
-		return []string{"kiwi"}
+		// Kiwi + Skyscanner via headed Chrome CDP; Expedia still often bot-walled.
+		return []string{"kiwi", "skyscanner"}
 	}
 	var out []string
 	seen := map[string]bool{}
