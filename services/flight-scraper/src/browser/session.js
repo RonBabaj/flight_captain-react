@@ -68,6 +68,12 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
         /* ignore */
       }
     }
+    // Disconnect CDP client only — does not kill host Chrome.
+    try {
+      await browser.close();
+    } catch {
+      /* ignore */
+    }
   }
 }
 

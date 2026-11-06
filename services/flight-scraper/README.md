@@ -6,17 +6,19 @@ Self-hosted **Playwright** service for **Kiwi**, **Skyscanner**, and **Expedia**
 
 The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment monitor). The scraper should attach to that real browser, not a nested xvfb inside Docker.
 
-1. Start dedicated flight Chrome (CDP port **9223**):
+1. Start dedicated flight Chrome:
 
    ```bash
    sudo scripts/vps/ensure-flight-chrome.sh
    ```
 
-2. `flight-scraper` uses **`network_mode: host`** + `SCRAPER_CDP_URL=http://127.0.0.1:9223` + `DISPLAY=:99` (see root `docker-compose.yml`).
+   Chrome listens on **127.0.0.1:9223**. The script also publishes it on the compose `proxy` gateway as **`:9224`** via socat. Gateway **`:9223`** is apartment-monitor’s Facebook Chrome proxy — scrapers must not use it.
 
-3. `flyfix-api` calls `http://host.docker.internal:3099`.
+2. `flight-scraper` on the `proxy` network uses `SCRAPER_CDP_URLS=http://<gateway>:9224` (entrypoint rewrites `host.docker.internal` / stale `:9223`).
 
-Playwright opens **new tabs/contexts** via CDP — same headed Chrome session as a normal desktop.
+3. `flyfix-api` calls `http://flight-scraper:3099`.
+
+Playwright opens **new tabs** via CDP on the dedicated flight Chrome profile (`/var/lib/flight-scraper-chrome`).
 
 ## Run locally
 
@@ -36,4 +38,4 @@ Optional:
 
 ## Docker
 
-Built as `flight-scraper`. On VPS, **host networking** is required so CDP can reach `127.0.0.1:9223` on the host.
+Built as `flight-scraper`. On VPS it joins the external `proxy` network and reaches host Chrome through the gateway CDP proxy on **9224**.

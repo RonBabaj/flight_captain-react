@@ -108,8 +108,8 @@
     "semantic_hash": ""
   },
   "backend/gf2_deals.go": {
-    "mtime": 1793791182.212826,
-    "seen": 1793791223.7539797,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7328854,
     "ast_hash": "93595ad1b82fb1fc1bb6407ddbc8b2b3",
     "semantic_hash": ""
   },
@@ -132,8 +132,8 @@
     "semantic_hash": ""
   },
   "backend/search/googleflights2_provider.go": {
-    "mtime": 1793791177.0685081,
-    "seen": 1793791223.7540047,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7329037,
     "ast_hash": "6693aa232fcd6de617887324f9c83cc5",
     "semantic_hash": ""
   },
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1793794339.6124055,
-    "seen": 1793794344.2548308,
-    "ast_hash": "70f1f70c23fefd990b96e3615db8356a",
+    "mtime": 1793947482.5703588,
+    "seen": 1793951719.8137503,
+    "ast_hash": "993a36b9c4384c98698b3c665cbbb923",
     "semantic_hash": ""
   },
   "backend/server_baggage_test.go": {
@@ -330,8 +330,8 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1793794338.9084651,
-    "seen": 1793794344.2548902,
+    "mtime": 1793800921.2795753,
+    "seen": 1793908515.732966,
     "ast_hash": "9a1531b5e0d2ca1ea4ec5b07407fbfaa",
     "semantic_hash": ""
   },
@@ -378,14 +378,14 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1793794338.8684688,
-    "seen": 1793794344.25491,
+    "mtime": 1793800921.2795753,
+    "seen": 1793908515.732984,
     "ast_hash": "6a6334a5e9af3917381c131d7c317233",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
-    "mtime": 1793794338.8684688,
-    "seen": 1793794344.2549107,
+    "mtime": 1793800921.2795753,
+    "seen": 1793908515.7329848,
     "ast_hash": "db71fe29c05cfd0bcbb9d7d844d7fb0b",
     "semantic_hash": ""
   },
@@ -708,14 +708,14 @@
     "semantic_hash": ""
   },
   ".github/workflows/deploy.yml": {
-    "mtime": 1793787040.2339773,
-    "seen": 1793791223.7539182,
-    "ast_hash": "19155a821b66f2981563a3c0f2045415",
+    "mtime": 1793886512.7746637,
+    "seen": 1793908515.7328422,
+    "ast_hash": "bf508aa8e3056dd2461338b18e399d56",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793794331.6572719,
-    "seen": 1793794344.2549973,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7330828,
     "ast_hash": "412755b0420543a437a2204164b19e1c",
     "semantic_hash": ""
   },
@@ -786,15 +786,15 @@
     "semantic_hash": ""
   },
   "backend/search/multi_provider_test.go": {
-    "mtime": 1793794319.3256133,
-    "seen": 1793794344.2548237,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7329082,
     "ast_hash": "7b38acbcd4d43ddc624bcb9138ec69a0",
     "semantic_hash": ""
   },
   "backend/search/registry.go": {
-    "mtime": 1793794292.498473,
-    "seen": 1793794344.2548282,
-    "ast_hash": "03cdb9686fd9237f247c11b9a24f6058",
+    "mtime": 1793908489.6840792,
+    "seen": 1793908515.7329118,
+    "ast_hash": "6e1eb92470c5864e8961b4753932d17a",
     "semantic_hash": ""
   },
   "backend/search/openjaw_test.go": {
@@ -996,8 +996,8 @@
     "semantic_hash": ""
   },
   "backend/search/roundtrip_path_test.go": {
-    "mtime": 1793791188.6652436,
-    "seen": 1793791223.7540147,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7329128,
     "ast_hash": "c9e3399c10f505b6974e8310298b0d5b",
     "semantic_hash": ""
   },
@@ -1332,8 +1332,8 @@
     "semantic_hash": ""
   },
   "backend/search/gf2_places.go": {
-    "mtime": 1793791175.068389,
-    "seen": 1793791223.753998,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7328992,
     "ast_hash": "879eb02f939ae576ed1abc84804685b6",
     "semantic_hash": ""
   },
@@ -1356,8 +1356,8 @@
     "semantic_hash": ""
   },
   "backend/search/gf2_rt_return_test.go": {
-    "mtime": 1793791188.6652436,
-    "seen": 1793791223.7540019,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7329018,
     "ast_hash": "55f1280eb732731b6c87c4bcd730e598",
     "semantic_hash": ""
   },
@@ -1404,9 +1404,9 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1793794318.8655527,
-    "seen": 1793794344.2548418,
-    "ast_hash": "1ed8132435e7aa2128294bd91c040835",
+    "mtime": 1793949905.782069,
+    "seen": 1793951719.8137634,
+    "ast_hash": "a77f746b67d776a62f41c91c70bd9288",
     "semantic_hash": ""
   },
   "scripts/npm-ssl-flyfix.md": {
@@ -1440,14 +1440,14 @@
     "semantic_hash": ""
   },
   "backend/search/budget_config.go": {
-    "mtime": 1793794292.566479,
-    "seen": 1793794344.2548044,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7328918,
     "ast_hash": "00b83ba126ac33aabbadb69b9a101c0d",
     "semantic_hash": ""
   },
   "backend/search/budget_config_test.go": {
-    "mtime": 1793794292.5384765,
-    "seen": 1793794344.2548063,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7328928,
     "ast_hash": "7070a035abb366edb55ec10ef3b5a029",
     "semantic_hash": ""
   },
@@ -1518,75 +1518,153 @@
     "semantic_hash": ""
   },
   "backend/search/kiwi_normalize.go": {
-    "mtime": 1793794278.7336445,
-    "seen": 1793794344.2548225,
+    "mtime": 1793800921.2755754,
+    "seen": 1793908515.7329073,
     "ast_hash": "cb83e116ea40660c5998c59ddab51873",
     "semantic_hash": ""
   },
   "backend/search/ota_scraper_provider.go": {
-    "mtime": 1793794284.3538623,
-    "seen": 1793794344.254826,
-    "ast_hash": "6dc92a888efb2986666742a5f7414577",
+    "mtime": 1793946606.5657015,
+    "seen": 1793951719.813746,
+    "ast_hash": "28a812058b7f6616179549a34086c162",
     "semantic_hash": ""
   },
   "services/flight-scraper/package.json": {
-    "mtime": 1793794310.4164653,
-    "seen": 1793794344.2549884,
-    "ast_hash": "eefb6a6cbcc3c1a254d7409647b1d236",
+    "mtime": 1793883020.2360342,
+    "seen": 1793908515.7330658,
+    "ast_hash": "3fbdfd3c81ef7ee3b11f33d06d49a49a",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/config.js": {
-    "mtime": 1793794310.4484692,
-    "seen": 1793794344.2549896,
-    "ast_hash": "f05bbde11b7bd2cd77391ce54187d092",
+    "mtime": 1793949908.1020067,
+    "seen": 1793951719.8139231,
+    "ast_hash": "85bd497770dbddfb59466434f4a9ce3f",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/normalize.js": {
-    "mtime": 1793794310.4324672,
-    "seen": 1793794344.2549906,
+    "mtime": 1793800921.2795753,
+    "seen": 1793908515.7330728,
     "ast_hash": "731774b2ac4dc7943d993ea873409dd5",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/scrape.js": {
-    "mtime": 1793794310.4204657,
-    "seen": 1793794344.2549913,
-    "ast_hash": "2a637276f5b7c12b58eb2f178fba71ee",
+    "mtime": 1793879776.3174598,
+    "seen": 1793908515.7330735,
+    "ast_hash": "90a85aeda35104e80636329827b532b3",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/server.js": {
-    "mtime": 1793794310.3604581,
-    "seen": 1793794344.2549922,
-    "ast_hash": "e42ab860a16f34646e24da60369ec90b",
+    "mtime": 1793886511.9386568,
+    "seen": 1793908515.7330742,
+    "ast_hash": "491a805bba253d6f6a54208d85ab9eac",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/expedia.js": {
-    "mtime": 1793794310.3724597,
-    "seen": 1793794344.254993,
-    "ast_hash": "1b5e3b5d61ec2c0148955d1c56bb8b9d",
+    "mtime": 1793883217.2264607,
+    "seen": 1793908515.7330759,
+    "ast_hash": "b1e1765d904218538ceefd13292053c6",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/kiwi.js": {
-    "mtime": 1793794318.8175464,
-    "seen": 1793794344.254994,
-    "ast_hash": "c3fcc8ccf67555f7995f92e37b800ebd",
+    "mtime": 1793908489.6840792,
+    "seen": 1793908515.7330775,
+    "ast_hash": "365a1d1835fc6528ddc51e230a3dc5b1",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/shared.js": {
-    "mtime": 1793794310.400463,
-    "seen": 1793794344.2549946,
-    "ast_hash": "3618b5ef014f33a86cf32b815a8d567f",
+    "mtime": 1793883020.012032,
+    "seen": 1793908515.7330792,
+    "ast_hash": "861aac83176ba60f19c02687850afde8",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/skyscanner.js": {
-    "mtime": 1793794310.4044638,
-    "seen": 1793794344.2549953,
-    "ast_hash": "8db35a506378e3d4b52a825131bd7f90",
+    "mtime": 1793951377.1855407,
+    "seen": 1793951719.8139331,
+    "ast_hash": "0957307f5f4274f538a85fc0d7179657",
     "semantic_hash": ""
   },
   "services/flight-scraper/README.md": {
-    "mtime": 1793794310.4484692,
-    "seen": 1793794344.2550058,
-    "ast_hash": "0ab6ffb7f34bda4ee9da6590fad2a474",
+    "mtime": 1793950012.8114748,
+    "seen": 1793951719.813945,
+    "ast_hash": "d616f14feb524ce3a2cc8fc6a1588625",
+    "semantic_hash": ""
+  },
+  "scripts/vps/ensure-flight-chrome.sh": {
+    "mtime": 1793951369.7895486,
+    "seen": 1793951719.8139102,
+    "ast_hash": "c78d71f308f7e46fde55244c7adba6a4",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/docker-entrypoint.sh": {
+    "mtime": 1793949904.3501074,
+    "seen": 1793951719.813913,
+    "ast_hash": "96e1e81a36f166bffa7a40d93fe96624",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/scripts/debug-site.js": {
+    "mtime": 1793879708.1491165,
+    "seen": 1793908515.7330666,
+    "ast_hash": "d8b8d48e4b11997214f24aecc5277923",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/scripts/probe-kiwi.js": {
+    "mtime": 1793880497.9911377,
+    "seen": 1793908515.7330675,
+    "ast_hash": "ad5e055ad660f3990196a763ac6d52d0",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/scripts/warm-flight-chrome.js": {
+    "mtime": 1793905670.5312324,
+    "seen": 1793908515.7330682,
+    "ast_hash": "d85a485dda1a08d08b252b81880c9384",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/browser/botWall.js": {
+    "mtime": 1793908489.620079,
+    "seen": 1793908515.733069,
+    "ast_hash": "54b6ad87cebcc1c9ead0f33a786a46e3",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/browser/session.js": {
+    "mtime": 1793949208.0593858,
+    "seen": 1793951719.8139212,
+    "ast_hash": "ecf3fb61bbed9fcc19f29e4d0f3d9b35",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/browser/stealth.js": {
+    "mtime": 1793882981.419786,
+    "seen": 1793908515.7330706,
+    "ast_hash": "2190e67549e5dc97c27dcc01e27e80ea",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/sites/cookies.js": {
+    "mtime": 1793946609.2457266,
+    "seen": 1793951719.813927,
+    "ast_hash": "d20d188b464a0b7d6e18fafa21a58d6b",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/sites/jsonCapture.js": {
+    "mtime": 1793879756.6937213,
+    "seen": 1793908515.7330768,
+    "ast_hash": "bc784df37b38d95a614532ba84b73b93",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/sites/kiwiPlaces.js": {
+    "mtime": 1793908489.620079,
+    "seen": 1793908515.7330782,
+    "ast_hash": "8d182c87ce17d406ddb260366205b206",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/sites/tequila.js": {
+    "mtime": 1793882973.703773,
+    "seen": 1793908515.733081,
+    "ast_hash": "73ef251b4dac4c0ab78de324bed6f65d",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/scripts/check-skyscanner-url.js": {
+    "mtime": 1793949918.5857286,
+    "seen": 1793951719.8139155,
+    "ast_hash": "eb156a9b9a03dbd8d421ad00cccc44b3",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

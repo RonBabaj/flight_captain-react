@@ -14,7 +14,7 @@ function parseCdpUrls() {
   const raw =
     process.env.SCRAPER_CDP_URLS ||
     process.env.SCRAPER_CDP_URL ||
-    'http://host.docker.internal:9223';
+    'http://host.docker.internal:9224';
   return String(raw)
     .split(',')
     .map((s) => s.trim())
@@ -36,7 +36,7 @@ module.exports = {
   // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
   serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
   proxyUrl: (process.env.SCRAPER_PROXY_URL || '').trim(),
-  /** Headed Chrome on DISPLAY :99 — try warmed apartment Chrome (9222) then flight Chrome (9223). */
+  /** Headed flight Chrome on DISPLAY :99 via CDP (default gateway:9224). Not apartment :9223. */
   cdpUrls: parseCdpUrls(),
   cdpUrl: parseCdpUrls()[0] || '',
   display: (process.env.DISPLAY || '').trim(),
