@@ -37,6 +37,8 @@
   "72": "Registry",
   "73": "providers.go",
   "74": "session.js",
+  "77": "dealsCache.ts",
+  "79": "exchangeRates.ts",
   "80": ".buildCacheKey",
   "81": "resolveAirlineLabel",
   "82": "net/http.Request",
@@ -49,10 +51,8 @@
   "92": "ValidateBookingURL",
   "93": "warm.js",
   "94": "booking.ts",
+  "95": "CalendarModal.tsx",
   "96": "DatePickerCalendar.tsx",
   "101": "ensure-flight-chrome.sh",
-  "102": "booking_resolve.go",
-  "103": "docker-entrypoint.sh",
-  "105": "SearchFormScreen.tsx",
-  "108": "server_carrier_test.go"
+  "103": "docker-entrypoint.sh"
 }
