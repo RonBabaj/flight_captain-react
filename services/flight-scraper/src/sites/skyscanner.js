@@ -1,30 +1,155 @@
 'use strict';
 
-const { withPage, runWithRetries, warmHomepage, gotoAndSettle, skyscannerDate } = require('./shared');
+const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
 const { pageLooksBlocked } = require('../browser/botWall');
 
-const SKY_HOME = 'https://www.skyscanner.com/';
+/** Locale path segment after /transport/ for each Skyscanner TLD. */
+const FLIGHTS_PATH_BY_HOST = {
+  'www.skyscanner.com': 'flights',
+  'www.skyscanner.net': 'flights',
+  'www.skyscanner.co.uk': 'flights',
+  'www.skyscanner.fr': 'vols',
+  'www.skyscanner.de': 'fluege',
+  'www.skyscanner.it': 'voli',
+  'www.skyscanner.es': 'vuelos',
+  'www.skyscanner.nl': 'vluchten',
+  'www.skyscanner.pt': 'voos',
+};
 
-function skyscannerUrl(req) {
+function flightsSegmentForHost(hostname) {
+  const host = String(hostname || '')
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .toLowerCase();
+  if (FLIGHTS_PATH_BY_HOST[host]) return FLIGHTS_PATH_BY_HOST[host];
+  // Fallback: keep English path — most mirrors accept /flights/ even when UI is localized.
+  return 'flights';
+}
+
+function skyscannerUrl(req, host = 'www.skyscanner.com') {
   const o = String(req.origin).toLowerCase();
   const d = String(req.destination).toLowerCase();
   const dep = skyscannerDate(req.departureDate);
   const ret = req.returnDate ? skyscannerDate(req.returnDate) : '';
   const adults = Math.max(1, req.adults || 1);
-  // .com redirects by culture cookie (often .fr on this VPS) — search path stays valid.
-  const base = `https://www.skyscanner.com/transport/flights/${o}/${d}/${dep}`;
+  const hostname = String(host || 'www.skyscanner.com')
+    .replace(/^https?:\/\//, '')
+    .split('/')[0];
+  const flights = flightsSegmentForHost(hostname);
+  const base = `https://${hostname}/transport/${flights}/${o}/${d}/${dep}`;
+  const qs = `adultsv2=${adults}&cabinclass=economy&rtn=${ret ? 1 : 0}&preferdirects=false`;
   if (ret) {
-    return `${base}/${ret}/?adultsv2=${adults}&cabinclass=economy&rtn=1`;
+    return `${base}/${ret}/?${qs}`;
   }
-  return `${base}/?adultsv2=${adults}&cabinclass=economy&rtn=0`;
+  return `${base}/?${qs}`;
+}
+
+/** True when culture redirect dropped YYMMDD date slugs (lands on month calendar). */
+function urlMissingSearchDates(href) {
+  const path = String(href || '').split('?')[0];
+  // Expect .../origin/dest/YYMMDD/ or .../origin/dest/YYMMDD/YYMMDD/
+  return !/\/[a-z0-9-]+\/[a-z0-9-]+\/\d{6}(?:\/\d{6})?\/?$/i.test(path);
+}
+
+async function preferUsCulture(page) {
+  // Shared CDP context also holds Kiwi cookies — only drop Skyscanner culture cookies.
+  const ctx = page.context();
+  try {
+    const existing = await ctx.cookies();
+    const keep = existing.filter((c) => !/skyscanner/i.test(c.domain || ''));
+    const sky = existing.filter((c) => /skyscanner/i.test(c.domain || ''));
+    if (sky.length) {
+      await ctx.clearCookies();
+      if (keep.length) {
+        await ctx.addCookies(keep);
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+  const cookieOpts = { path: '/', expires: Math.floor(Date.now() / 1000) + 86400 * 30 };
+  try {
+    await ctx.addCookies([
+      { name: 'ss_csm', value: 'us', domain: '.skyscanner.com', ...cookieOpts },
+      { name: 'ss_csm', value: 'us', domain: '.skyscanner.net', ...cookieOpts },
+      { name: 'ss_csm', value: 'us', domain: 'www.skyscanner.com', ...cookieOpts },
+    ]);
+  } catch {
+    /* cookie seed best-effort */
+  }
+}
+
+/** Best-effort PerimeterX "Press & Hold" on headed Chrome (CDP). */
+async function trySolvePerimeterX(page) {
+  if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
+    return false;
+  }
+  const targets = ['#px-captcha', '#px-captcha-wrapper', 'div[style*="cursor"]', 'body'];
+  for (const sel of targets) {
+    try {
+      const loc = page.locator(sel).first();
+      const box = await loc.boundingBox({ timeout: 2000 });
+      if (!box || box.width < 20 || box.height < 20) continue;
+      // Hold near the typical "Press & Hold" control (upper-mid of captcha card).
+      const x = box.x + box.width * 0.5;
+      const y = box.y + Math.min(box.height * 0.55, 280);
+      await page.mouse.move(x, y);
+      await page.waitForTimeout(300);
+      await page.mouse.down();
+      await page.waitForTimeout(8000);
+      await page.mouse.up();
+      await page.waitForTimeout(5000);
+      if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
+        return true;
+      }
+    } catch {
+      /* try next target */
+    }
+  }
+  return false;
+}
+
+/**
+ * Culture/geo redirects often strip YYMMDD date slugs (land on month calendar).
+ * Re-navigate on the redirected host with the localized flights segment + dates.
+ * Skip repair when already on captcha — another navigation usually deepens the wall.
+ */
+async function ensureDatedResultsUrl(page, req, config) {
+  let href = page.url();
+  if (/captcha-v2/i.test(href) || (await pageLooksBlocked(page))) {
+    return href;
+  }
+  if (!urlMissingSearchDates(href) && !/previousCultureSource=/i.test(href)) {
+    return href;
+  }
+  let host;
+  try {
+    host = new URL(href).hostname;
+  } catch {
+    host = 'www.skyscanner.com';
+  }
+  const repaired = skyscannerUrl(req, host);
+  if (repaired.split('?')[0] === href.split('?')[0] && !urlMissingSearchDates(href)) {
+    return href;
+  }
+  try {
+    await gotoAndSettle(page, repaired, config);
+  } catch {
+    /* navigation interrupted by captcha redirect — caller checks blocked */
+  }
+  return page.url();
 }
 
 function parsePriceText(text) {
   const t = String(text || '').replace(/\u00a0/g, ' ').trim();
-  // "164 €", "€164", "$118", "118"
-  const m = t.match(/(\d[\d\s.,]*)\s*€/) || t.match(/€\s*(\d[\d\s.,]*)/) || t.match(/\$\s*(\d[\d\s.,]*)/) || t.match(/^(\d[\d.,]+)$/);
+  // "164 €", "€164", "$118", "118", French "118 €"
+  const m =
+    t.match(/(\d[\d\s.,]*)\s*€/) ||
+    t.match(/€\s*(\d[\d\s.,]*)/) ||
+    t.match(/\$\s*(\d[\d\s.,]*)/) ||
+    t.match(/^(\d[\d.,]+)$/);
   if (!m) return 0;
   const num = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
   return num > 15 && num < 50000 ? num : 0;
@@ -34,101 +159,129 @@ async function scrapeSkyscanner(req, config) {
   if (config.dryRun) {
     return { offers: [], error: 'dry run' };
   }
-  const url = skyscannerUrl(req);
+  // VPS egress is FR — start on .fr /vols/ so geo redirect does not strip YYMMDD dates.
+  // Fall back to .com for non-FR deployments (culture cookie / ss_csm still applied).
+  const preferFr = process.env.SCRAPER_SKYSCANNER_HOST || 'www.skyscanner.fr';
+  const url = skyscannerUrl(req, preferFr);
 
   return runWithRetries(config.headless, 'skyscanner', async () => {
-    const offers = await withPage(config.headless, async (page) => {
-      // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
-      const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
-      await gotoAndSettle(page, url, config);
-
-      // PerimeterX sometimes flashes then continues; wait for tickets or clear captcha URL.
-      for (let i = 0; i < 8; i++) {
-        const href = page.url();
-        if (!/captcha-v2|person or a robot/i.test(href)) break;
-        await page.waitForTimeout(2000);
-      }
-      if (await pageLooksBlocked(page)) {
-        // Still on captcha after waits — empty this attempt.
-        return [];
-      }
-
-      try {
-        const cheapest = page
-          .locator('[data-testid="FqsTab_CHEAPEST"], button:has-text("Cheapest"), button:has-text("moins cher"), [role="tab"]:has-text("Cheapest")')
-          .first();
-        if (await cheapest.isVisible({ timeout: 5000 })) {
-          await cheapest.click({ timeout: 5000 });
-          await page.waitForTimeout(2500);
+    const offers = await withPage(
+      config.headless,
+      async (page) => {
+        // Only seed US culture when scraping .com; on .fr it fights geo and can worsen PX.
+        if (!/\.fr$/i.test(preferFr)) {
+          await preferUsCulture(page);
         }
-      } catch {
-        /* optional sort */
-      }
 
-      await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
-      await page.waitForTimeout(1500);
+        // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
+        const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
+        try {
+          await gotoAndSettle(page, url, config);
+        } catch {
+          /* captcha may interrupt navigation */
+        }
 
-      let parsed = extractSkyscanner(captured, req);
-      if (parsed.length) return parsed.slice(0, config.maxOffersPerSite);
+        // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
+        for (let i = 0; i < 6; i++) {
+          const href = page.url();
+          if (!/captcha-v2/i.test(href) && !(await pageLooksBlocked(page))) break;
+          const solved = await trySolvePerimeterX(page);
+          if (solved) break;
+          await page.waitForTimeout(2000);
+        }
+        if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
+          return [];
+        }
 
-      try {
-        await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
-          timeout: 25000,
-        });
-      } catch {
-        /* DOM scrape anyway */
-      }
+        await ensureDatedResultsUrl(page, req, config);
+        if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
+          return [];
+        }
+        if (urlMissingSearchDates(page.url())) {
+          // Still on calendar — don't pretend we scraped itineraries.
+          return [];
+        }
 
-      const dom = await page.evaluate(() => {
-        const out = [];
-        const cards = document.querySelectorAll(
-          '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
-        );
-        cards.forEach((card) => {
-          const priceEl =
-            card.querySelector('[data-testid="price"]') ||
-            card.querySelector('[data-testid="price-main-container"]') ||
-            card.querySelector('[class*="Price"]') ||
-            card.querySelector('span[class*="price"]');
-          let priceText = priceEl?.textContent || '';
-          if (!priceText) {
-            const m = (card.textContent || '').match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
-            priceText = m ? m[0] : '';
+        try {
+          const cheapest = page
+            .locator(
+              '[data-testid="FqsTab_CHEAPEST"], button:has-text("Cheapest"), button:has-text("moins cher"), button:has-text("Le moins cher"), [role="tab"]:has-text("Cheapest"), [role="tab"]:has-text("moins cher")',
+            )
+            .first();
+          if (await cheapest.isVisible({ timeout: 5000 })) {
+            await cheapest.click({ timeout: 5000 });
+            await page.waitForTimeout(2500);
           }
-          out.push({
-            priceText,
-            link: card.querySelector('a')?.href || window.location.href,
-            text: (card.innerText || '').slice(0, 240),
-          });
-        });
-        return out.slice(0, 30);
-      });
+        } catch {
+          /* optional sort */
+        }
 
-      const fromDom = [];
-      for (const row of dom) {
-        const price = parsePriceText(row.priceText) || parsePriceText(row.text);
-        if (!price) continue;
-        fromDom.push(
-          offerTemplate({
-            origin: req.origin,
-            destination: req.destination,
-            price,
-            currency: req.currency || 'EUR',
-            bookingUrl: row.link || url,
-            segments: [
-              segment({
-                leg: 'outbound',
-                from: req.origin,
-                to: req.destination,
-                departureTime: `${req.departureDate}T09:00:00Z`,
-                arrivalTime: `${req.departureDate}T19:00:00Z`,
-              }),
-            ],
-          }),
-        );
-      }
-      return fromDom;
-    }, { proxyUrl: config.proxyUrl, engines: ['chromium'] });
+        await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        let parsed = extractSkyscanner(captured, req);
+        if (parsed.length) return parsed.slice(0, config.maxOffersPerSite);
+
+        try {
+          await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
+            timeout: 35000,
+          });
+        } catch {
+          /* DOM scrape anyway */
+        }
+
+        const dom = await page.evaluate(() => {
+          const out = [];
+          const cards = document.querySelectorAll(
+            '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
+          );
+          cards.forEach((card) => {
+            const priceEl =
+              card.querySelector('[data-testid="price"]') ||
+              card.querySelector('[data-testid="price-main-container"]') ||
+              card.querySelector('[class*="Price"]') ||
+              card.querySelector('span[class*="price"]');
+            let priceText = priceEl?.textContent || '';
+            if (!priceText) {
+              const m = (card.textContent || '').match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
+              priceText = m ? m[0] : '';
+            }
+            out.push({
+              priceText,
+              link: card.querySelector('a')?.href || window.location.href,
+              text: (card.innerText || '').slice(0, 240),
+            });
+          });
+          return out.slice(0, 30);
+        });
+
+        const fromDom = [];
+        for (const row of dom) {
+          const price = parsePriceText(row.priceText) || parsePriceText(row.text);
+          if (!price) continue;
+          fromDom.push(
+            offerTemplate({
+              origin: req.origin,
+              destination: req.destination,
+              price,
+              currency: req.currency || 'EUR',
+              bookingUrl: row.link || url,
+              segments: [
+                segment({
+                  leg: 'outbound',
+                  from: req.origin,
+                  to: req.destination,
+                  departureTime: `${req.departureDate}T09:00:00Z`,
+                  arrivalTime: `${req.departureDate}T19:00:00Z`,
+                }),
+              ],
+            }),
+          );
+        }
+        return fromDom;
+      },
+      { proxyUrl: config.proxyUrl, engines: ['chromium'] },
+    );
 
     if (offers.length) return { offers, error: undefined };
     return {
@@ -216,4 +369,9 @@ function normalizeLegs(node) {
   return segs;
 }
 
-module.exports = { scrapeSkyscanner, skyscannerUrl };
+module.exports = {
+  scrapeSkyscanner,
+  skyscannerUrl,
+  urlMissingSearchDates,
+  flightsSegmentForHost,
+};

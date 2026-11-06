@@ -10,8 +10,9 @@ services:
     environment:
       PORT: "3099"
       PLAYWRIGHT_HEADLESS: "0"
-      # Entrypoint rewrites host.docker.internal → compose-network gateway IP
-      SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://host.docker.internal:9223}
+      # Entrypoint rewrites host.docker.internal / :9223 → gateway:9224 (flight Chrome).
+      # Do not use :9223 — apartment-monitor-cdp-proxy owns that (Facebook profile).
+      SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://host.docker.internal:9224}
       SCRAPER_PROXY_URL: ${SCRAPER_PROXY_URL:-}
     networks:
       - proxy
