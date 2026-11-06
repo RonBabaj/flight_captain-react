@@ -68,7 +68,7 @@ func defaultRuntimeConfig() RuntimeConfig {
 		ResultsCacheTtlMs:           5 * 60 * 1000,
 		ResultsStorageTtlMs:         24 * 60 * 60 * 1000,
 		ExchangeRatesRefreshMs:      60 * 60 * 1000,
-		ApiRequestDefaultTimeoutMs:  90_000,
+		ApiRequestDefaultTimeoutMs:  320_000,
 		SearchSessionTtlMinutes:     25,
 		MonthDealsCacheTtlMinutes:   15,
 	}

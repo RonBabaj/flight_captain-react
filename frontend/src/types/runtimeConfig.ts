@@ -31,7 +31,8 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   resultsCacheTtlMs: 5 * 60 * 1000,
   resultsStorageTtlMs: 24 * 60 * 60 * 1000,
   exchangeRatesRefreshMs: 60 * 60 * 1000,
-  apiRequestDefaultTimeoutMs: 90_000,
+  // Default fetch budget; create-session uses an explicit 320s timeout in search.ts.
+  apiRequestDefaultTimeoutMs: 120_000,
   searchSessionTtlMinutes: 25,
   monthDealsCacheTtlMinutes: 15,
 };

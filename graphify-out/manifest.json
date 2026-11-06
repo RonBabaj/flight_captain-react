@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1793947482.5703588,
-    "seen": 1793951719.8137503,
-    "ast_hash": "993a36b9c4384c98698b3c665cbbb923",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.2364554,
+    "ast_hash": "ec47586bd05ca3c7b6584f5ed727810c",
     "semantic_hash": ""
   },
   "backend/server_baggage_test.go": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "frontend/src/api/search.ts": {
-    "mtime": 1793786959.2974777,
-    "seen": 1793791223.754055,
-    "ast_hash": "0f07b55bf3766dac254e963df851c2b2",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.2364805,
+    "ast_hash": "05cb7dabb26017f59257767e1bfe72f9",
     "semantic_hash": ""
   },
   "frontend/src/components/AppIcon.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1793786959.3014777,
-    "seen": 1793791223.7541203,
-    "ast_hash": "4c0a2d11d044f32260503b5d462b63d0",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.2365305,
+    "ast_hash": "09ab77bbd145e3f7de907f3442fcad7a",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "backend/search/registry.go": {
-    "mtime": 1793908489.6840792,
-    "seen": 1793908515.7329118,
-    "ast_hash": "6e1eb92470c5864e8961b4753932d17a",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.2364535,
+    "ast_hash": "c4c9348204b139423b489c146044f570",
     "semantic_hash": ""
   },
   "backend/search/openjaw_test.go": {
@@ -960,9 +960,9 @@
     "semantic_hash": ""
   },
   "backend/runtime_config.go": {
-    "mtime": 1793134041.6361408,
-    "seen": 1793791223.7539833,
-    "ast_hash": "6ffd5e6e8409d469c128be461f2b976f",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.2364304,
+    "ast_hash": "c8cb2aeb03323b4047acf1a33e5beee6",
     "semantic_hash": ""
   },
   "backend/runtime_config_test.go": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "frontend/src/types/runtimeConfig.ts": {
-    "mtime": 1793134042.228357,
-    "seen": 1793791223.754156,
-    "ast_hash": "17f9496a235b468104a7777f9264c96f",
+    "mtime": 1793960067.7432203,
+    "seen": 1793960076.236555,
+    "ast_hash": "c09b5cd1acf33162adcda668b3276ef5",
     "semantic_hash": ""
   },
   "frontend/src/utils/dynamicDestinations.ts": {
@@ -1554,9 +1554,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/server.js": {
-    "mtime": 1793886511.9386568,
-    "seen": 1793908515.7330742,
-    "ast_hash": "491a805bba253d6f6a54208d85ab9eac",
+    "mtime": 1793960067.7512207,
+    "seen": 1793960076.2366123,
+    "ast_hash": "708c3fb62d59b84fbaa921cc2d3be6a3",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/expedia.js": {
@@ -1584,9 +1584,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/README.md": {
-    "mtime": 1793950012.8114748,
-    "seen": 1793951719.813945,
-    "ast_hash": "d616f14feb524ce3a2cc8fc6a1588625",
+    "mtime": 1793960067.7512207,
+    "seen": 1793960076.2366307,
+    "ast_hash": "0640107b5af972c739976336466d50a5",
     "semantic_hash": ""
   },
   "scripts/vps/ensure-flight-chrome.sh": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/scripts/warm-flight-chrome.js": {
-    "mtime": 1793905670.5312324,
-    "seen": 1793908515.7330682,
-    "ast_hash": "d85a485dda1a08d08b252b81880c9384",
+    "mtime": 1793960067.7512207,
+    "seen": 1793960076.2366064,
+    "ast_hash": "fd2ffbab64f168fdb17b267dda962998",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/browser/botWall.js": {
@@ -1665,6 +1665,12 @@
     "mtime": 1793949918.5857286,
     "seen": 1793951719.8139155,
     "ast_hash": "eb156a9b9a03dbd8d421ad00cccc44b3",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/warm.js": {
+    "mtime": 1793960067.7512207,
+    "seen": 1793960076.2366202,
+    "ast_hash": "288ad728b0333df597fc1d8d70e1ad52",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

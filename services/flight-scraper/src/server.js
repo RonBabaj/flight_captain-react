@@ -3,6 +3,7 @@
 const express = require('express');
 const config = require('./config');
 const { scrapeAll } = require('./scrape');
+const { startWarmLoop, warmStatus } = require('./warm');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -15,6 +16,7 @@ function authOk(req) {
 }
 
 app.get('/health', (_req, res) => {
+  const warm = warmStatus();
   res.json({
     status: 'ok',
     service: 'flight-scraper',
@@ -23,6 +25,11 @@ app.get('/health', (_req, res) => {
     browser: config.cdpUrls?.length ? 'chrome-cdp' : config.headless ? 'playwright-headless' : 'playwright-headed',
     cdpEndpoints: config.cdpUrls?.length ? config.cdpUrls.length : 0,
     display: config.display || undefined,
+    warm: {
+      ok: warm.ok,
+      at: warm.at || undefined,
+      detail: warm.detail,
+    },
   });
 });
 
@@ -63,4 +70,7 @@ app.post('/v1/search', async (req, res) => {
 
 app.listen(config.port, () => {
   console.log(`[flight-scraper] listening on :${config.port} sites=${config.defaultSites.join(',')}`);
+  if (process.env.SCRAPER_WARM_ON_START !== '0') {
+    startWarmLoop(config);
+  }
 });

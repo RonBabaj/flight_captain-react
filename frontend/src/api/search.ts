@@ -97,11 +97,18 @@ function setToStorage(sessionId: string, data: SearchSessionResultsResponse): vo
   } catch {}
 }
 
+/** Create-session runs GF2 + multisite CDP scrapes; must outlive nginx/default API timeouts. */
+const CREATE_SEARCH_SESSION_TIMEOUT_MS = 320_000;
+
 /** Create a new search session. */
 export async function createSearchSession(
   params: CreateSearchSessionRequest
 ): Promise<SearchSession> {
-  const session = await apiPost<SearchSession>(SESSIONS_PATH, sanitizeStandardSearchPayload(params));
+  const session = await apiPost<SearchSession>(
+    SESSIONS_PATH,
+    sanitizeStandardSearchPayload(params),
+    CREATE_SEARCH_SESSION_TIMEOUT_MS
+  );
   return session;
 }
 

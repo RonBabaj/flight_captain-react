@@ -120,12 +120,48 @@ func (r *Registry) GoogleFlights2() *GoogleFlights2Provider {
 	return gf
 }
 
+func isPrimaryProvider(name string) bool {
+	return strings.EqualFold(name, "googleflights2")
+}
+
+// HasSecondary reports whether any non-GF2 provider (e.g. multisite CDP) is enabled.
+func (r *Registry) HasSecondary() bool {
+	if r == nil {
+		return false
+	}
+	for _, p := range r.providers {
+		if !isPrimaryProvider(p.Name()) {
+			return true
+		}
+	}
+	return false
+}
+
+type searchAllOpts struct {
+	primaryOnly   bool
+	secondaryOnly bool
+}
+
+// SearchPrimary runs Google Flights2 only — fast path for create-session.
+func (r *Registry) SearchPrimary(ctx context.Context, req SearchRequest) MultiSearchResult {
+	return r.searchAll(ctx, req, searchAllOpts{primaryOnly: true})
+}
+
+// SearchSecondary runs optional CDP scrapers (Kiwi/Skyscanner) with a long soft deadline.
+// Used to enrich a PARTIAL session in the background after GF2 results are already shown.
+func (r *Registry) SearchSecondary(ctx context.Context, req SearchRequest) MultiSearchResult {
+	return r.searchAll(ctx, req, searchAllOpts{secondaryOnly: true})
+}
+
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
-//
-// Optional providers (anything other than googleflights2) get a soft deadline so a slow Kiwi/Apify
-// run cannot hold the HTTP response until nginx/browsers abort with "Load failed".
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
+	return r.searchAll(ctx, req, searchAllOpts{})
+}
+
+// searchAll queries providers. Optional (non-GF2) providers get a soft deadline so a slow
+// CDP scrape cannot hold the HTTP response until nginx/browsers abort with "Load failed".
+func (r *Registry) searchAll(ctx context.Context, req SearchRequest, opts searchAllOpts) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
 		return out
@@ -137,6 +173,13 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 	ch := make(chan part, len(r.providers))
 	var wg sync.WaitGroup
 	for _, p := range r.providers {
+		primary := isPrimaryProvider(p.Name())
+		if opts.primaryOnly && !primary {
+			continue
+		}
+		if opts.secondaryOnly && primary {
+			continue
+		}
 		wg.Add(1)
 		go func(p Provider) {
 			defer wg.Done()
@@ -144,13 +187,16 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			st := ProviderSearchStats{Provider: p.Name()}
 			pctx := ctx
 			var cancel context.CancelFunc
-			if !strings.EqualFold(p.Name(), "googleflights2") {
+			if !isPrimaryProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					// Headed CDP + Kiwi SPA needs several minutes (warmup + settle + parse).
+					// Headed CDP + Kiwi/Skyscanner needs several minutes when cold;
+					// startup warm + cookie reuse usually finishes well under this.
 					soft = 5 * time.Minute
 				}
-				pctx, cancel = context.WithTimeout(ctx, soft)
+				// Detach from client/proxy cancellation so a short-lived create request
+				// (or its abort) does not kill an in-flight scrape used for enrichment.
+				pctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), soft)
 				defer cancel()
 			}
 			results, err := p.Search(pctx, req)
