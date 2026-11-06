@@ -5,6 +5,7 @@ const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
 const { localHmToIso, parseDepArrHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
+const { noteSkyscannerBlocked } = require('../warm');
 
 /** Locale path segment after /transport/ for each Skyscanner TLD. */
 const FLIGHTS_PATH_BY_HOST = {
@@ -191,11 +192,13 @@ async function scrapeSkyscanner(req, config) {
           await page.waitForTimeout(2000);
         }
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
+          noteSkyscannerBlocked();
           return [];
         }
 
         await ensureDatedResultsUrl(page, req, config);
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
+          noteSkyscannerBlocked();
           return [];
         }
         if (urlMissingSearchDates(page.url())) {

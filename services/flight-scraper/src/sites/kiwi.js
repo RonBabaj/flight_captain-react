@@ -1,14 +1,12 @@
 'use strict';
 
-const { withPage, runWithRetries, warmHomepage, gotoAndSettle } = require('./shared');
+const { withPage, runWithRetries, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segment } = require('../normalize');
 const { localHmToIso, parseDepArrHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { kiwiPlaceSlug } = require('./kiwiPlaces');
-
-const KIWI_HOME = 'https://www.kiwi.com/en/';
 
 function kiwiSearchUrl(req) {
   const o = kiwiPlaceSlug(req.origin, { cityName: req.originCity, countryCode: req.originCountry });
@@ -25,6 +23,83 @@ function kiwiSearchUrl(req) {
   return `https://www.kiwi.com/en/search/results/${o}/${d}/${dep}/no-return/`;
 }
 
+function kiwiPathLooksCorrect(href, req) {
+  const path = String(href || '').split('?')[0].toLowerCase();
+  if (!/\/search\/results\//.test(path)) return false;
+  const o = String(req.origin || '').toLowerCase();
+  const d = String(req.destination || '').toLowerCase();
+  // Accept either IATA or city slug presence (slug maps change; path still names the cities).
+  const originCity = String(req.originCity || '').toLowerCase().replace(/[^a-z]+/g, '-');
+  const destCity = String(req.destinationCity || '').toLowerCase().replace(/[^a-z]+/g, '-');
+  const originOk =
+    path.includes(`/${o}/`) ||
+    (o === 'tlv' && path.includes('tel-aviv')) ||
+    (originCity.length >= 4 && path.includes(originCity.slice(0, 6)));
+  const destOk =
+    path.includes(`/${d}/`) ||
+    (d === 'prg' && path.includes('prague')) ||
+    (destCity.length >= 4 && path.includes(destCity.slice(0, 6)));
+  // Prefer mapped slugs when present.
+  const mappedO = kiwiPlaceSlug(req.origin, { cityName: req.originCity, countryCode: req.originCountry });
+  const mappedD = kiwiPlaceSlug(req.destination, {
+    cityName: req.destinationCity,
+    countryCode: req.destinationCountry,
+  });
+  if (path.includes(`/${mappedO}/`) && path.includes(`/${mappedD}/`)) return true;
+  return !!(originOk && destOk);
+}
+
+async function clearKiwiSpaState(page) {
+  try {
+    await page.evaluate(() => {
+      try {
+        localStorage.clear();
+      } catch {
+        /* ignore */
+      }
+      try {
+        sessionStorage.clear();
+      } catch {
+        /* ignore */
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+async function ensureKiwiResultsUrl(page, url, req, config) {
+  const candidates = [url];
+  // Historical Kiwi country slugs that now 302/SPA-redirect to homepage.
+  if (/czech-republic/i.test(url)) {
+    candidates.push(url.replace(/czech-republic/gi, 'czechia'));
+  }
+  if (/czechia/i.test(url)) {
+    candidates.push(url.replace(/czechia/gi, 'czech-republic'));
+  }
+
+  for (const candidate of candidates) {
+    await clearKiwiSpaState(page);
+    try {
+      await page.goto('about:blank', { waitUntil: 'commit', timeout: 10_000 });
+    } catch {
+      /* ignore */
+    }
+    await gotoAndSettle(page, candidate, config);
+    if (kiwiPathLooksCorrect(page.url(), req) || /\/search\/results\//i.test(page.url())) {
+      return page.url();
+    }
+  }
+  // Hard reload of primary URL once more.
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
+    await page.waitForTimeout(Math.min(4000, config.settleMs || 4000));
+  } catch {
+    /* ignore */
+  }
+  return page.url();
+}
+
 async function scrapeKiwi(req, config) {
   if (config.dryRun) {
     return { offers: [], error: 'dry run' };
@@ -33,17 +108,23 @@ async function scrapeKiwi(req, config) {
     return scrapeKiwiTequila(req, config);
   }
   const url = kiwiSearchUrl(req);
+  let lastHref = '';
 
   try {
     return await runWithRetries(config.headless, 'kiwi', async () => {
       const offers = await withPage(config.headless, async (page) => {
-      // Best-effort homepage warm (cookies); do not abort — city-slug search URLs work cold.
-      await warmHomepage(page, KIWI_HOME, config.headless).catch(() => false);
+      // Do NOT warmHomepage on shared CDP — it sticks origin/destination in SPA state
+      // and redirects dated /search/results/ URLs to the wrong city (e.g. Athens).
+      await clearKiwiSpaState(page);
 
       const captured = attachJsonCapture(page, /skypicker|kiwi\.com|graphql|search|itinerar|booking-api/i);
 
-      await gotoAndSettle(page, url, config);
+      lastHref = await ensureKiwiResultsUrl(page, url, req, config);
       if (await pageLooksBlocked(page)) {
+        return [];
+      }
+      if (!kiwiPathLooksCorrect(lastHref, req)) {
+        // Wrong city / homepage — don't parse unrelated cards.
         return [];
       }
 
@@ -60,7 +141,7 @@ async function scrapeKiwi(req, config) {
       // Wait for result cards after cookie + challenge settle.
       try {
         await page.waitForSelector('[data-test="ResultCard"], [data-test="ResultCardWrapper"]', {
-          timeout: 20000,
+          timeout: 25000,
         });
       } catch {
         /* DOM fallback may still find prices */
@@ -85,7 +166,10 @@ async function scrapeKiwi(req, config) {
           const stamps = [...card.querySelectorAll('[data-test="TripTimestamp"]')]
             .map((el) => (el.textContent || '').trim())
             .filter((t) => /^\d{1,2}:\d{2}$/.test(t));
-          const stops = [...card.querySelectorAll('[data-test="ResultCardStopPlace"], [data-test="stationName"]')]
+          // Prefer the first sector (outbound) — RT cards list return stations too.
+          const sector =
+            card.querySelector('[data-test="ResultCardSectorWrapper"]') || card;
+          const stops = [...sector.querySelectorAll('[data-test="ResultCardStopPlace"], [data-test="stationName"]')]
             .map((el) => (el.textContent || '').trim().toUpperCase())
             .filter((t) => /^[A-Z]{3}$/.test(t));
           const logo =
@@ -103,7 +187,7 @@ async function scrapeKiwi(req, config) {
             depHm: stamps[0] || '',
             arrHm: stamps[1] || '',
             fromCode: stops[0] || '',
-            toCode: stops[stops.length - 1] || '',
+            toCode: stops.length > 1 ? stops[stops.length - 1] : '',
             airline,
             stopBadge,
             text: (card.innerText || '').slice(0, 240),
@@ -116,8 +200,13 @@ async function scrapeKiwi(req, config) {
         .map((row) => {
           const hm = row.depHm && row.arrHm ? { depHm: row.depHm, arrHm: row.arrHm } : parseDepArrHm(row.text);
           if (!hm) return null;
-          const fromCode = row.fromCode || req.origin;
-          const toCode = row.toCode || req.destination;
+          let fromCode = row.fromCode || req.origin;
+          let toCode = row.toCode || req.destination;
+          // RT cards can still collapse to origin/origin — force search OD.
+          if (!toCode || toCode === fromCode) {
+            fromCode = req.origin;
+            toCode = req.destination;
+          }
           const departureTime = localHmToIso(req.departureDate, hm.depHm, { airport: fromCode });
           const arrivalTime = localHmToIso(req.departureDate, hm.arrHm, {
             afterHm: hm.depHm,
@@ -146,11 +235,14 @@ async function scrapeKiwi(req, config) {
     }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
 
       if (offers.length) return { offers, error: undefined };
+      const wrongRoute = lastHref && !kiwiPathLooksCorrect(lastHref, req);
       return {
         offers: [],
-        error: config.proxyUrl
-          ? 'no kiwi offers parsed (layout or empty route)'
-          : 'Kiwi bot check — set SCRAPER_PROXY_URL (residential) or retry',
+        error: wrongRoute
+          ? `kiwi SPA redirected away from results (${String(lastHref).slice(0, 120)})`
+          : pageLooksBlockedHint(lastHref)
+            ? 'Kiwi bot check — set SCRAPER_PROXY_URL (residential) or retry'
+            : 'no kiwi offers parsed (layout or empty route)',
       };
     }).then(({ offers, error }) => ({
       offers: offers || [],
@@ -159,6 +251,10 @@ async function scrapeKiwi(req, config) {
   } catch (err) {
     return { offers: [], error: String(err.message || err) };
   }
+}
+
+function pageLooksBlockedHint(href) {
+  return /captcha|perimeterx|bot/i.test(String(href || ''));
 }
 
 async function extractNextData(page, req) {
