@@ -1566,9 +1566,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/kiwi.js": {
-    "mtime": 1793908489.6840792,
-    "seen": 1793908515.7330775,
-    "ast_hash": "365a1d1835fc6528ddc51e230a3dc5b1",
+    "mtime": 1793968625.482828,
+    "seen": 1793970373.820006,
+    "ast_hash": "79c760e55afaa8d09e23be3173beb3c4",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/shared.js": {
@@ -1578,9 +1578,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/skyscanner.js": {
-    "mtime": 1793951377.1855407,
-    "seen": 1793951719.8139331,
-    "ast_hash": "0957307f5f4274f538a85fc0d7179657",
+    "mtime": 1793968627.2627685,
+    "seen": 1793970373.8200085,
+    "ast_hash": "4ed451354e48350a70f353b4d8057a05",
     "semantic_hash": ""
   },
   "services/flight-scraper/README.md": {
@@ -1596,9 +1596,9 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/docker-entrypoint.sh": {
-    "mtime": 1793949904.3501074,
-    "seen": 1793951719.813913,
-    "ast_hash": "96e1e81a36f166bffa7a40d93fe96624",
+    "mtime": 1793968638.9583912,
+    "seen": 1793970373.819988,
+    "ast_hash": "60e289b975ee2250b4955efb1481d541",
     "semantic_hash": ""
   },
   "services/flight-scraper/scripts/debug-site.js": {
@@ -1671,6 +1671,18 @@
     "mtime": 1793960825.1195915,
     "seen": 1793960830.4069316,
     "ast_hash": "072ded19f19a85ab179f55c36d50ffdd",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/scripts/test-local-time.js": {
+    "mtime": 1793968631.9066162,
+    "seen": 1793970373.8199935,
+    "ast_hash": "e79dd56830efc740becdde7826bcfd7d",
+    "semantic_hash": ""
+  },
+  "services/flight-scraper/src/localTime.js": {
+    "mtime": 1793968619.4308207,
+    "seen": 1793970373.8199995,
+    "ast_hash": "30d6b27f3350998accfeb4b036ac0fbb",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

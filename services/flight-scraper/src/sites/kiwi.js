@@ -4,6 +4,7 @@ const { withPage, runWithRetries, warmHomepage, gotoAndSettle } = require('./sha
 const { attachJsonCapture } = require('./jsonCapture');
 const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segment } = require('../normalize');
+const { localHmToIso, parseDepArrHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { kiwiPlaceSlug } = require('./kiwiPlaces');
 
@@ -81,29 +82,67 @@ async function scrapeKiwi(req, config) {
           const num = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, ''));
           if (!num || Number.isNaN(num) || num < 15) return;
           const link = card.querySelector('a[href*="/booking"], a[href*="kiwi.com"]')?.href || window.location.href;
-          out.push({ price: num, bookingUrl: link });
+          const stamps = [...card.querySelectorAll('[data-test="TripTimestamp"]')]
+            .map((el) => (el.textContent || '').trim())
+            .filter((t) => /^\d{1,2}:\d{2}$/.test(t));
+          const stops = [...card.querySelectorAll('[data-test="ResultCardStopPlace"], [data-test="stationName"]')]
+            .map((el) => (el.textContent || '').trim().toUpperCase())
+            .filter((t) => /^[A-Z]{3}$/.test(t));
+          const logo =
+            card.querySelector('[data-test="ResultCardCarrierLogo"] img') ||
+            card.querySelector('img[alt*="airline" i], img[class*="Carrier"]');
+          const airline =
+            (logo?.getAttribute('alt') || '').replace(/\s*logo.*/i, '').trim() ||
+            (logo?.getAttribute('src') || '').match(/\/([A-Z0-9]{2})\./i)?.[1] ||
+            '';
+          const stopBadge =
+            card.querySelector('[data-test^="StopCountBadge"]')?.textContent?.trim() || '';
+          out.push({
+            price: num,
+            bookingUrl: link,
+            depHm: stamps[0] || '',
+            arrHm: stamps[1] || '',
+            fromCode: stops[0] || '',
+            toCode: stops[stops.length - 1] || '',
+            airline,
+            stopBadge,
+            text: (card.innerText || '').slice(0, 240),
+          });
         });
         return out;
       });
 
-      return fromDom.map((row) =>
-        offerTemplate({
-          origin: req.origin,
-          destination: req.destination,
-          price: row.price,
-          currency: req.currency || 'USD',
-          bookingUrl: row.bookingUrl,
-          segments: [
-            segment({
-              leg: 'outbound',
-              from: req.origin,
-              to: req.destination,
-              departureTime: `${req.departureDate}T08:00:00Z`,
-              arrivalTime: `${req.departureDate}T18:00:00Z`,
-            }),
-          ],
-        }),
-      );
+      return fromDom
+        .map((row) => {
+          const hm = row.depHm && row.arrHm ? { depHm: row.depHm, arrHm: row.arrHm } : parseDepArrHm(row.text);
+          if (!hm) return null;
+          const fromCode = row.fromCode || req.origin;
+          const toCode = row.toCode || req.destination;
+          const departureTime = localHmToIso(req.departureDate, hm.depHm, { airport: fromCode });
+          const arrivalTime = localHmToIso(req.departureDate, hm.arrHm, {
+            afterHm: hm.depHm,
+            airport: toCode,
+          });
+          if (!departureTime || !arrivalTime) return null;
+          return offerTemplate({
+            origin: req.origin,
+            destination: req.destination,
+            price: row.price,
+            currency: req.currency || 'USD',
+            bookingUrl: row.bookingUrl,
+            segments: [
+              segment({
+                leg: 'outbound',
+                from: fromCode,
+                to: toCode,
+                departureTime,
+                arrivalTime,
+                airline: row.airline || undefined,
+              }),
+            ],
+          });
+        })
+        .filter(Boolean);
     }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
 
       if (offers.length) return { offers, error: undefined };
@@ -158,19 +197,12 @@ function extractFromCaptured(blobs, req) {
     if (!segs.length && item.route) {
       segs = routeToSegments(item.route, req);
     }
-    if (!segs.length) {
-      // Price-only card from some API shapes — still useful for metasearch merge.
-      segs = [
-        {
-          leg: 'outbound',
-          fromCode: req.origin,
-          toCode: req.destination,
-          departureTime: `${req.departureDate}T08:00:00Z`,
-          arrivalTime: `${req.departureDate}T18:00:00Z`,
-        },
-      ];
-    }
-    const key = `${price}|${segs.map((s) => s.fromCode + s.toCode).join('-')}`;
+    // Skip price-only rows: identical placeholder segments collapse to 1 offer in API dedupe.
+    if (!segs.length) continue;
+    const key = [
+      price,
+      ...segs.map((s) => `${s.fromCode}-${s.toCode}-${s.departureTime || ''}-${s.flightNumber || ''}`),
+    ].join('|');
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(
