@@ -38,9 +38,7 @@ async function scrapeSkyscanner(req, config) {
 
   return runWithRetries(config.headless, 'skyscanner', async () => {
     const offers = await withPage(config.headless, async (page) => {
-      // Best-effort warm; captcha on home must not abort — search URL often clears after settle.
-      await warmHomepage(page, SKY_HOME, config.headless).catch(() => false);
-
+      // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
       const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
       await gotoAndSettle(page, url, config);
 
