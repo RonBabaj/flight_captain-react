@@ -3,6 +3,7 @@
 const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment } = require('../normalize');
+const { localHmToIso, parseDepArrHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 
 /** Locale path segment after /transport/ for each Skyscanner TLD. */
@@ -256,9 +257,21 @@ async function scrapeSkyscanner(req, config) {
         });
 
         const fromDom = [];
+        const seenDom = new Set();
         for (const row of dom) {
           const price = parsePriceText(row.priceText) || parsePriceText(row.text);
           if (!price) continue;
+          const hm = parseDepArrHm(row.text);
+          if (!hm) continue;
+          const departureTime = localHmToIso(req.departureDate, hm.depHm, { airport: req.origin });
+          const arrivalTime = localHmToIso(req.departureDate, hm.arrHm, {
+            afterHm: hm.depHm,
+            airport: req.destination,
+          });
+          if (!departureTime || !arrivalTime) continue;
+          const key = `${price}|${departureTime}|${arrivalTime}`;
+          if (seenDom.has(key)) continue;
+          seenDom.add(key);
           fromDom.push(
             offerTemplate({
               origin: req.origin,
@@ -271,8 +284,8 @@ async function scrapeSkyscanner(req, config) {
                   leg: 'outbound',
                   from: req.origin,
                   to: req.destination,
-                  departureTime: `${req.departureDate}T09:00:00Z`,
-                  arrivalTime: `${req.departureDate}T19:00:00Z`,
+                  departureTime,
+                  arrivalTime,
                 }),
               ],
             }),
@@ -305,8 +318,13 @@ function extractSkyscanner(payloads, req) {
       if (price && typeof price === 'object') price = price.amount || price.value;
       if (typeof price !== 'number' || price <= 0) return;
       const segs = normalizeLegs(node);
-      const key = String(price);
-      if (seen.has(key) && segs.length === 0) return;
+      // Skip price-only nodes — identical placeholders collapse to 1 offer after API dedupe.
+      if (!segs.length) return;
+      const key = [
+        price,
+        ...segs.map((s) => `${s.fromCode}-${s.toCode}-${s.departureTime || ''}-${s.flightNumber || ''}`),
+      ].join('|');
+      if (seen.has(key)) return;
       seen.add(key);
       out.push(
         offerTemplate({
@@ -315,18 +333,7 @@ function extractSkyscanner(payloads, req) {
           price,
           currency: req.currency || 'USD',
           bookingUrl: node.deepLink || node.deeplink || skyscannerUrl(req),
-          segments:
-            segs.length > 0
-              ? segs
-              : [
-                  segment({
-                    leg: 'outbound',
-                    from: req.origin,
-                    to: req.destination,
-                    departureTime: `${req.departureDate}T09:00:00Z`,
-                    arrivalTime: `${req.departureDate}T19:00:00Z`,
-                  }),
-                ],
+          segments: segs,
         }),
       );
     });
