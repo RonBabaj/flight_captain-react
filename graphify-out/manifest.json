@@ -144,8 +144,8 @@
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1793986670.5895238,
-    "seen": 1793987567.2870617,
+    "mtime": 1793987598.5433805,
+    "seen": 1794066039.9708388,
     "ast_hash": "19adf7187e39222df4aa707ff7e8ea15",
     "semantic_hash": ""
   },
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "frontend/src/api/search.ts": {
-    "mtime": 1793960067.7432203,
-    "seen": 1793960076.2364805,
-    "ast_hash": "05cb7dabb26017f59257767e1bfe72f9",
+    "mtime": 1794065968.385976,
+    "seen": 1794066039.9708633,
+    "ast_hash": "fa9c21c054317f11220ff7fc369481c6",
     "semantic_hash": ""
   },
   "frontend/src/components/AppIcon.tsx": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "frontend/src/data/translations.ts": {
-    "mtime": 1793800921.2795753,
-    "seen": 1793908515.732966,
-    "ast_hash": "9a1531b5e0d2ca1ea4ec5b07407fbfaa",
+    "mtime": 1794066004.706754,
+    "seen": 1794066039.9708886,
+    "ast_hash": "cd28404538e8f8f663721af18a3023c5",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/AirportAutocomplete.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1793960067.7432203,
-    "seen": 1793960076.2365305,
-    "ast_hash": "09ab77bbd145e3f7de907f3442fcad7a",
+    "mtime": 1794066027.0633292,
+    "seen": 1794066039.9709125,
+    "ast_hash": "c0253b6c5c26314bc48e0a8a39cc3b39",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
@@ -1524,8 +1524,8 @@
     "semantic_hash": ""
   },
   "backend/search/ota_scraper_provider.go": {
-    "mtime": 1793986664.1134844,
-    "seen": 1793987567.2870576,
+    "mtime": 1793987598.5433805,
+    "seen": 1794066039.970835,
     "ast_hash": "9b5620c83cff8dd5880e908a98f62b1f",
     "semantic_hash": ""
   },
@@ -1536,8 +1536,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/config.js": {
-    "mtime": 1793985570.1652007,
-    "seen": 1793987567.2872179,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9709938,
     "ast_hash": "205a6db8e7afcf76ffb9b6d376bf07c3",
     "semantic_hash": ""
   },
@@ -1554,8 +1554,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/server.js": {
-    "mtime": 1793986663.6614816,
-    "seen": 1793987567.2872224,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9709978,
     "ast_hash": "d38099d75dab0d9907481edf5bad24ef",
     "semantic_hash": ""
   },
@@ -1566,8 +1566,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/kiwi.js": {
-    "mtime": 1793986275.847718,
-    "seen": 1793987567.287226,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9710016,
     "ast_hash": "719e65e1a90dfb78a356831b190acb19",
     "semantic_hash": ""
   },
@@ -1578,8 +1578,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/skyscanner.js": {
-    "mtime": 1793985580.0532641,
-    "seen": 1793987567.2872283,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9710042,
     "ast_hash": "2e30ebb1c9487c3d01e9744662758ce9",
     "semantic_hash": ""
   },
@@ -1626,8 +1626,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/browser/session.js": {
-    "mtime": 1793986657.5094445,
-    "seen": 1793987567.2872162,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9709918,
     "ast_hash": "0f2b33aad8c24a65922f2368bd47bb5e",
     "semantic_hash": ""
   },
@@ -1650,8 +1650,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/sites/kiwiPlaces.js": {
-    "mtime": 1793986037.6800244,
-    "seen": 1793987567.287227,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.9710023,
     "ast_hash": "b53b25b594a3b69f6c3426a339d5e395",
     "semantic_hash": ""
   },
@@ -1668,8 +1668,8 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/warm.js": {
-    "mtime": 1793986661.233467,
-    "seen": 1793987567.2872303,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.971006,
     "ast_hash": "d90e7bd45548626b35fc832a43ce328f",
     "semantic_hash": ""
   },
@@ -1686,14 +1686,14 @@
     "semantic_hash": ""
   },
   "services/flight-scraper/src/browser/cdpLock.js": {
-    "mtime": 1793985488.732857,
-    "seen": 1793987567.2872148,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.970991,
     "ast_hash": "5c40f6ffe27b76298cb1d2cc1ec0a514",
     "semantic_hash": ""
   },
   "services/flight-scraper/src/searchBusy.js": {
-    "mtime": 1793986661.1374664,
-    "seen": 1793987567.2872212,
+    "mtime": 1793987598.5513806,
+    "seen": 1794066039.970997,
     "ast_hash": "7c7fd50f85aedac33f2f9229aafd27e1",
     "semantic_hash": ""
   },
