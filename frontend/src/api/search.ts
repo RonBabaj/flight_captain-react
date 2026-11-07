@@ -204,6 +204,9 @@ export async function getSearchSessionResults(
       return await fetchFresh(sessionId, sinceVersion);
     } else if (isEmptyCompleteSession(memHit.data)) {
       return await fetchFresh(sessionId, sinceVersion);
+    } else if (isIncompleteSession(memHit.data)) {
+      // Never trust a cached PARTIAL snapshot — OTA enrich may have finished server-side.
+      return await fetchFresh(sessionId, sinceVersion);
     } else {
       return memHit.data;
     }
@@ -213,6 +216,7 @@ export async function getSearchSessionResults(
   if (storageHit) {
     if (!searchParamsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
     if (isEmptyCompleteSession(storageHit)) return await fetchFresh(sessionId, sinceVersion);
+    if (isIncompleteSession(storageHit)) return await fetchFresh(sessionId, sinceVersion);
     resultsCache.set(sessionId, { data: storageHit, at: now });
     return storageHit;
   }
@@ -222,6 +226,12 @@ export async function getSearchSessionResults(
 
 function isEmptyCompleteSession(data: SearchSessionResultsResponse): boolean {
   return data.session?.status === 'COMPLETE' && (data.results?.length ?? 0) === 0;
+}
+
+/** PARTIAL/PENDING snapshots must not be served from cache — enrich may still be running. */
+function isIncompleteSession(data: SearchSessionResultsResponse): boolean {
+  const st = data.session?.status;
+  return st === 'PARTIAL' || st === 'PENDING';
 }
 
 /** Drop cached snapshots for a session (e.g. before re-searching an empty session). */
@@ -244,7 +254,9 @@ async function fetchFresh(
   );
   const isInitialLoad = sinceVersion == null || sinceVersion === 0;
   resultsCache.set(sessionId, { data, at: Date.now() });
-  if (isInitialLoad && data.results?.length) {
+  // Persist only completed non-empty snapshots. Caching PARTIAL freezes the UI at the
+  // GF2-only list after refresh even when Kiwi/Skyscanner enrich already finished.
+  if (isInitialLoad && data.results?.length && data.session?.status === 'COMPLETE') {
     setToStorage(sessionId, data);
   }
   return data;
