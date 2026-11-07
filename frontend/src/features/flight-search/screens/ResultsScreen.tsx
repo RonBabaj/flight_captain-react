@@ -804,7 +804,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
     let cancelled = false;
     let consecutiveNotFound = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
     const MAX_NOT_FOUND = 3;
+    /** Keep polling PARTIAL for long CDP scrapes (Kiwi/Skyscanner often 2–5+ minutes). */
+    const PARTIAL_POLL_BUDGET_MS = 12 * 60 * 1000;
+    const pollStartedAt = Date.now();
     const polledSessionId = sessionId;
     const generation = currentGeneration();
 
@@ -814,8 +819,42 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       invalidateSearchSessionResultsCache(polledSessionId);
     }
 
+    const shouldStopPolling = () => {
+      if (cancelled) return true;
+      if (!isCurrentSearchGeneration(generation)) return true;
+      const st = statusRef.current;
+      if (st === 'FAILED') return true;
+      // Only stop on COMPLETE once hydrated. Never stop on PARTIAL — OTA enrich
+      // often finishes minutes after GF2 paints the first 40 results.
+      if (
+        st === 'COMPLETE' &&
+        versionRef.current > 0 &&
+        useSearchStore.getState().results.length > 0
+      ) {
+        return true;
+      }
+      if (st === 'PARTIAL' && Date.now() - pollStartedAt > PARTIAL_POLL_BUDGET_MS) {
+        return true;
+      }
+      return false;
+    };
+
+    const scheduleNext = (delayMs?: number) => {
+      if (cancelled || shouldStopPolling()) return;
+      if (timer) clearTimeout(timer);
+      const base = runtimeConfig.pollIntervalMs;
+      // After the first minute of PARTIAL, back off slightly to reduce load but
+      // keep polling — iOS often freezes setInterval; recursive setTimeout +
+      // visibility resume is more reliable.
+      const elapsed = Date.now() - pollStartedAt;
+      const backedOff = elapsed > 60_000 ? Math.min(base * 2, 4000) : base;
+      timer = setTimeout(() => {
+        void poll();
+      }, delayMs ?? backedOff);
+    };
+
     const poll = async () => {
-      if (cancelled) return;
+      if (cancelled || inFlight) return;
       if (!isCurrentSearchGeneration(generation)) return;
       const storeState = useSearchStore.getState();
       const storeSid = storeState.sessionId;
@@ -826,29 +865,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       // bootstrap briefly poisoned the store before sessionId resolved on iOS.
       if (storeSid == null && storeState.status === 'PENDING' && !hydratingShared) return;
 
-      const currentStatus = statusRef.current;
-      // Failed: stop. Completed: only skip once results are hydrated (version > 0).
-      // Otherwise a COMPLETE create with an empty store never GETs offers and the UI
-      // falsely shows "No flights found".
-      if (currentStatus === 'FAILED') return;
-      if (
-        currentStatus === 'COMPLETE' &&
-        versionRef.current > 0 &&
-        useSearchStore.getState().results.length > 0
-      ) {
-        return;
-      }
+      if (shouldStopPolling()) return;
+
+      inFlight = true;
       try {
-        const sinceVersion = versionRef.current > 0 ? versionRef.current : undefined;
+        // Always fetch a full snapshot. Backend ignores sinceVersion today, and
+        // enrich renumbers opt_* ids — append-by-id against a stale list is unsafe.
         const matchParams =
           sharedLinkHydrationRef.current || !storeParamsRef.current
             ? undefined
             : storeParamsRef.current;
-        const res = await getSearchSessionResults(
-          polledSessionId,
-          sinceVersion,
-          matchParams
-        );
+        const res = await getSearchSessionResults(polledSessionId, undefined, matchParams);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
         const latest = useSearchStore.getState();
         if (latest.sessionId != null && latest.sessionId !== polledSessionId) return;
@@ -889,7 +916,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           status: res.session.status,
           results: res.results ?? [],
           version: nextVersion,
-          mode: sinceVersion == null ? 'replace' : 'append',
+          mode: 'replace',
         });
         if (applied) {
           versionRef.current = nextVersion;
@@ -945,27 +972,45 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             searchActions.setSession(null, null, 'FAILED');
           }
         }
-        // Transient 5xx/network: keep polling briefly while still PENDING.
+        // Transient 5xx/network: keep polling while still PENDING/PARTIAL.
+      } finally {
+        inFlight = false;
+        scheduleNext();
       }
     };
 
-    const id = setInterval(() => {
-      const st = statusRef.current;
-      if (st === 'FAILED') {
-        clearInterval(id);
-        return;
-      }
-      if (st === 'COMPLETE' && versionRef.current > 0 && useSearchStore.getState().results.length > 0) {
-        clearInterval(id);
-        return;
-      }
-      poll();
-    }, runtimeConfig.pollIntervalMs);
+    // iOS Chrome freezes timers when the tab is backgrounded / after screenshots.
+    // When the page is visible again and we are still PARTIAL, force a catch-up GET
+    // so Kiwi/Skyscanner enrich is not left invisible forever.
+    const g = globalThis as {
+      document?: { visibilityState?: string; addEventListener?: typeof addEventListener; removeEventListener?: typeof removeEventListener };
+      window?: { addEventListener?: typeof addEventListener; removeEventListener?: typeof removeEventListener };
+      addEventListener?: typeof addEventListener;
+      removeEventListener?: typeof removeEventListener;
+    };
+    const doc = g.document;
+    const win = g.window ?? g;
 
-    poll();
+    const onVisibilityOrFocus = () => {
+      if (cancelled) return;
+      if (doc?.visibilityState === 'hidden') return;
+      if (shouldStopPolling()) return;
+      if (statusRef.current === 'PARTIAL' || statusRef.current === 'PENDING') {
+        scheduleNext(0);
+      }
+    };
+
+    doc?.addEventListener?.('visibilitychange', onVisibilityOrFocus);
+    win.addEventListener?.('focus', onVisibilityOrFocus);
+    win.addEventListener?.('pageshow', onVisibilityOrFocus);
+
+    void poll();
     return () => {
       cancelled = true;
-      clearInterval(id);
+      if (timer) clearTimeout(timer);
+      doc?.removeEventListener?.('visibilitychange', onVisibilityOrFocus);
+      win.removeEventListener?.('focus', onVisibilityOrFocus);
+      win.removeEventListener?.('pageshow', onVisibilityOrFocus);
     };
   }, [sessionId]);
 
@@ -1693,6 +1738,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </EditSearchModal>
 
       {isLoading && <SearchProgressBanner language={language} theme={theme} />}
+      {!isLoading && status === 'PARTIAL' && results.length > 0 ? (
+        <SearchStatusBanner message={t('enriching_ota_results')} variant="info" />
+      ) : null}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (

@@ -656,6 +656,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   left: { en: 'left', he: 'נותרו', ru: 'осталось' },
   loading_flight_details: { en: 'Loading flight details…', he: 'טוען פרטי טיסה…', ru: 'Загрузка деталей рейса…' },
   loading_more_results: { en: 'Loading more results…', he: 'טוען תוצאות…', ru: 'Загрузка результатов…' },
+  enriching_ota_results: {
+    en: 'Still checking Kiwi & Skyscanner for better deals…',
+    he: 'עדיין בודקים ב‑Kiwi ו‑Skyscanner עסקאות טובות יותר…',
+    ru: 'Ещё ищем лучшие цены на Kiwi и Skyscanner…',
+  },
   book: { en: 'Book', he: 'הזמן', ru: 'Забронировать' },
   book_now: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   book_this_flight: { en: 'Book This Flight', he: 'הזמן טיסה זו', ru: 'Забронировать этот рейс' },
