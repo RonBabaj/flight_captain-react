@@ -807,8 +807,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     const MAX_NOT_FOUND = 3;
-    /** Keep polling PARTIAL for long CDP scrapes (Kiwi/Skyscanner often 2–5+ minutes). */
-    const PARTIAL_POLL_BUDGET_MS = 12 * 60 * 1000;
+    /** Unified search stays PENDING until GF2 + OTAs finish together (often 1–3 minutes). */
+    const PENDING_POLL_BUDGET_MS = 12 * 60 * 1000;
     const pollStartedAt = Date.now();
     const polledSessionId = sessionId;
     const generation = currentGeneration();
@@ -824,8 +824,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (!isCurrentSearchGeneration(generation)) return true;
       const st = statusRef.current;
       if (st === 'FAILED') return true;
-      // Only stop on COMPLETE once hydrated. Never stop on PARTIAL — OTA enrich
-      // often finishes minutes after GF2 paints the first 40 results.
+      // Stop once COMPLETE with results. Keep polling empty PENDING while providers run.
       if (
         st === 'COMPLETE' &&
         versionRef.current > 0 &&
@@ -833,7 +832,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       ) {
         return true;
       }
-      if (st === 'PARTIAL' && Date.now() - pollStartedAt > PARTIAL_POLL_BUDGET_MS) {
+      if (
+        (st === 'PENDING' || st === 'PARTIAL') &&
+        Date.now() - pollStartedAt > PENDING_POLL_BUDGET_MS
+      ) {
         return true;
       }
       return false;
@@ -843,7 +845,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (cancelled || shouldStopPolling()) return;
       if (timer) clearTimeout(timer);
       const base = runtimeConfig.pollIntervalMs;
-      // After the first minute of PARTIAL, back off slightly to reduce load but
+      // After the first minute of PENDING, back off slightly to reduce load but
       // keep polling — iOS often freezes setInterval; recursive setTimeout +
       // visibility resume is more reliable.
       const elapsed = Date.now() - pollStartedAt;
@@ -1738,6 +1740,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </EditSearchModal>
 
       {isLoading && <SearchProgressBanner language={language} theme={theme} />}
+      {/* Legacy PARTIAL sessions only — new searches stay PENDING until all providers finish together. */}
       {!isLoading && status === 'PARTIAL' && results.length > 0 ? (
         <SearchStatusBanner message={t('enriching_ota_results')} variant="info" />
       ) : null}

@@ -30,11 +30,12 @@ module.exports = {
   parseSites,
   headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
   maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 40), 80),
-  navigationTimeoutMs: Number(process.env.SCRAPER_NAV_TIMEOUT_MS || 55000),
-  settleMs: Number(process.env.SCRAPER_SETTLE_MS || 5000),
+  navigationTimeoutMs: Number(process.env.SCRAPER_NAV_TIMEOUT_MS || 45000),
+  settleMs: Number(process.env.SCRAPER_SETTLE_MS || 2000),
   dryRun: process.env.SCRAPER_DRY_RUN === '1',
-  // Run heavy sites one-at-a-time to reduce RAM spikes on small VPS.
-  serialSites: process.env.SCRAPER_SERIAL_SITES !== '0',
+  // Default: parallel Kiwi+Skyscanner tabs on one CDP Chrome.
+  // Set SCRAPER_SERIAL_SITES=1 only on very low-RAM hosts.
+  serialSites: process.env.SCRAPER_SERIAL_SITES === '1',
   proxyUrl: (process.env.SCRAPER_PROXY_URL || '').trim(),
   /** Headed flight Chrome on DISPLAY :99 via CDP (default gateway:9224). Not apartment :9223. */
   cdpUrls: parseCdpUrls(),

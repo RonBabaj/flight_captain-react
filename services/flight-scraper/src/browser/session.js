@@ -5,6 +5,7 @@ const { stealthInitScript } = require('./stealth');
 const { pageLooksBlocked } = require('./botWall');
 const { dismissCookieBanners } = require('../sites/cookies');
 const { withCdpLock } = require('./cdpLock');
+const { getOpenPageHook } = require('./parallelContext');
 
 let browserPromises = {};
 
@@ -103,7 +104,63 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
   });
 }
 
+/**
+ * Hold one CDP connection and run `fn({ openPage })` so multiple sites can
+ * scrape in parallel tabs without racing connectOverCDP clients.
+ */
+async function withCdpBrowser(config, fn) {
+  const cdpUrls =
+    config.cdpUrls?.length > 0 ? config.cdpUrls : config.cdpUrl ? [config.cdpUrl] : [];
+  if (!cdpUrls.length) {
+    throw new Error('withCdpBrowser requires SCRAPER_CDP_URLS');
+  }
+  const cdpUrl = cdpUrls[0];
+  return withCdpLock(async () => {
+    const browser = await chromium.connectOverCDP(cdpUrl);
+    const contexts = browser.contexts();
+    const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
+    const ownedContext = contexts.length === 0;
+    try {
+      await context.addInitScript(stealthInitScript);
+    } catch {
+      /* already attached */
+    }
+    await pruneJunkPages(context);
+
+    const openPage = async (pageFn) => {
+      await pruneJunkPages(context);
+      const page = await context.newPage();
+      try {
+        return await pageFn(page, {
+          dismissCookieBanners,
+          pageLooksBlocked,
+          engine: 'chrome-cdp',
+          cdpUrl,
+        });
+      } finally {
+        await page.close().catch(() => {});
+        await pruneJunkPages(context);
+      }
+    };
+
+    try {
+      return await fn({ openPage, browser, context, cdpUrl });
+    } finally {
+      if (ownedContext) {
+        await context.close().catch(() => {});
+      }
+      await browser.close().catch(() => {});
+    }
+  });
+}
+
 async function withPage(config, fn, options = {}) {
+  // Parallel multi-site scrape: reuse the shared CDP page factory (no nested lock).
+  const hook = getOpenPageHook();
+  if (typeof hook === 'function') {
+    return hook(fn);
+  }
+
   const proxyUrl = options.proxyUrl || config.proxyUrl;
   const cdpUrls =
     config.cdpUrls?.length > 0 ? config.cdpUrls : config.cdpUrl ? [config.cdpUrl] : [];
@@ -214,4 +271,11 @@ async function warmHomepage(page, url, config) {
   return !(await pageLooksBlocked(page));
 }
 
-module.exports = { withPage, runWithRetries, warmHomepage, pageLooksBlocked, pruneJunkPages };
+module.exports = {
+  withPage,
+  withCdpBrowser,
+  runWithRetries,
+  warmHomepage,
+  pageLooksBlocked,
+  pruneJunkPages,
+};

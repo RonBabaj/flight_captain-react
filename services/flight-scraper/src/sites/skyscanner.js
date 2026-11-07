@@ -100,9 +100,9 @@ async function trySolvePerimeterX(page) {
       await page.mouse.move(x, y);
       await page.waitForTimeout(300);
       await page.mouse.down();
-      await page.waitForTimeout(8000);
+      await page.waitForTimeout(5500);
       await page.mouse.up();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(2500);
       if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
         return true;
       }
@@ -184,12 +184,13 @@ async function scrapeSkyscanner(req, config) {
         }
 
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
-        for (let i = 0; i < 6; i++) {
+        // Cap attempts — each hold is ~13s and serial retries dominated enrich latency.
+        for (let i = 0; i < 3; i++) {
           const href = page.url();
           if (!/captcha-v2/i.test(href) && !(await pageLooksBlocked(page))) break;
           const solved = await trySolvePerimeterX(page);
           if (solved) break;
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(1500);
         }
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
           noteSkyscannerBlocked();
@@ -212,23 +213,23 @@ async function scrapeSkyscanner(req, config) {
               '[data-testid="FqsTab_CHEAPEST"], button:has-text("Cheapest"), button:has-text("moins cher"), button:has-text("Le moins cher"), [role="tab"]:has-text("Cheapest"), [role="tab"]:has-text("moins cher")',
             )
             .first();
-          if (await cheapest.isVisible({ timeout: 5000 })) {
-            await cheapest.click({ timeout: 5000 });
-            await page.waitForTimeout(2500);
+          if (await cheapest.isVisible({ timeout: 3000 })) {
+            await cheapest.click({ timeout: 3000 });
+            await page.waitForTimeout(1200);
           }
         } catch {
           /* optional sort */
         }
 
         await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(800);
 
         let parsed = extractSkyscanner(captured, req);
         if (parsed.length) return parsed.slice(0, config.maxOffersPerSite);
 
         try {
           await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
-            timeout: 35000,
+            timeout: 20000,
           });
         } catch {
           /* DOM scrape anyway */
