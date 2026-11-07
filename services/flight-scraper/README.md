@@ -18,9 +18,9 @@ The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment 
 
 3. `flyfix-api` calls `http://flight-scraper:3099`.
 
-Playwright opens **new tabs** via CDP on the dedicated flight Chrome profile (`/var/lib/flight-scraper-chrome`).
+Playwright opens **new tabs** via CDP on the dedicated flight Chrome profile (`/var/lib/flight-scraper-chrome`). Kiwi and Skyscanner run **in parallel** on one CDP connection (set `SCRAPER_SERIAL_SITES=1` to force serial).
 
-On process start the scraper **warms** Kiwi + Skyscanner (cookie banners, culture) and re-warms every ~15 minutes (`SCRAPER_WARM_ON_START=0` to disable). The API returns GF2 results immediately as `PARTIAL`, then merges CDP offers in the background.
+On process start the scraper **warms** Kiwi + Skyscanner (cookie banners, culture) and re-warms every ~15 minutes (`SCRAPER_WARM_ON_START=0` to disable). Create-session returns `PENDING` immediately; GF2 + OTAs finish together and the session flips to `COMPLETE` once.
 
 ## Run locally
 

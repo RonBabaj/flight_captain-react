@@ -25,9 +25,11 @@ const WARM_URLS = [
   'https://www.skyscanner.fr/',
 ];
 
+// Keep warm navigations short so a hung Kiwi homepage cannot block a real search
+// behind the shared CDP lock for nearly a minute.
 const GOTO_TIMEOUT_MS = Math.max(
-  15_000,
-  Number(process.env.SCRAPER_WARM_GOTO_MS || 55_000) || 55_000,
+  8_000,
+  Number(process.env.SCRAPER_WARM_GOTO_MS || 12_000) || 12_000,
 );
 
 /** Skip Skyscanner homepage warm for this long after a PX block. */
@@ -210,6 +212,11 @@ async function warmAll(config) {
     let blockedAny = false;
     for (const cdpUrl of cdpUrls) {
       for (const url of WARM_URLS) {
+        if (isSearchBusy()) {
+          console.log('[flight-scraper] warm abort — search started');
+          lastWarm = { ...lastWarm, detail: 'aborted (search busy)', at: Date.now(), sites };
+          return lastWarm;
+        }
         if (!shouldWarmUrl(url)) {
           console.log(
             `[flight-scraper] warm skip ${url} (skyscanner cooldown until ${new Date(skyscannerBlockedUntil).toISOString()})`,

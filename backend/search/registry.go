@@ -190,12 +190,12 @@ func (r *Registry) searchAll(ctx context.Context, req SearchRequest, opts search
 			if !isPrimaryProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					// Headed CDP + Kiwi/Skyscanner needs several minutes when cold;
-					// startup warm + cookie reuse usually finishes well under this.
-					soft = 5 * time.Minute
+					// Parallel CDP tabs (Kiwi + Skyscanner) usually finish under ~2m;
+					// keep headroom for captcha / cold Chrome without blocking forever.
+					soft = 4 * time.Minute
 				}
-				// Detach from client/proxy cancellation so a short-lived create request
-				// (or its abort) does not kill an in-flight scrape used for enrichment.
+				// Detach from parent cancel so a short-lived HTTP create (PENDING ack)
+				// does not kill the background unified SearchAll scrape.
 				pctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), soft)
 				defer cancel()
 			}

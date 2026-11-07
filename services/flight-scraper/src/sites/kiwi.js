@@ -141,7 +141,7 @@ async function scrapeKiwi(req, config) {
       // Wait for result cards after cookie + challenge settle.
       try {
         await page.waitForSelector('[data-test="ResultCard"], [data-test="ResultCardWrapper"]', {
-          timeout: 25000,
+          timeout: 15000,
         });
       } catch {
         /* DOM fallback may still find prices */

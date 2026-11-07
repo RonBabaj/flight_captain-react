@@ -6,13 +6,14 @@ async function gotoAndSettle(page, url, config) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
   const { dismissCookieBanners } = require('./cookies');
   await dismissCookieBanners(page);
-  await page.waitForTimeout(2500);
+  // Keep fixed waits short — networkidle alone often ate 12s+ per site.
+  await page.waitForTimeout(1000);
   try {
-    await page.waitForLoadState('networkidle', { timeout: 12000 });
+    await page.waitForLoadState('networkidle', { timeout: 6000 });
   } catch {
     /* continue */
   }
-  await page.waitForTimeout(config.settleMs || 6000);
+  await page.waitForTimeout(config.settleMs || 2000);
 }
 
 function yyyymmdd(isoDate) {
