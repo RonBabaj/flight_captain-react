@@ -61,6 +61,11 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 		currency = "USD"
 	}
 	deepLink := firstString(item, "bookingUrl", "booking_url", "deepLink", "deep_link", "url", "link")
+	// Skyscanner/Kayak scrape links are meta-search pages, not seller checkout.
+	// Keep real partner/Kiwi booking URLs; drop the rest so Book resolves via GF2.
+	if deepLink != "" && !isLikelyPartnerCheckoutURL(deepLink) {
+		deepLink = ""
+	}
 	selfTransfer := detectSelfTransfer(item)
 
 	legs := extractKiwiLegs(item, req)

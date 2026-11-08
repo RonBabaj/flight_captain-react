@@ -671,14 +671,22 @@ func gf2PartnerOfferFromURL(rawURL, fp string) *bookingmatch.BookingOffer {
 		return nil
 	}
 	domain := providerDomainFromURL(u)
+	urlType := bookingmatch.URLTypeExactBooking
+	status := bookingmatch.StatusVerifiedExact
+	// Meta-search pages (Skyscanner/Kayak/Google Flights) must never be treated as
+	// one-tap partner checkout — keep them only as partial search/prefill offers.
+	if search.IsMetaSearchAggregatorURL(u) {
+		urlType = bookingmatch.URLTypeExactSearch
+		status = bookingmatch.StatusPartial
+	}
 	return &bookingmatch.BookingOffer{
 		Provider:             domain,
 		Domain:               domain,
 		URL:                  u,
-		URLType:              bookingmatch.URLTypeExactBooking,
+		URLType:              urlType,
 		ItineraryFingerprint: fp,
 		MatchScore:           95,
-		VerificationStatus:   bookingmatch.StatusVerifiedExact,
+		VerificationStatus:   status,
 		CheckedAt:            time.Now().UTC(),
 	}
 }

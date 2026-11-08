@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +114,48 @@ func TestGF2PartnerOfferFromURL_acceptsHTTPS(t *testing.T) {
 	}
 	if offer.Domain != "airfrance.com" {
 		t.Fatalf("domain=%q", offer.Domain)
+	}
+}
+
+func TestGF2PartnerOfferFromURL_metaSearchIsNotVerifiedCheckout(t *testing.T) {
+	offer := gf2PartnerOfferFromURL("https://www.skyscanner.net/transport/flights/tlv/ber/260401/", "fp")
+	if offer == nil {
+		t.Fatal("prefill-shaped offer may still be built")
+	}
+	if offer.VerificationStatus == "verified_exact" {
+		t.Fatalf("skyscanner must not be verified checkout, got %+v", offer)
+	}
+	if offer.URLType != "exact_search_result" {
+		t.Fatalf("urlType=%q", offer.URLType)
+	}
+}
+
+func TestResolveGF2PartnerOffer_skipsSkyscannerDeepLink(t *testing.T) {
+	dep := time.Date(2027, 4, 1, 10, 0, 0, 0, time.UTC)
+	arr := time.Date(2027, 4, 1, 14, 0, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "BER",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LY", FlightNumber: "LY385",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	opt := &FlightOption{
+		Price:    MonetaryAmount{Amount: 420, Currency: "USD"},
+		Source:   "skyscanner",
+		DeepLink: "https://www.skyscanner.fr/transport/flights/tlv/ber/260401/",
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "BER"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "LY"}, FlightNumber: "LY385",
+		}}}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Currency: "USD"}}
+	offer := resolveGF2PartnerOffer(context.Background(), sess, opt, it, -1, -1)
+	if offer != nil && strings.Contains(strings.ToLower(offer.URL), "skyscanner.") {
+		t.Fatalf("must not treat Skyscanner meta URL as partner checkout, got %+v", offer)
 	}
 }
 

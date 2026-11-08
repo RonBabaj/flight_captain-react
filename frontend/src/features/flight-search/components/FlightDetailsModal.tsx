@@ -176,6 +176,18 @@ export function FlightDetailsModal({
     await Promise.all(pending.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, forceRefresh)));
   };
 
+  // Auto-resolve partner checkout when details open (same GF2 path as Book).
+  useEffect(() => {
+    if (!visible || !option || !sessionId) return;
+    if (perHopBooking && hops.length > 1) {
+      void Promise.all(hops.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, false)));
+      return;
+    }
+    void resolveHop(undefined, undefined, false);
+    // Intentionally once per open/option — resolveHop closes over latest option/session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, option?.id, sessionId, perHopBooking, hops]);
+
   const handleShare = async () => {
     if (!option) return;
     const fingerprint = (option as any).canonicalFingerprint as string | undefined;

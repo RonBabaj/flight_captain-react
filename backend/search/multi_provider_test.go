@@ -98,6 +98,28 @@ func TestParseOtaOffersSolidcodeShape(t *testing.T) {
 	}
 }
 
+func TestParseOtaOffers_dropsSkyscannerMetaDeepLink(t *testing.T) {
+	item := map[string]interface{}{
+		"price":    390.0,
+		"currency": "USD",
+		"bookingUrl": "https://www.skyscanner.net/transport/flights/tlv/ber/260401/",
+		"segments": []interface{}{
+			map[string]interface{}{
+				"leg": "outbound", "fromCode": "TLV", "toCode": "BER",
+				"departureTime": "2026-04-01T10:00:00", "arrivalTime": "2026-04-01T14:00:00",
+				"airlineCode": "LY", "flightNumber": "LY385", "durationHours": 4.0,
+			},
+		},
+	}
+	out := parseOtaOffers([]map[string]interface{}{item}, SearchRequest{Origin: "TLV", Destination: "BER", Currency: "USD"}, "skyscanner")
+	if len(out) != 1 {
+		t.Fatalf("len=%d", len(out))
+	}
+	if out[0].DeepLink != "" {
+		t.Fatalf("meta-search DeepLink must be cleared, got %q", out[0].DeepLink)
+	}
+}
+
 func TestParseOtaOffersEmptyAndInvalid(t *testing.T) {
 	if got := parseOtaOffers(nil, SearchRequest{}, "kiwi"); len(got) != 0 {
 		t.Fatal("nil items")
