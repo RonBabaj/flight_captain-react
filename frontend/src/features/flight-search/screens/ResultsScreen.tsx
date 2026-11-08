@@ -264,14 +264,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Only clear the empty-retry latch for a brand-new user search (searchNonce bump
+  // from Edit Search / form), not when beginSearch briefly sets PENDING without a
+  // sessionId — that reset previously allowed COMPLETE-empty → restart forever.
+  const prevSearchNonceRef = useRef(searchNonce);
   useEffect(() => {
-    if (status === 'PENDING' && !storeSessionId) {
+    if (searchNonce !== prevSearchNonceRef.current) {
+      prevSearchNonceRef.current = searchNonce;
       emptyRetryRef.current = false;
       bootstrapEmptyRetryRef.current = false;
-      // Do NOT clearSharedLinkCache here — a premature PENDING (bootstrap race before
-      // sessionId resolves) would wipe the stash Chrome needs after stripping the URL.
     }
-  }, [status, storeSessionId, searchNonce]);
+  }, [searchNonce]);
 
   const restartFreshSearch = useCallback(
     (params: Partial<CreateSearchSessionRequest>, staleSessionId?: string) => {
@@ -694,40 +697,40 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             }
           : classicSearchPayload(mergedBase);
 
-        let session = await createSearchSessionWithRetry(payload);
+        const session = await createSearchSessionWithRetry(payload);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
 
-        // POST /sessions returns COMPLETE but does not include offers. Hydrate
-        // results here — the poll effect skips COMPLETE and would otherwise leave
-        // the list empty ("No flights found") even when the API has offers.
-        let res = await getSearchSessionResults(session.id, undefined, payload);
-        if (cancelled || !isCurrentSearchGeneration(generation)) return;
-
-        const bootstrapEmpty =
-          (res.session?.status ?? session.status) === 'COMPLETE' &&
-          (res.results?.length ?? 0) === 0;
-        if (bootstrapEmpty && !bootstrapEmptyRetryRef.current) {
-          bootstrapEmptyRetryRef.current = true;
-          invalidateSearchSessionResultsCache(session.id);
-          session = await createSearchSessionWithRetry(payload);
-          if (cancelled || !isCurrentSearchGeneration(generation)) return;
-          res = await getSearchSessionResults(session.id, undefined, payload);
-          if (cancelled || !isCurrentSearchGeneration(generation)) return;
-        }
-
-        const applied = searchActions.applySessionResults({
-          generation,
-          sessionId: session.id,
-          session: res.session ?? session,
-          status: res.session?.status ?? session.status,
-          results: res.results ?? [],
-          version: res.version ?? 1,
-          mode: 'replace',
-        });
-        if (!applied) return;
-        versionRef.current = res.version ?? 1;
+        // Create now returns PENDING while GF2 + OTAs run together. Attach the
+        // session id and let the poll effect hydrate the single COMPLETE snapshot
+        // — a one-shot GET here would paint empty and race the real results.
+        searchActions.setSession(
+          session.id,
+          {
+            id: session.id,
+            status: session.status,
+            createdAt: session.createdAt,
+            params: payload,
+          } as any,
+          session.status ?? 'PENDING',
+        );
+        versionRef.current = 0;
         updateUrl({ ...payload, sessionId: session.id, optionId: undefined, flightId: undefined });
         navigation.replace('Results', { sessionId: session.id });
+
+        if (session.status === 'COMPLETE') {
+          const res = await getSearchSessionResults(session.id, undefined, payload);
+          if (cancelled || !isCurrentSearchGeneration(generation)) return;
+          const applied = searchActions.applySessionResults({
+            generation,
+            sessionId: session.id,
+            session: res.session ?? (session as any),
+            status: res.session?.status ?? session.status,
+            results: res.results ?? [],
+            version: res.version ?? 1,
+            mode: 'replace',
+          });
+          if (applied) versionRef.current = res.version ?? 1;
+        }
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
           searchActions.setError(e instanceof Error ? e.message : 'Search failed');
@@ -824,12 +827,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (!isCurrentSearchGeneration(generation)) return true;
       const st = statusRef.current;
       if (st === 'FAILED') return true;
-      // Stop once COMPLETE with results. Keep polling empty PENDING while providers run.
-      if (
-        st === 'COMPLETE' &&
-        versionRef.current > 0 &&
-        useSearchStore.getState().results.length > 0
-      ) {
+      // Stop once the server finished — including COMPLETE with 0 results.
+      // Auto-retrying empty COMPLETE caused infinite PENDING loading loops.
+      if (st === 'COMPLETE' || st === 'FAILED') {
         return true;
       }
       if (
@@ -900,15 +900,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           return;
         }
 
-        const pollEmptyComplete =
-          res.session?.status === 'COMPLETE' && (res.results?.length ?? 0) === 0;
-        if (pollEmptyComplete) {
-          const retryParams = storeParamsRef.current ?? res.session?.params;
-          if (retryParams && restartFreshSearch(retryParams, polledSessionId)) {
-            return;
-          }
-        }
-
+        // Do NOT auto-restart on empty COMPLETE. Unified search already waited for
+        // every provider; retrying created infinite PENDING loading when GF2+OTAs
+        // legitimately returned zero (captcha / bad route).
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
         const applied = searchActions.applySessionResults({
