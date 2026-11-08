@@ -42,4 +42,22 @@ const owSegs = segmentsFromRoundTripClocks({ ...req, returnDate: '' }, rt);
 assert.strictEqual(owSegs.length, 1);
 assert.strictEqual(owSegs[0].leg, 'outbound');
 
+// French Skyscanner a11y text: outbound clocks come first; return clocks are far later.
+const frenchCard =
+  "Tus Airways et Smart Wings\n\nOptions de vol 2 : Montant total : 302 €.\n" +
+  "Vol aller opéré par Tus Airways\nDépart pour Prague à 13:30 depuis David-Ben-Gourion International. Arrivée à 16:35.\n" +
+  "Vol direct d'une durée de 4 heures 5 minutes.\nVol retour opéré par Smart Wings.\n" +
+  "Départ pour David-Ben-Gourion International à 23:45 depuis Prague. Arrivée à 04:35, un jour plus tard.";
+assert.deepStrictEqual(frenchCard.slice(0, 240).match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g), [
+  '13:30',
+  '16:35',
+]);
+assert.deepStrictEqual(parseRoundTripHm(frenchCard), {
+  outbound: { depHm: '13:30', arrHm: '16:35' },
+  inbound: { depHm: '23:45', arrHm: '04:35' },
+});
+const frSegs = segmentsFromRoundTripClocks(req, parseRoundTripHm(frenchCard));
+assert.strictEqual(frSegs.length, 2);
+assert.strictEqual(frSegs[1].leg, 'inbound');
+
 console.log('roundtrip legs ok');

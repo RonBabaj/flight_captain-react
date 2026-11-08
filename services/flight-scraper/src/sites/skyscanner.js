@@ -225,7 +225,15 @@ async function scrapeSkyscanner(req, config) {
         await page.waitForTimeout(800);
 
         let parsed = extractSkyscanner(captured, req);
-        if (parsed.length) return parsed.slice(0, config.maxOffersPerSite);
+        // JSON itineraries that only carry outbound legs are useless for RT —
+        // fall through to DOM so return clocks are not dropped.
+        const jsonMissingReturn =
+          !!req.returnDate &&
+          parsed.length > 0 &&
+          parsed.every((o) => !(o.segments || []).some((s) => s.leg === 'inbound'));
+        if (parsed.length && !jsonMissingReturn) {
+          return parsed.slice(0, config.maxOffersPerSite);
+        }
 
         try {
           await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
@@ -240,6 +248,7 @@ async function scrapeSkyscanner(req, config) {
           const cards = document.querySelectorAll(
             '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
           );
+          const hmRe = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
           cards.forEach((card) => {
             const priceEl =
               card.querySelector('[data-testid="price"]') ||
@@ -247,14 +256,19 @@ async function scrapeSkyscanner(req, config) {
               card.querySelector('[class*="Price"]') ||
               card.querySelector('span[class*="price"]');
             let priceText = priceEl?.textContent || '';
+            const fullText = card.innerText || card.textContent || '';
             if (!priceText) {
-              const m = (card.textContent || '').match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
+              const m = fullText.match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
               priceText = m ? m[0] : '';
             }
+            // Extract clocks from the FULL card text — truncating to ~240 chars
+            // cut off French "Vol retour" times and caused "return not loaded".
+            const times = fullText.match(hmRe) || [];
             out.push({
               priceText,
               link: card.querySelector('a')?.href || window.location.href,
-              text: (card.innerText || '').slice(0, 240),
+              times,
+              text: fullText.slice(0, 500),
             });
           });
           return out.slice(0, 30);
@@ -265,7 +279,17 @@ async function scrapeSkyscanner(req, config) {
         for (const row of dom) {
           const price = parsePriceText(row.priceText) || parsePriceText(row.text);
           if (!price) continue;
-          const clocks = parseRoundTripHm(row.text);
+          let clocks = null;
+          if (Array.isArray(row.times) && row.times.length >= 2) {
+            clocks = {
+              outbound: { depHm: row.times[0], arrHm: row.times[1] },
+            };
+            if (row.times.length >= 4) {
+              clocks.inbound = { depHm: row.times[2], arrHm: row.times[3] };
+            }
+          } else {
+            clocks = parseRoundTripHm(row.text);
+          }
           if (!clocks) continue;
           const segments = segmentsFromRoundTripClocks(req, clocks);
           if (!segments.length) continue;
@@ -283,7 +307,9 @@ async function scrapeSkyscanner(req, config) {
             }),
           );
         }
-        return fromDom;
+        // Prefer DOM RT offers when JSON lacked inbound legs.
+        if (fromDom.length) return fromDom;
+        return parsed.slice(0, config.maxOffersPerSite);
       },
       { proxyUrl: config.proxyUrl, engines: ['chromium'] },
     );
