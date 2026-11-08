@@ -1064,7 +1064,11 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 				CacheHit:             true,
 				DurationMs:           time.Since(start).Milliseconds(),
 			})
-			writeJSON(w, http.StatusOK, cached)
+			code := http.StatusOK
+			if cached.PriceMismatch {
+				code = http.StatusConflict
+			}
+			writeJSON(w, code, cached)
 			return
 		}
 	}
@@ -1076,6 +1080,9 @@ func handleBookingResolve(w http.ResponseWriter, r *http.Request) {
 	statusCode := http.StatusOK
 	if out.Status == BookingResolveInvalidItinerary {
 		statusCode = http.StatusBadRequest
+	} else if out.PriceMismatch {
+		// 409 Conflict: body still returned so the UI can show the mismatch callout.
+		statusCode = http.StatusConflict
 	}
 	logBookingResolve(bookingResolveLogEvent{
 		Event:                "resolve_request",

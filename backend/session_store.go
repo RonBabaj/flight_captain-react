@@ -65,10 +65,14 @@ func initSessionStore() {
 	}
 	// WAL allows the HTTP handlers to read while a search persists a new row;
 	// busy_timeout avoids spurious SQLITE_BUSY under concurrent writes.
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	// foreign_keys must be enabled per connection — DSN pragma alone is not enough on all drivers.
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		log.Printf("[SESSION_DB] open %s failed: %v", path, err)
 		return
+	}
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		log.Printf("[SESSION_DB] PRAGMA foreign_keys failed: %v", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS search_sessions (
 		id         TEXT PRIMARY KEY,

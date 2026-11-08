@@ -168,11 +168,22 @@ func TestAttachQuotedPriceMeta_detectsMismatch(t *testing.T) {
 	price := 1000.0
 	resp := BookingResolveResponse{
 		Found: true,
-		Offer: &PublicBookingOffer{Price: &price, Currency: "USD"},
+		Offer: &PublicBookingOffer{Price: &price, Currency: "USD", URL: "https://partner.example/book"},
+		CheapestOta: &PublicBookingOffer{URL: "https://ota.example/book"},
+		Alternatives: []PublicBookingAlternative{{URL: "https://alt.example/book"}},
 	}
 	opt := &FlightOption{Price: MonetaryAmount{Amount: 600, Currency: "USD"}}
 	out := attachQuotedPriceMeta(resp, nil, opt, -1, &price)
 	if !out.PriceMismatch {
 		t.Fatal("expected price mismatch")
+	}
+	if out.Offer == nil || out.Offer.URL != "" {
+		t.Fatalf("expected offer URL redacted, got %#v", out.Offer)
+	}
+	if out.CheapestOta == nil || out.CheapestOta.URL != "" {
+		t.Fatalf("expected cheapestOta URL redacted, got %#v", out.CheapestOta)
+	}
+	if len(out.Alternatives) != 1 || out.Alternatives[0].URL != "" {
+		t.Fatalf("expected alternatives URLs redacted, got %#v", out.Alternatives)
 	}
 }

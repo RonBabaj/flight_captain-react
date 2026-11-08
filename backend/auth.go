@@ -55,7 +55,34 @@ func initAuthStore() {
 	if _, err := sessionDB.Exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id)`); err != nil {
 		log.Printf("[AUTH] create session index failed: %v", err)
 	}
+	if _, err := sessionDB.Exec(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at)`); err != nil {
+		log.Printf("[AUTH] create expires_at index failed: %v", err)
+	}
 	bootstrapAdminUser()
+	go purgeExpiredAuthSessionsLoop()
+}
+
+func purgeExpiredAuthSessionsLoop() {
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+	purgeExpiredAuthSessions()
+	for range ticker.C {
+		purgeExpiredAuthSessions()
+	}
+}
+
+func purgeExpiredAuthSessions() {
+	if sessionDB == nil {
+		return
+	}
+	res, err := sessionDB.Exec(`DELETE FROM auth_sessions WHERE expires_at < ?`, time.Now().Unix())
+	if err != nil {
+		log.Printf("[AUTH] purge expired sessions failed: %v", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("[AUTH] purged %d expired auth sessions", n)
+	}
 }
 
 func bootstrapAdminUser() {

@@ -786,11 +786,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (cancelled || shouldStopPolling()) return;
       if (timer) clearTimeout(timer);
       const base = runtimeConfig.pollIntervalMs;
-      // After the first minute of PENDING, back off slightly to reduce load but
-      // keep polling — iOS often freezes setInterval; recursive setTimeout +
-      // visibility resume is more reliable.
+      // Back off while PENDING so we do not hammer GET for minutes of OTA scrape.
+      // Recursive setTimeout (+ visibility resume) stays more reliable than setInterval on iOS.
       const elapsed = Date.now() - pollStartedAt;
-      const backedOff = elapsed > 60_000 ? Math.min(base * 2, 4000) : base;
+      let backedOff = base;
+      if (elapsed > 90_000) backedOff = Math.min(Math.max(base * 3, 5000), 8000);
+      else if (elapsed > 30_000) backedOff = Math.min(Math.max(base * 2, 3000), 5000);
       timer = setTimeout(() => {
         void poll();
       }, delayMs ?? backedOff);

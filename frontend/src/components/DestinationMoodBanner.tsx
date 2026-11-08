@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,25 @@ import {
   StyleSheet,
   Animated,
   ScrollView,
+  Platform,
   type ViewStyle,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { getAirportEntry, getCityDisplayName } from '../data/airports';
-import { resolveDestinationMood } from '../data/destinationMood';
+import { moodImageUrlForVariant, resolveDestinationMood } from '../data/destinationMood';
 import { useBreakpoint } from '../hooks/useResponsive';
 import { ANYWHERE_CODE } from '../types';
 import type { CreateSearchSessionRequest } from '../types';
 
 type Variant = 'hero' | 'form' | 'results' | 'compact';
+
+function moodSizeForVariant(variant: Variant): 'hero' | 'card' | 'compact' {
+  if (variant === 'hero') return 'hero';
+  if (variant === 'compact') return 'compact';
+  return 'card';
+}
 
 /** Unique destination codes for a trip (outbound + extras + open-jaw return city). */
 export function collectTripDestinationCodes(
@@ -52,7 +60,10 @@ export function DestinationMoodBanner({
   const bp = useBreakpoint();
   const mood = resolveDestinationMood(destinationCode);
   const opacity = useRef(new Animated.Value(0)).current;
+  const hostRef = useRef<View | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
+  // Defer network image until near viewport (web) or after first layout (native).
+  const [shouldLoadImage, setShouldLoadImage] = useState(Platform.OS !== 'web');
 
   useEffect(() => {
     setImgFailed(false);
@@ -61,7 +72,33 @@ export function DestinationMoodBanner({
     Animated.timing(opacity, { toValue: 1, duration: 420, useNativeDriver: true }).start();
   }, [mood?.imageUrl, opacity]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || shouldLoadImage) return;
+    const node = hostRef.current as unknown as Element | null;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setShouldLoadImage(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShouldLoadImage(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px', threshold: 0.01 },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [shouldLoadImage, mood?.imageUrl]);
+
+  const onLayout = useCallback((_e: LayoutChangeEvent) => {
+    if (Platform.OS !== 'web') setShouldLoadImage(true);
+  }, []);
+
   if (!mood || !destinationCode) return null;
+
+  const imageUri = moodImageUrlForVariant(mood.imageUrl, moodSizeForVariant(variant));
 
   const entry = getAirportEntry(destinationCode);
   const cityLabel =
@@ -87,79 +124,81 @@ export function DestinationMoodBanner({
             : 140;
 
   return (
-    <Animated.View
-      style={[
-        styles.wrap,
-        {
-          height,
-          borderRadius: theme.radiusLg,
-          opacity,
-          borderColor: theme.cardBorder,
-        },
-        style,
-      ]}
-      accessibilityRole="image"
-      accessibilityLabel={t('destination_mood_a11y').replace('{city}', cityLabel)}
-    >
-      <View
+    <View ref={hostRef} onLayout={onLayout} collapsable={false}>
+      <Animated.View
         style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: theme.isDark ? '#1A2430' : '#D8E2EC' },
-        ]}
-      />
-      {!imgFailed && (
-        <Image
-          source={{ uri: mood.imageUrl }}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
-          onError={() => setImgFailed(true)}
-        />
-      )}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.scrim,
+          styles.wrap,
           {
-            backgroundColor: theme.isDark ? 'rgba(8,16,24,0.42)' : 'rgba(15,23,42,0.28)',
+            height,
+            borderRadius: theme.radiusLg,
+            opacity,
+            borderColor: theme.cardBorder,
           },
+          style,
         ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.accentWash,
-          { backgroundColor: (mood.accent || theme.primary) + (theme.isDark ? '33' : '22') },
-        ]}
-      />
-      <View style={[styles.labelRow, isRTL && { flexDirection: 'row-reverse' }]}>
-        <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
-          <Text
-            style={[
-              styles.eyebrow,
-              {
-                color: theme.isDark ? theme.primaryLight : theme.primary,
-                fontFamily: theme.fontBody,
-              },
-            ]}
-          >
-            {t('destination_mood_eyebrow')}
-          </Text>
-          <Text
-            style={[
-              styles.city,
-              {
-                color: theme.isDark ? '#fff' : theme.text,
-                fontFamily: theme.fontDisplay,
-                textAlign: isRTL ? 'right' : 'left',
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {cityLabel}
-          </Text>
+        accessibilityRole="image"
+        accessibilityLabel={t('destination_mood_a11y').replace('{city}', cityLabel)}
+      >
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: theme.isDark ? '#1A2430' : '#D8E2EC' },
+          ]}
+        />
+        {shouldLoadImage && !imgFailed && (
+          <Image
+            source={{ uri: imageUri }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+            onError={() => setImgFailed(true)}
+          />
+        )}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.scrim,
+            {
+              backgroundColor: theme.isDark ? 'rgba(8,16,24,0.42)' : 'rgba(15,23,42,0.28)',
+            },
+          ]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.accentWash,
+            { backgroundColor: (mood.accent || theme.primary) + (theme.isDark ? '33' : '22') },
+          ]}
+        />
+        <View style={[styles.labelRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
+            <Text
+              style={[
+                styles.eyebrow,
+                {
+                  color: theme.isDark ? theme.primaryLight : theme.primary,
+                  fontFamily: theme.fontBody,
+                },
+              ]}
+            >
+              {t('destination_mood_eyebrow')}
+            </Text>
+            <Text
+              style={[
+                styles.city,
+                {
+                  color: theme.isDark ? '#fff' : theme.text,
+                  fontFamily: theme.fontDisplay,
+                  textAlign: isRTL ? 'right' : 'left',
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {cityLabel}
+            </Text>
+          </View>
         </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 

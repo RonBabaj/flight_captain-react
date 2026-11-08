@@ -18,8 +18,26 @@ export type DestinationMood = {
   accent?: string;
 };
 
-const unsplash = (photoId: string) =>
-  `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=1600&q=80`;
+/** Card/list default; hero banners rewrite via moodImageUrlForVariant. */
+const unsplash = (photoId: string, width = 800) =>
+  `https://images.unsplash.com/${photoId}?auto=format&fm=webp&fit=crop&w=${width}&q=75`;
+
+/** Resize an existing Unsplash mood URL for hero vs card surfaces. */
+export function moodImageUrlForVariant(imageUrl: string, variant: 'hero' | 'card' | 'compact' = 'card'): string {
+  if (!imageUrl || !imageUrl.includes('images.unsplash.com')) return imageUrl;
+  const width = variant === 'hero' ? 1200 : variant === 'compact' ? 640 : 800;
+  try {
+    const u = new URL(imageUrl);
+    u.searchParams.set('auto', 'format');
+    u.searchParams.set('fm', 'webp');
+    u.searchParams.set('fit', 'crop');
+    u.searchParams.set('w', String(width));
+    if (!u.searchParams.get('q')) u.searchParams.set('q', '75');
+    return u.toString();
+  } catch {
+    return imageUrl;
+  }
+}
 
 /**
  * Large catalog of distinct travel stills. Hashed by city/airport code when a

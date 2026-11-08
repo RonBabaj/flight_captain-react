@@ -10,7 +10,10 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 
 function authOk(req) {
-  if (!config.token) return true;
+  // Token is required unless dry-run or explicit insecure override (local only).
+  if (!config.token) {
+    return config.dryRun || process.env.SCRAPER_ALLOW_INSECURE === '1';
+  }
   const h = req.headers.authorization || '';
   if (h === `Bearer ${config.token}`) return true;
   return false;
@@ -73,8 +76,18 @@ app.post('/v1/search', async (req, res) => {
 });
 
 app.listen(config.port, () => {
+  if (!config.token && !config.dryRun && process.env.SCRAPER_ALLOW_INSECURE !== '1') {
+    console.error(
+      '[flight-scraper] FLIGHT_SCRAPER_TOKEN is required (or set SCRAPER_DRY_RUN=1 / SCRAPER_ALLOW_INSECURE=1 for local)',
+    );
+    process.exit(1);
+  }
+  if (!config.token) {
+    console.warn('[flight-scraper] running without FLIGHT_SCRAPER_TOKEN (insecure/local mode)');
+  }
   console.log(`[flight-scraper] listening on :${config.port} sites=${config.defaultSites.join(',')}`);
-  if (process.env.SCRAPER_WARM_ON_START !== '0') {
+  // Warm is opt-in — idle CDP navigation burns CPU/proxy; enable with SCRAPER_WARM_ON_START=1.
+  if (process.env.SCRAPER_WARM_ON_START === '1') {
     startWarmLoop(config);
   }
 });

@@ -771,10 +771,31 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		}
 		if !search.PricesMatchQuote(q.Amount, actual) {
 			resp.PriceMismatch = true
-			resp.Message = "Checkout price may differ from the search quote. Verify on the partner site before paying."
+			resp.Message = "Checkout price differs from the search quote. Booking links were withheld — verify the fare on the partner site or try again."
+			redactPriceMismatchCheckoutURLs(&resp)
 		}
 	}
 	return resp
+}
+
+// redactPriceMismatchCheckoutURLs strips checkout URLs when the resolved price
+// does not match the search quote, so the client cannot deep-link into a bad fare.
+func redactPriceMismatchCheckoutURLs(resp *BookingResolveResponse) {
+	if resp == nil {
+		return
+	}
+	if resp.Offer != nil {
+		resp.Offer.URL = ""
+	}
+	if resp.CheapestOta != nil {
+		resp.CheapestOta.URL = ""
+	}
+	if resp.AirlineDirect != nil {
+		resp.AirlineDirect.URL = ""
+	}
+	for i := range resp.Alternatives {
+		resp.Alternatives[i].URL = ""
+	}
 }
 
 func applySearchQuoteToOffer(offer *bookingmatch.BookingOffer, quote search.QuoteBinding) (extractedBeforeFill *float64) {
