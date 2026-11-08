@@ -3,7 +3,7 @@
 const assert = require('assert');
 const { parseRoundTripHm, parseDepArrHm } = require('../src/localTime');
 const { segmentsFromRoundTripClocks } = require('../src/normalize');
-const { skyscannerUrl } = require('../src/sites/skyscanner');
+// Avoid requiring sites/skyscanner.js here — it pulls Playwright.
 
 // OW still returns first pair only via parseDepArrHm
 assert.deepStrictEqual(parseDepArrHm('01:15\n9h 50m\n10:05\nTLV AMS'), {
@@ -41,9 +41,5 @@ assert.notStrictEqual(segs[0].departureTime.slice(0, 10), segs[1].departureTime.
 const owSegs = segmentsFromRoundTripClocks({ ...req, returnDate: '' }, rt);
 assert.strictEqual(owSegs.length, 1);
 assert.strictEqual(owSegs[0].leg, 'outbound');
-
-// Skyscanner RT URL includes return date slug
-const url = skyscannerUrl(req, 'www.skyscanner.com');
-assert.match(url, /\/261128\/261130\//);
 
 console.log('roundtrip legs ok');
