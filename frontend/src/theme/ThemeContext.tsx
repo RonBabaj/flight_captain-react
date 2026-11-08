@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Platform } from 'react-native';
 
 export type ThemeMode = 'dark' | 'light';
@@ -142,6 +142,8 @@ const darkTheme: Theme = {
   ...SPACE,
 };
 
+const THEME_STORAGE_KEY = 'flight_captain_theme';
+
 type ThemeContextValue = {
   theme: Theme;
   setMode: (mode: ThemeMode) => void;
@@ -149,6 +151,51 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+function getWebStorage(kind: 'session' | 'local'): Storage | null {
+  try {
+    const g = globalThis as { window?: { sessionStorage?: Storage; localStorage?: Storage } };
+    if (kind === 'session') return g.window?.sessionStorage ?? null;
+    return g.window?.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseThemeMode(raw: string | null | undefined): ThemeMode | null {
+  if (raw === 'dark' || raw === 'light') return raw;
+  try {
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { mode?: string };
+    if (parsed?.mode === 'dark' || parsed?.mode === 'light') return parsed.mode;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Prefer tab session, then per-browser local — works without a logged-in user. */
+function loadSavedThemeMode(fallback: ThemeMode): ThemeMode {
+  const fromSession = parseThemeMode(getWebStorage('session')?.getItem(THEME_STORAGE_KEY));
+  if (fromSession) return fromSession;
+  const fromLocal = parseThemeMode(getWebStorage('local')?.getItem(THEME_STORAGE_KEY));
+  if (fromLocal) return fromLocal;
+  return fallback;
+}
+
+function persistThemeMode(mode: ThemeMode): void {
+  const payload = JSON.stringify({ mode });
+  try {
+    getWebStorage('session')?.setItem(THEME_STORAGE_KEY, payload);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  try {
+    getWebStorage('local')?.setItem(THEME_STORAGE_KEY, payload);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function ThemeProvider({
   children,
@@ -158,12 +205,30 @@ export function ThemeProvider({
   defaultMode?: ThemeMode;
 }) {
   const [mode, setModeState] = useState<ThemeMode>(defaultMode);
+
+  useEffect(() => {
+    setModeState(loadSavedThemeMode(defaultMode));
+  }, [defaultMode]);
+
+  const setMode = (next: ThemeMode) => {
+    setModeState(next);
+    persistThemeMode(next);
+  };
+
+  const toggleTheme = () => {
+    setModeState((m) => {
+      const next: ThemeMode = m === 'dark' ? 'light' : 'dark';
+      persistThemeMode(next);
+      return next;
+    });
+  };
+
   const theme = mode === 'dark' ? darkTheme : lightTheme;
   const value = useMemo(
     () => ({
       theme,
-      setMode: setModeState,
-      toggleTheme: () => setModeState((m) => (m === 'dark' ? 'light' : 'dark')),
+      setMode,
+      toggleTheme,
     }),
     [theme]
   );

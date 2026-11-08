@@ -177,7 +177,13 @@ export async function resolveBookingOffer(
 export function isSafeBookingUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:';
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const host = u.hostname.toLowerCase();
+    // Skyscanner result pages are meta-search, not a final seller checkout.
+    if (host === 'skyscanner.com' || host.endsWith('.skyscanner.com') || host.includes('skyscanner.')) {
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }

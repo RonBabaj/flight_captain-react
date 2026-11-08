@@ -2067,16 +2067,56 @@ func IsLikelyPartnerCheckoutURL(u string) bool {
 	return isLikelyPartnerCheckoutURL(u)
 }
 
+// IsMetaSearchAggregatorURL is true for comparison/meta-search hosts (Skyscanner,
+// Google Flights, Kayak, …). Those pages are not a final seller checkout.
+func IsMetaSearchAggregatorURL(u string) bool {
+	return isMetaSearchAggregatorURL(u)
+}
+
 func isLikelyPartnerCheckoutURL(u string) bool {
 	s := strings.ToLower(strings.TrimSpace(u))
 	if !strings.HasPrefix(s, "https://") {
 		return false
 	}
-	// Google Flights itself is not the partner checkout destination.
-	if strings.Contains(s, "google.") || strings.Contains(s, "gstatic.") {
+	// Meta-search / Google Flights are never the partner checkout destination.
+	if isMetaSearchAggregatorURL(s) {
 		return false
 	}
 	return true
+}
+
+func isMetaSearchAggregatorURL(u string) bool {
+	s := strings.ToLower(strings.TrimSpace(u))
+	if s == "" {
+		return false
+	}
+	host := s
+	if parsed, err := url.Parse(s); err == nil && parsed.Host != "" {
+		host = strings.ToLower(parsed.Hostname())
+	} else {
+		// Fallback when callers pass a raw host fragment.
+		host = strings.TrimPrefix(host, "https://")
+		host = strings.TrimPrefix(host, "http://")
+		if i := strings.IndexAny(host, "/?"); i >= 0 {
+			host = host[:i]
+		}
+	}
+	host = strings.TrimPrefix(host, "www.")
+	metas := []string{
+		"google.",
+		"gstatic.",
+		"skyscanner.",
+		"kayak.",
+		"momondo.",
+		"cheapflights.",
+	}
+	for _, m := range metas {
+		root := strings.TrimSuffix(m, ".")
+		if host == root || strings.HasPrefix(host, m) || strings.Contains(host, "."+root+".") || strings.HasSuffix(host, "."+root) {
+			return true
+		}
+	}
+	return false
 }
 
 func findFirstPartnerCheckoutURL(v interface{}) string {

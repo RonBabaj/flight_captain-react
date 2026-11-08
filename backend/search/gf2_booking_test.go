@@ -62,8 +62,20 @@ func TestIsLikelyPartnerCheckoutURL(t *testing.T) {
 	if isLikelyPartnerCheckoutURL("https://www.google.com/travel/flights") {
 		t.Fatal("google should not count as partner checkout")
 	}
+	if isLikelyPartnerCheckoutURL("https://www.skyscanner.fr/transport/flights/tlv/ber/260401/") {
+		t.Fatal("skyscanner meta-search should not count as partner checkout")
+	}
+	if isLikelyPartnerCheckoutURL("https://www.kayak.com/flights/TLV-BER/2026-04-01") {
+		t.Fatal("kayak meta-search should not count as partner checkout")
+	}
 	if !isLikelyPartnerCheckoutURL("https://www.example-airline.com/book") {
 		t.Fatal("airline URL should count")
+	}
+	if !isLikelyPartnerCheckoutURL("https://www.kiwi.com/en/booking?token=abc") {
+		t.Fatal("kiwi booking checkout should count")
+	}
+	if !isLikelyPartnerCheckoutURL("https://www.budgetair.com/checkout/tlv-ber") {
+		t.Fatal("OTA checkout should count")
 	}
 }
 
