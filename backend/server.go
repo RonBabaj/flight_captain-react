@@ -81,7 +81,8 @@ type SearchSessionStatus string
 
 const (
 	StatusPending  SearchSessionStatus = "PENDING"
-	StatusPartial  SearchSessionStatus = "PARTIAL" // GF2 ready; CDP scrapers still enriching
+	// StatusPartial is retained for older persisted sessions only; new searches never emit it.
+	StatusPartial  SearchSessionStatus = "PARTIAL"
 	StatusComplete SearchSessionStatus = "COMPLETE"
 	StatusFailed   SearchSessionStatus = "FAILED"
 )
@@ -813,8 +814,6 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// PENDING until GF2 + Kiwi + Skyscanner all finish, then one COMPLETE snapshot.
-	// No PARTIAL drip — the UI only paints when every provider has returned.
 	id := randomID("sess_")
 	now := time.Now().UTC()
 	session := SearchSession{
@@ -951,7 +950,6 @@ func publishSessionSnapshot(
 	status SearchSessionStatus,
 	options []FlightOption,
 	stats []search.ProviderSearchStats,
-	replaceStats bool,
 ) bool {
 	sessionsMu.Lock()
 	cur, ok := sessions[sessionID]
@@ -969,17 +967,11 @@ func publishSessionSnapshot(
 			cur = live
 		}
 	}
-	if status == StatusComplete || status == StatusFailed || cur.Session.Status != StatusComplete {
-		cur.Session.Status = status
-	}
+	cur.Session.Status = status
 	if options != nil {
 		cur.Results = options
 	}
-	if replaceStats {
-		cur.ProviderStats = append([]search.ProviderSearchStats{}, stats...)
-	} else if len(stats) > 0 {
-		cur.ProviderStats = append(append([]search.ProviderSearchStats{}, cur.ProviderStats...), stats...)
-	}
+	cur.ProviderStats = append([]search.ProviderSearchStats{}, stats...)
 	cur.Version++
 	sessions[sessionID] = cur
 	sessionsMu.Unlock()
@@ -987,8 +979,6 @@ func publishSessionSnapshot(
 	return true
 }
 
-// finalizeSearchSession runs GF2 + multisite together and publishes one COMPLETE
-// snapshot — never PARTIAL — so all offers appear at the same time.
 func finalizeSearchSession(
 	sessionID string,
 	req CreateSearchSessionRequest,
@@ -1038,28 +1028,12 @@ func finalizeSearchSession(
 	}
 
 	options := normalizeProviderOptions(multi.Results, req, cabinPref, includeBag)
-	if !publishSessionSnapshot(sessionID, StatusComplete, options, multi.Stats, true) {
+	if !publishSessionSnapshot(sessionID, StatusComplete, options, multi.Stats) {
 		log.Printf("[SEARCH] finalize aborted session=%s gone", sessionID)
 		return
 	}
 	log.Printf("[SEARCH] finalize done session=%s durationMs=%d results=%d stats=%+v",
 		sessionID, time.Since(started).Milliseconds(), len(options), multi.Stats)
-}
-
-func markSessionComplete(sessionID string) {
-	sessionsMu.Lock()
-	defer sessionsMu.Unlock()
-	cur, ok := sessions[sessionID]
-	if !ok {
-		return
-	}
-	if cur.Session.Status == StatusComplete {
-		return
-	}
-	cur.Session.Status = StatusComplete
-	cur.Version++
-	sessions[sessionID] = cur
-	go persistSearchSession(cur)
 }
 
 func markSessionFailed(sessionID, message string) {

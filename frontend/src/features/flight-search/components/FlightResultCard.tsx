@@ -28,6 +28,7 @@ import {
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
 import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
+import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -340,22 +341,21 @@ export function FlightResultCard({
               {option.selfTransferWarning || t('self_transfer_warning')}
             </Text>
           ) : null}
-          {(option.source === 'kiwi' ||
-            option.source === 'skyscanner' ||
-            option.source === 'expedia' ||
-            (option.vendorName && !multiAirline)) ? (
-            <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-              {option.vendorName && !multiAirline
+          {(() => {
+            const sourceKey = offerSourceTranslationKey(option.source);
+            const label =
+              option.vendorName && !multiAirline
                 ? t('via_vendor').replace('{vendor}', option.vendorName)
-                : option.source === 'kiwi'
-                  ? t('source_kiwi')
-                  : option.source === 'skyscanner'
-                    ? t('source_skyscanner')
-                    : option.source === 'expedia'
-                      ? t('source_expedia')
-                      : option.vendorName}
-            </Text>
-          ) : null}
+                : sourceKey
+                  ? t(sourceKey)
+                  : '';
+            if (!label) return null;
+            return (
+              <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
+                {label}
+              </Text>
+            );
+          })()}
           {perPassengerStr ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {perPassengerStr}

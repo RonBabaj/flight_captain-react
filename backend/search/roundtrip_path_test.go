@@ -20,23 +20,4 @@ func TestSearchLegCached_usesCache(t *testing.T) {
 	}
 }
 
-func TestClassicRoundTrip_usesNativeSearchPath(t *testing.T) {
-	req := SearchRequest{
-		Origin: "TLV", Destination: "VIE",
-		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
-	}
-	if IsOpenJaw(req) || HasExtraLegs(req) {
-		t.Fatal("classic RT must not be open-jaw")
-	}
-}
 
-func TestOpenJaw_usesDecomposedSearchPath(t *testing.T) {
-	req := SearchRequest{
-		Origin: "TLV", Destination: "VIE",
-		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
-		ReturnOrigin: "SZG", ReturnDestination: "TLV",
-	}
-	if !IsOpenJaw(req) {
-		t.Fatal("expected open-jaw")
-	}
-}

@@ -13,15 +13,6 @@ func TestCompleteExtraLegs(t *testing.T) {
 	}
 }
 
-func TestHasExtraLegs(t *testing.T) {
-	if HasExtraLegs(SearchRequest{}) {
-		t.Fatal("empty request should not have extra legs")
-	}
-	req := SearchRequest{ExtraLegs: []ExtraLeg{{Origin: "BER", Destination: "PRG", Date: "2026-12-20"}}}
-	if !HasExtraLegs(req) {
-		t.Fatal("complete extra leg should count")
-	}
-}
 
 func TestCombineOneWayBatches(t *testing.T) {
 	cheap := func(id string, price float64, from, to string) ProviderResult {

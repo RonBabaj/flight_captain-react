@@ -185,6 +185,7 @@ func FilterProviderNamesForBudget(names []string) []string {
 	for _, n := range names {
 		switch n {
 		case "multisite", "ota", "metascraper", "kiwi", "kiwi_scraper", "kiwi_apify", "apify":
+			// kiwi_apify/apify aliases kept for old FLIGHT_PROVIDERS env values.
 			log.Printf("[BUDGET] skipping provider %q (multisite OTA scraper disabled — set FLIGHT_BUDGET_KEEP_KIWI=1 to allow in budget mode)", n)
 			continue
 		default:
@@ -199,8 +200,7 @@ func GF2EffectiveCacheTTL() time.Duration {
 	return budgetCfg().gf2CacheTTL
 }
 
-// KiwiEffectiveCacheTTL returns in-process Kiwi cache duration.
-func KiwiEffectiveCacheTTL() time.Duration {
+func OtaScraperCacheTTL() time.Duration {
 	return budgetCfg().kiwiCacheTTL
 }
 

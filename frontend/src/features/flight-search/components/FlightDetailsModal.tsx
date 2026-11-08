@@ -32,6 +32,7 @@ import {
   needsPerHopBooking,
 } from '../../../utils/skyscanner';
 import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, formatFlightShortDate } from '../../../utils/flightTimeDisplay';
+import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -558,15 +559,10 @@ export function FlightDetailsModal({
                 ) : null}
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {option.source === 'kiwi'
-                      ? t('source_kiwi')
-                      : option.source === 'skyscanner'
-                        ? t('source_skyscanner')
-                        : option.source === 'expedia'
-                          ? t('source_expedia')
-                          : option.source === 'googleflights2'
-                            ? t('source_googleflights2')
-                            : option.source}
+                    {(() => {
+                      const key = offerSourceTranslationKey(option.source);
+                      return key ? t(key) : option.source;
+                    })()}
                     {option.vendorName && !multiAirline ? ` · ${option.vendorName}` : ''}
                   </Text>
                 ) : option.vendorName && !multiAirline ? (

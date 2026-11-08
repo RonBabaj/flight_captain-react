@@ -47,6 +47,7 @@ func NewRegistryFromEnv() *Registry {
 				log.Printf("[PROVIDERS] skipped googleflights2 (not configured)")
 			}
 		case "multisite", "ota", "metascraper", "kiwi", "kiwi_scraper":
+			// Legacy env aliases (kiwi/kiwi_scraper) map to the same CDP multisite provider.
 			if p := NewOtaScraperProvider(); p != nil {
 				providers = append(providers, p)
 				log.Printf("[PROVIDERS] enabled: multisite (sites=%v url=%s)", p.ConfiguredSites(), p.ScraperBaseURL())
@@ -120,48 +121,13 @@ func (r *Registry) GoogleFlights2() *GoogleFlights2Provider {
 	return gf
 }
 
-func isPrimaryProvider(name string) bool {
+func isFastProvider(name string) bool {
 	return strings.EqualFold(name, "googleflights2")
-}
-
-// HasSecondary reports whether any non-GF2 provider (e.g. multisite CDP) is enabled.
-func (r *Registry) HasSecondary() bool {
-	if r == nil {
-		return false
-	}
-	for _, p := range r.providers {
-		if !isPrimaryProvider(p.Name()) {
-			return true
-		}
-	}
-	return false
-}
-
-type searchAllOpts struct {
-	primaryOnly   bool
-	secondaryOnly bool
-}
-
-// SearchPrimary runs Google Flights2 only — fast path for create-session.
-func (r *Registry) SearchPrimary(ctx context.Context, req SearchRequest) MultiSearchResult {
-	return r.searchAll(ctx, req, searchAllOpts{primaryOnly: true})
-}
-
-// SearchSecondary runs optional CDP scrapers (Kiwi/Skyscanner) with a long soft deadline.
-// Used to enrich a PARTIAL session in the background after GF2 results are already shown.
-func (r *Registry) SearchSecondary(ctx context.Context, req SearchRequest) MultiSearchResult {
-	return r.searchAll(ctx, req, searchAllOpts{secondaryOnly: true})
 }
 
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
-	return r.searchAll(ctx, req, searchAllOpts{})
-}
-
-// searchAll queries providers. Optional (non-GF2) providers get a soft deadline so a slow
-// CDP scrape cannot hold the HTTP response until nginx/browsers abort with "Load failed".
-func (r *Registry) searchAll(ctx context.Context, req SearchRequest, opts searchAllOpts) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
 		return out
@@ -173,13 +139,6 @@ func (r *Registry) searchAll(ctx context.Context, req SearchRequest, opts search
 	ch := make(chan part, len(r.providers))
 	var wg sync.WaitGroup
 	for _, p := range r.providers {
-		primary := isPrimaryProvider(p.Name())
-		if opts.primaryOnly && !primary {
-			continue
-		}
-		if opts.secondaryOnly && primary {
-			continue
-		}
 		wg.Add(1)
 		go func(p Provider) {
 			defer wg.Done()
@@ -187,7 +146,7 @@ func (r *Registry) searchAll(ctx context.Context, req SearchRequest, opts search
 			st := ProviderSearchStats{Provider: p.Name()}
 			pctx := ctx
 			var cancel context.CancelFunc
-			if !isPrimaryProvider(p.Name()) {
+			if !isFastProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
 					// Parallel CDP tabs (Kiwi + Skyscanner) usually finish under ~2m;
@@ -333,13 +292,8 @@ func SanitizeProviderErrorForUser(errMsg string) string {
 		strings.Contains(lower, "subscription") && strings.Contains(lower, "rapid") {
 		return "Flight search is unavailable right now (provider access). The site operator needs to renew the flight API subscription."
 	}
-	if strings.Contains(lower, "payment required") ||
-		strings.Contains(lower, "actor-memory-limit") ||
-		strings.Contains(lower, "apify") && (strings.Contains(lower, "credit") || strings.Contains(lower, "billing") || strings.Contains(lower, "limit")) {
+	if strings.Contains(lower, "payment required") {
 		return "Extra flight sources are paused (usage limits). Try again later or use a simpler route."
-	}
-	if strings.Contains(lower, "unauthorized") && strings.Contains(lower, "apify") {
-		return "Extra flight sources are misconfigured. Main search may still work when the primary provider is active."
 	}
 	return errMsg
 }

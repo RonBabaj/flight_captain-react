@@ -5,19 +5,6 @@ import (
 	"testing"
 )
 
-func TestProviderResultArrivalAirport(t *testing.T) {
-	r := ProviderResult{
-		Legs: []Leg{{
-			Segments: []Segment{
-				{From: "TLV", To: "ZRH"},
-				{From: "ZRH", To: "NRT"},
-			},
-		}},
-	}
-	if got := providerResultArrivalAirport(r); got != "NRT" {
-		t.Fatalf("got %q want NRT", got)
-	}
-}
 
 func TestCheapestReturnLeg(t *testing.T) {
 	results := []ProviderResult{

@@ -108,12 +108,7 @@ export const searchActions = {
       };
     }),
 
-  /**
-   * Apply session + results only if this update is still for the active search.
-   * - generation: must match store.searchGeneration when provided
-   * - expectedSessionId: when the store already has a sessionId, it must match
-   *   (blocks a late poll for session A after session B is active, or after beginSearch).
-   */
+  /** Apply session + results when generation/sessionId still match the active search. */
   applySessionResults: (opts: {
     generation?: number;
     sessionId: string;
@@ -121,36 +116,21 @@ export const searchActions = {
     status: SearchSessionStatus | null;
     results: FlightOption[];
     version: number;
-    mode?: 'replace' | 'append';
   }): boolean => {
     const state = useSearchStore.getState();
     if (opts.generation != null && state.searchGeneration !== opts.generation) {
       return false;
     }
-    // New search cleared the session — never revive the previous one.
     if (state.sessionId != null && state.sessionId !== opts.sessionId) {
       return false;
     }
     if (state.sessionId == null && state.status === 'PENDING' && opts.generation == null) {
-      // beginSearch left us PENDING with no id; unscoped polls must not apply.
       return false;
     }
 
     const sessionChanged = state.sessionId !== opts.sessionId;
     const nextVersion = opts.version;
-    const mode = opts.mode ?? 'replace';
-
-    if (mode === 'append' && !sessionChanged && nextVersion <= state.version) {
-      return false;
-    }
-
-    let results = opts.results;
-    if (mode === 'append' && !sessionChanged) {
-      const byId = new Map(state.results.map((r) => [r.id, r]));
-      opts.results.forEach((r) => byId.set(r.id, r));
-      results = [...byId.values()];
-    } else if (mode === 'replace' && nextVersion !== 0 && !sessionChanged && state.version > nextVersion) {
-      // Ignore older snapshots for the same session.
+    if (nextVersion !== 0 && !sessionChanged && state.version > nextVersion) {
       return false;
     }
 
@@ -158,11 +138,8 @@ export const searchActions = {
       sessionId: opts.sessionId,
       session: opts.session,
       status: opts.status,
-      results,
+      results: opts.results,
       version: nextVersion,
-      // Populate params from the session when the store has none (e.g. shared link on a
-      // fresh device). This ensures the URL gets search params written so a re-bootstrap
-      // can reconstruct the search if the session expires.
       ...(state.params == null && opts.session?.params ? { params: opts.session.params } : {}),
     });
     return true;
@@ -178,14 +155,6 @@ export const searchActions = {
         results: state.version < version ? results : state.results,
         version,
       };
-    }),
-
-  appendResults: (newResults: FlightOption[], version: number) =>
-    useSearchStore.setState(state => {
-      if (version <= state.version) return state;
-      const byId = new Map(state.results.map(r => [r.id, r]));
-      newResults.forEach(r => byId.set(r.id, r));
-      return { results: [...byId.values()], version };
     }),
 
   setLoading: (isLoading: boolean) =>

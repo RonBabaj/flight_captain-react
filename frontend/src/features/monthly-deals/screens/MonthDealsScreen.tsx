@@ -42,6 +42,7 @@ import { MonthDealsFormContent } from '../components/MonthDealsFormContent';
 import { formatMonthShort, formatMonthYear } from '../../../utils/monthNames';
 import { CheaperCitiesSection } from '../../flight-search/components/CheaperCitiesSection';
 import type { CheaperCitiesOption } from '../../flight-search/components/CheaperCitiesSection';
+import { POSITIONING_HUB_AIRPORTS } from '../../../utils/positioningSearch';
 
 // Module-scope cache: key → Promise<{ price, sessionId, results } | null>
 // Persists across dev-mode StrictMode remounts so we never create duplicate sessions.
@@ -118,15 +119,6 @@ async function findCheapestFlightForDate(params: {
   return promise;
 }
 
-const HUB_AIRPORTS = [
-  'ATH',
-  'VIE',
-  'BUD',
-  'FCO',
-  'MXP',
-  'SOF',
-  'OTP',
-] as const;
 
 // ─── Deals sort helpers (mirrors ResultsScreen logic) ───────────────────────
 
@@ -745,7 +737,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       return;
     }
 
-    const hubsToTry = (HUB_AIRPORTS as readonly string[]).filter((h) => h !== o && h !== d);
+    const hubsToTry = (POSITIONING_HUB_AIRPORTS as readonly string[]).filter((h) => h !== o && h !== d);
     const searchLeg = { adults, children, currency, locale };
 
     // eslint-disable-next-line no-console

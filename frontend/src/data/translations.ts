@@ -655,12 +655,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   try_another_route: { en: 'Try another month or a different route.', he: 'נסה חודש אחר או מסלול אחר.', ru: 'Попробуйте другой месяц или маршрут.' },
   left: { en: 'left', he: 'נותרו', ru: 'осталось' },
   loading_flight_details: { en: 'Loading flight details…', he: 'טוען פרטי טיסה…', ru: 'Загрузка деталей рейса…' },
-  loading_more_results: { en: 'Loading more results…', he: 'טוען תוצאות…', ru: 'Загрузка результатов…' },
-  enriching_ota_results: {
-    en: 'Still checking Kiwi & Skyscanner for better deals…',
-    he: 'עדיין בודקים ב‑Kiwi ו‑Skyscanner עסקאות טובות יותר…',
-    ru: 'Ещё ищем лучшие цены на Kiwi и Skyscanner…',
-  },
   book: { en: 'Book', he: 'הזמן', ru: 'Забронировать' },
   book_now: { en: 'Book now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   book_this_flight: { en: 'Book This Flight', he: 'הזמן טיסה זו', ru: 'Забронировать этот рейс' },
@@ -914,8 +908,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
   source_expedia: { en: 'Expedia', he: 'Expedia', ru: 'Expedia' },
   prices_include: { en: 'Prices include taxes & fees. Final price may vary on partner site.', he: 'המחירים כוללים מסים ואגרות. המחיר הסופי עשוי להשתנות באתר השותף.', ru: 'Цены включают налоги и сборы. Итоговая цена может отличаться на сайте партнёра.' },
   source_ota: { en: 'OTA', he: 'OTA', ru: 'OTA' },
-  include_ota_prices: { en: 'Include OTA prices (experimental)', he: 'כלול מחירי OTA (ניסיוני)', ru: 'Включить цены OTA (эксперимент)' },
-  include_google_prices: { en: 'Use Google-powered prices (beta)', he: 'מחירים מבוססי Google (בטא)', ru: 'Цены на основе Google (бета)' },
   source_google: { en: 'Google', he: 'Google', ru: 'Google' },
   no_booking_link: { en: 'No booking link', he: 'אין קישור להזמנה', ru: 'Нет ссылки на бронирование' },
   results_slow_hint: {

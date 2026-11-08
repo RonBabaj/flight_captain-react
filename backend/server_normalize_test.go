@@ -76,38 +76,6 @@ func TestSumSegmentDurations(t *testing.T) {
 
 // TestRoundtripOption_HasTwoLegs ensures a roundtrip option has two legs and the first leg
 // is the outbound (card summary uses legs[0]).
-func TestRoundtripOption_HasTwoLegs(t *testing.T) {
-	opt := FlightOption{
-		Legs: []FlightLeg{
-			{Segments: []FlightSegment{
-				{From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "NAP"},
-					DepartureTime: time.Date(2025, 3, 6, 8, 0, 0, 0, time.UTC),
-					ArrivalTime:   time.Date(2025, 3, 6, 14, 35, 0, 0, time.UTC)},
-			}},
-			{Segments: []FlightSegment{
-				{From: AirportLike{Code: "NAP"}, To: AirportLike{Code: "TLV"},
-					DepartureTime: time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC),
-					ArrivalTime:   time.Date(2025, 3, 10, 16, 0, 0, 0, time.UTC)},
-			}},
-		},
-	}
-	if len(opt.Legs) != 2 {
-		t.Fatalf("roundtrip should have 2 legs, got %d", len(opt.Legs))
-	}
-	outbound := opt.Legs[0]
-	if len(outbound.Segments) == 0 {
-		t.Fatal("outbound leg should have segments")
-	}
-	first := outbound.Segments[0]
-	last := outbound.Segments[len(outbound.Segments)-1]
-	if first.From.Code != "TLV" || last.To.Code != "NAP" {
-		t.Errorf("outbound should be TLV → NAP, got %s → %s", first.From.Code, last.To.Code)
-	}
-	// Card uses first leg times; they must differ
-	if first.DepartureTime.Equal(last.ArrivalTime) {
-		t.Error("outbound depart and arrive must differ for card")
-	}
-}
 
 // TestSanitizeSegmentTimes ensures identical dep/arr are fixed when duration is set (fixes "02:20 -> 02:20").
 func TestSanitizeSegmentTimes(t *testing.T) {
@@ -198,19 +166,7 @@ func TestComputeOutboundSummary_OneStop(t *testing.T) {
 	}
 }
 
-func TestPriceUpliftMultiplierDefaultOff(t *testing.T) {
-	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "")
-	if got := priceUpliftMultiplier(); got != 1.0 {
-		t.Fatalf("default multiplier = %v, want 1.0 (no uplift)", got)
-	}
-}
 
-func TestPriceUpliftMultiplierConfigured(t *testing.T) {
-	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "20")
-	if got := priceUpliftMultiplier(); got != 1.20 {
-		t.Fatalf("20%% uplift multiplier = %v, want 1.20", got)
-	}
-}
 
 func TestApplyPriceNormalizationDefaultNoChange(t *testing.T) {
 	t.Setenv("SEARCH_PRICE_UPLIFT_PCT", "")

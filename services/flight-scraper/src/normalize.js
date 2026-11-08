@@ -1,6 +1,6 @@
 'use strict';
 
-/** Canonical offer shape consumed by flyfix-api (Go parseKiwiOffers). */
+/** Canonical offer shape consumed by flyfix-api (Go parseOtaOffers). */
 function offerTemplate(params) {
   return {
     originCode: params.origin,
