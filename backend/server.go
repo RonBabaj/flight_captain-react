@@ -813,8 +813,8 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Return PENDING immediately. GF2 + Kiwi/Skyscanner run together in the background
-	// and the session flips to COMPLETE once — so the UI never paints GF2-only results.
+	// PENDING until GF2 + Kiwi + Skyscanner all finish, then one COMPLETE snapshot.
+	// No PARTIAL drip — the UI only paints when every provider has returned.
 	id := randomID("sess_")
 	now := time.Now().UTC()
 	session := SearchSession{
@@ -833,7 +833,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	sessions[id] = resp
 	sessionsMu.Unlock()
 	go persistSearchSession(resp)
-	go finalizeUnifiedSearchSession(id, req, sreq, cabinPref, includeBag)
+	go finalizeSearchSession(id, req, sreq, cabinPref, includeBag)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":        session.ID,
@@ -843,57 +843,14 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// finalizeUnifiedSearchSession runs every enabled provider (GF2 + multisite) and
-// publishes a single COMPLETE snapshot so all offers appear together.
-func finalizeUnifiedSearchSession(
-	sessionID string,
+// normalizeProviderOptions turns raw provider results into client-ready FlightOptions.
+func normalizeProviderOptions(
+	prs []search.ProviderResult,
 	req CreateSearchSessionRequest,
-	sreq search.SearchRequest,
 	cabinPref string,
 	includeBag bool,
-) {
-	if flightProviderRegistry == nil || sessionID == "" {
-		return
-	}
-	defer func() {
-		if rec := recover(); rec != nil {
-			log.Printf("[SEARCH] unified finalize panic session=%s: %v", sessionID, rec)
-			markSessionFailed(sessionID, "search failed")
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
-	defer cancel()
-	started := time.Now()
-	log.Printf("[SEARCH] unified start session=%s", sessionID)
-
-	multi := flightProviderRegistry.SearchAll(ctx, sreq)
-	maxTransientRetries := search.SearchTransientRetryMax()
-	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
-		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
-		wait := time.Duration(attempt+1) * 2 * time.Second
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-		case <-timer.C:
-			if ctx.Err() == nil {
-				multi = flightProviderRegistry.SearchAll(ctx, sreq)
-			}
-		}
-	}
-
-	if multi.AllFailed() {
-		log.Printf("[SEARCH] unified all providers failed session=%s durationMs=%d stats=%+v",
-			sessionID, time.Since(started).Milliseconds(), multi.Stats)
-		markSessionFailed(sessionID, multi.FailureMessage())
-		return
-	}
-	if len(multi.Results) == 0 {
-		log.Printf("[SEARCH] unified empty results session=%s stats=%+v", sessionID, multi.Stats)
-	}
-
-	options := providerResultsToFlightOptions(multi.Results)
+) []FlightOption {
+	options := providerResultsToFlightOptions(prs)
 	for i := range options {
 		if options[i].CanonicalItinerary != nil {
 			options[i].CanonicalItinerary.SetPassengerContext(req.Adults, req.ChildrenOrDefault(), req.Infants)
@@ -916,7 +873,6 @@ func finalizeUnifiedSearchSession(
 	explicitPremiumCabin := cabinPref != "" && !strings.EqualFold(cabinPref, "ECONOMY")
 	if len(options) == 0 && len(offersInitial) > 0 && !explicitPremiumCabin {
 		options = offersInitial
-		offersAfterCabin = options
 	}
 
 	if len(options) > 0 {
@@ -939,26 +895,6 @@ func finalizeUnifiedSearchSession(
 		}
 		log.Printf("[SEARCH] includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallback=%s cheapest=%.2f baggageClass=%s",
 			includeBag, okCount, unknownCount, includedCount, fallbackFlag, options[0].Price.Amount, options[0].BaggageClass)
-	}
-
-	if len(options) > 0 {
-		seenM := make(map[string]struct{})
-		for _, o := range options {
-			for _, leg := range o.Legs {
-				for _, seg := range leg.Segments {
-					if c := seg.MarketingCarrier.Code; c != "" {
-						seenM[c] = struct{}{}
-					}
-				}
-			}
-			for _, c := range o.ValidatingAirlines {
-				if c != "" {
-					seenM[c] = struct{}{}
-				}
-			}
-		}
-		log.Printf("[SEARCH_SUMMARY] results=%d cabinPreference=%s includeCheckedBag=%t okCount=%d unknownCount=%d includedCount=%d fallbackApplied=%t uniqueCarriers=%d",
-			len(options), cabinPref, includeBag, okCount, unknownCount, includedCount, bagFallback, len(seenM))
 	}
 
 	if len(options) > maxOffersReturnedToClient {
@@ -998,23 +934,6 @@ func finalizeUnifiedSearchSession(
 		ensurePrimaryCarrier(&options[i])
 		options[i].OutboundSummary = computeOutboundSummary(&options[i])
 	}
-	if len(options) > 0 {
-		o := &options[0]
-		sum := o.OutboundSummary
-		if sum != nil {
-			layoversStr := ""
-			for _, l := range sum.Layovers {
-				if layoversStr != "" {
-					layoversStr += ","
-				}
-				layoversStr += l.AirportCode + "(" + fmt.Sprintf("%d", l.Minutes) + "m)"
-			}
-			log.Printf("[NORMALIZED_SUMMARY] departure=%s arrival=%s durationMinutes=%d stops=%d layovers=[%s]",
-				sum.DepartureTime.UTC().Format(time.RFC3339),
-				sum.ArrivalTime.UTC().Format(time.RFC3339),
-				sum.DurationMinutes, sum.StopsCount, layoversStr)
-		}
-	}
 
 	convertOptionsToCurrency(options, requestedCurr)
 	applyPriceNormalization(options)
@@ -1024,7 +943,16 @@ func finalizeUnifiedSearchSession(
 	if len(options) > maxOffersReturnedToClient {
 		options = options[:maxOffersReturnedToClient]
 	}
+	return options
+}
 
+func publishSessionSnapshot(
+	sessionID string,
+	status SearchSessionStatus,
+	options []FlightOption,
+	stats []search.ProviderSearchStats,
+	replaceStats bool,
+) bool {
 	sessionsMu.Lock()
 	cur, ok := sessions[sessionID]
 	if !ok {
@@ -1034,23 +962,88 @@ func finalizeUnifiedSearchSession(
 			ok = true
 		}
 		if !ok {
-			log.Printf("[SEARCH] unified aborted session=%s gone", sessionID)
-			return
+			return false
 		}
 		sessionsMu.Lock()
 		if live, liveOK := sessions[sessionID]; liveOK {
 			cur = live
 		}
 	}
-	cur.Results = options
-	cur.ProviderStats = append([]search.ProviderSearchStats{}, multi.Stats...)
+	if status == StatusComplete || status == StatusFailed || cur.Session.Status != StatusComplete {
+		cur.Session.Status = status
+	}
+	if options != nil {
+		cur.Results = options
+	}
+	if replaceStats {
+		cur.ProviderStats = append([]search.ProviderSearchStats{}, stats...)
+	} else if len(stats) > 0 {
+		cur.ProviderStats = append(append([]search.ProviderSearchStats{}, cur.ProviderStats...), stats...)
+	}
 	cur.Version++
-	cur.Session.Status = StatusComplete
 	sessions[sessionID] = cur
 	sessionsMu.Unlock()
 	go persistSearchSession(cur)
-	log.Printf("[SEARCH] unified done session=%s durationMs=%d version=%d results=%d stats=%+v",
-		sessionID, time.Since(started).Milliseconds(), cur.Version, len(cur.Results), multi.Stats)
+	return true
+}
+
+// finalizeSearchSession runs GF2 + multisite together and publishes one COMPLETE
+// snapshot — never PARTIAL — so all offers appear at the same time.
+func finalizeSearchSession(
+	sessionID string,
+	req CreateSearchSessionRequest,
+	sreq search.SearchRequest,
+	cabinPref string,
+	includeBag bool,
+) {
+	if flightProviderRegistry == nil || sessionID == "" {
+		return
+	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("[SEARCH] finalize panic session=%s: %v", sessionID, rec)
+			markSessionFailed(sessionID, "search failed")
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+	started := time.Now()
+	log.Printf("[SEARCH] finalize start session=%s", sessionID)
+
+	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	maxTransientRetries := search.SearchTransientRetryMax()
+	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
+		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
+		wait := time.Duration(attempt+1) * 2 * time.Second
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+			if ctx.Err() == nil {
+				multi = flightProviderRegistry.SearchAll(ctx, sreq)
+			}
+		}
+	}
+
+	if multi.AllFailed() {
+		log.Printf("[SEARCH] finalize all providers failed session=%s durationMs=%d stats=%+v",
+			sessionID, time.Since(started).Milliseconds(), multi.Stats)
+		markSessionFailed(sessionID, multi.FailureMessage())
+		return
+	}
+	if len(multi.Results) == 0 {
+		log.Printf("[SEARCH] finalize empty results session=%s stats=%+v", sessionID, multi.Stats)
+	}
+
+	options := normalizeProviderOptions(multi.Results, req, cabinPref, includeBag)
+	if !publishSessionSnapshot(sessionID, StatusComplete, options, multi.Stats, true) {
+		log.Printf("[SEARCH] finalize aborted session=%s gone", sessionID)
+		return
+	}
+	log.Printf("[SEARCH] finalize done session=%s durationMs=%d results=%d stats=%+v",
+		sessionID, time.Since(started).Milliseconds(), len(options), multi.Stats)
 }
 
 func markSessionComplete(sessionID string) {
