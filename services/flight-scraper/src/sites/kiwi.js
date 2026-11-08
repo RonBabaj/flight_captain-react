@@ -3,8 +3,8 @@
 const { withPage, runWithRetries, gotoAndSettle } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { scrapeKiwiTequila } = require('./tequila');
-const { offerTemplate, segment } = require('../normalize');
-const { localHmToIso, parseDepArrHm } = require('../localTime');
+const { offerTemplate, segmentsFromRoundTripClocks } = require('../normalize');
+const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { kiwiPlaceSlug } = require('./kiwiPlaces');
 
@@ -184,8 +184,7 @@ async function scrapeKiwi(req, config) {
           out.push({
             price: num,
             bookingUrl: link,
-            depHm: stamps[0] || '',
-            arrHm: stamps[1] || '',
+            stamps,
             fromCode: stops[0] || '',
             toCode: stops.length > 1 ? stops[stops.length - 1] : '',
             airline,
@@ -198,8 +197,18 @@ async function scrapeKiwi(req, config) {
 
       return fromDom
         .map((row) => {
-          const hm = row.depHm && row.arrHm ? { depHm: row.depHm, arrHm: row.arrHm } : parseDepArrHm(row.text);
-          if (!hm) return null;
+          let clocks = null;
+          if (row.stamps?.length >= 2) {
+            clocks = {
+              outbound: { depHm: row.stamps[0], arrHm: row.stamps[1] },
+            };
+            if (row.stamps.length >= 4) {
+              clocks.inbound = { depHm: row.stamps[2], arrHm: row.stamps[3] };
+            }
+          } else {
+            clocks = parseRoundTripHm(row.text);
+          }
+          if (!clocks) return null;
           let fromCode = row.fromCode || req.origin;
           let toCode = row.toCode || req.destination;
           // RT cards can still collapse to origin/origin — force search OD.
@@ -207,28 +216,19 @@ async function scrapeKiwi(req, config) {
             fromCode = req.origin;
             toCode = req.destination;
           }
-          const departureTime = localHmToIso(req.departureDate, hm.depHm, { airport: fromCode });
-          const arrivalTime = localHmToIso(req.departureDate, hm.arrHm, {
-            afterHm: hm.depHm,
-            airport: toCode,
+          const segments = segmentsFromRoundTripClocks(req, clocks, {
+            origin: fromCode,
+            destination: toCode,
+            airline: row.airline || undefined,
           });
-          if (!departureTime || !arrivalTime) return null;
+          if (!segments.length) return null;
           return offerTemplate({
             origin: req.origin,
             destination: req.destination,
             price: row.price,
             currency: req.currency || 'USD',
             bookingUrl: row.bookingUrl,
-            segments: [
-              segment({
-                leg: 'outbound',
-                from: fromCode,
-                to: toCode,
-                departureTime,
-                arrivalTime,
-                airline: row.airline || undefined,
-              }),
-            ],
+            segments,
           });
         })
         .filter(Boolean);

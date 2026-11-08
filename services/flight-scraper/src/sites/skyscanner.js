@@ -2,8 +2,8 @@
 
 const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
-const { offerTemplate, segment } = require('../normalize');
-const { localHmToIso, parseDepArrHm } = require('../localTime');
+const { offerTemplate, segment, segmentsFromRoundTripClocks } = require('../normalize');
+const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { noteSkyscannerBlocked } = require('../warm');
 
@@ -265,15 +265,11 @@ async function scrapeSkyscanner(req, config) {
         for (const row of dom) {
           const price = parsePriceText(row.priceText) || parsePriceText(row.text);
           if (!price) continue;
-          const hm = parseDepArrHm(row.text);
-          if (!hm) continue;
-          const departureTime = localHmToIso(req.departureDate, hm.depHm, { airport: req.origin });
-          const arrivalTime = localHmToIso(req.departureDate, hm.arrHm, {
-            afterHm: hm.depHm,
-            airport: req.destination,
-          });
-          if (!departureTime || !arrivalTime) continue;
-          const key = `${price}|${departureTime}|${arrivalTime}`;
+          const clocks = parseRoundTripHm(row.text);
+          if (!clocks) continue;
+          const segments = segmentsFromRoundTripClocks(req, clocks);
+          if (!segments.length) continue;
+          const key = `${price}|${segments.map((s) => `${s.leg}:${s.departureTime}:${s.arrivalTime}`).join('|')}`;
           if (seenDom.has(key)) continue;
           seenDom.add(key);
           fromDom.push(
@@ -283,15 +279,7 @@ async function scrapeSkyscanner(req, config) {
               price,
               currency: req.currency || 'EUR',
               bookingUrl: row.link || url,
-              segments: [
-                segment({
-                  leg: 'outbound',
-                  from: req.origin,
-                  to: req.destination,
-                  departureTime,
-                  arrivalTime,
-                }),
-              ],
+              segments,
             }),
           );
         }
@@ -321,7 +309,7 @@ function extractSkyscanner(payloads, req) {
       let price = node.price || node.rawPrice || node.amount || node.minPrice;
       if (price && typeof price === 'object') price = price.amount || price.value;
       if (typeof price !== 'number' || price <= 0) return;
-      const segs = normalizeLegs(node);
+      const segs = normalizeLegs(node, req);
       // Skip price-only nodes — identical placeholders collapse to 1 offer after API dedupe.
       if (!segs.length) return;
       const key = [
@@ -357,27 +345,85 @@ function walk(node, fn, depth = 0) {
   }
 }
 
-function normalizeLegs(node) {
+function normalizeLegs(node, req = {}) {
   const segs = [];
-  const legs = node.legs || node.segments || node.outboundLegs || [];
+  // Prefer explicit outbound / inbound arrays when present.
+  const outArr = node.outboundLegs || node.outbound || node.outSegments;
+  const inArr = node.inboundLegs || node.inbound || node.returnLegs || node.returnSegments;
+  if (Array.isArray(outArr) && outArr.length) {
+    for (const leg of outArr) {
+      const s = legToSegment(leg, 'outbound');
+      if (s) segs.push(s);
+    }
+    if (Array.isArray(inArr)) {
+      for (const leg of inArr) {
+        const s = legToSegment(leg, 'inbound');
+        if (s) segs.push(s);
+      }
+    }
+    return segs;
+  }
+
+  const legs = node.legs || node.segments || [];
   if (!Array.isArray(legs)) return segs;
-  for (const leg of legs) {
-    const from = leg.origin?.iata || leg.originPlaceId || leg.origin || leg.from;
-    const to = leg.destination?.iata || leg.destinationPlaceId || leg.destination || leg.to;
-    if (!from || !to) continue;
-    segs.push(
-      segment({
-        leg: 'outbound',
-        from: String(from).slice(-3).toUpperCase(),
-        to: String(to).slice(-3).toUpperCase(),
-        departureTime: leg.departure || leg.departureTime,
-        arrivalTime: leg.arrival || leg.arrivalTime,
-        airline: leg.marketingCarrier?.iata || leg.carrier,
-        flightNumber: leg.flightNumber,
-      }),
-    );
+  // Skyscanner itineraries: legs[0]=outbound, legs[1]=return for RT.
+  // Only treat as RT directions when we have exactly 2 leg objects (not stopover segments).
+  const rtPair =
+    !!req.returnDate &&
+    legs.length === 2 &&
+    looksLikeItineraryLegPair(legs, req);
+  for (let i = 0; i < legs.length; i++) {
+    const direction = rtPair && i > 0 ? 'inbound' : 'outbound';
+    const s = legToSegment(legs[i], direction);
+    if (s) segs.push(s);
   }
   return segs;
+}
+
+function legToSegment(leg, direction) {
+  if (!leg || typeof leg !== 'object') return null;
+  const from = leg.origin?.iata || leg.originPlaceId || leg.origin || leg.from || leg.fromCode;
+  const to = leg.destination?.iata || leg.destinationPlaceId || leg.destination || leg.to || leg.toCode;
+  if (!from || !to) return null;
+  return segment({
+    leg: direction,
+    from: String(from).slice(-3).toUpperCase(),
+    to: String(to).slice(-3).toUpperCase(),
+    departureTime: leg.departure || leg.departureTime,
+    arrivalTime: leg.arrival || leg.arrivalTime,
+    airline: leg.marketingCarrier?.iata || leg.carrier || leg.airlineCode,
+    flightNumber: leg.flightNumber,
+  });
+}
+
+function looksLikeItineraryLegPair(legs, req) {
+  const o = String(req.origin || '').toUpperCase();
+  const d = String(req.destination || '').toUpperCase();
+  if (!o || !d || legs.length !== 2) return false;
+  const from0 = String(
+    legs[0].origin?.iata || legs[0].origin || legs[0].from || legs[0].fromCode || '',
+  )
+    .slice(-3)
+    .toUpperCase();
+  const to0 = String(
+    legs[0].destination?.iata || legs[0].destination || legs[0].to || legs[0].toCode || '',
+  )
+    .slice(-3)
+    .toUpperCase();
+  const from1 = String(
+    legs[1].origin?.iata || legs[1].origin || legs[1].from || legs[1].fromCode || '',
+  )
+    .slice(-3)
+    .toUpperCase();
+  const to1 = String(
+    legs[1].destination?.iata || legs[1].destination || legs[1].to || legs[1].toCode || '',
+  )
+    .slice(-3)
+    .toUpperCase();
+  // Classic RT: A→B then B→A (or at least second leg starts at dest / ends at origin).
+  if (from0 === o && to0 === d && (from1 === d || to1 === o)) return true;
+  if (to0 === d && from1 === d) return true;
+  return false;
 }
 
 module.exports = {

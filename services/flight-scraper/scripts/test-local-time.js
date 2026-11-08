@@ -1,11 +1,16 @@
 'use strict';
 
 const assert = require('assert');
-const { localHmToIso, parseDepArrHm } = require('../src/localTime');
+const { localHmToIso, parseDepArrHm, parseRoundTripHm } = require('../src/localTime');
 
 assert.deepStrictEqual(parseDepArrHm('15:40\n3h 45m\n18:25\nTLV'), {
   depHm: '15:40',
   arrHm: '18:25',
+});
+
+assert.deepStrictEqual(parseRoundTripHm('01:15 10:05 Direct 18:40 23:55'), {
+  outbound: { depHm: '01:15', arrHm: '10:05' },
+  inbound: { depHm: '18:40', arrHm: '23:55' },
 });
 
 // TLV winter (UTC+2): 15:40 local → 13:40Z

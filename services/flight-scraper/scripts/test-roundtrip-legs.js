@@ -1,0 +1,49 @@
+'use strict';
+
+const assert = require('assert');
+const { parseRoundTripHm, parseDepArrHm } = require('../src/localTime');
+const { segmentsFromRoundTripClocks } = require('../src/normalize');
+const { skyscannerUrl } = require('../src/sites/skyscanner');
+
+// OW still returns first pair only via parseDepArrHm
+assert.deepStrictEqual(parseDepArrHm('01:15\n9h 50m\n10:05\nTLV AMS'), {
+  depHm: '01:15',
+  arrHm: '10:05',
+});
+
+// RT card text has four clocks
+const rt = parseRoundTripHm('01:15\n9h 50m\n10:05\nDirect\n14:20\n5h 10m\n19:30\nDirect');
+assert.deepStrictEqual(rt, {
+  outbound: { depHm: '01:15', arrHm: '10:05' },
+  inbound: { depHm: '14:20', arrHm: '19:30' },
+});
+
+const req = {
+  origin: 'TLV',
+  destination: 'AMS',
+  departureDate: '2026-11-28',
+  returnDate: '2026-11-30',
+  currency: 'USD',
+};
+const segs = segmentsFromRoundTripClocks(req, rt);
+assert.strictEqual(segs.length, 2, `expected 2 segments, got ${segs.length}`);
+assert.strictEqual(segs[0].leg, 'outbound');
+assert.strictEqual(segs[0].fromCode, 'TLV');
+assert.strictEqual(segs[0].toCode, 'AMS');
+assert.strictEqual(segs[1].leg, 'inbound');
+assert.strictEqual(segs[1].fromCode, 'AMS');
+assert.strictEqual(segs[1].toCode, 'TLV');
+assert.ok(segs[0].departureTime);
+assert.ok(segs[1].departureTime);
+assert.notStrictEqual(segs[0].departureTime.slice(0, 10), segs[1].departureTime.slice(0, 10));
+
+// Without returnDate, only outbound is emitted even if 4 clocks present
+const owSegs = segmentsFromRoundTripClocks({ ...req, returnDate: '' }, rt);
+assert.strictEqual(owSegs.length, 1);
+assert.strictEqual(owSegs[0].leg, 'outbound');
+
+// Skyscanner RT URL includes return date slug
+const url = skyscannerUrl(req, 'www.skyscanner.com');
+assert.match(url, /\/261128\/261130\//);
+
+console.log('roundtrip legs ok');
