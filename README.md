@@ -164,7 +164,7 @@ Editing `.env.example` alone does nothing. `GET /health` shows `multisite: enabl
 ### Loading & progress
 - **Search (main form):** On "Search", a full-screen **SearchLoadingOverlay** appears with a spinner, route (e.g. TLV → HND), and **rotating status text** (e.g. "Searching hundreds of airlines…", "Comparing prices…") in the active language (EN/HE/RU).
 - **Search button:** While loading, the button shows a spinner and the same rotating phrases instead of static "Searching…".
-- **Results page:** While the session is PENDING/PARTIAL, a **LoadingBanner** shows an **animated progress bar** and rotating status phrases. Re-searching from the sidebar (edit-search modal) also shows the full-screen overlay.
+- **Results page:** While the session is PENDING, a **LoadingBanner** shows an **animated progress bar** and rotating status phrases. Re-searching from the sidebar (edit-search modal) also shows the full-screen overlay.
 - **Monthly deals:** Search button shows static "Searching…" while loading; the main loader shows **only** an animated progress bar and rotating text (e.g. "Finding the best dates…") below it — no duplicate spinners or duplicate rotating text.
 
 ### UI Polish

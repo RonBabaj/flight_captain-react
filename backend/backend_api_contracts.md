@@ -12,7 +12,7 @@ The backend remains the single source of truth for all flight data and never exp
 
 - **Method**: `POST`
 - **Path**: `/api/search/sessions`
-- **Description**: Start a new flight search session. The backend immediately queues work to fetch results from Amadeus and normalizes them into a frontend-friendly structure. Results are retrieved progressively via polling (or streaming in a future iteration).
+- **Description**: Start a new flight search session. The backend immediately returns `PENDING`, then runs all enabled providers and writes one `COMPLETE` snapshot. The frontend retrieves results by polling.
 
 **Request body (JSON)**
 
@@ -92,8 +92,6 @@ type SearchSession struct {
 
 - **Method**: `GET`
 - **Path**: `/api/search/sessions/{id}`
-- **Query params**:
-  - `sinceVersion` (optional, integer) – if provided, backend MAY return only newer results.
 
 **Response shape**
 
@@ -101,7 +99,7 @@ type SearchSession struct {
 {
   "session": {
     "id": "sess_abc123",
-    "status": "PARTIAL",
+    "status": "COMPLETE",
     "createdAt": "2026-04-01T12:34:56Z",
     "params": { /* CreateSearchSessionRequest */ },
     "expiresAt": "2026-04-01T13:34:56Z"
@@ -177,27 +175,11 @@ type SearchSessionResultsResponse struct {
 }
 ```
 
-**Progressive results behavior**
+**Session results behavior**
 
 - Immediately after session creation, `GET /api/search/sessions/{id}` returns `status = PENDING` and an empty `results` array.
-- As results are discovered from Amadeus, the backend:
-  - Updates its internal store (`flightStore`-equivalent keyed by session id).
-  - Increments `version`.
-  - Adds/updates `FlightOption` items.
+- When every enabled provider finishes, the backend writes one snapshot and sets `status = COMPLETE` (or `FAILED`).
 - The frontend **polls every 1–2 seconds** until `status` becomes `COMPLETE` or `FAILED`.
-- In the future, this can be extended with:
-  - `GET /api/search/sessions/{id}/stream` using SSE or websockets, keeping the same `FlightOption` shape.
-
----
-
-#### 1.3 Cancel Search Session (Optional, MVP+)
-
-- **Method**: `POST`
-- **Path**: `/api/search/sessions/{id}/cancel`
-- **Behavior**:
-  - Mark the session as cancelled.
-  - Stop background Amadeus polling (if any).
-  - Future calls to `GET /api/search/sessions/{id}` return `status = FAILED` or `CANCELLED`.
 
 ---
 
@@ -350,7 +332,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/search/sessions", handleSearchSessions)          // POST create, GET list (future)
-	mux.HandleFunc("/api/search/sessions/", handleSearchSessionByID)     // GET status/results, POST cancel
+	mux.HandleFunc("/api/search/sessions/", handleSearchSessionByID)     // GET status/results
 	mux.HandleFunc("/api/deals/month", handleMonthDeals)                 // GET monthly deals
 	mux.HandleFunc("/api/airports/search", handleAirportCitySearch)      // GET autocomplete
 
@@ -369,7 +351,7 @@ The actual router choice is up to you (standard library, chi, gin, etc.), but th
   - `FlightOption`, `FlightLeg`, `FlightSegment`, `AirportLike`, `Carrier`, `MonetaryAmount`.
 - **Session semantics**:
   - A `SearchSession` is immutable in its parameters after creation.
-  - Results may grow over time (PENDING → PARTIAL → COMPLETE).
+  - New searches stay PENDING until every provider finishes, then COMPLETE once (no PARTIAL drip).
   - Sessions may expire; expired sessions MUST return clear `status = FAILED` or HTTP `410 Gone`.
 - **Caching**:
   - Month deals and possibly search results may be cached internally, but the cache layer is invisible to the client.

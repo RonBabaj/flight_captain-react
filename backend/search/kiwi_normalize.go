@@ -31,8 +31,8 @@ func flattenKiwiItems(v interface{}) []map[string]interface{} {
 	return nil
 }
 
-// parseKiwiOffers normalizes scraper/legacy Kiwi-shaped rows into ProviderResult.
-func parseKiwiOffers(items []map[string]interface{}, req SearchRequest, source string) []ProviderResult {
+// parseOtaOffers normalizes multisite scraper offer rows (Kiwi / Skyscanner / Expedia) into ProviderResult.
+func parseOtaOffers(items []map[string]interface{}, req SearchRequest, source string) []ProviderResult {
 	if source == "" {
 		source = "kiwi"
 	}
@@ -46,11 +46,6 @@ func parseKiwiOffers(items []map[string]interface{}, req SearchRequest, source s
 		out = append(out, *pr)
 	}
 	return out
-}
-
-// parseKiwiApifyItems is kept for tests and legacy call sites.
-func parseKiwiApifyItems(items []map[string]interface{}, req SearchRequest) []ProviderResult {
-	return parseKiwiOffers(items, req, "kiwi")
 }
 
 func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, fetchedAt time.Time, source string) *ProviderResult {

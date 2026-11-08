@@ -172,8 +172,3 @@ func TestParseGF2BookingOptions_rapidAPIPartnerList(t *testing.T) {
 	}
 }
 
-func TestFirstNonEmpty(t *testing.T) {
-	if firstNonEmpty("", "  ", "x") != "x" {
-		t.Fatal("expected x")
-	}
-}

@@ -53,7 +53,7 @@ func TestDedupeKeepsCheaper(t *testing.T) {
 	}
 }
 
-func TestParseKiwiApifyItemsSolidcodeShape(t *testing.T) {
+func TestParseOtaOffersSolidcodeShape(t *testing.T) {
 	item := map[string]interface{}{
 		"originCode":      "PRG",
 		"destinationCode": "JFK",
@@ -80,7 +80,7 @@ func TestParseKiwiApifyItemsSolidcodeShape(t *testing.T) {
 			},
 		},
 	}
-	out := parseKiwiApifyItems([]map[string]interface{}{item}, SearchRequest{Origin: "PRG", Destination: "JFK", Currency: "USD"})
+	out := parseOtaOffers([]map[string]interface{}{item}, SearchRequest{Origin: "PRG", Destination: "JFK", Currency: "USD"}, "kiwi")
 	if len(out) != 1 {
 		t.Fatalf("len=%d", len(out))
 	}
@@ -98,11 +98,11 @@ func TestParseKiwiApifyItemsSolidcodeShape(t *testing.T) {
 	}
 }
 
-func TestParseKiwiEmptyAndInvalid(t *testing.T) {
-	if got := parseKiwiApifyItems(nil, SearchRequest{}); len(got) != 0 {
+func TestParseOtaOffersEmptyAndInvalid(t *testing.T) {
+	if got := parseOtaOffers(nil, SearchRequest{}, "kiwi"); len(got) != 0 {
 		t.Fatal("nil items")
 	}
-	if got := parseKiwiApifyItems([]map[string]interface{}{{"price": 0}}, SearchRequest{}); len(got) != 0 {
+	if got := parseOtaOffers([]map[string]interface{}{{"price": 0}}, SearchRequest{}, "kiwi"); len(got) != 0 {
 		t.Fatal("zero price")
 	}
 }

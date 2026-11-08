@@ -65,7 +65,9 @@ function ensureLegacyPurge(): void {
 }
 
 /** Cached snapshots without timeSchemaVersion>=1 still have wall-clock-as-Z times. */
-function isTrustedTimeSchema(data: SearchSessionResultsResponse | null | undefined): boolean {
+export function isTrustedTimeSchema(
+  data: { session?: { timeSchemaVersion?: number } } | null | undefined
+): boolean {
   const v = data?.session?.timeSchemaVersion;
   return typeof v === 'number' && v >= MIN_TRUSTED_TIME_SCHEMA;
 }
@@ -185,50 +187,45 @@ export function searchParamsMatch(
   return true;
 }
 
-/** Get session status and results; optional sinceVersion for incremental. Uses memory + localStorage cache.
- * Only returns cached data when paramsMatch is provided and matches the cached session params. */
+/** Get session status and results. Uses memory + localStorage cache for COMPLETE snapshots. */
 export async function getSearchSessionResults(
   sessionId: string,
-  sinceVersion?: number,
   paramsMatchExpected?: Partial<CreateSearchSessionRequest> | null
 ): Promise<SearchSessionResultsResponse> {
   ensureLegacyPurge();
-  const isInitialLoad = sinceVersion == null || sinceVersion === 0;
   const now = Date.now();
 
-  const memHit = isInitialLoad ? resultsCache.get(sessionId) : undefined;
+  const memHit = resultsCache.get(sessionId);
   if (memHit && now - memHit.at < getRuntimeConfig().resultsCacheTtlMs) {
     if (!isTrustedTimeSchema(memHit.data)) {
       resultsCache.delete(sessionId);
     } else if (!searchParamsMatch(memHit.data.session?.params, paramsMatchExpected)) {
-      return await fetchFresh(sessionId, sinceVersion);
+      return await fetchFresh(sessionId);
     } else if (isEmptyCompleteSession(memHit.data)) {
-      return await fetchFresh(sessionId, sinceVersion);
+      return await fetchFresh(sessionId);
     } else if (isIncompleteSession(memHit.data)) {
-      // Never trust a cached PARTIAL snapshot — OTA enrich may have finished server-side.
-      return await fetchFresh(sessionId, sinceVersion);
+      return await fetchFresh(sessionId);
     } else {
       return memHit.data;
     }
   }
 
-  const storageHit = isInitialLoad ? getFromStorage(sessionId) : null;
+  const storageHit = getFromStorage(sessionId);
   if (storageHit) {
-    if (!searchParamsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId, sinceVersion);
-    if (isEmptyCompleteSession(storageHit)) return await fetchFresh(sessionId, sinceVersion);
-    if (isIncompleteSession(storageHit)) return await fetchFresh(sessionId, sinceVersion);
+    if (!searchParamsMatch(storageHit.session?.params, paramsMatchExpected)) return await fetchFresh(sessionId);
+    if (isEmptyCompleteSession(storageHit)) return await fetchFresh(sessionId);
+    if (isIncompleteSession(storageHit)) return await fetchFresh(sessionId);
     resultsCache.set(sessionId, { data: storageHit, at: now });
     return storageHit;
   }
 
-  return fetchFresh(sessionId, sinceVersion);
+  return fetchFresh(sessionId);
 }
 
 function isEmptyCompleteSession(data: SearchSessionResultsResponse): boolean {
   return data.session?.status === 'COMPLETE' && (data.results?.length ?? 0) === 0;
 }
 
-/** PARTIAL/PENDING snapshots must not be served from cache — enrich may still be running. */
 function isIncompleteSession(data: SearchSessionResultsResponse): boolean {
   const st = data.session?.status;
   return st === 'PARTIAL' || st === 'PENDING';
@@ -244,25 +241,11 @@ export function invalidateSearchSessionResultsCache(sessionId: string): void {
   } catch {}
 }
 
-async function fetchFresh(
-  sessionId: string,
-  sinceVersion?: number
-): Promise<SearchSessionResultsResponse> {
-  const query = sinceVersion != null ? `?sinceVersion=${sinceVersion}` : '';
-  const data = await apiGet<SearchSessionResultsResponse>(
-    `${SESSIONS_PATH}/${sessionId}${query}`
-  );
-  const isInitialLoad = sinceVersion == null || sinceVersion === 0;
+async function fetchFresh(sessionId: string): Promise<SearchSessionResultsResponse> {
+  const data = await apiGet<SearchSessionResultsResponse>(`${SESSIONS_PATH}/${sessionId}`);
   resultsCache.set(sessionId, { data, at: Date.now() });
-  // Persist only completed non-empty snapshots. Caching PARTIAL freezes the UI at the
-  // GF2-only list after refresh even when Kiwi/Skyscanner enrich already finished.
-  if (isInitialLoad && data.results?.length && data.session?.status === 'COMPLETE') {
+  if (data.results?.length && data.session?.status === 'COMPLETE') {
     setToStorage(sessionId, data);
   }
   return data;
-}
-
-/** Cancel search session (optional, MVP+). */
-export async function cancelSearchSession(sessionId: string): Promise<void> {
-  await apiPost(`${SESSIONS_PATH}/${sessionId}/cancel`, {});
 }

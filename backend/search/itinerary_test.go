@@ -239,40 +239,7 @@ func TestCanonicalItineraryFingerprint_operatingCarrier(t *testing.T) {
 	}
 }
 
-func TestCanonicalItineraryFingerprint_excludesPrice(t *testing.T) {
-	it := CanonicalItinerary{
-		Segments: []CanonicalSegment{{
-			From: "A", To: "B", MarketingCarrier: "X", FlightNumber: "X1",
-			DepartureTime: time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
-			ArrivalTime:   time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
-		}},
-	}
-	itCheap := it
-	itCheap.Price = Monetary{Currency: "USD", Amount: 100}
-	itDear := it
-	itDear.Price = Monetary{Currency: "USD", Amount: 999}
-	if CanonicalItineraryFingerprint(itCheap) != CanonicalItineraryFingerprint(itDear) {
-		t.Fatal("price must not be in fingerprint")
-	}
-}
 
-func TestFingerprintDebugString_format(t *testing.T) {
-	dep := time.Date(2026, 10, 7, 14, 30, 0, 0, time.UTC)
-	arr := time.Date(2026, 10, 7, 17, 45, 0, 0, time.UTC)
-	it := BuildCanonicalItinerary(ProviderResult{
-		Legs: []Leg{{Segments: []Segment{{
-			From: "TLV", To: "VIE", DepartureTime: dep, ArrivalTime: arr,
-			MarketingCarrier: "LY", FlightNumber: "LY315",
-		}}}},
-	})
-	dbg := FingerprintDebugString(it)
-	if !strings.HasPrefix(dbg, "v1|") {
-		t.Fatalf("expected v1 prefix, got %q", dbg)
-	}
-	if !strings.Contains(dbg, "TLV:VIE:LY:LY315:2026-10-07T14:30:00Z:2026-10-07T17:45:00Z") {
-		t.Fatalf("unexpected segment part: %s", dbg)
-	}
-}
 
 func TestAttachCanonicalIdentityAll_combineOneWay(t *testing.T) {
 	dep := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)

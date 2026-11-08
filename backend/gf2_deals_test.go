@@ -20,11 +20,6 @@ func TestEnsureRoundTripLegs_noOpWhenTwoLegs(t *testing.T) {
 	}
 }
 
-func TestEnsureRoundTripLegs_nilSafe(t *testing.T) {
-	if ensureRoundTripLegs(nil, nil, nil, "TLV", "HND", "2026-07-25", "USD", 1, 0, "ECONOMY", false) != nil {
-		t.Fatal("nil opt should stay nil")
-	}
-}
 
 // Regression: month-deals card used Search() RT total (e.g. ₪592) while details used to
 // add the return one-way fare on top (₪592+₪764=₪1356). Attaching a return leg must keep price.

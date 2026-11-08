@@ -45,9 +45,9 @@ func TestSanitizeProviderErrorForUser(t *testing.T) {
 	if strings.Contains(msg, "403") {
 		t.Fatalf("should not expose status code: %q", msg)
 	}
-	apify := SanitizeProviderErrorForUser("Apify: payment required for actor run")
-	if strings.Contains(strings.ToLower(apify), "payment required") {
-		t.Fatalf("should sanitize apify billing: %q", apify)
+	paid := SanitizeProviderErrorForUser("multisite scraper: payment required")
+	if strings.Contains(strings.ToLower(paid), "payment required") {
+		t.Fatalf("should sanitize billing errors: %q", paid)
 	}
 }
 

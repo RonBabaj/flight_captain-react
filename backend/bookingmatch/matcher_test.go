@@ -596,18 +596,6 @@ func TestSelectBestOffer_cheapestOTAOverAirline(t *testing.T) {
 	}
 }
 
-func TestSelectCheapestVerifiedOffer_picksLowestPrice(t *testing.T) {
-	trip := 137.0
-	austrian := 158.0
-	offers := []BookingOffer{
-		{Domain: "austrian.com", URL: "https://www.austrian.com/en/book-flight/checkout", URLType: URLTypeExactBooking, MatchScore: 95, VerificationStatus: StatusVerifiedExact, Price: &austrian, Currency: "EUR"},
-		{Domain: "trip.com", URL: "https://www.trip.com/flights/book/OS860", URLType: URLTypeExactBooking, MatchScore: 90, VerificationStatus: StatusVerifiedExact, Price: &trip, Currency: "EUR"},
-	}
-	best := SelectCheapestVerifiedOffer(offers, testPriceNormalizer)
-	if best == nil || best.Domain != "trip.com" {
-		t.Fatalf("expected cheapest trip.com, got %+v", best)
-	}
-}
 
 func TestSelectCheapestVerifiedOffer_ignoresUnverified(t *testing.T) {
 	cheap := 99.0

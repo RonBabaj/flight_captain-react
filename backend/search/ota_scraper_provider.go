@@ -76,7 +76,7 @@ func NewOtaScraperProvider() *OtaScraperProvider {
 		base = defaultOtaScraperURL
 	}
 	sites := parseOtaScraperSites(os.Getenv("FLIGHT_SCRAPER_SITES"))
-	ttl := KiwiEffectiveCacheTTL()
+	ttl := OtaScraperCacheTTL()
 	if ttl <= 0 {
 		ttl = kiwiCacheTTL
 	}
@@ -293,7 +293,7 @@ func flattenOtaScraperResponse(resp otaScraperSearchResponse, req SearchRequest)
 		if siteName == "" {
 			siteName = "ota"
 		}
-		part := parseKiwiOffers(site.Offers, req, siteName)
+		part := parseOtaOffers(site.Offers, req, siteName)
 		out = append(out, part...)
 	}
 	return out

@@ -2,11 +2,7 @@
  * Results cache trust rules for airport-absolute times.
  * Run: npx --yes tsx src/api/searchCacheTrust.test.ts
  */
-
-function isTrustedTimeSchema(data: { session?: { timeSchemaVersion?: number } } | null | undefined): boolean {
-  const v = data?.session?.timeSchemaVersion;
-  return typeof v === 'number' && v >= 1;
-}
+import { isTrustedTimeSchema } from './search';
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) throw new Error(msg);

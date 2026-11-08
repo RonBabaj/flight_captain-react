@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULT_SITES = ['kiwi', 'skyscanner', 'expedia'];
+const DEFAULT_SITES = ['kiwi', 'skyscanner'];
 
 function parseSites(raw) {
   if (!raw || !String(raw).trim()) return [...DEFAULT_SITES];
@@ -24,9 +24,7 @@ function parseCdpUrls() {
 module.exports = {
   port: Number(process.env.PORT || 3099),
   token: (process.env.FLIGHT_SCRAPER_TOKEN || '').trim(),
-  defaultSites: process.env.FLIGHT_SCRAPER_SITES
-    ? parseSites(process.env.FLIGHT_SCRAPER_SITES)
-    : ['kiwi', 'skyscanner'],
+  defaultSites: parseSites(process.env.FLIGHT_SCRAPER_SITES),
   parseSites,
   headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
   maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 40), 80),

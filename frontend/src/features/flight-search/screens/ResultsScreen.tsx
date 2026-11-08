@@ -31,7 +31,6 @@ import { setCachedSearch } from '../../../utils/searchCache';
 import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
-import { getRuntimeConfig } from '../../../config/runtimeConfigStore';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
 import { clearSharedLinkCache, readSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { SortBar } from '../components/SortBar';
@@ -60,6 +59,10 @@ import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
+import {
+  findCheapestOptionForParams,
+  POSITIONING_HUB_AIRPORTS,
+} from '../../../utils/positioningSearch';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
@@ -73,18 +76,6 @@ function currentGeneration(): number {
   return useSearchStore.getState().searchGeneration;
 }
 
-// ─── Positioning flight optimizer (MVP) ────────────────────────────────────────
-
-const HUB_AIRPORTS = [
-  'ATH',
-  'VIE',
-  'BUD',
-  'FCO',
-  'MXP',
-  'SOF',
-  'OTP',
-] as const;
-
 type PositioningOption = {
   hubAirport: string;
   positioningPrice: MonetaryAmount;
@@ -96,8 +87,6 @@ type PositioningOption = {
   hubSessionId: string;
   hubOptionId: string;
 };
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const defaultFormParams: CreateSearchSessionRequest = {
   origin: '',
@@ -148,38 +137,6 @@ function sortResults(
     const scoreB = bestScore(b, maxPrice, maxDuration);
     return scoreA - scoreB;
   });
-}
-
-type CheapestOption = {
-  sessionId: string;
-  option: FlightOption;
-};
-
-async function findCheapestOptionForParams(
-  base: CreateSearchSessionRequest
-): Promise<CheapestOption | null> {
-  const session = await createSearchSessionWithRetry(base);
-  let attempts = 0;
-  let lastResults: FlightOption[] = [];
-  let status: string | undefined;
-
-  while (attempts < 6) {
-    const res = await getSearchSessionResults(session.id);
-    lastResults = res.results ?? [];
-    status = res.session?.status;
-    if (status === 'COMPLETE' || status === 'FAILED') {
-      break;
-    }
-    attempts += 1;
-    await delay(getRuntimeConfig().pollIntervalMs);
-  }
-
-  if (!lastResults.length) return null;
-  const best = lastResults.reduce(
-    (min, opt) => (opt.price.amount < min.price.amount ? opt : min),
-    lastResults[0]
-  );
-  return { sessionId: session.id, option: best };
 }
 
 export function ResultsScreen({ route }: { route: { params: Record<string, unknown> } }) {
@@ -238,7 +195,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     ? ''
     : (storeSessionId || routeSessionId || urlSessionId || '');
   const searchNonce = (route.params as any)?.searchNonce ?? 0;
-  const versionRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
   const [detailsOption, setDetailsOption] = useState<FlightOption | null>(null);
   const pendingOptionIdRef = useRef<string | undefined>(
@@ -258,7 +214,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const deepLinkLoggedRef = useRef(false);
   const creatingSessionRef = useRef(false);
   const emptyRetryRef = useRef(false);
-  const bootstrapEmptyRetryRef = useRef(false);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
@@ -272,7 +227,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     if (searchNonce !== prevSearchNonceRef.current) {
       prevSearchNonceRef.current = searchNonce;
       emptyRetryRef.current = false;
-      bootstrapEmptyRetryRef.current = false;
     }
   }, [searchNonce]);
 
@@ -313,7 +267,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       searchActions.beginSearch(retryPayload);
       clearSharedLinkCache();
       updateUrl({ ...retryPayload, sessionId: undefined, optionId: undefined, flightId: undefined });
-      versionRef.current = 0;
       creatingSessionRef.current = false;
       navigation.setParams({ sessionId: '', optionId: '', searchNonce: Date.now() });
       return true;
@@ -426,10 +379,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       setCachedSearch(payload);
       const generation = searchActions.beginSearch(payload);
       updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-      versionRef.current = 0;
       const session = await createSearchSessionWithRetry(payload);
       if (!isCurrentSearchGeneration(generation)) return;
-      const res = await getSearchSessionResults(session.id, undefined, payload);
+      const res = await getSearchSessionResults(session.id, payload);
       if (!isCurrentSearchGeneration(generation)) return;
       const applied = searchActions.applySessionResults({
         generation,
@@ -438,10 +390,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         status: res.session?.status ?? session.status,
         results: res.results ?? [],
         version: res.version ?? 1,
-        mode: 'replace',
       });
       if (!applied) return;
-      versionRef.current = res.version ?? 1;
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
@@ -547,11 +497,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
-      const st = useSearchStore.getState();
-      // Bootstrap may have hydrated results before route sessionId caught up — keep version.
-      if (!(st.sessionId === sessionId && st.results.length > 0)) {
-        versionRef.current = 0;
-      }
     }
   }, [sessionId]);
 
@@ -662,7 +607,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
     // Ensure UI goes into loading mode even before we have a sessionId.
     searchActions.setError(null);
-    versionRef.current = 0;
 
     (async () => {
       try {
@@ -713,23 +657,20 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           } as any,
           session.status ?? 'PENDING',
         );
-        versionRef.current = 0;
         updateUrl({ ...payload, sessionId: session.id, optionId: undefined, flightId: undefined });
         navigation.replace('Results', { sessionId: session.id });
 
         if (session.status === 'COMPLETE') {
-          const res = await getSearchSessionResults(session.id, undefined, payload);
+          const res = await getSearchSessionResults(session.id, payload);
           if (cancelled || !isCurrentSearchGeneration(generation)) return;
-          const applied = searchActions.applySessionResults({
+          searchActions.applySessionResults({
             generation,
             sessionId: session.id,
             session: res.session ?? (session as any),
             status: res.session?.status ?? session.status,
             results: res.results ?? [],
             version: res.version ?? 1,
-            mode: 'replace',
           });
-          if (applied) versionRef.current = res.version ?? 1;
         }
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
@@ -871,13 +812,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
       inFlight = true;
       try {
-        // Always fetch a full snapshot. Backend ignores sinceVersion today, and
-        // enrich renumbers opt_* ids — append-by-id against a stale list is unsafe.
         const matchParams =
           sharedLinkHydrationRef.current || !storeParamsRef.current
             ? undefined
             : storeParamsRef.current;
-        const res = await getSearchSessionResults(polledSessionId, undefined, matchParams);
+        const res = await getSearchSessionResults(polledSessionId, matchParams);
         if (cancelled || !isCurrentSearchGeneration(generation)) return;
         const latest = useSearchStore.getState();
         if (latest.sessionId != null && latest.sessionId !== polledSessionId) return;
@@ -912,10 +851,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           status: res.session.status,
           results: res.results ?? [],
           version: nextVersion,
-          mode: 'replace',
         });
         if (applied) {
-          versionRef.current = nextVersion;
           sharedLinkHydrationRef.current = false;
           logDeepLinkDiagnostics('poll-ok', {
             routeParams: route.params as Record<string, unknown>,
@@ -968,16 +905,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             searchActions.setSession(null, null, 'FAILED');
           }
         }
-        // Transient 5xx/network: keep polling while still PENDING/PARTIAL.
       } finally {
         inFlight = false;
         scheduleNext();
       }
     };
 
-    // iOS Chrome freezes timers when the tab is backgrounded / after screenshots.
-    // When the page is visible again and we are still PARTIAL, force a catch-up GET
-    // so Kiwi/Skyscanner enrich is not left invisible forever.
+    // iOS Chrome freezes timers when the tab is backgrounded; resume polling on focus.
     const g = globalThis as {
       document?: { visibilityState?: string; addEventListener?: typeof addEventListener; removeEventListener?: typeof removeEventListener };
       window?: { addEventListener?: typeof addEventListener; removeEventListener?: typeof removeEventListener };
@@ -1112,16 +1046,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
   }, [sessionId]);
 
-  // Debug: positioning section visibility (helps diagnose disappearing section).
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[POSITIONING_SECTION]', {
-      loading: positioningLoading,
-      positioningOptionsLength: positioningOptions?.length ?? 0,
-      hasData: !!(positioningOptions && positioningOptions.length > 0),
-    });
-  }, [positioningLoading, positioningOptions]);
-
   // Positioning Flight Optimizer — runs once per session after results load.
   const runPositioningOptimizer = useCallback(async () => {
     if (!storeParams || !results.length) return;
@@ -1145,13 +1069,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
     try {
       let hubRunIndex = 0;
-      for (const hub of HUB_AIRPORTS) {
+      for (const hub of POSITIONING_HUB_AIRPORTS) {
         if (!sessionStillActive()) break;
         if (Date.now() - startedAt > positioningBudgetMs) break;
         if (hub === origin.toUpperCase() || hub === destination.toUpperCase()) continue;
         // Spread hub scans so we do not burst the backend GF2 limiter right after the main search.
         if (hubRunIndex > 0) {
-          await delay(2000);
+          await new Promise<void>((r) => setTimeout(r, 2000));
         }
         hubRunIndex += 1;
         try {
@@ -1254,8 +1178,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const slowPopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Only nag when the list is still empty. PARTIAL with GF2 results already on
-    // screen means scrapers are enriching in the background — not a stuck search.
     const loadingEmpty =
       (status === 'PENDING' || status === 'PARTIAL') && results.length === 0;
     if (!loadingEmpty) {
@@ -1324,7 +1246,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         setSharedLinkExpired(false);
         searchActions.setError(null);
         searchActions.setSession(null, null, null);
-        versionRef.current = 0;
         creatingSessionRef.current = false;
         const origin = (merged.origin ?? '').trim();
         const destination = (merged.destination ?? '').trim();
@@ -1383,7 +1304,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         searchActions.setSession(null, null, 'PENDING');
         searchActions.setResults([], 0);
       }
-      versionRef.current = 0;
       creatingSessionRef.current = false;
       setBootstrappingSession(false);
       clearDeadSessionEverywhere();
@@ -1734,10 +1654,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </EditSearchModal>
 
       {isLoading && <SearchProgressBanner language={language} theme={theme} />}
-      {/* Legacy PARTIAL sessions only — new searches stay PENDING until all providers finish together. */}
-      {!isLoading && status === 'PARTIAL' && results.length > 0 ? (
-        <SearchStatusBanner message={t('enriching_ota_results')} variant="info" />
-      ) : null}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (
