@@ -65,8 +65,9 @@ export async function getOutboundLink(
   return res.json();
 }
 
-/** Get clicks summary for reporting (optional date range). */
+/** Get clicks summary for reporting (admin auth required). */
 export async function getClicksSummary(
+  token: string,
   from?: string,
   to?: string
 ): Promise<ClicksSummaryResponse> {
@@ -76,7 +77,13 @@ export async function getClicksSummary(
   if (to) params.set('to', to);
   const q = params.toString();
   const url = `${base}${AFFILIATE_BASE}/clicks/summary${q ? `?${q}` : ''}`;
-  const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${res.status}: ${text || res.statusText}`);

@@ -2793,6 +2793,10 @@ func handleAffiliateClicksSummary(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !isAdminRequest(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
 	q := r.URL.Query()
 	fromStr := q.Get("from")
 	toStr := q.Get("to")

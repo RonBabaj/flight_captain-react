@@ -14,6 +14,8 @@ services:
       # Do not use :9223 — apartment-monitor-cdp-proxy owns that (Facebook profile).
       SCRAPER_CDP_URLS: ${SCRAPER_CDP_URLS:-http://host.docker.internal:9224}
       SCRAPER_PROXY_URL: ${SCRAPER_PROXY_URL:-}
+      # Warm is opt-in (SCRAPER_WARM_ON_START=1). Token required via backend/.env FLIGHT_SCRAPER_TOKEN.
+      SCRAPER_WARM_ON_START: ${SCRAPER_WARM_ON_START:-0}
     networks:
       - proxy
     expose:
@@ -29,6 +31,7 @@ services:
       - ./backend/.env
     environment:
       FLIGHT_SCRAPER_URL: http://flight-scraper:3099
+      FLIGHT_SCRAPER_MAX_CONCURRENT: ${FLIGHT_SCRAPER_MAX_CONCURRENT:-1}
     depends_on:
       - flight-scraper
     volumes:

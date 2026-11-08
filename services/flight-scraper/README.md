@@ -20,7 +20,7 @@ The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment 
 
 Playwright opens **new tabs** via CDP on the dedicated flight Chrome profile (`/var/lib/flight-scraper-chrome`). Kiwi and Skyscanner run **in parallel** on one CDP connection (set `SCRAPER_SERIAL_SITES=1` to force serial).
 
-On process start the scraper **warms** Kiwi + Skyscanner (cookie banners, culture) and re-warms every ~15 minutes (`SCRAPER_WARM_ON_START=0` to disable). Create-session returns `PENDING` immediately; GF2 + OTAs finish together and the session flips to `COMPLETE` once.
+`FLIGHT_SCRAPER_TOKEN` is **required** in production (process exits without it unless `SCRAPER_DRY_RUN=1` or `SCRAPER_ALLOW_INSECURE=1`). Cookie warm is **opt-in**: set `SCRAPER_WARM_ON_START=1` to warm Kiwi + Skyscanner on boot and every ~15 minutes. Create-session returns `PENDING` immediately; GF2 + OTAs finish together and the session flips to `COMPLETE` once.
 
 ## Run locally
 
@@ -34,7 +34,10 @@ Without `SCRAPER_CDP_URL`, Playwright launches its own Chromium (optionally head
 
 Optional:
 
+- `FLIGHT_SCRAPER_TOKEN` — shared Bearer secret (required outside dry-run/insecure)
 - `SCRAPER_DRY_RUN=1` — empty offers (smoke test)
+- `SCRAPER_ALLOW_INSECURE=1` — local-only: allow empty token
+- `SCRAPER_WARM_ON_START=1` — enable cookie warm loop
 - `SCRAPER_SESSION_RETRIES=3`
 - `SCRAPER_PROXY_URL` — only if you need a different egress IP
 

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,25 @@ const (
 	otaScraperHTTPTimeout = 8 * time.Minute
 	defaultOtaScraperURL  = "http://flight-scraper:3099"
 )
+
+// Process-wide scrape gate so overlapping SearchAll calls cannot flood one Chrome CDP.
+var (
+	otaScrapeSemOnce sync.Once
+	otaScrapeSem     chan struct{}
+)
+
+func otaScrapeSemaphore() chan struct{} {
+	otaScrapeSemOnce.Do(func() {
+		n := 1
+		if raw := strings.TrimSpace(os.Getenv("FLIGHT_SCRAPER_MAX_CONCURRENT")); raw != "" {
+			if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+				n = v
+			}
+		}
+		otaScrapeSem = make(chan struct{}, n)
+	})
+	return otaScrapeSem
+}
 
 // OtaScraperProvider calls the self-hosted multisite flight scraper (Kiwi, Skyscanner, Expedia).
 type OtaScraperProvider struct {
@@ -208,6 +228,14 @@ func (p *OtaScraperProvider) Search(ctx context.Context, req SearchRequest) ([]P
 	if cached, ok := p.cache.get(key); ok {
 		log.Printf("[MULTISITE] cacheHit=true results=%d", len(cached))
 		return cached, nil
+	}
+
+	sem := otaScrapeSemaphore()
+	select {
+	case sem <- struct{}{}:
+		defer func() { <-sem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 
 	body := otaScraperSearchRequest{
