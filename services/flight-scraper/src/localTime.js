@@ -108,11 +108,37 @@ function localHmToIso(dateYmd, hm, { afterHm, airport } = {}) {
   return real.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
+/** All HH:MM tokens from free text (order preserved). */
+function parseAllHm(text) {
+  return String(text || '').match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g) || [];
+}
+
 /** Parse first two HH:MM tokens from free text (dep / arr). */
 function parseDepArrHm(text) {
-  const matches = String(text || '').match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g) || [];
+  const matches = parseAllHm(text);
   if (matches.length < 2) return null;
   return { depHm: matches[0], arrHm: matches[1] };
 }
 
-module.exports = { localHmToIso, parseDepArrHm, tzForAirport, AIRPORT_TZ };
+/**
+ * Outbound (+ optional return) clock pairs from card text.
+ * Round-trip Skyscanner/Kiwi cards usually list 4 times: out dep/arr, ret dep/arr.
+ */
+function parseRoundTripHm(text) {
+  const matches = parseAllHm(text);
+  if (matches.length < 2) return null;
+  const out = { outbound: { depHm: matches[0], arrHm: matches[1] } };
+  if (matches.length >= 4) {
+    out.inbound = { depHm: matches[2], arrHm: matches[3] };
+  }
+  return out;
+}
+
+module.exports = {
+  localHmToIso,
+  parseDepArrHm,
+  parseAllHm,
+  parseRoundTripHm,
+  tzForAirport,
+  AIRPORT_TZ,
+};
