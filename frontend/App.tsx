@@ -184,7 +184,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider defaultMode="light">
+      <ThemeProvider defaultMode="dark">
         <LocaleProvider>
           <RuntimeConfigProvider>
             <AuthProvider>

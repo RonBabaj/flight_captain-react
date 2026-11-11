@@ -236,10 +236,18 @@ type stubProvider struct {
 	name    string
 	results []ProviderResult
 	err     error
+	delay   time.Duration
 }
 
 func (s *stubProvider) Name() string { return s.name }
 func (s *stubProvider) Search(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	if s.delay > 0 {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(s.delay):
+		}
+	}
 	return s.results, s.err
 }
 

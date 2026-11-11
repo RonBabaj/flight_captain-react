@@ -5,6 +5,7 @@ const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment, segmentsFromRoundTripClocks } = require('../normalize');
 const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
+const { waitUntil } = require('../browser/fastLoad');
 const { noteSkyscannerBlocked } = require('../warm');
 
 /** Locale path segment after /transport/ for each Skyscanner TLD. */
@@ -98,11 +99,11 @@ async function trySolvePerimeterX(page) {
       const x = box.x + box.width * 0.5;
       const y = box.y + Math.min(box.height * 0.55, 280);
       await page.mouse.move(x, y);
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(200);
       await page.mouse.down();
-      await page.waitForTimeout(5500);
+      await page.waitForTimeout(4200);
       await page.mouse.up();
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(1500);
       if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
         return true;
       }
@@ -177,20 +178,26 @@ async function scrapeSkyscanner(req, config) {
 
         // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
         const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
+        const jsonUseful = () => {
+          const parsed = extractSkyscanner(captured, req);
+          if (!parsed.length) return false;
+          if (!req.returnDate) return true;
+          return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
+        };
         try {
-          await gotoAndSettle(page, url, config);
+          await gotoAndSettle(page, url, config, { ready: jsonUseful });
         } catch {
           /* captcha may interrupt navigation */
         }
 
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
-        // Cap attempts — each hold is ~13s and serial retries dominated enrich latency.
-        for (let i = 0; i < 3; i++) {
+        // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
+        for (let i = 0; i < 2; i++) {
           const href = page.url();
           if (!/captcha-v2/i.test(href) && !(await pageLooksBlocked(page))) break;
           const solved = await trySolvePerimeterX(page);
           if (solved) break;
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(800);
         }
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
           noteSkyscannerBlocked();
@@ -207,26 +214,9 @@ async function scrapeSkyscanner(req, config) {
           return [];
         }
 
-        try {
-          const cheapest = page
-            .locator(
-              '[data-testid="FqsTab_CHEAPEST"], button:has-text("Cheapest"), button:has-text("moins cher"), button:has-text("Le moins cher"), [role="tab"]:has-text("Cheapest"), [role="tab"]:has-text("moins cher")',
-            )
-            .first();
-          if (await cheapest.isVisible({ timeout: 3000 })) {
-            await cheapest.click({ timeout: 3000 });
-            await page.waitForTimeout(1200);
-          }
-        } catch {
-          /* optional sort */
-        }
-
-        await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
-        await page.waitForTimeout(800);
-
+        // Prefer early JSON exit before optional sort / DOM waits.
+        await waitUntil(page, jsonUseful, { timeoutMs: 7000, intervalMs: 200 });
         let parsed = extractSkyscanner(captured, req);
-        // JSON itineraries that only carry outbound legs are useless for RT —
-        // fall through to DOM so return clocks are not dropped.
         const jsonMissingReturn =
           !!req.returnDate &&
           parsed.length > 0 &&
@@ -236,8 +226,34 @@ async function scrapeSkyscanner(req, config) {
         }
 
         try {
+          const cheapest = page
+            .locator(
+              '[data-testid="FqsTab_CHEAPEST"], button:has-text("Cheapest"), button:has-text("moins cher"), button:has-text("Le moins cher"), [role="tab"]:has-text("Cheapest"), [role="tab"]:has-text("moins cher")',
+            )
+            .first();
+          if (await cheapest.isVisible({ timeout: 2000 })) {
+            await cheapest.click({ timeout: 2000 });
+            await page.waitForTimeout(600);
+          }
+        } catch {
+          /* optional sort */
+        }
+
+        await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
+        await page.waitForTimeout(400);
+
+        parsed = extractSkyscanner(captured, req);
+        const stillMissingReturn =
+          !!req.returnDate &&
+          parsed.length > 0 &&
+          parsed.every((o) => !(o.segments || []).some((s) => s.leg === 'inbound'));
+        if (parsed.length && !stillMissingReturn) {
+          return parsed.slice(0, config.maxOffersPerSite);
+        }
+
+        try {
           await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
-            timeout: 20000,
+            timeout: 12000,
           });
         } catch {
           /* DOM scrape anyway */

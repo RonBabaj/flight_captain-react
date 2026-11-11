@@ -125,6 +125,17 @@ func isFastProvider(name string) bool {
 	return strings.EqualFold(name, "googleflights2")
 }
 
+func multisiteSoftTimeout() time.Duration {
+	// Safety cap for hung CDP scrapes (optimized path should finish well under this).
+	soft := 90 * time.Second
+	if raw := strings.TrimSpace(os.Getenv("FLIGHT_SCRAPER_SOFT_TIMEOUT_SEC")); raw != "" {
+		if sec, err := time.ParseDuration(raw + "s"); err == nil && sec > 0 {
+			soft = sec
+		}
+	}
+	return soft
+}
+
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
@@ -149,9 +160,7 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			if !isFastProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					// Parallel CDP tabs (Kiwi + Skyscanner) usually finish under ~2m;
-					// keep headroom for captcha / cold Chrome without blocking forever.
-					soft = 4 * time.Minute
+					soft = multisiteSoftTimeout()
 				}
 				// Detach from parent cancel so a short-lived HTTP create (PENDING ack)
 				// does not kill the background unified SearchAll scrape.

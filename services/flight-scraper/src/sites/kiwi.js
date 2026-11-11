@@ -6,6 +6,7 @@ const { scrapeKiwiTequila } = require('./tequila');
 const { offerTemplate, segmentsFromRoundTripClocks } = require('../normalize');
 const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
+const { waitUntil } = require('../browser/fastLoad');
 const { kiwiPlaceSlug } = require('./kiwiPlaces');
 
 function kiwiSearchUrl(req) {
@@ -68,32 +69,31 @@ async function clearKiwiSpaState(page) {
   }
 }
 
-async function ensureKiwiResultsUrl(page, url, req, config) {
+async function ensureKiwiResultsUrl(page, url, req, config, opts = {}) {
   const candidates = [url];
-  // Historical Kiwi country slugs that now 302/SPA-redirect to homepage.
+  // Historical Kiwi country slugs that now 302/SPA-redirect to homepage — only
+  // try the alternate after the primary lands on the wrong path.
   if (/czech-republic/i.test(url)) {
     candidates.push(url.replace(/czech-republic/gi, 'czechia'));
-  }
-  if (/czechia/i.test(url)) {
+  } else if (/czechia/i.test(url)) {
     candidates.push(url.replace(/czechia/gi, 'czech-republic'));
   }
 
-  for (const candidate of candidates) {
-    await clearKiwiSpaState(page);
-    try {
-      await page.goto('about:blank', { waitUntil: 'commit', timeout: 10_000 });
-    } catch {
-      /* ignore */
+  await clearKiwiSpaState(page);
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    if (i > 0) {
+      await clearKiwiSpaState(page);
     }
-    await gotoAndSettle(page, candidate, config);
+    await gotoAndSettle(page, candidate, config, { ready: opts.ready });
     if (kiwiPathLooksCorrect(page.url(), req) || /\/search\/results\//i.test(page.url())) {
       return page.url();
     }
   }
-  // Hard reload of primary URL once more.
+  // Hard reload of primary URL once more (short settle).
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
-    await page.waitForTimeout(Math.min(4000, config.settleMs || 4000));
+    await page.waitForTimeout(Math.min(1500, config.settleMs || 1500));
   } catch {
     /* ignore */
   }
@@ -118,8 +118,9 @@ async function scrapeKiwi(req, config) {
       await clearKiwiSpaState(page);
 
       const captured = attachJsonCapture(page, /skypicker|kiwi\.com|graphql|search|itinerar|booking-api/i);
+      const jsonReady = () => extractFromCaptured(captured, req).length > 0;
 
-      lastHref = await ensureKiwiResultsUrl(page, url, req, config);
+      lastHref = await ensureKiwiResultsUrl(page, url, req, config, { ready: jsonReady });
       if (await pageLooksBlocked(page)) {
         return [];
       }
@@ -133,6 +134,13 @@ async function scrapeKiwi(req, config) {
         return fromNetwork.slice(0, config.maxOffersPerSite);
       }
 
+      // Poll XHR briefly before falling back to DOM — usually faster than fixed waits.
+      await waitUntil(page, jsonReady, { timeoutMs: 8000, intervalMs: 200 });
+      fromNetwork = extractFromCaptured(captured, req);
+      if (fromNetwork.length > 0) {
+        return fromNetwork.slice(0, config.maxOffersPerSite);
+      }
+
       const nextData = await extractNextData(page, req);
       if (nextData.length > 0) {
         return nextData.slice(0, config.maxOffersPerSite);
@@ -141,7 +149,7 @@ async function scrapeKiwi(req, config) {
       // Wait for result cards after cookie + challenge settle.
       try {
         await page.waitForSelector('[data-test="ResultCard"], [data-test="ResultCardWrapper"]', {
-          timeout: 15000,
+          timeout: 10000,
         });
       } catch {
         /* DOM fallback may still find prices */

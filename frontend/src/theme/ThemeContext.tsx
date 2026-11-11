@@ -199,12 +199,13 @@ function persistThemeMode(mode: ThemeMode): void {
 
 export function ThemeProvider({
   children,
-  defaultMode = 'light',
+  defaultMode = 'dark',
 }: {
   children: React.ReactNode;
   defaultMode?: ThemeMode;
 }) {
-  const [mode, setModeState] = useState<ThemeMode>(defaultMode);
+  // Prefer saved preference; otherwise start dark (product default).
+  const [mode, setModeState] = useState<ThemeMode>(() => loadSavedThemeMode(defaultMode));
 
   useEffect(() => {
     setModeState(loadSavedThemeMode(defaultMode));

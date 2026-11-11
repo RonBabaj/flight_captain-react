@@ -6,6 +6,7 @@ const { pageLooksBlocked } = require('./botWall');
 const { dismissCookieBanners } = require('../sites/cookies');
 const { withCdpLock } = require('./cdpLock');
 const { getOpenPageHook } = require('./parallelContext');
+const { blockHeavyResources } = require('./fastLoad');
 
 let browserPromises = {};
 
@@ -73,6 +74,7 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
     }
     await pruneJunkPages(context);
     const page = await context.newPage();
+    await blockHeavyResources(page);
     try {
       return await fn(page, {
         dismissCookieBanners,
@@ -130,6 +132,7 @@ async function withCdpBrowser(config, fn) {
     const openPage = async (pageFn) => {
       await pruneJunkPages(context);
       const page = await context.newPage();
+      await blockHeavyResources(page);
       try {
         return await pageFn(page, {
           dismissCookieBanners,
@@ -209,6 +212,7 @@ async function withPage(config, fn, options = {}) {
     const context = await browser.newContext(ctxOpts);
     await context.addInitScript(stealthInitScript);
     const page = await context.newPage();
+    await blockHeavyResources(page);
     try {
       const out = await fn(page, { dismissCookieBanners, pageLooksBlocked, engine });
       const empty = Array.isArray(out) ? out.length === 0 : !out;
