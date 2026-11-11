@@ -4,10 +4,11 @@
  * Cycles through friendly status phrases so the user knows work is in progress.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { getPhrasesForLanguage, SEARCH_PROGRESS_PHRASES } from './search/searchLoadingPhrases';
+import { LoadingCubePreview, LoadingCubePulse } from './search/LoadingCubePreview';
 
 interface ExtraLeg {
   origin?: string;
@@ -90,7 +91,9 @@ export function SearchLoadingOverlay({
 
   return (
     <View style={[s.overlay, { backgroundColor: theme.screenBg }]}>
-      <ActivityIndicator size="large" color={theme.primary} style={s.spinner} />
+      <LoadingCubePulse>
+        <LoadingCubePreview size={68} />
+      </LoadingCubePulse>
       {route ? (
         <Text style={[s.route, { color: theme.text }]} numberOfLines={3}>{route}</Text>
       ) : null}
@@ -109,7 +112,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
-  spinner: { marginBottom: 4 },
   route: { fontSize: 20, fontWeight: '700', letterSpacing: 0.3 },
   phrase: { fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },
 });

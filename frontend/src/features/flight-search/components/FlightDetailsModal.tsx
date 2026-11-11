@@ -177,6 +177,10 @@ export function FlightDetailsModal({
   };
 
   // Auto-resolve partner checkout when details open (same GF2 path as Book).
+  // Depend on hop count / option id — not the hops array identity (recreated each render).
+  const hopsSignature = `${perHopBooking ? 1 : 0}:${hops.length}:${hops
+    .map((h) => `${h.legIndex}:${h.segmentIndex ?? -1}`)
+    .join(',')}`;
   useEffect(() => {
     if (!visible || !option || !sessionId) return;
     if (perHopBooking && hops.length > 1) {
@@ -186,7 +190,7 @@ export function FlightDetailsModal({
     void resolveHop(undefined, undefined, false);
     // Intentionally once per open/option — resolveHop closes over latest option/session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, option?.id, sessionId, perHopBooking, hops]);
+  }, [visible, option?.id, sessionId, hopsSignature]);
 
   const handleShare = async () => {
     if (!option) return;

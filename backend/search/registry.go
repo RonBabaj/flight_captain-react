@@ -125,9 +125,28 @@ func isFastProvider(name string) bool {
 	return strings.EqualFold(name, "googleflights2")
 }
 
+func multisiteSoftTimeout() time.Duration {
+	// Default 90s: long enough for warm CDP, short enough that hung scrapes
+	// do not hold the results UI for minutes after GF2 already has offers.
+	soft := 90 * time.Second
+	if raw := strings.TrimSpace(os.Getenv("FLIGHT_SCRAPER_SOFT_TIMEOUT_SEC")); raw != "" {
+		if sec, err := time.ParseDuration(raw + "s"); err == nil && sec > 0 {
+			soft = sec
+		}
+	}
+	return soft
+}
+
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
+	return r.SearchAllWithProgress(ctx, req, nil)
+}
+
+// SearchAllWithProgress is SearchAll plus an optional callback after each provider returns.
+// Callers use this to publish an early COMPLETE snapshot when a fast provider (GF2)
+// already has offers while slow OTA scrapes are still running.
+func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest, onPart func(MultiSearchResult)) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
 		return out
@@ -138,6 +157,9 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 	}
 	ch := make(chan part, len(r.providers))
 	var wg sync.WaitGroup
+	var progressMu sync.Mutex
+	var accResults []ProviderResult
+	var accStats []ProviderSearchStats
 	for _, p := range r.providers {
 		wg.Add(1)
 		go func(p Provider) {
@@ -149,9 +171,7 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			if !isFastProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					// Parallel CDP tabs (Kiwi + Skyscanner) usually finish under ~2m;
-					// keep headroom for captcha / cold Chrome without blocking forever.
-					soft = 4 * time.Minute
+					soft = multisiteSoftTimeout()
 				}
 				// Detach from parent cancel so a short-lived HTTP create (PENDING ack)
 				// does not kill the background unified SearchAll scrape.
@@ -167,6 +187,22 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			} else {
 				log.Printf("[SEARCH] provider=%s ok durationMs=%d results=%d", p.Name(), st.DurationMs, st.Results)
 			}
+
+			progressMu.Lock()
+			accStats = append(accStats, st)
+			if len(results) > 0 {
+				accResults = append(accResults, results...)
+			}
+			snap := MultiSearchResult{
+				Results: AttachCanonicalIdentityAll(DedupeProviderResults(append([]ProviderResult(nil), accResults...))),
+				Stats:   append([]ProviderSearchStats(nil), accStats...),
+			}
+			fastOK := isFastProvider(p.Name()) && err == nil && len(results) > 0
+			progressMu.Unlock()
+			if onPart != nil && fastOK && len(snap.Results) > 0 {
+				onPart(snap)
+			}
+
 			ch <- part{stats: st, results: results}
 		}(p)
 	}

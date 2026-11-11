@@ -753,9 +753,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const MAX_NOT_FOUND = 3;
     /** Unified search stays PENDING until GF2 + OTAs finish together (often 1–3 minutes). */
     const PENDING_POLL_BUDGET_MS = 12 * 60 * 1000;
+    /** After early COMPLETE (GF2), keep polling briefly so OTA merges bump version into the UI. */
+    const COMPLETE_ENRICH_POLL_MS = 3 * 60 * 1000;
     const pollStartedAt = Date.now();
     const polledSessionId = sessionId;
     const generation = currentGeneration();
+    let completeSeenAt = 0;
 
     // Shared links may have a localStorage snapshot from before airport-time migration
     // (…Z wall clocks → 07:30 instead of 06:30). Drop it so we GET the migrated session.
@@ -768,10 +771,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       if (!isCurrentSearchGeneration(generation)) return true;
       const st = statusRef.current;
       if (st === 'FAILED') return true;
-      // Stop once the server finished — including COMPLETE with 0 results.
-      // Auto-retrying empty COMPLETE caused infinite PENDING loading loops.
-      if (st === 'COMPLETE' || st === 'FAILED') {
-        return true;
+      // Early COMPLETE (GF2) can be followed by a richer OTA merge — keep polling
+      // while we have offers and the enrich window is open. Empty COMPLETE stops
+      // immediately (auto-retrying empty COMPLETE caused infinite PENDING loops).
+      if (st === 'COMPLETE') {
+        const n = useSearchStore.getState().results.length;
+        if (n === 0) return true;
+        if (!completeSeenAt) completeSeenAt = Date.now();
+        return Date.now() - completeSeenAt > COMPLETE_ENRICH_POLL_MS;
       }
       if (
         (st === 'PENDING' || st === 'PARTIAL') &&
