@@ -13,6 +13,12 @@ import { RegisterScreen } from '../features/auth/screens/RegisterScreen';
 import { AdminHubScreen } from '../features/admin/screens/AdminHubScreen';
 import { AdminRuntimeConfigScreen } from '../features/admin/screens/AdminRuntimeConfigScreen';
 import { AdminUsersScreen } from '../features/admin/screens/AdminUsersScreen';
+import {
+  ContactScreen,
+  NotFoundScreen,
+  PrivacyScreen,
+  TermsScreen,
+} from '../features/legal';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -34,6 +40,10 @@ export function RootNavigator() {
       <Stack.Screen name="Admin" component={AdminHubScreen} />
       <Stack.Screen name="AdminRuntimeConfig" component={AdminRuntimeConfigScreen} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+      <Stack.Screen name="Privacy" component={PrivacyScreen} />
+      <Stack.Screen name="Terms" component={TermsScreen} />
+      <Stack.Screen name="Contact" component={ContactScreen} />
+      <Stack.Screen name="NotFound" component={NotFoundScreen} />
     </Stack.Navigator>
   );
 }

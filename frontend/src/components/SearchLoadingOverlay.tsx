@@ -18,6 +18,12 @@ interface ExtraLeg {
 
 interface Props {
   visible: boolean;
+  /**
+   * `fullscreen` — absoluteFill over a form/screen (SearchForm).
+   * `inline` — flex-fill inside Results list area (must not use absoluteFill or
+   * the parent collapses / content can sit under opacity:0 ancestors invisibly).
+   */
+  variant?: 'fullscreen' | 'inline';
   /** Origin and destination codes for the sub-title */
   origin?: string;
   destination?: string;
@@ -31,6 +37,7 @@ interface Props {
 
 export function SearchLoadingOverlay({
   visible,
+  variant = 'fullscreen',
   origin,
   destination,
   extraLegs,
@@ -90,7 +97,14 @@ export function SearchLoadingOverlay({
   }
 
   return (
-    <View style={[s.overlay, { backgroundColor: theme.screenBg }]}>
+    <View
+      style={[
+        variant === 'inline' ? s.inline : s.overlay,
+        { backgroundColor: theme.screenBg },
+      ]}
+      accessibilityRole="progressbar"
+      accessibilityLabel={phrases[phraseIdx] || 'Loading'}
+    >
       <LoadingCubePulse>
         <LoadingCubePreview size={68} />
       </LoadingCubePulse>
@@ -111,6 +125,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 14,
+  },
+  inline: {
+    flex: 1,
+    width: '100%',
+    minHeight: 280,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 32,
   },
   route: { fontSize: 20, fontWeight: '700', letterSpacing: 0.3 },
   phrase: { fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },

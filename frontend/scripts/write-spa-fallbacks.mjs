@@ -35,6 +35,9 @@ const SPA_ROUTES = [
   'settings',
   'admin/settings',
   'login',
+  'privacy',
+  'terms',
+  'contact',
   // Legacy bookmarks / old links (.htaccess redirected these on Apache only)
   'results',
   'deals',

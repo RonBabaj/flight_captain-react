@@ -1207,13 +1207,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   }, [status, sessionId, showSlowPopup, results.length, runtimeConfig.slowResultsPopupDelayMs]);
 
   // Must stay above any early return (Rules of Hooks).
+  // Loading empty MUST keep opacity 1 — the cube/skeleton lives inside the faded
+  // results column. Setting fadeAnim to 0 here made Results look blank black while
+  // PENDING (banner-only used to paper over that; cube alone was invisible).
   useEffect(() => {
     const loadingNow =
       ((bootstrappingSession || status === 'PENDING' || status === 'PARTIAL') && results.length === 0);
     const hasVisualContent =
+      loadingNow ||
       results.length > 0 ||
-      (!loadingNow && !!sessionId && results.length === 0) ||
-      (!loadingNow && results.length > 0 && filtered.length === 0);
+      (!!sessionId && results.length === 0) ||
+      (results.length > 0 && filtered.length === 0);
     if (hasVisualContent) {
       Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
     } else {
@@ -1468,17 +1472,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (
-      // Full-screen cube overlay while PENDING — form overlay unmounts on navigate to Results.
-      <View style={{ flex: 1, position: 'relative' }}>
-        <SearchLoadingOverlay
-          visible
-          origin={params?.origin || undefined}
-          destination={params?.destination || undefined}
-          returnOrigin={params?.returnOrigin || undefined}
-          returnDestination={params?.returnDestination || undefined}
-          extraLegs={params?.extraLegs}
-        />
-      </View>
+      // Inline cube while PENDING — form overlay unmounts on navigate to Results.
+      <SearchLoadingOverlay
+        visible
+        variant="inline"
+        origin={params?.origin || undefined}
+        destination={params?.destination || undefined}
+        returnOrigin={params?.returnOrigin || undefined}
+        returnDestination={params?.returnDestination || undefined}
+        extraLegs={params?.extraLegs}
+      />
     ) : showEmpty ? (
       <View style={{ flex: 1 }}>
         <View style={styles.listContentEmpty}>
@@ -1659,10 +1662,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         {modalSearchForm}
       </EditSearchModal>
 
-      {/* Banner only once some results exist; empty PENDING uses the cube overlay instead. */}
-      {isLoading && filtered.length > 0 && (
-        <SearchProgressBanner language={language} theme={theme} />
-      )}
+      {/* Keep a thin banner while waiting — belt + suspenders with the cube. */}
+      {isLoading && <SearchProgressBanner language={language} theme={theme} />}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (

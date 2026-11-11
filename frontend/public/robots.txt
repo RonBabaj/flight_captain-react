@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# App shells (SPA) — crawl landing + search entry points
+Allow: /search
+Allow: /monthly-deals
+Allow: /dynamic-destinations
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /account
+Disallow: /settings
+
+Sitemap: https://fly-fix.com/sitemap.xml
