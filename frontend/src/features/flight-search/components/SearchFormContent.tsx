@@ -142,7 +142,25 @@ export function SearchFormContent({
         onDone={onPassengerCabinDone}
       />
 
-      {error ? <Text style={ts.error}>{error}</Text> : null}
+      {error ? (
+        <Text
+          style={[
+            ts.error,
+            {
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: theme.error,
+              backgroundColor: theme.error + '14',
+            },
+          ]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {error}
+        </Text>
+      ) : null}
 
       <SearchSubmitButton
         label={t('search_flights')}

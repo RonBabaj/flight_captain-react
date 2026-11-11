@@ -54,6 +54,10 @@ export type RootStackParamList = {
   Admin: undefined;
   AdminRuntimeConfig: undefined;
   AdminUsers: undefined;
+  Privacy: undefined;
+  Terms: undefined;
+  Contact: undefined;
+  NotFound: undefined;
 };
 
 export type SearchFormProps = NativeStackScreenProps<SearchStackParamList, 'SearchForm'>;

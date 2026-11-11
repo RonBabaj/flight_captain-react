@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Animated,
   Image,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,7 +17,9 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
+import { SiteFooter } from '../../components/SiteFooter';
 import { useBreakpoint } from '../../hooks/useResponsive';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
 import { getAirportEntry, getCityDisplayName } from '../../data/airports';
 import { setCachedSearch } from '../../utils/searchCache';
@@ -32,10 +36,12 @@ export function LandingScreen() {
   const insets = useSafeAreaInsets();
   const breakpoint = useBreakpoint();
   const isMobile = breakpoint === 'mobile';
+  useDocumentTitle(t('nav_home'));
 
   const brandOpacity = useRef(new Animated.Value(0)).current;
   const brandY = useRef(new Animated.Value(18)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
+  const [showStickyCta, setShowStickyCta] = useState(false);
 
   useEffect(() => {
     Animated.sequence([
@@ -49,6 +55,12 @@ export function LandingScreen() {
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!isMobile) return;
+    const y = e.nativeEvent.contentOffset.y;
+    setShowStickyCta(y > 360);
+  };
 
   const goDestination = (code: string) => {
     const dest = code.toUpperCase();
@@ -76,13 +88,19 @@ export function LandingScreen() {
   const titleSize = isMobile ? 22 : breakpoint === 'tablet' ? 26 : 28;
 
   return (
+    <View style={[styles.page, { backgroundColor: theme.screenBg }]}>
     <ScrollView
-      style={[styles.page, { backgroundColor: theme.screenBg }]}
+      style={styles.page}
       contentContainerStyle={[
         styles.scrollContent,
-        { paddingBottom: Math.max(insets.bottom, 24) + 28 },
+        {
+          paddingBottom:
+            Math.max(insets.bottom, 24) + 28 + (isMobile && showStickyCta ? 72 : 0),
+        },
       ]}
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
     >
       {/* Full-bleed hero — brand first, one composition */}
       <View style={[styles.heroPlane, { minHeight: heroMin }]}>
@@ -219,7 +237,13 @@ export function LandingScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('landing_mood_go').replace('{city}', label)}
               >
-                <Image source={{ uri: mood.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                <Image
+                  source={{ uri: mood.imageUrl }}
+                  style={StyleSheet.absoluteFillObject}
+                  resizeMode="cover"
+                  accessibilityLabel={label}
+                  accessible
+                />
                 <View style={styles.moodScrim} />
                 <Text style={[styles.moodLabel, { fontFamily: theme.fontDisplay }]} numberOfLines={1}>
                   {label}
@@ -279,8 +303,40 @@ export function LandingScreen() {
         <Text style={[styles.footerTag, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('landing_footer_tagline')}
         </Text>
+        <SiteFooter />
       </View>
     </ScrollView>
+
+      {isMobile && showStickyCta ? (
+        <View
+          style={[
+            styles.stickyBar,
+            {
+              backgroundColor: theme.screenBg,
+              borderTopColor: theme.cardBorder,
+              paddingBottom: Math.max(insets.bottom, 10),
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.btnPrimary,
+              styles.btnPrimaryBlock,
+              { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd, maxWidth: '100%' },
+            ]}
+            onPress={goSearch}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('landing_sticky_cta')}
+          >
+            <AppIcon name="search" size={18} color={theme.buttonText} fallbackText="" />
+            <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+              {t('landing_sticky_cta')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -417,5 +473,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  stickyBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

@@ -104,6 +104,10 @@ const linking = {
       Admin: 'admin',
       AdminRuntimeConfig: 'admin/runtime-config',
       AdminUsers: 'admin/users',
+      Privacy: 'privacy',
+      Terms: 'terms',
+      Contact: 'contact',
+      NotFound: '*',
     },
   },
   // Chrome/iOS often rewrites location to bare origin before RN reads it.

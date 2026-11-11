@@ -180,7 +180,26 @@ export function MonthDealsFormContent({
         </TouchableOpacity>
       </View>
 
-      {error ? <Text style={[formCardStyles.error, { color: theme.error }]}>{error}</Text> : null}
+      {error ? (
+        <Text
+          style={[
+            formCardStyles.error,
+            {
+              color: theme.error,
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: theme.error,
+              backgroundColor: theme.error + '14',
+            },
+          ]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {error}
+        </Text>
+      ) : null}
 
       <SearchSubmitButton
         label={t('search_deals')}

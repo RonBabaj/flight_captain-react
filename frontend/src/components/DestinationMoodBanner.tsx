@@ -151,6 +151,8 @@ export function DestinationMoodBanner({
             style={StyleSheet.absoluteFillObject}
             resizeMode="cover"
             onError={() => setImgFailed(true)}
+            accessibilityLabel={cityLabel}
+            accessible
           />
         )}
         <View
