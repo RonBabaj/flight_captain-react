@@ -2,18 +2,27 @@
 
 const { withPage, runWithRetries, warmHomepage } = require('../browser/session');
 
-async function gotoAndSettle(page, url, config) {
+/**
+ * Navigate and settle just enough for SPA search XHR to fire.
+ * Optional `ready()` aborts remaining waits early (e.g. JSON already captured).
+ */
+async function gotoAndSettle(page, url, config, opts = {}) {
+  const settleMs = Math.min(Math.max(Number(config.settleMs || 800), 200), 4000);
+  const ready = typeof opts.ready === 'function' ? opts.ready : null;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
   const { dismissCookieBanners } = require('./cookies');
   await dismissCookieBanners(page);
-  // Keep fixed waits short — networkidle alone often ate 12s+ per site.
-  await page.waitForTimeout(1000);
+  if (ready && (await ready())) return;
+  // Short post-DOM beat — networkidle used to burn 6–12s per site.
+  await page.waitForTimeout(Math.min(400, settleMs));
+  if (ready && (await ready())) return;
   try {
-    await page.waitForLoadState('networkidle', { timeout: 6000 });
+    await page.waitForLoadState('networkidle', { timeout: opts.networkIdleMs ?? 3500 });
   } catch {
     /* continue */
   }
-  await page.waitForTimeout(config.settleMs || 2000);
+  if (ready && (await ready())) return;
+  await page.waitForTimeout(settleMs);
 }
 
 function yyyymmdd(isoDate) {

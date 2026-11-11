@@ -1001,21 +1001,7 @@ func finalizeSearchSession(
 	started := time.Now()
 	log.Printf("[SEARCH] finalize start session=%s", sessionID)
 
-	var earlyOnce sync.Once
-	publishPartial := func(partial search.MultiSearchResult) {
-		if len(partial.Results) == 0 {
-			return
-		}
-		earlyOnce.Do(func() {
-			options := normalizeProviderOptions(partial.Results, req, cabinPref, includeBag)
-			if publishSessionSnapshot(sessionID, StatusComplete, options, partial.Stats) {
-				log.Printf("[SEARCH] early COMPLETE session=%s durationMs=%d results=%d stats=%+v",
-					sessionID, time.Since(started).Milliseconds(), len(options), partial.Stats)
-			}
-		})
-	}
-
-	multi := flightProviderRegistry.SearchAllWithProgress(ctx, sreq, publishPartial)
+	multi := flightProviderRegistry.SearchAll(ctx, sreq)
 	maxTransientRetries := search.SearchTransientRetryMax()
 	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
 		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
@@ -1026,7 +1012,7 @@ func finalizeSearchSession(
 			timer.Stop()
 		case <-timer.C:
 			if ctx.Err() == nil {
-				multi = flightProviderRegistry.SearchAllWithProgress(ctx, sreq, publishPartial)
+				multi = flightProviderRegistry.SearchAll(ctx, sreq)
 			}
 		}
 	}

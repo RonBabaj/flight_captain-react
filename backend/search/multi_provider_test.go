@@ -154,37 +154,6 @@ func TestRegistrySearchAllPartialFailure(t *testing.T) {
 	}
 }
 
-func TestRegistrySearchAllWithProgress_earlyFastProvider(t *testing.T) {
-	gf2 := &stubProvider{name: "googleflights2", results: []ProviderResult{{
-		ID: "g1", Price: Monetary{Currency: "USD", Amount: 200}, Source: "googleflights2",
-		Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "VIE", MarketingCarrier: "OS", FlightNumber: "860"}}}},
-	}}}
-	slow := &stubProvider{name: "multisite", delay: 80 * time.Millisecond, results: []ProviderResult{{
-		ID: "m1", Price: Monetary{Currency: "USD", Amount: 180}, Source: "multisite",
-		Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "VIE", MarketingCarrier: "LY", FlightNumber: "385"}}}},
-	}}}
-	r := &Registry{providers: []Provider{gf2, slow}}
-	var earlyResults int
-	var earlyAt time.Time
-	res := r.SearchAllWithProgress(context.Background(), SearchRequest{
-		Origin: "TLV", Destination: "VIE", DepartureDate: "2026-12-15",
-	}, func(partial MultiSearchResult) {
-		if earlyAt.IsZero() {
-			earlyAt = time.Now()
-			earlyResults = len(partial.Results)
-		}
-	})
-	if earlyResults < 1 {
-		t.Fatal("expected early progress callback from GF2")
-	}
-	if len(res.Results) < 2 {
-		t.Fatalf("final results=%d", len(res.Results))
-	}
-	if earlyAt.IsZero() {
-		t.Fatal("early callback missing")
-	}
-}
-
 func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
 	gf2 := &stubProvider{name: "googleflights2", err: fmt.Errorf("no flights found for return SZG→TLV")}
 	kiwi := &stubProvider{name: "kiwi", err: ErrProviderSkipped}
