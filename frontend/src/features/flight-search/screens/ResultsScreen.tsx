@@ -37,7 +37,6 @@ import { SortBar } from '../components/SortBar';
 import { FiltersPanel } from '../components/FiltersPanel';
 import { FlightDetailsModal } from '../components/FlightDetailsModal';
 import { FlightResultCard } from '../components/FlightResultCard';
-import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { DynamicDestinationsFormContent } from '../../dynamic-destinations/components/DynamicDestinationsFormContent';
 import {
@@ -64,6 +63,7 @@ import {
   POSITIONING_HUB_AIRPORTS,
 } from '../../../utils/positioningSearch';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
+import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
@@ -1468,11 +1468,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (
-      <View style={{ flex: 1 }}>
-        <View style={styles.listContent}>
-          <ResultsSkeletonList theme={theme} count={4} />
-        </View>
-        {positioningSection}
+      // Full-screen cube overlay while PENDING — form overlay unmounts on navigate to Results.
+      <View style={{ flex: 1, position: 'relative' }}>
+        <SearchLoadingOverlay
+          visible
+          origin={params?.origin || undefined}
+          destination={params?.destination || undefined}
+          returnOrigin={params?.returnOrigin || undefined}
+          returnDestination={params?.returnDestination || undefined}
+          extraLegs={params?.extraLegs}
+        />
       </View>
     ) : showEmpty ? (
       <View style={{ flex: 1 }}>
@@ -1654,7 +1659,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         {modalSearchForm}
       </EditSearchModal>
 
-      {isLoading && <SearchProgressBanner language={language} theme={theme} />}
+      {/* Banner only once some results exist; empty PENDING uses the cube overlay instead. */}
+      {isLoading && filtered.length > 0 && (
+        <SearchProgressBanner language={language} theme={theme} />
+      )}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (
