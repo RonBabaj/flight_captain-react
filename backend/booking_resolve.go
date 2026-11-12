@@ -751,6 +751,32 @@ func publicOfferFromMatch(o *bookingmatch.BookingOffer, hadMultipleVerified bool
 	}
 }
 
+func sameBookingURL(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
+
+// publicAirlineDirectPrefillOffer builds an airline calendar/search URL offer when
+// partner checkout is unavailable (route+dates only — fare not guaranteed).
+func publicAirlineDirectPrefillOffer(
+	session *SearchSession,
+	option *FlightOption,
+	legIndex, segmentIndex int,
+	fp string,
+) *PublicBookingOffer {
+	prefill := bookingPrefillURL(session, option, legIndex, segmentIndex)
+	if prefill == "" || !isAffiliateTemplateBookingURL(prefill) || search.IsMetaSearchAggregatorURL(prefill) {
+		return nil
+	}
+	raw := gf2PartnerOfferFromURL(prefill, fp)
+	offer := publicOfferFromMatch(raw, false)
+	if offer == nil {
+		return nil
+	}
+	offer.PriceLabel = "airline_direct_prefill"
+	offer.MatchConfidence = 0
+	return offer
+}
+
 func acquireBookingResolveSlot(ctx context.Context) error {
 	select {
 	case bookingResolveSem <- struct{}{}:
@@ -952,28 +978,34 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	// Airline-site templates only. Meta prefills (Skyscanner/Google Flights) are not
-	// partner checkout — returning them as found=true left the UI with a rejected URL
-	// and no Book button (client isSafeBookingUrl blocks meta hosts).
-	// Prefer this before treating web-search / GF2 transient errors as hard failures so
-	// display-name carriers (e.g. Kiwi "ISRAIR") still get an airline booking path.
-	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" &&
-		isAffiliateTemplateBookingURL(prefill) &&
-		!search.IsMetaSearchAggregatorURL(prefill) {
-		if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
+	// OTA listing (Kiwi/Skyscanner results) before airline-site search prefills.
+	// Airline calendars often have no matching inventory for OTA-scraped fares
+	// (virtual interlining / wrong "direct" clocks) — send users back to the OTA
+	// that showed the price, and optionally still offer airline search as secondary.
+	airlinePrefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp)
+	if listing := otaListingPrefillURL(option, legIndex); listing != "" {
+		if gf2Prefill := gf2PartnerOfferFromURL(listing, fp); gf2Prefill != nil {
 			offer := publicOfferFromMatch(gf2Prefill, false)
 			if offer != nil {
-				offer.PriceLabel = "airline_direct_prefill"
+				offer.PriceLabel = "search_prefill"
 				offer.MatchConfidence = 0
 				resp := BookingResolveResponse{
 					Found:                true,
 					Status:               BookingResolveVerified,
 					ItineraryFingerprint: fp,
 					Offer:                offer,
-					Message:              "Opens airline site with your route prefilled — select your flight and verify the fare.",
+					CheapestOta:          offer,
+					Message:              "Opens the partner search with your dates — select this flight and verify the fare.",
+				}
+				if airlinePrefill != nil && !sameBookingURL(airlinePrefill.URL, offer.URL) {
+					resp.AirlineDirect = airlinePrefill
+				}
+				event := "resolve_verified_listing"
+				if resp.AirlineDirect != nil {
+					event = "resolve_verified_listing_dual"
 				}
 				logBookingResolve(bookingResolveLogEvent{
-					Event:                "resolve_verified_prefill",
+					Event:                event,
 					ItineraryFingerprint: fp,
 					LegIndex:             intPtrOrNil(legIndex),
 					LegRoute:             legRoute,
@@ -986,33 +1018,27 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	// Skyscanner/Kiwi rows often lack carrier identity after DOM scrape — partner panel
-	// can also miss. Open the OTA listing for this exact search so Book is not a dead end.
-	if listing := otaListingPrefillURL(option, legIndex); listing != "" {
-		if gf2Prefill := gf2PartnerOfferFromURL(listing, fp); gf2Prefill != nil {
-			offer := publicOfferFromMatch(gf2Prefill, false)
-			if offer != nil {
-				offer.PriceLabel = "search_prefill"
-				offer.MatchConfidence = 0
-				resp := BookingResolveResponse{
-					Found:                true,
-					Status:               BookingResolveVerified,
-					ItineraryFingerprint: fp,
-					Offer:                offer,
-					Message:              "Opens the partner search with your dates — select this flight and verify the fare.",
-				}
-				logBookingResolve(bookingResolveLogEvent{
-					Event:                "resolve_verified_listing",
-					ItineraryFingerprint: fp,
-					LegIndex:             intPtrOrNil(legIndex),
-					LegRoute:             legRoute,
-					Status:               resp.Status,
-					Provider:             offer.Provider,
-					DurationMs:           time.Since(start).Milliseconds(),
-				})
-				return resp
-			}
+	// Airline-site templates only when no OTA listing is available. Meta prefills
+	// (Skyscanner/Google Flights) are not partner checkout — returning them as
+	// found=true left the UI with a rejected URL and no Book button.
+	if airlinePrefill != nil {
+		resp := BookingResolveResponse{
+			Found:                true,
+			Status:               BookingResolveVerified,
+			ItineraryFingerprint: fp,
+			Offer:                airlinePrefill,
+			Message:              "Opens airline site with your route prefilled — select your flight and verify the fare.",
 		}
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_verified_prefill",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			Provider:             airlinePrefill.Provider,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
 	}
 
 	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {

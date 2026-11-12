@@ -56,6 +56,7 @@ export function bookingOfferSubtitle(
     case 'search_prefill': {
       const host = `${offer.provider || ''} ${offer.domain || ''} ${offer.url || ''}`.toLowerCase();
       if (host.includes('skyscanner')) return t('search_prefill_skyscanner_hint');
+      if (host.includes('kiwi')) return t('search_prefill_kiwi_hint');
       return t('search_prefill_hint');
     }
     case 'airline_direct':

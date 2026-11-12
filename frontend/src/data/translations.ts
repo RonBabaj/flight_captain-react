@@ -968,6 +968,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'פותח את Skyscanner עם המסלול — בחרו את הטיסה ואמתו את המחיר',
     ru: 'Откроет Skyscanner с вашим маршрутом — выберите рейс и проверьте цену',
   },
+  search_prefill_kiwi_hint: {
+    en: 'Opens Kiwi with your route — pick this flight and verify the fare',
+    he: 'פותח את Kiwi עם המסלול — בחרו את הטיסה ואמתו את המחיר',
+    ru: 'Откроет Kiwi с вашим маршрутом — выберите рейс и проверьте цену',
+  },
   open_flight_search: {
     en: 'Search flights',
     he: 'חפש טיסות',
@@ -977,6 +982,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     en: 'Open on Skyscanner',
     he: 'פתח ב־Skyscanner',
     ru: 'Открыть на Skyscanner',
+  },
+  open_kiwi_search: {
+    en: 'Open on Kiwi',
+    he: 'פתח ב־Kiwi',
+    ru: 'Открыть на Kiwi',
+  },
+  connection_unclear: {
+    en: 'Connection',
+    he: 'עצירה',
+    ru: 'Пересадка',
   },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',

@@ -96,8 +96,14 @@ export function formatDuration(min: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export function formatLegStopsLabel(stopsCount: number, t: (key: string) => string): string {
-  if (stopsCount === 0) return t('direct');
+export function formatLegStopsLabel(
+  stopsCount: number,
+  t: (key: string) => string,
+  opts?: { selfTransfer?: boolean },
+): string {
+  if (stopsCount === 0) {
+    return opts?.selfTransfer ? t('connection_unclear') : t('direct');
+  }
   if (stopsCount === 1) return `1 ${t('stop')}`;
   return `${stopsCount} ${t('stops')}`;
 }

@@ -192,7 +192,9 @@ export function BookingOptionsFooter({
           const ctaLabel = isPrefill
             ? host.includes('skyscanner')
               ? t('open_skyscanner_search')
-              : t('open_flight_search')
+              : host.includes('kiwi')
+                ? t('open_kiwi_search')
+                : t('open_flight_search')
             : t('open_booking_site');
           return (
             <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>

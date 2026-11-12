@@ -24,7 +24,7 @@ import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
+import { displayAirlineLabel, formatFlightDesignator, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
@@ -486,7 +486,13 @@ export function FlightDetailsModal({
     0,
   );
   const stopsLabel =
-    totalStops === 0 ? t('direct') : totalStops === 1 ? `1 ${t('stop')}` : `${totalStops} ${t('stops')}`;
+    totalStops === 0
+      ? option.selfTransfer
+        ? t('connection_unclear')
+        : t('direct')
+      : totalStops === 1
+        ? `1 ${t('stop')}`
+        : `${totalStops} ${t('stops')}`;
 
   const totalDur =
     (option.outboundSummary?.durationMinutes ?? 0) > 0
@@ -661,7 +667,13 @@ export function FlightDetailsModal({
               );
               const legStops = Math.max(0, segs.length - 1);
               const legStopsLabel =
-                legStops === 0 ? t('direct') : legStops === 1 ? `1 ${t('stop')}` : `${legStops} ${t('stops')}`;
+                legStops === 0
+                  ? option.selfTransfer
+                    ? t('connection_unclear')
+                    : t('direct')
+                  : legStops === 1
+                    ? `1 ${t('stop')}`
+                    : `${legStops} ${t('stops')}`;
               const dur = legDuration(segs);
 
               return (
@@ -731,7 +743,7 @@ export function FlightDetailsModal({
                           <Text style={[s.segDetailText, { color: theme.textMuted }]}>
                             {[
                               carrierName,
-                              seg.flightNumber ? `${carrier} ${seg.flightNumber}` : '',
+                              formatFlightDesignator(carrier, seg.flightNumber),
                               segCabin,
                             ].filter(Boolean).join(' · ')}
                           </Text>

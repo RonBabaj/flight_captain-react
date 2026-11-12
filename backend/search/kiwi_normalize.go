@@ -73,6 +73,12 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 		deepLink = ""
 	}
 	selfTransfer := detectSelfTransfer(item)
+	// DOM scrapes may collapse connections into one segment; honor stopsHint from the card badge.
+	if !selfTransfer {
+		if hint := int(firstFloat(item, "stopsHint", "stops_hint", "stopCount", "stops")); hint > 0 {
+			selfTransfer = true
+		}
+	}
 
 	legs := extractKiwiLegs(item, req)
 	if len(legs) == 0 {

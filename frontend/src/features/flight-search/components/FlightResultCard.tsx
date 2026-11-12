@@ -51,6 +51,7 @@ function LegScheduleBlock({
   routeStr,
   routeColor,
   showTimes,
+  selfTransfer,
   t,
   theme,
   isRTL,
@@ -61,6 +62,7 @@ function LegScheduleBlock({
   routeStr: string;
   routeColor: string;
   showTimes: boolean;
+  selfTransfer?: boolean;
   t: (key: string) => string;
   theme: ReturnType<typeof useTheme>['theme'];
   isRTL: boolean;
@@ -73,7 +75,7 @@ function LegScheduleBlock({
   const arr = formatFlightTime(summary?.arrivalTime, summary?.destination, timeDisplay, locale);
   const dur = formatDuration(summary?.durationMinutes ?? 0);
   const stopsCount = summary?.stopsCount ?? 0;
-  const stopsText = formatLegStopsLabel(stopsCount, t);
+  const stopsText = formatLegStopsLabel(stopsCount, t, { selfTransfer });
   const layoverText = formatLayoverPreview(summary?.layovers ?? [], t);
   const row = (rtlStyle?: object) => (isRTL ? [{ flexDirection: 'row-reverse' as const }, rtlStyle] : []);
   const timeSep = isRTL ? ' ← ' : ' → ';
@@ -265,6 +267,7 @@ export function FlightResultCard({
             routeStr={outboundRouteStr}
             routeColor={theme.textMuted}
             showTimes
+            selfTransfer={option.selfTransfer}
             t={t}
             theme={theme}
             isRTL={isRTL}
@@ -287,6 +290,7 @@ export function FlightResultCard({
                 routeStr={returnRouteStr}
                 routeColor={theme.textMuted}
                 showTimes
+                selfTransfer={option.selfTransfer}
                 t={t}
                 theme={theme}
                 isRTL={isRTL}

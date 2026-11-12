@@ -70,5 +70,23 @@ export function labelForCarrierCode(option: FlightOption | null | undefined, cod
   return resolveAirlineLabel(code, providerNameForCode(option, code));
 }
 
+/**
+ * "W4 6234" style designator. When scrapers leave flightNumber empty, backend
+ * identity normalize may echo the carrier code ("W4") — don't render "W4 W4".
+ */
+export function formatFlightDesignator(carrierCode?: string | null, flightNumber?: string | null): string {
+  const code = (carrierCode || '').trim().toUpperCase();
+  const raw = (flightNumber || '').trim();
+  if (!raw) return code;
+  const compact = raw.toUpperCase().replace(/[\s-]/g, '');
+  if (!compact || compact === code) return code;
+  // "W46234" / "W4 6234" → "W4 6234"
+  if (code && compact.startsWith(code) && compact.length > code.length) {
+    return `${code} ${compact.slice(code.length)}`;
+  }
+  if (code) return `${code} ${raw}`;
+  return raw;
+}
+
 // Re-export for callers that only need the map lookup
 export { getAirlineName };
