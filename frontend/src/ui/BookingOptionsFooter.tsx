@@ -206,8 +206,8 @@ export function BookingOptionsFooter({
               </View>
               {subtitle ? (
                 <Text style={[styles.singleSubtitle, { color: theme.textMuted }]}>{subtitle}</Text>
-              ) : null}
-              {resolved.message && isPrefill ? (
+              ) : resolved.message && isPrefill ? (
+                // Prefer priceLabel subtitle; message is the same copy for airline_direct_prefill.
                 <Text style={[styles.singleSubtitle, { color: theme.textMuted }]}>{resolved.message}</Text>
               ) : null}
               <Button

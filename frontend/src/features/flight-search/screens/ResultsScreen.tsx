@@ -218,6 +218,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
   /** True only while backend searchProgress.phase === 'finalizing' (results imminent). */
   const [searchNearComplete, setSearchNearComplete] = useState(false);
+  /** Live provider completion for the incremental loading bar. */
+  const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
   const searchProgressRef = useRef<SearchProgress | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
@@ -589,6 +591,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
     setSearchNearComplete(false);
+    setSearchProgress(null);
     searchProgressRef.current = null;
 
     const generation =
@@ -763,6 +766,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const polledSessionId = sessionId;
     const generation = currentGeneration();
     setSearchNearComplete(false);
+    setSearchProgress(null);
     searchProgressRef.current = null;
 
     // Shared links may have a localStorage snapshot from before airport-time migration
@@ -781,6 +785,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       searchActions.setError(t('search_failed_expired'));
       searchActions.setSession(polledSessionId, useSearchStore.getState().results, 'FAILED');
       setSearchNearComplete(false);
+      setSearchProgress(null);
+      searchProgressRef.current = null;
     };
 
     const shouldStopPolling = () => {
@@ -877,9 +883,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         const nextVersion = res.version ?? 0;
         const progress = res.searchProgress ?? null;
         searchProgressRef.current = progress;
+        setSearchProgress(progress);
         setSearchNearComplete(isSearchNearComplete(progress));
         if (res.session.status === 'COMPLETE' || res.session.status === 'FAILED') {
           setSearchNearComplete(false);
+          setSearchProgress(null);
           searchProgressRef.current = null;
         }
         const applied = searchActions.applySessionResults({
@@ -1698,7 +1706,12 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
       {/* Keep a thin banner while waiting — belt + suspenders with the cube. */}
       {isLoading && (
-        <SearchProgressBanner language={language} theme={theme} nearComplete={searchNearComplete} />
+        <SearchProgressBanner
+          language={language}
+          theme={theme}
+          nearComplete={searchNearComplete}
+          progress={searchProgress}
+        />
       )}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>

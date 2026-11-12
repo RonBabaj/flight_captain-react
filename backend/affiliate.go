@@ -119,13 +119,14 @@ func init() {
 			Code:   "W4",
 			Name:   "Wizz Air Malta",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.wizzair.com/#/booking/select-flight/{origin}/{destination}/{departureDate}/null/1/0/0/0/null",
+			// Path (not hash) URLs — `#/booking/...` is ignored by the server and lands on homepage.
+			URLTpl: "https://www.wizzair.com/en-gb/booking/select-flight/{origin}/{destination}/{departureDate}/{returnDate}/{adults}/0/0/null",
 		},
 		"W6": {
 			Code:   "W6",
 			Name:   "Wizz Air",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.wizzair.com/#/booking/select-flight/{origin}/{destination}/{departureDate}/null/1/0/0/0/null",
+			URLTpl: "https://www.wizzair.com/en-gb/booking/select-flight/{origin}/{destination}/{departureDate}/{returnDate}/{adults}/0/0/null",
 		},
 		"U8": {
 			Code:   "U8",
@@ -334,6 +335,7 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 
 	cabin := "ECONOMY"
 	adults := 1
+	returnDate := ""
 	if session != nil {
 		if c := session.Params.CabinPrefOrDefault(); c != "" {
 			cabin = c
@@ -343,8 +345,12 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 		if session.Params.Adults > 0 {
 			adults = session.Params.Adults
 		}
+		// Full outbound leg of a multi-leg trip: include session return date when present
+		// (Wizz path URLs use literal "null" for one-way).
+		if legIndex == 0 && segmentIndex < 0 && option != nil && len(option.Legs) > 1 {
+			returnDate = strings.TrimSpace(session.Params.ReturnDate)
+		}
 	}
-	_ = adults
 
 	affID := getAffiliateID(provider.Code)
 	subid := sessionID + "_" + optionID
@@ -352,11 +358,17 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 		subid = ""
 	}
 
+	retToken := returnDate
+	if retToken == "" {
+		retToken = "null"
+	}
+
 	s := provider.URLTpl
 	s = strings.ReplaceAll(s, "{origin}", url.QueryEscape(origin))
 	s = strings.ReplaceAll(s, "{destination}", url.QueryEscape(dest))
 	s = strings.ReplaceAll(s, "{departureDate}", url.QueryEscape(dep))
-	s = strings.ReplaceAll(s, "{returnDate}", url.QueryEscape(""))
+	s = strings.ReplaceAll(s, "{returnDate}", url.QueryEscape(retToken))
+	s = strings.ReplaceAll(s, "{adults}", strconv.Itoa(adults))
 	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
