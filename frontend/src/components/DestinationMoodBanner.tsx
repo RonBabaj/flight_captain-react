@@ -13,7 +13,11 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { getAirportEntry, getCityDisplayName } from '../data/airports';
-import { moodImageUrlForVariant, resolveDestinationMood } from '../data/destinationMood';
+import {
+  AIRPORT_FALLBACK_IMAGE,
+  moodImageUrlForVariant,
+  resolveDestinationMood,
+} from '../data/destinationMood';
 import { useBreakpoint } from '../hooks/useResponsive';
 import { ANYWHERE_CODE } from '../types';
 import type { CreateSearchSessionRequest } from '../types';
@@ -62,11 +66,13 @@ export function DestinationMoodBanner({
   const opacity = useRef(new Animated.Value(0)).current;
   const hostRef = useRef<View | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
   // Defer network image until near viewport (web) or after first layout (native).
   const [shouldLoadImage, setShouldLoadImage] = useState(Platform.OS !== 'web');
 
   useEffect(() => {
     setImgFailed(false);
+    setFallbackFailed(false);
     opacity.setValue(0);
     if (!mood) return;
     Animated.timing(opacity, { toValue: 1, duration: 420, useNativeDriver: true }).start();
@@ -98,7 +104,10 @@ export function DestinationMoodBanner({
 
   if (!mood || !destinationCode) return null;
 
-  const imageUri = moodImageUrlForVariant(mood.imageUrl, moodSizeForVariant(variant));
+  const imageUri = moodImageUrlForVariant(
+    imgFailed ? AIRPORT_FALLBACK_IMAGE : mood.imageUrl,
+    moodSizeForVariant(variant),
+  );
 
   const entry = getAirportEntry(destinationCode);
   const cityLabel =
@@ -145,12 +154,16 @@ export function DestinationMoodBanner({
             { backgroundColor: theme.isDark ? '#1A2430' : '#D8E2EC' },
           ]}
         />
-        {shouldLoadImage && !imgFailed && (
+        {shouldLoadImage && !fallbackFailed && (
           <Image
             source={{ uri: imageUri }}
             style={StyleSheet.absoluteFillObject}
             resizeMode="cover"
-            onError={() => setImgFailed(true)}
+            onError={() => {
+              // First failure → stock airport still; second failure → solid wash only.
+              if (!imgFailed) setImgFailed(true);
+              else setFallbackFailed(true);
+            }}
             accessibilityLabel={cityLabel}
             accessible
           />

@@ -2,6 +2,8 @@
 
 Self-hosted **Playwright** service for **Kiwi**, **Skyscanner**, and **Expedia**. The Go API (`OtaScraperProvider`) calls `POST /v1/search` and merges offers with **Google Flights2 (RapidAPI)** results.
 
+On Book, the API also calls `POST /v1/resolve-partners` so Skyscanner/Kiwi booking panels can hand off real seller checkout URLs (same role as GF2 `getBookingDetails` → `getBookingURL`).
+
 ## VPS (recommended): headed Chrome on `:99`
 
 The production VPS already runs **Xvfb `:99`** and **Google Chrome** (apartment monitor). The scraper should attach to that real browser, not a nested xvfb inside Docker.

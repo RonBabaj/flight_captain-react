@@ -439,4 +439,4 @@ function pickNumber(obj, keys) {
   return 0;
 }
 
-module.exports = { scrapeKiwi, kiwiSearchUrl };
+module.exports = { scrapeKiwi, kiwiSearchUrl, ensureKiwiResultsUrl };

@@ -3,6 +3,7 @@
 const express = require('express');
 const config = require('./config');
 const { scrapeAll } = require('./scrape');
+const { resolvePartners } = require('./sites/resolvePartners');
 const { startWarmLoop, warmStatus } = require('./warm');
 const { beginSearch, endSearch } = require('./searchBusy');
 
@@ -68,6 +69,72 @@ app.post('/v1/search', async (req, res) => {
   try {
     const result = await scrapeAll(searchReq, config);
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err) });
+  } finally {
+    endSearch();
+  }
+});
+
+/**
+ * Resolve partner checkout URLs from an OTA booking panel (Skyscanner / Kiwi),
+ * mirroring GF2 getBookingDetails → getBookingURL.
+ */
+app.post('/v1/resolve-partners', async (req, res) => {
+  if (!authOk(req)) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  const body = req.body || {};
+  const site = String(body.site || '').trim().toLowerCase();
+  const origin = String(body.origin || '').trim().toUpperCase();
+  const destination = String(body.destination || '').trim().toUpperCase();
+  const departureDate = String(body.departureDate || '').trim();
+  if (!site || !origin || !destination || !departureDate) {
+    res.status(400).json({ error: 'site, origin, destination, departureDate required' });
+    return;
+  }
+  if (site !== 'skyscanner' && site !== 'kiwi') {
+    res.status(400).json({ error: 'site must be skyscanner or kiwi' });
+    return;
+  }
+  const resolveReq = {
+    site,
+    origin,
+    destination,
+    departureDate,
+    returnDate: String(body.returnDate || '').trim(),
+    adults: Number(body.adults || 1),
+    children: Number(body.children || 0),
+    infants: Number(body.infants || 0),
+    currency: String(body.currency || 'USD').toUpperCase(),
+    cabinClass: String(body.cabinClass || 'ECONOMY').toUpperCase(),
+    price: Number(body.price || 0),
+    listingUrl: String(body.listingUrl || '').trim(),
+    segments: Array.isArray(body.segments) ? body.segments : [],
+    outDepHm: String(body.outDepHm || '').trim(),
+    inDepHm: String(body.inDepHm || '').trim(),
+    originCity: body.originCity,
+    destinationCity: body.destinationCity,
+    originCountry: body.originCountry,
+    destinationCountry: body.destinationCountry,
+  };
+
+  beginSearch();
+  try {
+    const started = Date.now();
+    const result = await resolvePartners(resolveReq, config);
+    console.log(
+      `[flight-scraper] resolve-partners site=${site} durationMs=${Date.now() - started} partners=${
+        (result.partners || []).length
+      }${result.error ? ` error=${String(result.error).slice(0, 120)}` : ''}`,
+    );
+    res.json({
+      site,
+      partners: result.partners || [],
+      error: result.error,
+      durationMs: Date.now() - started,
+    });
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   } finally {

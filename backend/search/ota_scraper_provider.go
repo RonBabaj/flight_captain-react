@@ -18,7 +18,9 @@ import (
 const (
 	// Kiwi + Skyscanner serial CDP scrapes often need >5m on a cold/contended VPS.
 	otaScraperHTTPTimeout = 8 * time.Minute
-	defaultOtaScraperURL  = "http://flight-scraper:3099"
+	// Partner-panel resolve is on the Book click path — keep a tighter bound.
+	otaPartnerResolveHTTPTimeout = 90 * time.Second
+	defaultOtaScraperURL         = "http://flight-scraper:3099"
 )
 
 // Process-wide scrape gate so overlapping SearchAll calls cannot flood one Chrome CDP.
@@ -392,4 +394,120 @@ func flattenOtaScraperResponse(resp otaScraperSearchResponse, req SearchRequest)
 		out = append(out, part...)
 	}
 	return out
+}
+
+// OtaPartnerResolveRequest asks the scraper to open an OTA booking panel and
+// extract seller checkout URLs (GF2 getBookingDetails analogue).
+type OtaPartnerResolveRequest struct {
+	Site          string                   `json:"site"`
+	Origin        string                   `json:"origin"`
+	Destination   string                   `json:"destination"`
+	DepartureDate string                   `json:"departureDate"`
+	ReturnDate    string                   `json:"returnDate,omitempty"`
+	Adults        int                      `json:"adults"`
+	Children      int                      `json:"children"`
+	Infants       int                      `json:"infants"`
+	Currency      string                   `json:"currency"`
+	CabinClass    string                   `json:"cabinClass"`
+	Price         float64                  `json:"price,omitempty"`
+	ListingURL    string                   `json:"listingUrl,omitempty"`
+	Segments      []map[string]interface{} `json:"segments,omitempty"`
+	OutDepHm      string                   `json:"outDepHm,omitempty"`
+	InDepHm       string                   `json:"inDepHm,omitempty"`
+}
+
+// OtaResolvedPartner is one seller checkout URL from an OTA booking panel.
+type OtaResolvedPartner struct {
+	URL      string  `json:"url"`
+	Provider string  `json:"provider,omitempty"`
+	Price    float64 `json:"price,omitempty"`
+}
+
+type otaPartnerResolveResponse struct {
+	Site      string               `json:"site"`
+	Partners  []OtaResolvedPartner `json:"partners"`
+	Error     string               `json:"error,omitempty"`
+	DurationMs int64               `json:"durationMs,omitempty"`
+}
+
+// ResolvePartners opens the OTA booking panel for a scraped itinerary and returns
+// partner checkout URLs (same role as GF2 booking_token → getBookingURL).
+func (p *OtaScraperProvider) ResolvePartners(ctx context.Context, req OtaPartnerResolveRequest) ([]OtaResolvedPartner, error) {
+	if p == nil {
+		return nil, fmt.Errorf("multisite scraper not configured")
+	}
+	site := strings.ToLower(strings.TrimSpace(req.Site))
+	if site != "skyscanner" && site != "kiwi" {
+		return nil, fmt.Errorf("unsupported OTA site %q", req.Site)
+	}
+	req.Site = site
+	if req.Adults < 1 {
+		req.Adults = 1
+	}
+	if req.Currency == "" {
+		req.Currency = "USD"
+	}
+	if req.CabinClass == "" {
+		req.CabinClass = "ECONOMY"
+	}
+
+	sem := otaScrapeSemaphore()
+	select {
+	case sem <- struct{}{}:
+		defer func() { <-sem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	resolveCtx, cancel := context.WithTimeout(ctx, otaPartnerResolveHTTPTimeout)
+	defer cancel()
+	httpReq, err := http.NewRequestWithContext(resolveCtx, http.MethodPost, p.baseURL+"/v1/resolve-partners", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.token)
+	}
+	client := p.client
+	if client == nil || client.Timeout > otaPartnerResolveHTTPTimeout {
+		client = &http.Client{Timeout: otaPartnerResolveHTTPTimeout}
+	}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("ota resolve-partners request: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("ota resolve-partners status %d: %s", resp.StatusCode, truncateStr(string(raw), 200))
+	}
+	var parsed otaPartnerResolveResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("ota resolve-partners parse: %w", err)
+	}
+	var out []OtaResolvedPartner
+	for _, partner := range parsed.Partners {
+		u := strings.TrimSpace(partner.URL)
+		if u == "" || !isLikelyPartnerCheckoutURL(u) {
+			continue
+		}
+		out = append(out, OtaResolvedPartner{
+			URL:      u,
+			Provider: firstNonEmpty(strings.TrimSpace(partner.Provider), providerFromURL(u)),
+			Price:    partner.Price,
+		})
+	}
+	if len(out) == 0 {
+		if parsed.Error != "" {
+			return nil, fmt.Errorf("ota resolve-partners: %s", parsed.Error)
+		}
+		return nil, fmt.Errorf("ota resolve-partners: no partner checkouts")
+	}
+	log.Printf("[MULTISITE] resolve-partners site=%s partners=%d durationMs=%d", site, len(out), parsed.DurationMs)
+	return out, nil
 }

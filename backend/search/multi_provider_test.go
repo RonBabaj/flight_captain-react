@@ -118,6 +118,9 @@ func TestParseOtaOffers_dropsSkyscannerMetaDeepLink(t *testing.T) {
 	if out[0].DeepLink != "" {
 		t.Fatalf("meta-search DeepLink must be cleared, got %q", out[0].DeepLink)
 	}
+	if out[0].ListingURL == "" || !strings.Contains(out[0].ListingURL, "skyscanner") {
+		t.Fatalf("ListingURL should preserve meta page for partner-panel resolve, got %q", out[0].ListingURL)
+	}
 }
 
 func TestParseOtaOffersEmptyAndInvalid(t *testing.T) {

@@ -110,6 +110,7 @@ var (
 	bookingResolveSem          chan struct{}
 	bookingMatchRunner         = defaultBookingMatchRunner
 	bookingGF2OffersResolver   = resolveGF2PartnerOffers
+	// bookingOTAOffersResolver is declared in booking_ota_resolve.go
 )
 
 func init() {
@@ -862,6 +863,8 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	var (
 		gf2Offers   []bookingmatch.BookingOffer
 		gf2Err      error
+		otaOffers   []bookingmatch.BookingOffer
+		otaErr      error
 		matchResult *bookingmatch.MatchResult
 		matchErr    error
 		wg          sync.WaitGroup
@@ -873,6 +876,16 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
 	}()
 
+	// OTA rows: resolve seller checkouts from Skyscanner/Kiwi booking panels
+	// (same role as GF2 getBookingDetails → getBookingURL), in parallel with GF2.
+	if option != nil && isOTAScrapedSource(option.Source) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			otaOffers, otaErr = bookingOTAOffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+		}()
+	}
+
 	if webBookingMatchEnabled() {
 		wg.Add(1)
 		go func() {
@@ -882,6 +895,12 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	wg.Wait()
+	_ = otaErr
+
+	// Prefer native OTA partner checkouts when present; still merge GF2 / web.
+	mergedGF2 := append([]bookingmatch.BookingOffer{}, otaOffers...)
+	mergedGF2 = append(mergedGF2, gf2Offers...)
+	gf2Offers = mergedGF2
 
 	offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
 	tryResolve := func(sourceOffers []bookingmatch.BookingOffer) (BookingResolveResponse, string, bool) {
