@@ -61,8 +61,8 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 		currency = "USD"
 	}
 	deepLink := firstString(item, "bookingUrl", "booking_url", "deepLink", "deep_link", "url", "link")
-	// Skyscanner/Kayak scrape links are meta-search pages, not seller checkout.
-	// Keep real partner/Kiwi booking URLs; drop the rest so Book resolves via GF2.
+	// Meta-search listing URLs are not seller checkout. Clear them so Book uses the
+	// same GF2 fingerprint → booking_token → partner checkout pipeline as GF2 rows.
 	if deepLink != "" && !isLikelyPartnerCheckoutURL(deepLink) {
 		deepLink = ""
 	}
@@ -228,8 +228,8 @@ func extractKiwiLegs(item map[string]interface{}, req SearchRequest) []Leg {
 	if to == "" {
 		to = req.Destination
 	}
-	dep := parseFlexibleTime(firstString(item, "departureTime", "departure", "dTimeUTC", "dTime"))
-	arr := parseFlexibleTime(firstString(item, "arrivalTime", "arrival", "aTimeUTC", "aTime"))
+	dep := parseOTASegmentTime(firstString(item, "departureTime", "departure", "dTimeUTC", "dTime"), from)
+	arr := parseOTASegmentTime(firstString(item, "arrivalTime", "arrival", "aTimeUTC", "aTime"), to)
 	if from != "" && to != "" && !dep.IsZero() {
 		cabin := req.CabinPreference
 		if cabin == "" {
@@ -270,9 +270,24 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 	if from == "" || to == "" {
 		return nil
 	}
-	dep := parseFlexibleTime(firstString(s, "departureTimeUtc", "departureTime", "dTimeUTC", "dTime", "local_departure", "utc_departure"))
-	arr := parseFlexibleTime(firstString(s, "arrivalTimeUtc", "arrivalTime", "aTimeUTC", "aTime", "local_arrival", "utc_arrival"))
-	carrier := firstString(s, "airlineCode", "airline", "carrier", "marketingAirline")
+	// Prefer explicit UTC fields; otherwise treat zoneless/Z times as airport wall
+	// clocks (same convention as GF2) so fingerprint match can find a booking_token.
+	depRawUTC := firstString(s, "departureTimeUtc", "dTimeUTC", "utc_departure")
+	arrRawUTC := firstString(s, "arrivalTimeUtc", "aTimeUTC", "utc_arrival")
+	depRaw := firstString(s, "departureTime", "dTime", "local_departure", "departure")
+	arrRaw := firstString(s, "arrivalTime", "aTime", "local_arrival", "arrival")
+	var dep, arr time.Time
+	if depRawUTC != "" {
+		dep = parseFlexibleTime(depRawUTC)
+	} else {
+		dep = parseOTASegmentTime(depRaw, from)
+	}
+	if arrRawUTC != "" {
+		arr = parseFlexibleTime(arrRawUTC)
+	} else {
+		arr = parseOTASegmentTime(arrRaw, to)
+	}
+	carrier := firstString(s, "airlineCode", "airline", "carrier", "marketingAirline", "marketingCarrier")
 	operating := firstString(s, "operatingAirline", "operating_airline", "operatedBy", "operated_by")
 	if carrier == "" {
 		carrier = operating
@@ -287,6 +302,16 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 			} else {
 				dur = int(h)
 			}
+		}
+	}
+	// OTA scrapes often omit duration — derive from clock times when possible.
+	if dur <= 0 && !dep.IsZero() && !arr.IsZero() {
+		delta := arr.Sub(dep)
+		if delta < 0 {
+			delta += 24 * time.Hour
+		}
+		if delta > 0 && delta < 48*time.Hour {
+			dur = int(delta.Minutes())
 		}
 	}
 	if cabin == "" {
@@ -413,6 +438,19 @@ func parseFlexibleTime(s string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// parseOTASegmentTime aligns OTA scrape clocks with GF2: zoneless / trailing Z are
+// airport wall clocks so CanonicalItinerary fingerprints can match across providers.
+func parseOTASegmentTime(s, airportCode string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	if t, err := parseGF2Time(s, airportCode); err == nil && !t.IsZero() {
+		return t
+	}
+	return parseFlexibleTime(s)
 }
 
 func truncateStr(s string, n int) string {

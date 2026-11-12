@@ -304,10 +304,9 @@ func (p *GoogleFlights2Provider) ResolveAllPartnerBookingsForFingerprint(ctx con
 	if err != nil {
 		return nil, err
 	}
-	if len(results) > 0 {
-		p.enrichResultsPartnerLinks(ctx, results, currency)
-	}
 	AttachCanonicalIdentityAll(results)
+	// Prefer the matched itinerary's own booking_token — do not only enrich the
+	// cheapest row (OTA Book depends on finding THIS flight's token).
 	for i := range results {
 		r := &results[i]
 		if r.ItineraryFingerprint != wantFP && !ResultMatchesItinerary(wantItin, *r) {
@@ -352,9 +351,6 @@ func (p *GoogleFlights2Provider) ResolveQuotedPartnerBookingForFingerprint(ctx c
 	results, err := p.searchLegCached(ctx, req)
 	if err != nil {
 		return nil, err
-	}
-	if len(results) > 0 {
-		p.enrichResultsPartnerLinks(ctx, results, currency)
 	}
 	AttachCanonicalIdentityAll(results)
 	for i := range results {

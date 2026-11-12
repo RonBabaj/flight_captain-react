@@ -14,9 +14,10 @@ import (
 )
 
 // BOOKING_LINK_MODE: "google_prefill" | "skyscanner_prefill" | "direct_provider"
-// - direct_provider: use option deep link / partner URL when set, else Google Flights prefill
-// - google_prefill: default; Google Flights search prefilled with the clicked route/dates
-// - skyscanner_prefill: Skyscanner search prefilled with route/dates (legacy fallback)
+// - direct_provider: use option deep link / partner URL when set, else Skyscanner prefill
+// - skyscanner_prefill: default; Skyscanner search prefilled with the clicked route/dates
+//   (better last resort than Google Flights meta search when partner checkout fails)
+// - google_prefill: Google Flights search prefilled with route/dates
 const (
 	BookingModeDirectProvider    = "direct_provider"
 	BookingModeGooglePrefill     = "google_prefill"
@@ -36,19 +37,19 @@ func bookingLinkMode() string {
 	switch mode {
 	case BookingModeDirectProvider, BookingModeGooglePrefill, BookingModeSkyscannerPrefill:
 		return mode
-	case "skyscanner", "sky":
+	case "skyscanner", "sky", "":
 		return BookingModeSkyscannerPrefill
 	case "direct", "provider":
 		return BookingModeDirectProvider
-	case "google", "":
+	case "google":
 		return BookingModeGooglePrefill
 	default:
-		return BookingModeGooglePrefill
+		return BookingModeSkyscannerPrefill
 	}
 }
 
 // BuildUniformBookingLink returns a URL the user can use to book. Never returns empty if session/option are valid.
-// Prefer an already-resolved partner/deep link on the option; otherwise prefill Google Flights (default) or Skyscanner.
+// Prefer an already-resolved partner/deep link on the option; otherwise prefill Skyscanner (default) or Google.
 // Partner checkout resolution (GF2 booking_token → getBookingURL) happens in resolveBookingRedirectURL on Book click.
 // Split itineraries (open-jaw / extra hops) must not use a single-leg deep link — those are separate one-way tickets.
 func BuildUniformBookingLink(session *SearchSession, option *FlightOption) string {
@@ -66,23 +67,23 @@ func BuildUniformBookingLink(session *SearchSession, option *FlightOption) strin
 
 	origin, dest, dep, ret := bookingRouteFromSessionOption(session, option)
 
-	switch mode {
-	case BookingModeSkyscannerPrefill:
-		cabin := ""
-		adults := 1
-		if session != nil {
-			cabin = session.Params.CabinClass
-			if session.Params.Adults > 0 {
-				adults = session.Params.Adults
-			}
+	cabin := ""
+	adults := 1
+	if session != nil {
+		cabin = session.Params.CabinClass
+		if session.Params.Adults > 0 {
+			adults = session.Params.Adults
 		}
-		return buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin, adults)
-	default:
+	}
+	switch mode {
+	case BookingModeGooglePrefill:
 		u := buildGoogleFlightsPrefillURL(origin, dest, dep, ret)
 		if u == "" {
 			u = "https://www.google.com/travel/flights"
 		}
 		return u
+	default:
+		return buildSkyscannerPrefillURL(origin, dest, dep, ret, cabin, adults)
 	}
 }
 
@@ -111,13 +112,13 @@ func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex in
 					adults = session.Params.Adults
 				}
 			}
-			if bookingLinkMode() == BookingModeSkyscannerPrefill {
-				return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+			if bookingLinkMode() == BookingModeGooglePrefill {
+				u := buildGoogleFlightsPrefillURL(origin, dest, dep, "")
+				if u != "" {
+					return u
+				}
 			}
-			u := buildGoogleFlightsPrefillURL(origin, dest, dep, "")
-			if u != "" {
-				return u
-			}
+			return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
 		}
 	}
 	return BuildUniformBookingLink(session, option)
@@ -322,20 +323,20 @@ func buildLegOrSegmentBookingURL(session *SearchSession, option *FlightOption, l
 		if origin == "" || dest == "" {
 			return ""
 		}
-		if bookingLinkMode() == BookingModeSkyscannerPrefill {
-			return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+		if bookingLinkMode() == BookingModeGooglePrefill {
+			carrier := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
+			return buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, seg.FlightNumber)
 		}
-		carrier := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code))
-		return buildGoogleFlightsSegmentPrefillURL(origin, dest, dep, carrier, seg.FlightNumber)
+		return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
 	}
 	origin, dest, dep := routeFromFlightLeg(leg)
 	if origin == "" || dest == "" {
 		return ""
 	}
-	if bookingLinkMode() == BookingModeSkyscannerPrefill {
-		return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
+	if bookingLinkMode() == BookingModeGooglePrefill {
+		return buildGoogleFlightsPrefillURL(origin, dest, dep, "")
 	}
-	return buildGoogleFlightsPrefillURL(origin, dest, dep, "")
+	return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
 }
 
 // BuildGoogleFlightsFallbackFromParams builds a Google Flights search URL from query params.

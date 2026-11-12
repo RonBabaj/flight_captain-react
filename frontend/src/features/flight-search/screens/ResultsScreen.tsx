@@ -63,8 +63,8 @@ import {
   POSITIONING_HUB_AIRPORTS,
 } from '../../../utils/positioningSearch';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
-import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
+import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
@@ -1472,16 +1472,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const resultsList = (
     isLoading && filtered.length === 0 ? (
-      // Inline cube while PENDING — form overlay unmounts on navigate to Results.
-      <SearchLoadingOverlay
-        visible
-        variant="inline"
-        origin={params?.origin || undefined}
-        destination={params?.destination || undefined}
-        returnOrigin={params?.returnOrigin || undefined}
-        returnDestination={params?.returnDestination || undefined}
-        extraLegs={params?.extraLegs}
-      />
+      // Structure-preview cards (not a 3D cube) — page shape before results arrive.
+      <View style={{ flex: 1 }}>
+        <View style={styles.listContent}>
+          <ResultsSkeletonList theme={theme} count={4} />
+        </View>
+        {positioningSection}
+      </View>
     ) : showEmpty ? (
       <View style={{ flex: 1 }}>
         <View style={styles.listContentEmpty}>
