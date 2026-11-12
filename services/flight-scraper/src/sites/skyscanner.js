@@ -265,6 +265,7 @@ async function scrapeSkyscanner(req, config) {
             '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
           );
           const hmRe = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
+          const skipAlt = /logo|icon|image|photo|arrow|chevron|skyscanner|direct|stop/i;
           cards.forEach((card) => {
             const priceEl =
               card.querySelector('[data-testid="price"]') ||
@@ -280,10 +281,24 @@ async function scrapeSkyscanner(req, config) {
             // Extract clocks from the FULL card text — truncating to ~240 chars
             // cut off French "Vol retour" times and caused "return not loaded".
             const times = fullText.match(hmRe) || [];
+            // Airline logos / labels — DOM path previously omitted carriers entirely.
+            const airlines = [];
+            card.querySelectorAll('img[alt], img[title], [data-testid*="airline"], [aria-label]').forEach((el) => {
+              const raw =
+                el.getAttribute('alt') ||
+                el.getAttribute('title') ||
+                el.getAttribute('aria-label') ||
+                el.textContent ||
+                '';
+              const label = String(raw).replace(/\s+/g, ' ').trim();
+              if (!label || label.length < 2 || label.length > 48 || skipAlt.test(label)) return;
+              if (!airlines.includes(label)) airlines.push(label);
+            });
             out.push({
               priceText,
               link: card.querySelector('a')?.href || window.location.href,
               times,
+              airlines,
               text: fullText.slice(0, 500),
             });
           });
@@ -307,7 +322,11 @@ async function scrapeSkyscanner(req, config) {
             clocks = parseRoundTripHm(row.text);
           }
           if (!clocks) continue;
-          const segments = segmentsFromRoundTripClocks(req, clocks);
+          const airlineHint =
+            (Array.isArray(row.airlines) && row.airlines[0]) || undefined;
+          const segments = segmentsFromRoundTripClocks(req, clocks, {
+            airline: airlineHint,
+          });
           if (!segments.length) continue;
           const key = `${price}|${segments.map((s) => `${s.leg}:${s.departureTime}:${s.arrivalTime}`).join('|')}`;
           if (seenDom.has(key)) continue;
@@ -427,21 +446,37 @@ function legToSegment(leg, direction) {
   const from = leg.origin?.iata || leg.originPlaceId || leg.origin || leg.from || leg.fromCode;
   const to = leg.destination?.iata || leg.destinationPlaceId || leg.destination || leg.to || leg.toCode;
   if (!from || !to) return null;
-  const airline =
+  let airline =
     leg.marketingCarrier?.iata ||
     leg.marketingCarrier?.code ||
     leg.carrier?.iata ||
-    leg.carrier ||
+    leg.carrier?.code ||
+    (typeof leg.carrier === 'string' ? leg.carrier : '') ||
     leg.airlineCode ||
-    leg.airline;
+    leg.airline?.iata ||
+    leg.airline?.code ||
+    (typeof leg.airline === 'string' ? leg.airline : '') ||
+    leg.marketingCarrier?.name ||
+    leg.carrier?.name ||
+    '';
+  airline = String(airline || '').trim();
+  // Keep IATA codes as-is; pass display names through for backend LookupAirlineIATA
+  // (do not slice names to 2 chars — "Austrian" → "AU" is wrong).
+  if (/^[A-Za-z0-9]{2}$/.test(airline)) {
+    airline = airline.toUpperCase();
+  }
   // Prefer full designator when present — GF2 fingerprint match needs flight identity.
   let flightNumber =
     leg.marketingFlightNumber ||
     leg.flightNumber ||
     leg.marketingCarrier?.flightNumber ||
     '';
-  if (flightNumber && airline && !String(flightNumber).toUpperCase().startsWith(String(airline).toUpperCase())) {
-    flightNumber = `${String(airline).toUpperCase()}${String(flightNumber).replace(/\D/g, '')}`;
+  if (
+    flightNumber &&
+    /^[A-Za-z0-9]{2}$/.test(airline) &&
+    !String(flightNumber).toUpperCase().startsWith(airline)
+  ) {
+    flightNumber = `${airline}${String(flightNumber).replace(/\D/g, '')}`;
   }
   return segment({
     leg: direction,
@@ -449,7 +484,7 @@ function legToSegment(leg, direction) {
     to: String(to).slice(-3).toUpperCase(),
     departureTime: leg.departure || leg.departureTime || leg.departureDateTime,
     arrivalTime: leg.arrival || leg.arrivalTime || leg.arrivalDateTime,
-    airline: airline ? String(airline).slice(0, 2).toUpperCase() : '',
+    airline,
     flightNumber: flightNumber ? String(flightNumber) : '',
   });
 }

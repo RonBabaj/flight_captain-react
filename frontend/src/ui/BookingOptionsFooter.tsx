@@ -188,7 +188,12 @@ export function BookingOptionsFooter({
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
           const priceAmount = formatBookingOfferPriceAmount(offer);
           const subtitle = bookingOfferSubtitle(offer, t);
-          const ctaLabel = isPrefill ? t('open_flight_search') : t('open_booking_site');
+          const host = (offer.domain || offer.provider || '').toLowerCase();
+          const ctaLabel = isPrefill
+            ? host.includes('skyscanner')
+              ? t('open_skyscanner_search')
+              : t('open_flight_search')
+            : t('open_booking_site');
           return (
             <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
               <View style={styles.singleHeader}>

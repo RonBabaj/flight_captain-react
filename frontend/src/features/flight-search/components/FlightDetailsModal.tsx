@@ -338,79 +338,97 @@ export function FlightDetailsModal({
     );
   };
 
-  const renderBookingFooter = () => {
-    const unresolvedHopCount =
-      perHopBooking && hops.length > 1
-        ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
-        : 0;
-    const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
+  const unresolvedHopCount =
+    perHopBooking && hops.length > 1
+      ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
+      : 0;
+  const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
 
+  /** Per-hop Book cards live in the scroll body so itinerary stays visible above them. */
+  const renderPerHopBookingSection = () => {
+    if (!perHopBooking || hops.length === 0) return null;
     return (
-    <View style={[s.footer, isNarrow && s.footerCompact, { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
-      {perHopBooking && hops.length > 0 ? (
-        <>
-          <Text style={[s.splitHint, { color: theme.textMuted }]}>
-            {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
-          </Text>
-          {hops.length > 1 && unresolvedHopCount > 1 ? (
-            <Button
-              label={t('book_all_legs')}
-              onPress={() => void resolveAllUnresolvedHops(false)}
-              variant="secondary"
-              size="sm"
-              disabled={parallelLoadingCount > 0}
-            />
-          ) : null}
-          {parallelLoadingCount > 1 ? (
-            <Text style={[s.splitHint, { color: theme.textMuted }]}>
-              {t('booking_searching_all_legs')}
-            </Text>
-          ) : null}
-          <View style={s.legBookingList}>
-            {hops.map((hop, index) => {
-              const key = hopStorageKey(hop);
-              return (
-                <View
-                  key={key}
-                  style={[
-                    s.legBookingCard,
-                    isNarrow && s.legBookingCardCompact,
-                    { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
-                  ]}
-                >
-                  {hops.length > 1 ? (
-                    <Text style={[s.legStep, { color: theme.textMuted }]}>
-                      {t('booking_leg_step').replace('{current}', String(index + 1)).replace('{total}', String(hops.length))}
-                    </Text>
-                  ) : null}
-                  <Text style={[s.legRoute, { color: theme.text }]}>
-                    {hop.origin} → {hop.destination}
+      <View style={[s.perHopSection, { borderTopColor: theme.cardBorder }]}>
+        <Text style={[s.splitHint, { color: theme.textMuted }]}>
+          {splitBooking ? t('split_booking_hint') : t('multi_ticket_hint')}
+        </Text>
+        <View style={s.legBookingList}>
+          {hops.map((hop, index) => {
+            const key = hopStorageKey(hop);
+            return (
+              <View
+                key={key}
+                style={[
+                  s.legBookingCard,
+                  isNarrow && s.legBookingCardCompact,
+                  { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+                ]}
+              >
+                {hops.length > 1 ? (
+                  <Text style={[s.legStep, { color: theme.textMuted }]}>
+                    {t('booking_leg_step')
+                      .replace('{current}', String(index + 1))
+                      .replace('{total}', String(hops.length))}
                   </Text>
-                  <Text style={[s.legDate, { color: theme.textMuted }]}>
-                    {hop.date}
-                    {hop.carrier ? ` · ${resolveAirlineLabel(hop.carrier)}` : ''}
-                  </Text>
-                  {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
-                </View>
-              );
-            })}
-          </View>
-        </>
-      ) : (
-        <>
-          {!useFullScreen ? (
-            <Text style={[s.bookThisHint, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
-          ) : null}
-          {renderBookingAction(
-            'full',
-            undefined,
-            undefined,
-            option?.legs?.[0]?.segments?.[0]?.marketingCarrier?.code,
-          )}
-        </>
-      )}
-      <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
-    </View>
+                ) : null}
+                <Text style={[s.legRoute, { color: theme.text }]}>
+                  {hop.origin} → {hop.destination}
+                </Text>
+                <Text style={[s.legDate, { color: theme.textMuted }]}>
+                  {hop.date}
+                  {hop.carrier ? ` · ${resolveAirlineLabel(hop.carrier)}` : ''}
+                </Text>
+                {renderBookingAction(key, hop.legIndex, hop.segmentIndex, hop.carrier)}
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  /** Slim sticky footer — never stacks 4 Book cards here (that hid the itinerary). */
+  const renderBookingFooter = () => {
+    return (
+      <View
+        style={[
+          s.footer,
+          isNarrow && s.footerCompact,
+          { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg },
+        ]}
+      >
+        {perHopBooking && hops.length > 0 ? (
+          <>
+            {hops.length > 1 && unresolvedHopCount > 1 ? (
+              <Button
+                label={t('book_all_legs')}
+                onPress={() => void resolveAllUnresolvedHops(false)}
+                variant="secondary"
+                size="sm"
+                disabled={parallelLoadingCount > 0}
+              />
+            ) : null}
+            {parallelLoadingCount > 1 ? (
+              <Text style={[s.splitHint, s.splitHintFooter, { color: theme.textMuted }]}>
+                {t('booking_searching_all_legs')}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {!useFullScreen ? (
+              <Text style={[s.bookThisHint, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
+            ) : null}
+            {renderBookingAction(
+              'full',
+              undefined,
+              undefined,
+              option?.legs?.[0]?.segments?.[0]?.marketingCarrier?.code,
+            )}
+          </>
+        )}
+        <Text style={[s.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+      </View>
     );
   };
 
@@ -752,8 +770,10 @@ export function FlightDetailsModal({
                 ))}
               </View>
             )}
+            {/* Multi-leg Book cards after itinerary so times/routes stay on screen first. */}
+            {renderPerHopBookingSection()}
           </ScrollView>
-          {/* Keep Book / resolve CTAs pinned below the scroll so they never vanish. */}
+          {/* Slim sticky strip only — full hop list scrolls above. */}
           {renderBookingFooter()}
         </View>
       </View>
@@ -810,8 +830,13 @@ const s = StyleSheet.create({
   shareBtn: { padding: 4 },
   sharedText: { fontSize: 13, fontWeight: '600' },
 
-  scrollBody: { flex: 1, minHeight: 0 },
+  scrollBody: { flex: 1, minHeight: 160 },
   scrollContent: { padding: 20, paddingBottom: 24 },
+  perHopSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 8,
+    paddingTop: 16,
+  },
 
   summaryRow: {
     flexDirection: 'row',
@@ -898,10 +923,15 @@ const s = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
+    flexShrink: 0,
   },
   footerCompact: {
     paddingHorizontal: 12,
     paddingVertical: 14,
+  },
+  splitHintFooter: {
+    marginBottom: 0,
+    marginTop: 4,
   },
   bookBtn: {
     paddingVertical: 14,

@@ -20,7 +20,11 @@ import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
 import { useBreakpoint } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { AIRPORT_FALLBACK_IMAGE, LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
+import {
+  AIRPORT_FALLBACK_IMAGE,
+  LANDING_MOOD_DESTINATIONS,
+  moodImageUrlForVariant,
+} from '../../data/destinationMood';
 import { getAirportEntry, getCityDisplayName } from '../../data/airports';
 import { setCachedSearch } from '../../utils/searchCache';
 import { updateSearchUrl } from '../../hooks/useSearchParams';
@@ -30,10 +34,11 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 const MAX_CONTENT = 1040;
 
 function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
-  const [src, setSrc] = useState(uri);
+  const sized = moodImageUrlForVariant(uri, 'card');
+  const [src, setSrc] = useState(sized);
   useEffect(() => {
-    setSrc(uri);
-  }, [uri]);
+    setSrc(sized);
+  }, [sized]);
   return (
     <Image
       source={{ uri: src }}
@@ -42,7 +47,11 @@ function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
       accessibilityLabel={label}
       accessible
       onError={() => {
-        setSrc((cur) => (cur === AIRPORT_FALLBACK_IMAGE ? cur : AIRPORT_FALLBACK_IMAGE));
+        setSrc((cur) =>
+          cur === AIRPORT_FALLBACK_IMAGE
+            ? cur
+            : moodImageUrlForVariant(AIRPORT_FALLBACK_IMAGE, 'card'),
+        );
       }}
     />
   );
