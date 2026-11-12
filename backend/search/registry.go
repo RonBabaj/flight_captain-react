@@ -170,7 +170,9 @@ func multisiteSoftTimeoutFor(req SearchRequest) time.Duration {
 		legs = 2
 	}
 	scaled := time.Duration(legs) * soft
-	const maxSoft = 4 * time.Minute
+	// Sequential one-way scrapes for DD/open-jaw need room for each leg; the old
+	// 4m clamp starved later legs and left the UI PENDING until the client gave up.
+	const maxSoft = 12 * time.Minute
 	if scaled > maxSoft {
 		return maxSoft
 	}

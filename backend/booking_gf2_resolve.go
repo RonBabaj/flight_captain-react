@@ -248,11 +248,9 @@ func legBookingToken(option *FlightOption, legIndex int) string {
 	if nTokens == 0 {
 		return ""
 	}
-	// One token for a multi-leg itinerary: use it only for the first leg.
+	// One token for a multi-leg itinerary is ambiguous (often RT / wrong leg) —
+	// never bind it to a sliced one-way leg resolve.
 	if nTokens == 1 && nLegs > 1 {
-		if legIndex == 0 {
-			return strings.TrimSpace(option.LegBookingTokens[0])
-		}
 		return ""
 	}
 	if nTokens != nLegs {

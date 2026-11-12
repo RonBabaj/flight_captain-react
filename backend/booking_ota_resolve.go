@@ -72,7 +72,13 @@ func resolveOTAPartnerOffers(ctx context.Context, session *SearchSession, option
 
 	sreq := searchRequestFromSession(session, option, legIndex, segmentIndex)
 	quote := quoteBindingFromOption(session, option, legIndex)
-	outDep, inDep := otaResolveClockHints(option, legIndex)
+	outDep, inDep := otaResolveClockHints(option, legIndex, sreq.ReturnDate == "")
+
+	// Never reuse the outbound listing page for return/extra legs — rebuild from route.
+	listingURL := strings.TrimSpace(option.ListingURL)
+	if legIndex > 0 {
+		listingURL = ""
+	}
 
 	req := search.OtaPartnerResolveRequest{
 		Site:          site,
@@ -86,7 +92,7 @@ func resolveOTAPartnerOffers(ctx context.Context, session *SearchSession, option
 		Currency:      otaFirstNonEmpty(quote.Currency, sreq.Currency, "USD"),
 		CabinClass:    otaFirstNonEmpty(sreq.CabinClass, "ECONOMY"),
 		Price:         quote.Amount,
-		ListingURL:    strings.TrimSpace(option.ListingURL),
+		ListingURL:    listingURL,
 		Segments:      otaResolveSegmentsPayload(option, legIndex, segmentIndex),
 		OutDepHm:      outDep,
 		InDepHm:       inDep,
@@ -170,7 +176,7 @@ func flightSegmentToOtaMap(s FlightSegment, leg string) map[string]interface{} {
 	return m
 }
 
-func otaResolveClockHints(option *FlightOption, legIndex int) (outDepHm, inDepHm string) {
+func otaResolveClockHints(option *FlightOption, legIndex int, oneWay bool) (outDepHm, inDepHm string) {
 	if option == nil || len(option.Legs) == 0 {
 		return "", ""
 	}
@@ -186,7 +192,9 @@ func otaResolveClockHints(option *FlightOption, legIndex int) (outDepHm, inDepHm
 			return "", ""
 		}
 		dep := hm(leg.Segments[0].DepartureTime)
-		if legIndex == 0 {
+		// Per-leg resolve always searches one-way — put dep in OutDepHm so the
+		// scraper can match the card (return/extra used to land in InDepHm only).
+		if oneWay || legIndex == 0 {
 			return dep, ""
 		}
 		return "", dep
@@ -194,7 +202,7 @@ func otaResolveClockHints(option *FlightOption, legIndex int) (outDepHm, inDepHm
 	if len(option.Legs[0].Segments) > 0 {
 		outDepHm = hm(option.Legs[0].Segments[0].DepartureTime)
 	}
-	if len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
+	if !oneWay && len(option.Legs) > 1 && len(option.Legs[1].Segments) > 0 {
 		inDepHm = hm(option.Legs[1].Segments[0].DepartureTime)
 	}
 	return outDepHm, inDepHm
