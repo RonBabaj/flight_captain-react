@@ -5,10 +5,13 @@ import (
 	"time"
 )
 
-const itineraryMatchTimeSlack = 45 * time.Minute
+const itineraryMatchTimeSlack = 90 * time.Minute
 
 // ResultMatchesItinerary reports whether a GF2 search hit is the same physical trip as want,
 // allowing small schedule drift on re-search. Exact fingerprint match always wins first.
+//
+// This is the bridge that lets OTA-scraped flights (Skyscanner/Kiwi/…) reuse the same
+// booking_token → partner checkout pipeline as native GF2 rows.
 func ResultMatchesItinerary(want CanonicalItinerary, result ProviderResult) bool {
 	if strings.TrimSpace(result.ItineraryFingerprint) != "" &&
 		strings.TrimSpace(result.ItineraryFingerprint) == CanonicalItineraryFingerprint(want) {
@@ -40,18 +43,42 @@ func segmentsLooselyMatch(want, got CanonicalSegment) bool {
 	}
 	wc, wf := segmentIdentityCarrier(want)
 	gc, gf := segmentIdentityCarrier(got)
-	if wc != "" && gc != "" && wc == gc && wf != "" && gf != "" {
-		if !flightNumbersEquivalent(wf, gf) {
+	// When both sides know flight identity, require the same designator.
+	if wc != "" && gc != "" && wf != "" && gf != "" {
+		if wc == gc && !flightNumbersEquivalent(wf, gf) {
+			return false
+		}
+		// Different marketing carriers with flight numbers → different product.
+		if wc != gc {
+			return false
+		}
+	} else if wc != "" && gc != "" && wc != gc {
+		// Carrier known on both sides but no flight numbers — still require same airline.
+		return false
+	}
+	if !want.DepartureTime.IsZero() && !got.DepartureTime.IsZero() {
+		if !departureTimesCompatible(want, got) {
 			return false
 		}
 	}
-	if !want.DepartureTime.IsZero() && !got.DepartureTime.IsZero() {
+	return true
+}
+
+// departureTimesCompatible compares departures using the origin airport's local
+// calendar day (not UTC midnight), then allows itineraryMatchTimeSlack of drift.
+func departureTimesCompatible(want, got CanonicalSegment) bool {
+	loc := AirportLocation(want.From)
+	wLocal := want.DepartureTime.In(loc)
+	gLocal := got.DepartureTime.In(loc)
+	if wLocal.Format("2006-01-02") != gLocal.Format("2006-01-02") {
+		// Overnight / TZ edge: allow matching UTC calendar day as a fallback.
 		if want.DepartureTime.UTC().Format("2006-01-02") != got.DepartureTime.UTC().Format("2006-01-02") {
 			return false
 		}
-		if depDiff := want.DepartureTime.Sub(got.DepartureTime); depDiff < -itineraryMatchTimeSlack || depDiff > itineraryMatchTimeSlack {
-			return false
-		}
+	}
+	depDiff := want.DepartureTime.Sub(got.DepartureTime)
+	if depDiff < -itineraryMatchTimeSlack || depDiff > itineraryMatchTimeSlack {
+		return false
 	}
 	return true
 }

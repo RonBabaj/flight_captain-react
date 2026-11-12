@@ -427,14 +427,30 @@ function legToSegment(leg, direction) {
   const from = leg.origin?.iata || leg.originPlaceId || leg.origin || leg.from || leg.fromCode;
   const to = leg.destination?.iata || leg.destinationPlaceId || leg.destination || leg.to || leg.toCode;
   if (!from || !to) return null;
+  const airline =
+    leg.marketingCarrier?.iata ||
+    leg.marketingCarrier?.code ||
+    leg.carrier?.iata ||
+    leg.carrier ||
+    leg.airlineCode ||
+    leg.airline;
+  // Prefer full designator when present — GF2 fingerprint match needs flight identity.
+  let flightNumber =
+    leg.marketingFlightNumber ||
+    leg.flightNumber ||
+    leg.marketingCarrier?.flightNumber ||
+    '';
+  if (flightNumber && airline && !String(flightNumber).toUpperCase().startsWith(String(airline).toUpperCase())) {
+    flightNumber = `${String(airline).toUpperCase()}${String(flightNumber).replace(/\D/g, '')}`;
+  }
   return segment({
     leg: direction,
     from: String(from).slice(-3).toUpperCase(),
     to: String(to).slice(-3).toUpperCase(),
-    departureTime: leg.departure || leg.departureTime,
-    arrivalTime: leg.arrival || leg.arrivalTime,
-    airline: leg.marketingCarrier?.iata || leg.carrier || leg.airlineCode,
-    flightNumber: leg.flightNumber,
+    departureTime: leg.departure || leg.departureTime || leg.departureDateTime,
+    arrivalTime: leg.arrival || leg.arrivalTime || leg.arrivalDateTime,
+    airline: airline ? String(airline).slice(0, 2).toUpperCase() : '',
+    flightNumber: flightNumber ? String(flightNumber) : '',
   });
 }
 
