@@ -133,6 +133,16 @@ func (r *Registry) GoogleFlights2() *GoogleFlights2Provider {
 	return gf
 }
 
+// OtaScraper returns the multisite scraper provider if enabled (partner-panel resolve).
+func (r *Registry) OtaScraper() *OtaScraperProvider {
+	p := r.Get("multisite")
+	if p == nil {
+		return nil
+	}
+	ota, _ := p.(*OtaScraperProvider)
+	return ota
+}
+
 func isFastProvider(name string) bool {
 	return strings.EqualFold(name, "googleflights2")
 }

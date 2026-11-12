@@ -13,7 +13,27 @@ function assert(cond: unknown, msg: string): void {
 }
 
 // Curated different cities must not share a photo.
-const curatedCities = ['PRG', 'BCN', 'ATH', 'LIS', 'DXB', 'ROM', 'AMS', 'BKK', 'ETH', 'AYT', 'PFO', 'HER', 'TBS', 'EVN'];
+const curatedCities = [
+  'PRG',
+  'BCN',
+  'ATH',
+  'LIS',
+  'DXB',
+  'ROM',
+  'AMS',
+  'BKK',
+  'ETH',
+  'AYT',
+  'PFO',
+  'HER',
+  'TBS',
+  'EVN',
+  'SZG',
+  'VIE',
+  'NAP',
+  'EDI',
+  'INN',
+];
 const curatedUrls = curatedCities.map((c) => resolveDestinationMood(c)?.imageUrl);
 assert(curatedUrls.every(Boolean), 'curated cities must resolve');
 assert(new Set(curatedUrls).size === curatedUrls.length, 'curated different cities must have unique images');

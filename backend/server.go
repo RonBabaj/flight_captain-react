@@ -233,6 +233,7 @@ type FlightOption struct {
 	PrimaryDisplayCarrier string           `json:"primaryDisplayCarrier,omitempty"` // main airline for UI/affiliate (marketing first)
 	Source                string           `json:"source,omitempty"`                // "googleflights2" | "kiwi" | …
 	DeepLink              string           `json:"deepLink,omitempty"`              // provider booking link when present
+	ListingURL            string           `json:"listingUrl,omitempty"`            // OTA listing URL for partner-panel resolve
 	BookingToken          string           `json:"bookingToken,omitempty"`          // GF2 booking_token; persisted for booking resolve
 	LegBookingTokens      []string         `json:"legBookingTokens,omitempty"`      // per-leg GF2 tokens for split/open-jaw itineraries
 	LegDeepLinks          []string         `json:"legDeepLinks,omitempty"`          // per-leg partner checkout URLs for split/open-jaw
@@ -275,6 +276,7 @@ var (
 	sessions               = make(map[string]SearchSessionResultsResponse)
 	sessionsMu             sync.Mutex
 	googleFlights2Provider *search.GoogleFlights2Provider
+	otaScraperProvider     *search.OtaScraperProvider
 	flightProviderRegistry *search.Registry
 )
 
@@ -1486,6 +1488,7 @@ func providerResultsToFlightOptions(prs []search.ProviderResult) []FlightOption 
 			PrimaryDisplayCarrier: pr.PrimaryDisplayCarrier,
 			Source:                pr.Source,
 			DeepLink:              pr.DeepLink,
+			ListingURL:            pr.ListingURL,
 			BookingToken:          pr.BookingToken,
 			LegBookingTokens:      append([]string(nil), pr.LegBookingTokens...),
 			LegDeepLinks:          append([]string(nil), pr.LegDeepLinks...),
@@ -3029,8 +3032,10 @@ func main() {
 
 	flightProviderRegistry = search.NewRegistryFromEnv()
 	googleFlights2Provider = nil
+	otaScraperProvider = nil
 	if flightProviderRegistry != nil {
 		googleFlights2Provider = flightProviderRegistry.GoogleFlights2()
+		otaScraperProvider = flightProviderRegistry.OtaScraper()
 	}
 	if flightProviderRegistry != nil && flightProviderRegistry.HasAny() {
 		log.Printf("[STARTUP] flight providers enabled: %s", strings.Join(flightProviderRegistry.Names(), ", "))

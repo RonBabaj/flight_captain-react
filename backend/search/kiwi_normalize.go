@@ -60,9 +60,10 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 	if currency == "" {
 		currency = "USD"
 	}
-	deepLink := firstString(item, "bookingUrl", "booking_url", "deepLink", "deep_link", "url", "link")
-	// Meta-search listing URLs are not seller checkout. Clear them so Book uses the
-	// same GF2 fingerprint → booking_token → partner checkout pipeline as GF2 rows.
+	rawListingURL := firstString(item, "bookingUrl", "booking_url", "deepLink", "deep_link", "url", "link")
+	deepLink := rawListingURL
+	// Meta-search / OTA listing URLs are not seller checkout. Clear them so Book uses
+	// OTA partner-panel resolve (or GF2 token path) instead of opening a results page.
 	if deepLink != "" && !isLikelyPartnerCheckoutURL(deepLink) {
 		deepLink = ""
 	}
@@ -91,6 +92,9 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 		primary = carriers[0]
 	}
 	meta := map[string]interface{}{}
+	if rawListingURL != "" {
+		meta["listingUrl"] = rawListingURL
+	}
 	if v, ok := item["priceEur"]; ok {
 		meta["priceEur"] = v
 	}
@@ -114,6 +118,7 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 		PrimaryDisplayCarrier: primary,
 		Source:                source,
 		DeepLink:              deepLink,
+		ListingURL:            strings.TrimSpace(rawListingURL),
 		VendorName:            vendor,
 		SelfTransfer:          selfTransfer,
 		FetchedAt:             fetchedAt,

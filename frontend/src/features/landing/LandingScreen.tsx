@@ -20,7 +20,7 @@ import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
 import { useBreakpoint } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
+import { AIRPORT_FALLBACK_IMAGE, LANDING_MOOD_DESTINATIONS } from '../../data/destinationMood';
 import { getAirportEntry, getCityDisplayName } from '../../data/airports';
 import { setCachedSearch } from '../../utils/searchCache';
 import { updateSearchUrl } from '../../hooks/useSearchParams';
@@ -28,6 +28,25 @@ import { updateSearchUrl } from '../../hooks/useSearchParams';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const MAX_CONTENT = 1040;
+
+function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
+  const [src, setSrc] = useState(uri);
+  useEffect(() => {
+    setSrc(uri);
+  }, [uri]);
+  return (
+    <Image
+      source={{ uri: src }}
+      style={StyleSheet.absoluteFillObject}
+      resizeMode="cover"
+      accessibilityLabel={label}
+      accessible
+      onError={() => {
+        setSrc((cur) => (cur === AIRPORT_FALLBACK_IMAGE ? cur : AIRPORT_FALLBACK_IMAGE));
+      }}
+    />
+  );
+}
 
 export function LandingScreen() {
   const { theme } = useTheme();
@@ -237,13 +256,7 @@ export function LandingScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('landing_mood_go').replace('{city}', label)}
               >
-                <Image
-                  source={{ uri: mood.imageUrl }}
-                  style={StyleSheet.absoluteFillObject}
-                  resizeMode="cover"
-                  accessibilityLabel={label}
-                  accessible
-                />
+                <LandingMoodImage uri={mood.imageUrl} label={label} />
                 <View style={styles.moodScrim} />
                 <Text style={[styles.moodLabel, { fontFamily: theme.fontDisplay }]} numberOfLines={1}>
                   {label}

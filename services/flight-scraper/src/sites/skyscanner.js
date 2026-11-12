@@ -489,4 +489,8 @@ module.exports = {
   skyscannerUrl,
   urlMissingSearchDates,
   flightsSegmentForHost,
+  preferUsCulture,
+  trySolvePerimeterX,
+  ensureDatedResultsUrl,
+  parsePriceText,
 };

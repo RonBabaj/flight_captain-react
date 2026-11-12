@@ -393,6 +393,7 @@ type ProviderResult struct {
 	PrimaryDisplayCarrier string
 	Source                string // "googleflights2" | "kiwi" | future providers
 	DeepLink              string // booking URL if present
+	ListingURL            string // OTA results/listing URL used to open partner panel on Book
 	BookingToken          string // GF2 booking_token for partner checkout resolution
 	LegBookingTokens      []string // per-leg GF2 tokens after open-jaw OW combine (parallel to Legs)
 	LegDeepLinks          []string // per-leg partner checkout URLs (parallel to Legs)

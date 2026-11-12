@@ -2082,7 +2082,34 @@ func isLikelyPartnerCheckoutURL(u string) bool {
 	if isMetaSearchAggregatorURL(s) {
 		return false
 	}
+	// OTA results listings (Kiwi search page, Expedia search) are not checkout either.
+	if isOtaResultsListingURL(s) {
+		return false
+	}
 	return true
+}
+
+// isOtaResultsListingURL is true for Kiwi/Expedia search-results pages that are not
+// a seller booking handoff (contrast: kiwi.com/.../booking?token=…).
+func isOtaResultsListingURL(u string) bool {
+	s := strings.ToLower(strings.TrimSpace(u))
+	if s == "" {
+		return false
+	}
+	parsed, err := url.Parse(s)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
+	path := strings.ToLower(parsed.Path)
+	if strings.Contains(host, "kiwi.com") && strings.Contains(path, "/search/results") {
+		return true
+	}
+	if strings.Contains(host, "expedia.") &&
+		(strings.Contains(path, "/flights-search") || strings.Contains(path, "/flight-search") || strings.Contains(path, "/flightssearch")) {
+		return true
+	}
+	return false
 }
 
 func isMetaSearchAggregatorURL(u string) bool {

@@ -165,7 +165,10 @@ function moodFromPool(key: string, labelEn: string): DestinationMood {
   };
 }
 
-const FALLBACK_IMAGE = unsplash('photo-1436491865332-7a61a109cc05');
+/** Stock airport / air-travel still — used when a destination photo fails to load. */
+export const AIRPORT_FALLBACK_IMAGE = unsplash('photo-1436491865332-7a61a109cc05');
+
+const FALLBACK_IMAGE = AIRPORT_FALLBACK_IMAGE;
 
 /** Popular airport/city codes → mood stills. */
 const BY_CODE: Record<string, DestinationMood> = {
@@ -415,6 +418,120 @@ const BY_CODE: Record<string, DestinationMood> = {
     labelEn: 'Yerevan',
     imageUrl: unsplash('photo-1605649487212-47bdab064df7'),
   },
+  SZG: {
+    labelEn: 'Salzburg',
+    // Fortress / Alpine old-town mood (distinct from Vienna).
+    imageUrl: unsplash('photo-1571896349842-33c89424de2d'),
+    accent: '#163A5F',
+  },
+  INN: {
+    labelEn: 'Innsbruck',
+    imageUrl: unsplash('photo-1488646953014-85cb44e25828'),
+  },
+  GRZ: {
+    labelEn: 'Graz',
+    imageUrl: unsplash('photo-1469854523086-cc02fe5d8800'),
+  },
+  SOF: {
+    labelEn: 'Sofia',
+    imageUrl: unsplash('photo-1500835556837-99ac94a94552'),
+  },
+  BEG: {
+    labelEn: 'Belgrade',
+    imageUrl: unsplash('photo-1469474968028-56623f02e42e'),
+  },
+  ZAG: {
+    labelEn: 'Zagreb',
+    imageUrl: unsplash('photo-1441974231531-c6227db76b6e'),
+  },
+  LJU: {
+    labelEn: 'Ljubljana',
+    imageUrl: unsplash('photo-1470071459604-3b5ec3a7fe05'),
+  },
+  RIX: {
+    labelEn: 'Riga',
+    imageUrl: unsplash('photo-1447752875215-b2761acb3c5d'),
+  },
+  TLL: {
+    labelEn: 'Tallinn',
+    imageUrl: unsplash('photo-1501854140801-50d01698950b'),
+  },
+  HEL: {
+    labelEn: 'Helsinki',
+    imageUrl: unsplash('photo-1519904981063-b0cf448d479e'),
+  },
+  OSL: {
+    labelEn: 'Oslo',
+    imageUrl: unsplash('photo-1472214103451-9374bd1c798e'),
+  },
+  ARN: {
+    labelEn: 'Stockholm',
+    imageUrl: unsplash('photo-1418065460487-3e41a6c84dc5'),
+  },
+  STO: {
+    labelEn: 'Stockholm',
+    imageUrl: unsplash('photo-1418065460487-3e41a6c84dc5'),
+  },
+  GOT: {
+    labelEn: 'Gothenburg',
+    imageUrl: unsplash('photo-1449824913935-59a10b8d2000'),
+  },
+  EDI: {
+    labelEn: 'Edinburgh',
+    imageUrl: unsplash('photo-1444724819723-adc133e05c60'),
+  },
+  MAN: {
+    labelEn: 'Manchester',
+    imageUrl: unsplash('photo-1493246507139-91e8fad9978e'),
+  },
+  BRU: {
+    labelEn: 'Brussels',
+    imageUrl: unsplash('photo-1519681393784-d120267933ba'),
+  },
+  VNO: {
+    labelEn: 'Vilnius',
+    imageUrl: unsplash('photo-1520250497591-112f2f40a3f4'),
+  },
+  KIV: {
+    labelEn: 'Chisinau',
+    imageUrl: unsplash('photo-1566073771259-6a8506099945'),
+  },
+  BUS: {
+    labelEn: 'Batumi',
+    imageUrl: unsplash('photo-1542314831-068cd1dbfeeb'),
+  },
+  ADB: {
+    labelEn: 'Izmir',
+    imageUrl: unsplash('photo-1551882547-ff40c63fe5fa'),
+  },
+  NAP: {
+    labelEn: 'Naples',
+    imageUrl: unsplash('photo-1564501049412-61c2a3083791'),
+  },
+  FLR: {
+    labelEn: 'Florence',
+    imageUrl: unsplash('photo-1549294413-26f195200c16'),
+  },
+  FAO: {
+    labelEn: 'Faro',
+    imageUrl: unsplash('photo-1571003123894-1f0594d2b5d9'),
+  },
+  OPO: {
+    labelEn: 'Porto',
+    imageUrl: unsplash('photo-1582719478250-c89cae4dc85b'),
+  },
+  AGP: {
+    labelEn: 'Malaga',
+    imageUrl: unsplash('photo-1568084680786-a84f91d1153c'),
+  },
+  PMI: {
+    labelEn: 'Palma',
+    imageUrl: unsplash('photo-1551632436-cbf8dd35adfa'),
+  },
+  ALC: {
+    labelEn: 'Alicante',
+    imageUrl: unsplash('photo-1519046904884-53103b34b206'),
+  },
 };
 
 /** ISO country → mood (for country destinations like FR / IT). */
@@ -455,10 +572,14 @@ export const LANDING_MOOD_DESTINATIONS: { code: string; mood: DestinationMood }[
   { code: 'BCN', mood: BY_CODE.BCN },
   { code: 'ATH', mood: BY_CODE.ATH },
   { code: 'LIS', mood: BY_CODE.LIS },
+  { code: 'SZG', mood: BY_CODE.SZG },
+  { code: 'VIE', mood: BY_CODE.VIE },
   { code: 'DXB', mood: BY_CODE.DXB },
   { code: 'ROM', mood: BY_CODE.ROM },
   { code: 'AMS', mood: BY_CODE.AMS },
   { code: 'BKK', mood: BY_CODE.BKK },
+  { code: 'NAP', mood: BY_CODE.NAP },
+  { code: 'EDI', mood: BY_CODE.EDI },
 ];
 
 /**
