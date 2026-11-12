@@ -26,3 +26,15 @@ export function resolveAirlineLabel(
   if (name) return name;
   return (code || '').trim();
 }
+
+/** Filter checkbox label: "Air Europa (UX)" when resolved, else the raw code. */
+export function formatAirlineFilterLabel(
+  code?: string | null,
+  providerName?: string | null,
+): string {
+  const raw = (code || '').trim().toUpperCase();
+  if (!raw) return providerName?.trim() || '';
+  const name = resolveAirlineLabel(raw, providerName);
+  if (!name || name.toUpperCase() === raw) return raw;
+  return `${name} (${raw})`;
+}

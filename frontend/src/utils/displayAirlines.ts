@@ -30,7 +30,7 @@ export function hasMultipleAirlines(option?: FlightOption | null): boolean {
   return distinctMarketingCarriers(option).length > 1;
 }
 
-function providerNameForCode(option: FlightOption | null | undefined, code: string): string | undefined {
+export function providerNameForCode(option: FlightOption | null | undefined, code: string): string | undefined {
   const want = code.toUpperCase();
   for (const leg of option?.legs ?? []) {
     for (const seg of leg.segments ?? []) {

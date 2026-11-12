@@ -1,8 +1,8 @@
 {
   "backend/affiliate.go": {
-    "mtime": 1794479800.2911923,
-    "seen": 1794480271.5798557,
-    "ast_hash": "1fbefa589b64d71a2a10ddad717910e9",
+    "mtime": 1794487880.4596498,
+    "seen": 1794487888.2033162,
+    "ast_hash": "cdabae18f0a4b7fd5e4265f76704a615",
     "semantic_hash": ""
   },
   "backend/canonical.go": {
@@ -312,15 +312,15 @@
     "semantic_hash": ""
   },
   "frontend/src/data/airlines.ts": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.5079699,
-    "ast_hash": "c3e5dcccca47e2280220541750389204",
+    "mtime": 1794488007.1426451,
+    "seen": 1794488047.866344,
+    "ast_hash": "2602ad81221c5f77fc23fd92a68166cb",
     "semantic_hash": ""
   },
   "frontend/src/data/airlinesFull.ts": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.5079706,
-    "ast_hash": "a09b99ac9bfde5942d975d4eb5e75c56",
+    "mtime": 1794488004.6586647,
+    "seen": 1794488047.8663452,
+    "ast_hash": "85b1a40b70316645aa66b6eec6b33647",
     "semantic_hash": ""
   },
   "frontend/src/data/airports.ts": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FiltersPanel.tsx": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.507994,
-    "ast_hash": "3efdd8425627cc6cf769468ee9f69057",
+    "mtime": 1794488035.498422,
+    "seen": 1794488047.866368,
+    "ast_hash": "81c6148fde4f7c6471868e74affa9f43",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1794478471.9970903,
-    "seen": 1794478533.6114895,
-    "ast_hash": "d2c10487dde121273f678d5ea70b0a25",
+    "mtime": 1794487762.1366017,
+    "seen": 1794487888.2034752,
+    "ast_hash": "3a8ea229b897b4fb6dc2d402a730f0c2",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1794478463.241197,
-    "seen": 1794478533.6114979,
-    "ast_hash": "50a20264f34a15d6281891629eca85db",
+    "mtime": 1794488038.3223996,
+    "seen": 1794488047.8663828,
+    "ast_hash": "7f4ce84ddb3d1358f9f09808f75649ac",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -1044,9 +1044,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchProgressBanner.tsx": {
-    "mtime": 1794474765.629196,
-    "seen": 1794474778.8931773,
-    "ast_hash": "76718d18a001f0ad0d97ac84a3bcfa5f",
+    "mtime": 1794487739.7087836,
+    "seen": 1794487888.203433,
+    "ast_hash": "d8296ac782df7af1a8944e9bd06303f7",
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchSubmitButton.tsx": {
@@ -1230,9 +1230,9 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/displayAirlines.ts": {
-    "mtime": 1794373082.5897357,
-    "seen": 1794373545.5080366,
-    "ast_hash": "625c5acaae8c3bb3c1f429a212e452f9",
+    "mtime": 1794488028.5984762,
+    "seen": 1794488047.8664145,
+    "ast_hash": "326d9489a994528afdabee82833fe15a",
     "semantic_hash": ""
   },
   "frontend/src/utils/legSummary.ts": {
@@ -1284,9 +1284,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1794484731.3495622,
-    "seen": 1794485084.3624885,
-    "ast_hash": "79916dba12ea824ae278f2b37c978fba",
+    "mtime": 1794487841.7799594,
+    "seen": 1794487888.2035058,
+    "ast_hash": "75595836fbaf0ed17f891279acbc3edb",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
@@ -1839,6 +1839,24 @@
     "mtime": 1794484728.333585,
     "seen": 1794485084.362296,
     "ast_hash": "b3ee1232a2e4de5eaf289da2d2aa4f26",
+    "semantic_hash": ""
+  },
+  "backend/affiliate_wizz_url_test.go": {
+    "mtime": 1794487865.41577,
+    "seen": 1794487888.2033186,
+    "ast_hash": "98056e12439cdb4336c3018d638c0103",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/search/searchProgressRatio.test.ts": {
+    "mtime": 1794487756.1166503,
+    "seen": 1794487888.2034376,
+    "ast_hash": "c18b966c9e814718afd1c76cd53af054",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/search/searchProgressRatio.ts": {
+    "mtime": 1794487705.1930652,
+    "seen": 1794487888.2034385,
+    "ast_hash": "73ea87c162e09e69f242625b837727be",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {
