@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"flightcaptainweb/search"
 )
 
 const (
@@ -107,6 +109,30 @@ func init() {
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://booking.elal.com/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
 		},
+		"6H": {
+			Code:   "6H",
+			Name:   "Israir",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://booking.israir.co.il/en/booking/flights?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
+		},
+		"W4": {
+			Code:   "W4",
+			Name:   "Wizz Air Malta",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.wizzair.com/#/booking/select-flight/{origin}/{destination}/{departureDate}/null/1/0/0/0/null",
+		},
+		"W6": {
+			Code:   "W6",
+			Name:   "Wizz Air",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.wizzair.com/#/booking/select-flight/{origin}/{destination}/{departureDate}/null/1/0/0/0/null",
+		},
+		"U8": {
+			Code:   "U8",
+			Name:   "Tus Airways",
+			Type:   ProviderTypeAirline,
+			URLTpl: "https://www.tusairways.com/",
+		},
 		"UA": {
 			Code:   "UA",
 			Name:   "United Airlines",
@@ -181,9 +207,9 @@ func ResolveProvider(option *FlightOption) *Provider {
 	if option == nil {
 		return getOTAProvider()
 	}
-	carrierCode := strings.ToUpper(option.PrimaryDisplayCarrier)
+	carrierCode := search.LookupAirlineIATA(option.PrimaryDisplayCarrier)
 	if carrierCode == "" && len(option.Legs) > 0 && len(option.Legs[0].Segments) > 0 {
-		carrierCode = strings.ToUpper(option.Legs[0].Segments[0].MarketingCarrier.Code)
+		carrierCode = search.LookupAirlineIATA(option.Legs[0].Segments[0].MarketingCarrier.Code)
 	}
 	if carrierCode == "" {
 		return getOTAProvider()

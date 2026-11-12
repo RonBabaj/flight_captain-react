@@ -31,7 +31,12 @@ func flattenKiwiItems(v interface{}) []map[string]interface{} {
 	return nil
 }
 
-// parseOtaOffers normalizes multisite scraper offer rows (Kiwi / Skyscanner / Expedia) into ProviderResult.
+// ParseOtaOffers normalizes multisite scraper offer rows (Kiwi / Skyscanner / Expedia) into ProviderResult.
+// Exported for production-shape booking resolve tests.
+func ParseOtaOffers(items []map[string]interface{}, req SearchRequest, source string) []ProviderResult {
+	return parseOtaOffers(items, req, source)
+}
+
 func parseOtaOffers(items []map[string]interface{}, req SearchRequest, source string) []ProviderResult {
 	if source == "" {
 		source = "kiwi"
@@ -299,6 +304,13 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 	}
 	flightNum := firstString(s, "flightNumber", "flight_no", "flightNo", "number")
 	opFlightNum := firstString(s, "operatingFlightNumber", "operating_flight_number")
+	// Scraped OTA cards often send display names ("Israir", "Wizz Air Malta") —
+	// normalize to IATA so GF2 rematch + airline-direct templates can work.
+	carrierCode, flightNum, carrierName := gf2NormalizeSegmentIdentity(carrier, flightNum)
+	var operatingName string
+	if operating != "" {
+		operating, opFlightNum, operatingName = gf2NormalizeSegmentIdentity(operating, opFlightNum)
+	}
 	dur := int(firstFloat(s, "durationMinutes"))
 	if dur <= 0 {
 		if h := firstFloat(s, "durationHours", "duration"); h > 0 {
@@ -330,8 +342,10 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 		To:                    strings.ToUpper(to),
 		DepartureTime:         dep,
 		ArrivalTime:           arr,
-		MarketingCarrier:      strings.ToUpper(carrier),
-		OperatingCarrier:      strings.ToUpper(operating),
+		MarketingCarrier:      carrierCode,
+		MarketingCarrierName:  carrierName,
+		OperatingCarrier:      strings.ToUpper(strings.TrimSpace(operating)),
+		OperatingCarrierName:  operatingName,
 		FlightNumber:          flightNum,
 		OperatingFlightNumber: opFlightNum,
 		DurationMinutes:       dur,
