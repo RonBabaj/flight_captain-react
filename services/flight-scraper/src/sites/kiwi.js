@@ -230,6 +230,9 @@ async function scrapeKiwi(req, config) {
             airline: row.airline || undefined,
           });
           if (!segments.length) return null;
+          // DOM cards often collapse connections into one TLV→BCN hop with
+          // origin-dep / final-arr clocks (~9h "direct"). Honor StopCountBadge.
+          const stopHint = parseKiwiStopBadge(row.stopBadge);
           return offerTemplate({
             origin: req.origin,
             destination: req.destination,
@@ -237,6 +240,8 @@ async function scrapeKiwi(req, config) {
             currency: req.currency || 'USD',
             bookingUrl: row.bookingUrl,
             segments,
+            selfTransfer: stopHint > 0,
+            stopsHint: stopHint > 0 ? stopHint : undefined,
           });
         })
         .filter(Boolean);
@@ -416,6 +421,17 @@ function mapRouteSeg(s) {
   };
 }
 
+/** Parse Kiwi ResultCard StopCountBadge text → stop count (0 = direct). */
+function parseKiwiStopBadge(badge) {
+  const s = String(badge || '').toLowerCase().trim();
+  if (!s) return 0;
+  if (/direct|non[\s-]?stop|0\s*stops?/.test(s)) return 0;
+  const m = s.match(/(\d+)\s*stops?/);
+  if (m) return Math.max(0, parseInt(m[1], 10) || 0);
+  if (/stop/.test(s)) return 1;
+  return 0;
+}
+
 function pickString(obj, keys) {
   for (const k of keys) {
     if (obj[k] && typeof obj[k] === 'string') return obj[k];
@@ -439,4 +455,4 @@ function pickNumber(obj, keys) {
   return 0;
 }
 
-module.exports = { scrapeKiwi, kiwiSearchUrl, ensureKiwiResultsUrl };
+module.exports = { scrapeKiwi, kiwiSearchUrl, ensureKiwiResultsUrl, parseKiwiStopBadge };

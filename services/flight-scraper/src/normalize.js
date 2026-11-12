@@ -2,7 +2,7 @@
 
 /** Canonical offer shape consumed by flyfix-api (Go parseOtaOffers). */
 function offerTemplate(params) {
-  return {
+  const out = {
     originCode: params.origin,
     destinationCode: params.destination,
     price: params.price,
@@ -12,6 +12,10 @@ function offerTemplate(params) {
     selfTransfer: !!params.selfTransfer,
     segments: params.segments || [],
   };
+  if (params.stopsHint != null && params.stopsHint > 0) {
+    out.stopsHint = params.stopsHint;
+  }
+  return out;
 }
 
 function segment(params) {

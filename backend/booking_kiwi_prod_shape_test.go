@@ -139,18 +139,24 @@ func TestRunBookingMatch_prodShapeKiwiIsrairGetsAirlinePrefill(t *testing.T) {
 	fp := search.CanonicalItineraryFingerprint(it)
 	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
 	if !resp.Found || resp.Offer == nil {
-		t.Fatalf("expected airline prefill for Israir Kiwi fare, got found=%v status=%s msg=%s", resp.Found, resp.Status, resp.Message)
+		t.Fatalf("expected Kiwi listing for Israir Kiwi fare, got found=%v status=%s msg=%s", resp.Found, resp.Status, resp.Message)
 	}
-	if !strings.Contains(strings.ToLower(resp.Offer.URL), "israir") {
-		t.Fatalf("expected Israir booking URL, got %q", resp.Offer.URL)
+	if !strings.Contains(strings.ToLower(resp.Offer.URL), "kiwi.com") {
+		t.Fatalf("expected Kiwi listing URL, got %q", resp.Offer.URL)
 	}
-	if !isAffiliateTemplateBookingURL(resp.Offer.URL) {
-		t.Fatalf("expected airline template URL, got %q", resp.Offer.URL)
+	if resp.Offer.PriceLabel != "search_prefill" {
+		t.Fatalf("priceLabel=%q want search_prefill", resp.Offer.PriceLabel)
+	}
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "israir") {
+		t.Fatalf("expected Israir airline secondary, got %+v", resp.AirlineDirect)
+	}
+	if resp.AirlineDirect.PriceLabel != "airline_direct_prefill" {
+		t.Fatalf("airlineDirect.priceLabel=%q", resp.AirlineDirect.PriceLabel)
 	}
 }
 
 // HTTP path shaped like live sess_dmt5sgj985sc / opt_10: empty OTA panel + no web search
-// must still return a verified Israir airline prefill (prod currently returns not_found).
+// must open the Kiwi listing (where the fare was shown) with Israir airline as secondary.
 func TestHandleBookingResolve_prodShapeKiwiIsrairHTTP(t *testing.T) {
 	oldGF2 := bookingGF2OffersResolver
 	oldOTA := bookingOTAOffersResolver
@@ -200,12 +206,83 @@ func TestHandleBookingResolve_prodShapeKiwiIsrairHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.Found || out.Status != BookingResolveVerified || out.Offer == nil {
-		t.Fatalf("expected verified Israir prefill, got found=%v status=%s msg=%s body=%s", out.Found, out.Status, out.Message, rec.Body.String())
+		t.Fatalf("expected verified Kiwi listing, got found=%v status=%s msg=%s body=%s", out.Found, out.Status, out.Message, rec.Body.String())
 	}
-	if !strings.Contains(strings.ToLower(out.Offer.URL), "israir") {
-		t.Fatalf("expected Israir URL, got %q", out.Offer.URL)
+	if !strings.Contains(strings.ToLower(out.Offer.URL), "kiwi.com") {
+		t.Fatalf("expected Kiwi listing URL, got %q", out.Offer.URL)
 	}
-	if out.Offer.PriceLabel != "airline_direct_prefill" {
-		t.Fatalf("priceLabel=%q want airline_direct_prefill", out.Offer.PriceLabel)
+	if out.Offer.PriceLabel != "search_prefill" {
+		t.Fatalf("priceLabel=%q want search_prefill", out.Offer.PriceLabel)
+	}
+	if out.AirlineDirect == nil || !strings.Contains(strings.ToLower(out.AirlineDirect.URL), "israir") {
+		t.Fatalf("expected Israir airline secondary, got %+v", out.AirlineDirect)
+	}
+}
+
+// Live Wizz-on-Kiwi shape: airline calendar often has no flights that day. Prefer Kiwi listing.
+func TestRunBookingMatch_kiwiWizzPrefersListingOverAirlineCalendar(t *testing.T) {
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	depOut := time.Date(2026, 11, 28, 8, 50, 0, 0, time.FixedZone("IST", 2*3600))
+	arrOut := time.Date(2026, 11, 28, 16, 45, 0, 0, time.FixedZone("CET", 1*3600))
+	depIn := time.Date(2026, 11, 30, 22, 0, 0, 0, time.FixedZone("CET", 1*3600))
+	arrIn := time.Date(2026, 12, 1, 8, 10, 0, 0, time.FixedZone("IST", 2*3600))
+	opt := &FlightOption{
+		ID:                    "opt_0",
+		Source:                "kiwi",
+		VendorName:            "Kiwi.com",
+		PrimaryDisplayCarrier: "W4",
+		Price:                 MonetaryAmount{Currency: "USD", Amount: 229},
+		ListingURL:            "https://www.kiwi.com/en/search/results/tel-aviv-israel/barcelona-spain/2026-11-28/2026-11-30/",
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "BCN"},
+				DepartureTime: depOut, ArrivalTime: arrOut,
+				MarketingCarrier: Carrier{Code: "W4"},
+				DurationMinutes:  535, CabinClass: "ECONOMY",
+			}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "BCN"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: depIn, ArrivalTime: arrIn,
+				MarketingCarrier: Carrier{Code: "W4"},
+				DurationMinutes:  550, CabinClass: "ECONOMY",
+			}}},
+		},
+	}
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "BCN",
+		DepartureDate: "2026-11-28", ReturnDate: "2026-11-30",
+		Adults: 1, Currency: "USD",
+	}}
+	it, err := canonicalItineraryForOption(opt, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected Kiwi listing, got found=%v status=%s", resp.Found, resp.Status)
+	}
+	if !strings.Contains(strings.ToLower(resp.Offer.URL), "kiwi.com") {
+		t.Fatalf("primary should be Kiwi listing, got %q", resp.Offer.URL)
+	}
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "wizzair.com") {
+		t.Fatalf("expected Wizz secondary prefill, got %+v", resp.AirlineDirect)
 	}
 }
