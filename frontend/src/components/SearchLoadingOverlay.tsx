@@ -1,14 +1,14 @@
 /**
  * SearchLoadingOverlay
- * Full-screen loading state shown while a new search session is being created.
- * Cycles through friendly status phrases so the user knows work is in progress.
+ * Full-screen loading state shown while a new search session is being created
+ * (form screens). Results uses structure-preview skeleton cards instead.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { getPhrasesForLanguage, SEARCH_PROGRESS_PHRASES } from './search/searchLoadingPhrases';
-import { LoadingCubePreview, LoadingCubePulse } from './search/LoadingCubePreview';
+import { AppIcon } from './AppIcon';
 
 interface ExtraLeg {
   origin?: string;
@@ -20,8 +20,7 @@ interface Props {
   visible: boolean;
   /**
    * `fullscreen` — absoluteFill over a form/screen (SearchForm).
-   * `inline` — flex-fill inside Results list area (must not use absoluteFill or
-   * the parent collapses / content can sit under opacity:0 ancestors invisibly).
+   * `inline` — flex-fill inside a list area (kept for deals/explore).
    */
   variant?: 'fullscreen' | 'inline';
   /** Origin and destination codes for the sub-title */
@@ -67,7 +66,7 @@ export function SearchLoadingOverlay({
     };
     const id = setInterval(cycle, 2200);
     return () => clearInterval(id);
-  }, [visible, phrases.length]);
+  }, [visible, phrases.length, fadeAnim]);
 
   if (!visible) return null;
 
@@ -105,11 +104,19 @@ export function SearchLoadingOverlay({
       accessibilityRole="progressbar"
       accessibilityLabel={phrases[phraseIdx] || 'Loading'}
     >
-      <LoadingCubePulse>
-        <LoadingCubePreview size={68} />
-      </LoadingCubePulse>
+      <View style={s.mark}>
+        <AppIcon name="airplane-outline" size={36} color={theme.primary} fallbackText="" />
+        <ActivityIndicator
+          size="small"
+          color={theme.primary}
+          style={s.spinner}
+          accessibilityElementsHidden
+        />
+      </View>
       {route ? (
-        <Text style={[s.route, { color: theme.text }]} numberOfLines={3}>{route}</Text>
+        <Text style={[s.route, { color: theme.text }]} numberOfLines={3}>
+          {route}
+        </Text>
       ) : null}
       <Animated.Text style={[s.phrase, { color: theme.textMuted, opacity: fadeAnim }]}>
         {phrases[phraseIdx]}
@@ -135,6 +142,13 @@ const s = StyleSheet.create({
     gap: 14,
     paddingVertical: 32,
   },
+  mark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  spinner: { marginTop: 2 },
   route: { fontSize: 20, fontWeight: '700', letterSpacing: 0.3 },
   phrase: { fontSize: 15, textAlign: 'center', paddingHorizontal: 32 },
 });
