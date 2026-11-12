@@ -7,14 +7,18 @@ import (
 	"time"
 )
 
-func TestBookingLinkModeDefaultsToGoogle(t *testing.T) {
+func TestBookingLinkModeDefaultsToSkyscanner(t *testing.T) {
 	_ = os.Unsetenv("BOOKING_LINK_MODE")
-	if got := bookingLinkMode(); got != BookingModeGooglePrefill {
+	if got := bookingLinkMode(); got != BookingModeSkyscannerPrefill {
 		t.Fatalf("got %q", got)
 	}
 	t.Setenv("BOOKING_LINK_MODE", "skyscanner")
 	if got := bookingLinkMode(); got != BookingModeSkyscannerPrefill {
 		t.Fatalf("alias got %q", got)
+	}
+	t.Setenv("BOOKING_LINK_MODE", "google")
+	if got := bookingLinkMode(); got != BookingModeGooglePrefill {
+		t.Fatalf("google alias got %q", got)
 	}
 	t.Setenv("BOOKING_LINK_MODE", "direct")
 	if got := bookingLinkMode(); got != BookingModeDirectProvider {
@@ -147,18 +151,20 @@ func TestBookingRouteFromSessionOption_splitOmitsReturn(t *testing.T) {
 }
 
 func TestBuildOneWayLegBookingURL(t *testing.T) {
+	_ = os.Unsetenv("BOOKING_LINK_MODE")
 	opt := openJawOption()
 	out := BuildOneWayLegBookingURL(nil, opt, 0)
-	if !strings.Contains(out, "google.com/travel/flights") || !strings.Contains(out, "TLV") || !strings.Contains(out, "VIE") {
-		t.Fatalf("outbound hop should be Google Flights prefill, got %q", out)
+	if !strings.Contains(out, "skyscanner.") || !strings.Contains(out, "/tlv/") || !strings.Contains(out, "/vie/") {
+		t.Fatalf("outbound hop should be Skyscanner prefill, got %q", out)
 	}
 	inb := BuildOneWayLegBookingURL(nil, opt, 1)
-	if !strings.Contains(inb, "google.com/travel/flights") || !strings.Contains(inb, "MUC") || !strings.Contains(inb, "TLV") {
-		t.Fatalf("return hop should be Google Flights one-way, got %q", inb)
+	if !strings.Contains(inb, "skyscanner.") || !strings.Contains(inb, "/muc/") || !strings.Contains(inb, "/tlv/") {
+		t.Fatalf("return hop should be Skyscanner one-way, got %q", inb)
 	}
 }
 
 func TestBuildLegOrSegmentBookingURL_segment(t *testing.T) {
+	_ = os.Unsetenv("BOOKING_LINK_MODE")
 	depOut := time.Date(2027, 1, 7, 18, 20, 0, 0, time.UTC)
 	opt := &FlightOption{
 		Legs: []FlightLeg{{
@@ -169,11 +175,13 @@ func TestBuildLegOrSegmentBookingURL_segment(t *testing.T) {
 		}},
 	}
 	u := buildLegOrSegmentBookingURL(nil, opt, 0, 0)
-	if !strings.Contains(u, "google.com/travel/flights") || !strings.Contains(u, "TLV") || !strings.Contains(u, "ZRH") {
+	if !strings.Contains(u, "skyscanner.") || !strings.Contains(u, "/tlv/") || !strings.Contains(u, "/zrh/") {
 		t.Fatalf("segment prefill %q", u)
 	}
-	if !strings.Contains(u, "LY") {
-		t.Fatalf("segment prefill should include carrier: %q", u)
+	t.Setenv("BOOKING_LINK_MODE", "google_prefill")
+	gu := buildLegOrSegmentBookingURL(nil, opt, 0, 0)
+	if !strings.Contains(gu, "google.com/travel/flights") || !strings.Contains(gu, "LY") {
+		t.Fatalf("google segment prefill should include carrier: %q", gu)
 	}
 }
 

@@ -963,10 +963,20 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'פותח חיפוש טיסות עם נתונים מוכנים',
     ru: 'Откроется поиск с заполненными параметрами',
   },
+  search_prefill_skyscanner_hint: {
+    en: 'Opens Skyscanner with your route prefilled — pick this flight and verify the fare',
+    he: 'פותח את Skyscanner עם המסלול — בחרו את הטיסה ואמתו את המחיר',
+    ru: 'Откроет Skyscanner с вашим маршрутом — выберите рейс и проверьте цену',
+  },
   open_flight_search: {
     en: 'Search flights',
     he: 'חפש טיסות',
     ru: 'Искать рейсы',
+  },
+  open_skyscanner_search: {
+    en: 'Open on Skyscanner',
+    he: 'פתח ב־Skyscanner',
+    ru: 'Открыть на Skyscanner',
   },
   positioning_split_hint: {
     en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',

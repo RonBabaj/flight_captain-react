@@ -125,8 +125,8 @@ func TestHandleBookingResolve_prefillFallback(t *testing.T) {
 	if !out.Found || out.Status != BookingResolveVerified || out.Offer == nil {
 		t.Fatalf("expected prefill verified offer, got %+v", out)
 	}
-	if !strings.Contains(out.Offer.URL, "google.com/travel/flights") {
-		t.Fatalf("expected google flights prefill, got %q", out.Offer.URL)
+	if !strings.Contains(out.Offer.URL, "skyscanner.") {
+		t.Fatalf("expected skyscanner prefill (default last resort), got %q", out.Offer.URL)
 	}
 }
 

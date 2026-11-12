@@ -168,9 +168,16 @@ export function BookingOptionsFooter({
           const offer = singleOffer(resolved);
           if (!offer?.url || !isSafeBookingUrl(offer.url)) return null;
           const isPrefill = offer.priceLabel === 'search_prefill';
+          const isSkyscannerPrefill =
+            isPrefill && /skyscanner/i.test(`${offer.provider || ''} ${offer.domain || ''} ${offer.url || ''}`);
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
           const priceAmount = formatBookingOfferPriceAmount(offer);
           const subtitle = bookingOfferSubtitle(offer, t);
+          const ctaLabel = isSkyscannerPrefill
+            ? t('open_skyscanner_search')
+            : isPrefill
+              ? t('open_flight_search')
+              : t('open_booking_site');
           return (
             <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
               <View style={styles.singleHeader}>
@@ -188,7 +195,7 @@ export function BookingOptionsFooter({
                 <Text style={[styles.singleSubtitle, { color: theme.textMuted }]}>{resolved.message}</Text>
               ) : null}
               <Button
-                label={isPrefill ? t('open_flight_search') : t('open_booking_site')}
+                label={ctaLabel}
                 onPress={() => onOpenUrl(offer.url)}
                 style={styles.singleCta}
               />

@@ -65,6 +65,21 @@ function cabinLabel(raw: string | undefined, t: (k: string) => string): string {
   }
 }
 
+/** Prefer explicit minutes; OTA scrapes often omit them — derive from clock times. */
+function segmentDurationMinutes(seg: FlightSegment): number {
+  if ((seg.durationMinutes || 0) > 0) return seg.durationMinutes;
+  const depMs = flightTimeToMs(seg.departureTime);
+  const arrMs = flightTimeToMs(seg.arrivalTime);
+  if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs > depMs) {
+    return Math.round((arrMs - depMs) / 60000);
+  }
+  // Overnight arrivals (e.g. 20:15 → 00:40) — add a day when arr clocks before dep.
+  if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs < depMs) {
+    return Math.round((arrMs + 24 * 60 * 60 * 1000 - depMs) / 60000);
+  }
+  return 0;
+}
+
 function legDuration(segments: FlightSegment[]): number {
   if (!segments?.length) return 0;
   const depMs = flightTimeToMs(segments[0].departureTime);
@@ -72,7 +87,10 @@ function legDuration(segments: FlightSegment[]): number {
   if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs > depMs) {
     return Math.round((arrMs - depMs) / 60000);
   }
-  return segments.reduce((sum, s) => sum + Math.max(0, s.durationMinutes || 0), 0);
+  if (Number.isFinite(depMs) && Number.isFinite(arrMs) && arrMs < depMs) {
+    return Math.round((arrMs + 24 * 60 * 60 * 1000 - depMs) / 60000);
+  }
+  return segments.reduce((sum, s) => sum + segmentDurationMinutes(s), 0);
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -684,11 +702,11 @@ export function FlightDetailsModal({
                             </Text>
                           </View>
 
-                          {/* Middle: line + duration */}
+                          {/* Middle: line + duration (derive from times when scrape omits minutes) */}
                           <View style={s.segMiddle}>
                             <View style={[s.segLine, { backgroundColor: theme.cardBorder }]} />
                             <Text style={[s.segDuration, { color: theme.textMuted }]}>
-                              {formatDuration(seg.durationMinutes || 0)}
+                              {formatDuration(segmentDurationMinutes(seg))}
                             </Text>
                             <View style={[s.segLine, { backgroundColor: theme.cardBorder }]} />
                           </View>

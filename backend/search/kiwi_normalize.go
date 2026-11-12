@@ -289,6 +289,16 @@ func kiwiSegmentFromMap(s map[string]interface{}, cabin string) *Segment {
 			}
 		}
 	}
+	// OTA scrapes often omit duration — derive from clock times when possible.
+	if dur <= 0 && !dep.IsZero() && !arr.IsZero() {
+		delta := arr.Sub(dep)
+		if delta < 0 {
+			delta += 24 * time.Hour
+		}
+		if delta > 0 && delta < 48*time.Hour {
+			dur = int(delta.Minutes())
+		}
+	}
 	if cabin == "" {
 		cabin = firstString(s, "cabinClass", "cabin")
 	}

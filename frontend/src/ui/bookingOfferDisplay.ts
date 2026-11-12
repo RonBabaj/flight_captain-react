@@ -53,8 +53,11 @@ export function bookingOfferSubtitle(
       return t('cheapest_matching_offer');
     case 'airline_direct_prefill':
       return t('airline_direct_prefill_hint');
-    case 'search_prefill':
+    case 'search_prefill': {
+      const host = `${offer.provider || ''} ${offer.domain || ''} ${offer.url || ''}`.toLowerCase();
+      if (host.includes('skyscanner')) return t('search_prefill_skyscanner_hint');
       return t('search_prefill_hint');
+    }
     case 'airline_direct':
       return t('booking_airline_direct_subtitle');
     default:

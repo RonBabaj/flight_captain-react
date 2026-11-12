@@ -912,7 +912,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
-	// GF2 partner checkout and airline templates before generic Google prefill.
+	// GF2 partner checkout and airline templates before search prefill (Skyscanner by default).
 	if gf2Only := gf2CheckoutOffers(gf2Offers); len(gf2Only) > 0 || legIndex >= 0 {
 		source := gf2Only
 		if len(source) == 0 {
@@ -966,7 +966,10 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			offer := publicOfferFromMatch(gf2Prefill, false)
 			if offer != nil {
 				priceLabel := "search_prefill"
-				message := "Direct partner link unavailable. Opens a prefilled search — select your flight and verify the fare before paying."
+				message := "Direct partner link unavailable. Opens a prefilled Skyscanner search — select your flight and verify the fare before paying."
+				if strings.Contains(strings.ToLower(prefill), "google.com/travel/flights") {
+					message = "Direct partner link unavailable. Opens a prefilled Google Flights search — select your flight and verify the fare before paying."
+				}
 				if isAffiliateTemplateBookingURL(prefill) {
 					priceLabel = "airline_direct_prefill"
 					message = "Opens airline site with your route prefilled — select your flight and verify the fare."
