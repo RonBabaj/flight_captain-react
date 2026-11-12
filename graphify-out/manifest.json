@@ -144,8 +144,8 @@
     "semantic_hash": ""
   },
   "backend/server.go": {
-    "mtime": 1794473818.2433023,
-    "seen": 1794473839.9751594,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.188787,
     "ast_hash": "c006844cf8383039efad949e19e684ab",
     "semantic_hash": ""
   },
@@ -294,8 +294,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/SearchLoadingOverlay.tsx": {
-    "mtime": 1794473720.746846,
-    "seen": 1794473839.9751928,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1888185,
     "ast_hash": "476bc154f0fab5704fab8827ad792219",
     "semantic_hash": ""
   },
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1794465434.6978993,
-    "seen": 1794466757.0551784,
-    "ast_hash": "cad0970453083c849f881ddefcf73e58",
+    "mtime": 1794474737.2100449,
+    "seen": 1794474746.1888568,
+    "ast_hash": "5aba2d111151b1837bebbd3938670d0f",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -414,8 +414,8 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1794473784.3885698,
-    "seen": 1794473839.9752393,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.188863,
     "ast_hash": "80ced8140e44ffe6c9d393d0a514208b",
     "semantic_hash": ""
   },
@@ -534,8 +534,8 @@
     "semantic_hash": ""
   },
   "frontend/src/types/api.ts": {
-    "mtime": 1794473736.3663032,
-    "seen": 1794473839.9752662,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.188889,
     "ast_hash": "209b6098e946c886c3129acdf1415fd8",
     "semantic_hash": ""
   },
@@ -786,14 +786,14 @@
     "semantic_hash": ""
   },
   "backend/search/multi_provider_test.go": {
-    "mtime": 1794473793.8042207,
-    "seen": 1794473839.9751534,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1887815,
     "ast_hash": "deb9dff234ef22947f458b4cd129a39d",
     "semantic_hash": ""
   },
   "backend/search/registry.go": {
-    "mtime": 1794473647.2971983,
-    "seen": 1794473839.9751575,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1887853,
     "ast_hash": "4a9b11ed09e89a6000f31a8861c92705",
     "semantic_hash": ""
   },
@@ -876,15 +876,15 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1794465597.784325,
-    "seen": 1794466757.0550327,
-    "ast_hash": "53b1d3778f43c90c65ec01c0a1c32efd",
+    "mtime": 1794474737.2100449,
+    "seen": 1794474746.1887224,
+    "ast_hash": "48d9f6e8f0a1c050ed84e6d6a839dfcf",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1794465638.536363,
-    "seen": 1794466757.0550358,
-    "ast_hash": "e7f4bf9fafd150e409c0d61c1efea2e8",
+    "mtime": 1794474737.2100449,
+    "seen": 1794474746.1887255,
+    "ast_hash": "40808737b2a3ceb6d927871920451ed3",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -1044,14 +1044,14 @@
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchProgressBanner.tsx": {
-    "mtime": 1794473704.5033967,
-    "seen": 1794473839.9751985,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1888237,
     "ast_hash": "76718d18a001f0ad0d97ac84a3bcfa5f",
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchSubmitButton.tsx": {
-    "mtime": 1794473729.7145357,
-    "seen": 1794473839.9751992,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1888247,
     "ast_hash": "c69b71d79a9d25cede2fca05c1811477",
     "semantic_hash": ""
   },
@@ -1068,8 +1068,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/search/searchLoadingPhrases.ts": {
-    "mtime": 1794473694.543727,
-    "seen": 1794473839.975202,
+    "mtime": 1794474736.978052,
+    "seen": 1794474746.1888268,
     "ast_hash": "a63150cd95f237538c4374a056b70376",
     "semantic_hash": ""
   },
@@ -1284,9 +1284,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionsFooter.tsx": {
-    "mtime": 1794465679.2323592,
-    "seen": 1794466757.0552163,
-    "ast_hash": "a9d354144d6a3dad62375550ed44405a",
+    "mtime": 1794474737.2100449,
+    "seen": 1794474746.1888926,
+    "ast_hash": "dfc82a23bc3d0b9770696b75b5e300bc",
     "semantic_hash": ""
   },
   "frontend/src/ui/Button.tsx": {
@@ -1524,8 +1524,8 @@
     "semantic_hash": ""
   },
   "backend/search/ota_scraper_provider.go": {
-    "mtime": 1794373082.581736,
-    "seen": 1794373545.5079055,
+    "mtime": 1794474736.870055,
+    "seen": 1794474746.1887836,
     "ast_hash": "38ed29a7922d6fa6afe692840b1063b5",
     "semantic_hash": ""
   },

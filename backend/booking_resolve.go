@@ -961,27 +961,23 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
-	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" {
+	// Airline-site templates only. Meta prefills (Skyscanner/Google Flights) are not
+	// partner checkout — returning them as found=true left the UI with a rejected URL
+	// and no Book button (client isSafeBookingUrl blocks meta hosts).
+	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" &&
+		isAffiliateTemplateBookingURL(prefill) &&
+		!search.IsMetaSearchAggregatorURL(prefill) {
 		if gf2Prefill := gf2PartnerOfferFromURL(prefill, fp); gf2Prefill != nil {
 			offer := publicOfferFromMatch(gf2Prefill, false)
 			if offer != nil {
-				priceLabel := "search_prefill"
-				message := "Direct partner link unavailable. Opens a prefilled Skyscanner search — select your flight and verify the fare before paying."
-				if strings.Contains(strings.ToLower(prefill), "google.com/travel/flights") {
-					message = "Direct partner link unavailable. Opens a prefilled Google Flights search — select your flight and verify the fare before paying."
-				}
-				if isAffiliateTemplateBookingURL(prefill) {
-					priceLabel = "airline_direct_prefill"
-					message = "Opens airline site with your route prefilled — select your flight and verify the fare."
-				}
-				offer.PriceLabel = priceLabel
+				offer.PriceLabel = "airline_direct_prefill"
 				offer.MatchConfidence = 0
 				resp := BookingResolveResponse{
 					Found:                true,
 					Status:               BookingResolveVerified,
 					ItineraryFingerprint: fp,
 					Offer:                offer,
-					Message:              message,
+					Message:              "Opens airline site with your route prefilled — select your flight and verify the fare.",
 				}
 				logBookingResolve(bookingResolveLogEvent{
 					Event:                "resolve_verified_prefill",

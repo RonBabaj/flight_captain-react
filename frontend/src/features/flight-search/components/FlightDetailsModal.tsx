@@ -766,8 +766,9 @@ export function FlightDetailsModal({
                 ))}
               </View>
             )}
-            {renderBookingFooter()}
           </ScrollView>
+          {/* Keep Book / resolve CTAs pinned below the scroll so they never vanish. */}
+          {renderBookingFooter()}
         </View>
       </View>
     </Modal>

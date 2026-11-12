@@ -93,11 +93,18 @@ func TestHandleBookingResolve_verified(t *testing.T) {
 	}
 }
 
-func TestHandleBookingResolve_prefillFallback(t *testing.T) {
+func TestHandleBookingResolve_metaPrefillNotVerified(t *testing.T) {
 	oldRunner := bookingMatchRunner
-	defer func() { bookingMatchRunner = oldRunner }()
+	oldGF2 := bookingGF2OffersResolver
+	defer func() {
+		bookingMatchRunner = oldRunner
+		bookingGF2OffersResolver = oldGF2
+	}()
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
 		return &bookingmatch.MatchResult{ItineraryFingerprint: search.CanonicalItineraryFingerprint(it)}, nil
+	}
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
 	}
 
 	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
@@ -122,11 +129,16 @@ func TestHandleBookingResolve_prefillFallback(t *testing.T) {
 
 	var out BookingResolveResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)
-	if !out.Found || out.Status != BookingResolveVerified || out.Offer == nil {
-		t.Fatalf("expected prefill verified offer, got %+v", out)
+	// Meta Skyscanner/Google prefills must not be returned as found — the client
+	// rejects those hosts and used to render a Flight details footer with no Book CTA.
+	if out.Found {
+		t.Fatalf("expected not_found without meta prefill, got %+v", out)
 	}
-	if !strings.Contains(out.Offer.URL, "skyscanner.") {
-		t.Fatalf("expected skyscanner prefill (default last resort), got %q", out.Offer.URL)
+	if out.Status != BookingResolveNotFound {
+		t.Fatalf("status=%s", out.Status)
+	}
+	if out.Offer != nil && strings.Contains(strings.ToLower(out.Offer.URL), "skyscanner") {
+		t.Fatalf("must not return Skyscanner meta URL, got %q", out.Offer.URL)
 	}
 }
 
@@ -777,6 +789,58 @@ func TestIsAffiliateTemplateBookingURL(t *testing.T) {
 	}
 	if isAffiliateTemplateBookingURL("https://booking.elal.co.il/checkout/szg-tlv") {
 		t.Fatal("checkout deeplink is not a template")
+	}
+}
+
+func TestRunBookingMatch_skyscannerMetaPrefillNotFound(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 13, 40, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 17, 25, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "VIE",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "XX", FlightNumber: "XX100",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+
+	oldGF2 := bookingGF2OffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, nil
+	}
+
+	opt := &FlightOption{
+		Price:  MonetaryAmount{Amount: 278, Currency: "USD"},
+		Source: "skyscanner",
+		Legs: []FlightLeg{{
+			Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "XX"}, FlightNumber: "XX100",
+			}},
+		}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE", DepartureDate: "2027-01-07",
+		Currency: "USD", CabinClass: "ECONOMY", Adults: 1,
+	}}
+
+	resp := runBookingMatch(context.Background(), sess, opt, it, fp, -1, -1)
+	if resp.Found {
+		t.Fatalf("meta Skyscanner prefill must not be found=true (blank Book CTA), got %+v", resp)
+	}
+	if resp.Offer != nil && strings.Contains(strings.ToLower(resp.Offer.URL), "skyscanner") {
+		t.Fatalf("must not return Skyscanner meta URL as offer, got %q", resp.Offer.URL)
 	}
 }
 
