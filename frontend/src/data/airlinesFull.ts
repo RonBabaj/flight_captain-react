@@ -17,6 +17,7 @@ export const AIRLINE_FULL_NAMES: Record<string, string> = {
   SN: 'Brussels Airlines',
   TP: 'TAP Air Portugal',
   U2: 'easyJet',
+  UX: 'Air Europa',
   VY: 'Vueling',
   W6: 'Wizz Air',
   W4: 'Wizz Air Malta',

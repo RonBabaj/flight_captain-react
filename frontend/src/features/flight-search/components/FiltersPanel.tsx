@@ -11,8 +11,8 @@ import {
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { Chip } from '../../../ui';
-import { resolveAirlineLabel } from '../../../data/airlines';
-import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
+import { formatAirlineFilterLabel } from '../../../data/airlines';
+import { distinctMarketingCarriers, providerNameForCode } from '../../../utils/displayAirlines';
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
 import { countByStopsFilter } from '../../../utils/itineraryStops';
@@ -41,15 +41,20 @@ export function FiltersPanel({
   const [airlinesOpen, setAirlinesOpen] = useState(true);
 
   const airlines = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { count: number; providerName?: string }> = {};
     results.forEach((opt) => {
       for (const code of distinctMarketingCarriers(opt)) {
-        map[code] = (map[code] ?? 0) + 1;
+        const entry = map[code] ?? { count: 0 };
+        entry.count += 1;
+        if (!entry.providerName) {
+          entry.providerName = providerNameForCode(opt, code);
+        }
+        map[code] = entry;
       }
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([code, count]) => ({ code, count }));
+      .map(([code, { count, providerName }]) => ({ code, count, providerName }));
   }, [results]);
 
   const toggleAirline = (rawCode: string) => {
@@ -103,8 +108,8 @@ export function FiltersPanel({
           <SectionHeader title={t('airlines_section')} open={airlinesOpen} toggle={() => setAirlinesOpen((o) => !o)} />
           {airlinesOpen && (
             <View style={f.secBody}>
-              {airlines.map(({ code, count }) => {
-                const name = resolveAirlineLabel(code);
+              {airlines.map(({ code, count, providerName }) => {
+                const name = formatAirlineFilterLabel(code, providerName);
                 const sel = filters.airlines.includes(code);
                 return (
                   <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>

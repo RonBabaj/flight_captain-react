@@ -24,7 +24,7 @@ import { BookingOptionsFooter } from '../../../ui';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
-import { resolveAirlineLabel } from '../../../data/airlines';
+import { formatAirlineFilterLabel, resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
 import { useIsMobile } from '../../../hooks/useResponsive';
@@ -1033,7 +1033,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           {airlinesOpen && (
             <View style={fl.secBody}>
               {dealsAirlines.map(({ code, count }) => {
-                const name = resolveAirlineLabel(code);
+                const name = formatAirlineFilterLabel(code);
                 const sel = selectedAirlines.includes(code);
                 return (
                   <TouchableOpacity

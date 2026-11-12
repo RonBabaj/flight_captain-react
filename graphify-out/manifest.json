@@ -312,15 +312,15 @@
     "semantic_hash": ""
   },
   "frontend/src/data/airlines.ts": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.5079699,
-    "ast_hash": "c3e5dcccca47e2280220541750389204",
+    "mtime": 1794488007.1426451,
+    "seen": 1794488047.866344,
+    "ast_hash": "2602ad81221c5f77fc23fd92a68166cb",
     "semantic_hash": ""
   },
   "frontend/src/data/airlinesFull.ts": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.5079706,
-    "ast_hash": "a09b99ac9bfde5942d975d4eb5e75c56",
+    "mtime": 1794488004.6586647,
+    "seen": 1794488047.8663452,
+    "ast_hash": "85b1a40b70316645aa66b6eec6b33647",
     "semantic_hash": ""
   },
   "frontend/src/data/airports.ts": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FiltersPanel.tsx": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.507994,
-    "ast_hash": "3efdd8425627cc6cf769468ee9f69057",
+    "mtime": 1794488035.498422,
+    "seen": 1794488047.866368,
+    "ast_hash": "81c6148fde4f7c6471868e74affa9f43",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1794478463.241197,
-    "seen": 1794478533.6114979,
-    "ast_hash": "50a20264f34a15d6281891629eca85db",
+    "mtime": 1794488038.3223996,
+    "seen": 1794488047.8663828,
+    "ast_hash": "7f4ce84ddb3d1358f9f09808f75649ac",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -1230,9 +1230,9 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/displayAirlines.ts": {
-    "mtime": 1794373082.5897357,
-    "seen": 1794373545.5080366,
-    "ast_hash": "625c5acaae8c3bb3c1f429a212e452f9",
+    "mtime": 1794488028.5984762,
+    "seen": 1794488047.8664145,
+    "ast_hash": "326d9489a994528afdabee82833fe15a",
     "semantic_hash": ""
   },
   "frontend/src/utils/legSummary.ts": {
