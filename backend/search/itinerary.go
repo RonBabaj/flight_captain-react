@@ -235,13 +235,13 @@ func ResolveFlightIdentity(marketingCarrier, flightNum string) (carrierCode, nor
 	compact = strings.ReplaceAll(compact, " ", "")
 	compact = strings.ReplaceAll(compact, "-", "")
 	if compact == "" {
-		carrierCode = NormalizeCarrierCode(marketingCarrier)
+		carrierCode = LookupAirlineIATA(marketingCarrier)
 		return carrierCode, carrierCode
 	}
 	if c, n, ok := splitFlightDesignator(compact); ok {
 		return c, c + n
 	}
-	mkt := NormalizeCarrierCode(marketingCarrier)
+	mkt := LookupAirlineIATA(marketingCarrier)
 	normalized = NormalizeFlightNumber(mkt, flightNum)
 	if isIATACarrierCode(mkt) {
 		return mkt, normalized

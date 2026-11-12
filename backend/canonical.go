@@ -121,6 +121,13 @@ func bookingPrefillURL(session *SearchSession, option *FlightOption, legIndex in
 			return buildSkyscannerPrefillURL(origin, dest, dep, "", cabin, adults)
 		}
 	}
+	// Classic RT / full itinerary: prefer airline-direct for the outbound carrier
+	// before falling back to meta search prefills (blocked as checkout).
+	if option != nil && len(option.Legs) > 0 {
+		if u := BuildLegAirlineDirectURL(session, option, 0, -1, "", ""); u != "" {
+			return u
+		}
+	}
 	return BuildUniformBookingLink(session, option)
 }
 

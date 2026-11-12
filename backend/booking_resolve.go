@@ -952,37 +952,11 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
-		resp := bookingResolveFailureResponse(fp, gf2Err)
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_failed",
-			ItineraryFingerprint: fp,
-			LegIndex:             intPtrOrNil(legIndex),
-			LegRoute:             legRoute,
-			Status:               resp.Status,
-			DurationMs:           time.Since(start).Milliseconds(),
-			FailureReason:        gf2Err.Error(),
-		})
-		return resp
-	}
-
-	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
-		resp := bookingResolveFailureResponse(fp, matchErr)
-		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_failed",
-			ItineraryFingerprint: fp,
-			LegIndex:             intPtrOrNil(legIndex),
-			LegRoute:             legRoute,
-			Status:               resp.Status,
-			DurationMs:           time.Since(start).Milliseconds(),
-			FailureReason:        matchErr.Error(),
-		})
-		return resp
-	}
-
 	// Airline-site templates only. Meta prefills (Skyscanner/Google Flights) are not
 	// partner checkout — returning them as found=true left the UI with a rejected URL
 	// and no Book button (client isSafeBookingUrl blocks meta hosts).
+	// Prefer this before treating web-search / GF2 transient errors as hard failures so
+	// display-name carriers (e.g. Kiwi "ISRAIR") still get an airline booking path.
 	if prefill := bookingPrefillURL(session, option, legIndex, segmentIndex); prefill != "" &&
 		isAffiliateTemplateBookingURL(prefill) &&
 		!search.IsMetaSearchAggregatorURL(prefill) {
@@ -1011,6 +985,35 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			}
 		}
 	}
+
+	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
+		resp := bookingResolveFailureResponse(fp, gf2Err)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        gf2Err.Error(),
+		})
+		return resp
+	}
+
+	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
+		resp := bookingResolveFailureResponse(fp, matchErr)
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_failed",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			DurationMs:           time.Since(start).Milliseconds(),
+			FailureReason:        matchErr.Error(),
+		})
+		return resp
+	}
+
 	resp := BookingResolveResponse{
 		Found:                false,
 		Status:               BookingResolveNotFound,

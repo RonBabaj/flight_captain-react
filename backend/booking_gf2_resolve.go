@@ -152,7 +152,12 @@ func resolveGF2PartnerOffers(ctx context.Context, session *SearchSession, option
 			}
 		}
 		if injectAirline {
-			if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+			// Full-itinerary resolve uses legIndex=-1; airline templates need a concrete leg.
+			injectLeg := legIndex
+			if injectLeg < 0 {
+				injectLeg = 0
+			}
+			if u := BuildLegAirlineDirectURL(session, option, injectLeg, segmentIndex, "", ""); u != "" {
 				if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
 					// Affiliate templates are search forms, not GF2-verified checkout deeplinks.
 					offer.URLType = bookingmatch.URLTypeExactSearch
@@ -317,7 +322,7 @@ func marketingCarrierForLeg(option *FlightOption, legIndex int) string {
 		return ""
 	}
 	for _, seg := range option.Legs[legIndex].Segments {
-		if c := strings.ToUpper(strings.TrimSpace(seg.MarketingCarrier.Code)); c != "" {
+		if c := search.LookupAirlineIATA(seg.MarketingCarrier.Code); c != "" {
 			return c
 		}
 	}
@@ -470,6 +475,16 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 		return false
 	}
 	if strings.Contains(u, "elal") && strings.Contains(u, "/booking/flights") && strings.Contains(u, "origin=") {
+		return true
+	}
+	// Israir / similar airline search forms with origin prefilled.
+	if strings.Contains(u, "israir") && strings.Contains(u, "origin=") {
+		return true
+	}
+	if strings.Contains(u, "wizzair.com") && strings.Contains(u, "/booking/") {
+		return true
+	}
+	if strings.Contains(u, "austrian.com") && strings.Contains(u, "origin=") {
 		return true
 	}
 	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {

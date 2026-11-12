@@ -113,10 +113,11 @@ func TestHandleBookingResolve_metaPrefillNotVerified(t *testing.T) {
 		Session: SearchSession{ID: "sess_nf", CreatedAt: time.Now(), Status: StatusComplete},
 		Results: []FlightOption{{
 			ID: "opt_0",
+			// Carrier with no airline-direct template so only meta prefills would apply.
 			Legs: []FlightLeg{{Segments: []FlightSegment{{
 				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
 				DepartureTime: dep,
-				MarketingCarrier: Carrier{Code: "OS"}, FlightNumber: "OS860",
+				MarketingCarrier: Carrier{Code: "XX"}, FlightNumber: "XX860",
 			}}}},
 		}},
 	}
