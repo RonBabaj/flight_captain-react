@@ -163,10 +163,23 @@ export interface SearchSession {
   timeSchemaVersion?: number;
 }
 
+/** Live provider-completion state while a session is still PENDING. */
+export interface SearchProgress {
+  providersDone: number;
+  providersTotal: number;
+  /** "searching" while providers run; "finalizing" once all returned and results are being built. */
+  phase: 'searching' | 'finalizing' | string;
+}
+
 export interface SearchSessionResultsResponse {
   session: SearchSession;
   version: number;
   results: FlightOption[];
+  searchProgress?: SearchProgress;
+}
+
+export function isSearchNearComplete(progress?: SearchProgress | null): boolean {
+  return progress?.phase === 'finalizing';
 }
 
 // --- Monthly deals ---

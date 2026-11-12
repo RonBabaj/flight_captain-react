@@ -97,6 +97,18 @@ func (r *Registry) HasAny() bool {
 	return r != nil && len(r.providers) > 0
 }
 
+// ProviderCount returns how many providers will run in SearchAll.
+func (r *Registry) ProviderCount() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.providers)
+}
+
+// SearchProgressFunc is called as each provider finishes (and once when all are done).
+// done/total are 1-based completion counts; stats is a snapshot of finished providers so far.
+type SearchProgressFunc func(done, total int, stats []ProviderSearchStats)
+
 // Get returns a provider by name, or nil.
 func (r *Registry) Get(name string) Provider {
 	if r == nil {
@@ -139,15 +151,21 @@ func multisiteSoftTimeout() time.Duration {
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
+	return r.SearchAllWithProgress(ctx, req, nil)
+}
+
+// SearchAllWithProgress is SearchAll plus optional per-provider completion callbacks.
+func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest, onProgress SearchProgressFunc) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
 		return out
 	}
+	total := len(r.providers)
 	type part struct {
 		stats   ProviderSearchStats
 		results []ProviderResult
 	}
-	ch := make(chan part, len(r.providers))
+	ch := make(chan part, total)
 	var wg sync.WaitGroup
 	for _, p := range r.providers {
 		wg.Add(1)
@@ -179,11 +197,17 @@ func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearch
 			ch <- part{stats: st, results: results}
 		}(p)
 	}
-	wg.Wait()
-	close(ch)
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
 	for p := range ch {
 		out.Stats = append(out.Stats, p.stats)
 		out.Results = append(out.Results, p.results...)
+		if onProgress != nil {
+			snap := append([]ProviderSearchStats(nil), out.Stats...)
+			onProgress(len(out.Stats), total, snap)
+		}
 	}
 	out.Results = AttachCanonicalIdentityAll(out.Results)
 	out.Results = DedupeProviderResults(out.Results)

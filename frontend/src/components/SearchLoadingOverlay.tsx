@@ -7,7 +7,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
-import { getPhrasesForLanguage, SEARCH_PROGRESS_PHRASES } from './search/searchLoadingPhrases';
+import {
+  getAlmostDonePhrase,
+  getPhrasesForLanguage,
+  SEARCH_ALMOST_DONE,
+  SEARCH_PROGRESS_PHRASES,
+} from './search/searchLoadingPhrases';
 import { AppIcon } from './AppIcon';
 
 interface ExtraLeg {
@@ -32,6 +37,8 @@ interface Props {
   returnOrigin?: string;
   /** Return-leg arrival airport (open-jaw) */
   returnDestination?: string;
+  /** When true, lock copy to "Almost done…" (search actually finalizing). */
+  nearComplete?: boolean;
 }
 
 export function SearchLoadingOverlay({
@@ -42,11 +49,13 @@ export function SearchLoadingOverlay({
   extraLegs,
   returnOrigin,
   returnDestination,
+  nearComplete = false,
 }: Props) {
   const { theme } = useTheme();
   const { language } = useLocale();
 
   const phrases = getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language);
+  const almostDone = getAlmostDonePhrase(SEARCH_ALMOST_DONE, language);
 
   const [phraseIdx, setPhraseIdx] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -54,6 +63,10 @@ export function SearchLoadingOverlay({
   useEffect(() => {
     if (!visible) {
       setPhraseIdx(0);
+      fadeAnim.setValue(1);
+      return;
+    }
+    if (nearComplete) {
       fadeAnim.setValue(1);
       return;
     }
@@ -66,7 +79,7 @@ export function SearchLoadingOverlay({
     };
     const id = setInterval(cycle, 2200);
     return () => clearInterval(id);
-  }, [visible, phrases.length, fadeAnim]);
+  }, [visible, phrases.length, fadeAnim, nearComplete]);
 
   if (!visible) return null;
 
@@ -102,7 +115,7 @@ export function SearchLoadingOverlay({
         { backgroundColor: theme.screenBg },
       ]}
       accessibilityRole="progressbar"
-      accessibilityLabel={phrases[phraseIdx] || 'Loading'}
+      accessibilityLabel={(nearComplete ? almostDone : phrases[phraseIdx]) || 'Loading'}
     >
       <View style={s.mark}>
         <AppIcon name="airplane-outline" size={36} color={theme.primary} fallbackText="" />
@@ -119,7 +132,7 @@ export function SearchLoadingOverlay({
         </Text>
       ) : null}
       <Animated.Text style={[s.phrase, { color: theme.textMuted, opacity: fadeAnim }]}>
-        {phrases[phraseIdx]}
+        {nearComplete ? almostDone : phrases[phraseIdx]}
       </Animated.Text>
     </View>
   );

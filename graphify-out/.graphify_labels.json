@@ -17,7 +17,6 @@
   "34": "explore_cache.go",
   "35": "ValidationIssue",
   "36": "Backend QA Automation Tool",
-  "39": "search.ts",
   "41": "models.py",
   "43": "Fly-Fix – Frontend",
   "48": "__init__.py",
@@ -25,10 +24,8 @@
   "50": "babel.config.js",
   "51": ".expo/README.md",
   "52": "flightcaptainweb",
-  "53": "session_store.go",
   "54": "Nginx Proxy Manager — fly-fix TLS checklist",
   "57": ".finalize",
-  "71": "AuthContext.tsx",
   "83": "Fly-Fix UI / UX",
   "84": "TestApplySoftStrictBaggage",
   "85": "backend_api_contracts.md"

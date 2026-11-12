@@ -154,6 +154,35 @@ func TestRegistrySearchAllPartialFailure(t *testing.T) {
 	}
 }
 
+func TestRegistrySearchAllWithProgress(t *testing.T) {
+	slow := &stubProvider{name: "slow", results: []ProviderResult{{
+		ID: "1", Price: Monetary{Currency: "USD", Amount: 100}, Source: "slow",
+		Legs: []Leg{{Segments: []Segment{{From: "A", To: "B", MarketingCarrier: "X", FlightNumber: "1"}}}},
+	}}}
+	fast := &stubProvider{name: "fast", results: []ProviderResult{{
+		ID: "2", Price: Monetary{Currency: "USD", Amount: 90}, Source: "fast",
+		Legs: []Leg{{Segments: []Segment{{From: "A", To: "B", MarketingCarrier: "Y", FlightNumber: "2"}}}},
+	}}}
+	r := &Registry{providers: []Provider{slow, fast}}
+	var ticks []int
+	res := r.SearchAllWithProgress(
+		context.Background(),
+		SearchRequest{Origin: "A", Destination: "B", DepartureDate: "2026-08-01"},
+		func(done, total int, _ []ProviderSearchStats) {
+			ticks = append(ticks, done)
+			if total != 2 {
+				t.Fatalf("total=%d", total)
+			}
+		},
+	)
+	if len(res.Results) != 2 {
+		t.Fatalf("results=%d", len(res.Results))
+	}
+	if len(ticks) != 2 || ticks[0] != 1 || ticks[1] != 2 {
+		t.Fatalf("progress ticks=%v", ticks)
+	}
+}
+
 func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
 	gf2 := &stubProvider{name: "googleflights2", err: fmt.Errorf("no flights found for return SZG→TLV")}
 	kiwi := &stubProvider{name: "kiwi", err: ErrProviderSkipped}
