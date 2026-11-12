@@ -79,18 +79,36 @@ export function BookingOptionsFooter({
     );
   }
 
+  const renderResolveCta = (label: string) =>
+    onResolve ? <Button label={label} onPress={onResolve} /> : null;
+
   if (!resolved?.found) {
-    if (onResolve) {
-      return (
-        <View style={[styles.wrap, style]}>
-          <Button label={t('book_this_flight')} onPress={onResolve} />
-        </View>
-      );
-    }
-    return null;
+    return (
+      <View style={[styles.wrap, style]}>
+        {renderResolveCta(t('book_this_flight'))}
+      </View>
+    );
   }
 
   const dual = hasDualOptions(resolved);
+  const offer = dual ? null : singleOffer(resolved);
+  const offerOpenable = !!(offer?.url && isSafeBookingUrl(offer.url));
+
+  // found=true with only a meta/unsafe URL used to render an empty footer (no Book button).
+  if (!dual && !offerOpenable) {
+    return (
+      <View style={[styles.wrap, style]}>
+        <Callout
+          message={resolved.message || t('no_verified_booking')}
+          variant="warning"
+        />
+        {renderResolveCta(t('try_again'))}
+        {showDisclaimer ? (
+          <Text style={[styles.disclaimer, { color: theme.textMuted }]}>{t('booking_disclaimer')}</Text>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, style]}>
@@ -163,21 +181,14 @@ export function BookingOptionsFooter({
             </View>
           ) : null}
         </View>
-      ) : (
+      ) : offer && offerOpenable ? (
         (() => {
-          const offer = singleOffer(resolved);
-          if (!offer?.url || !isSafeBookingUrl(offer.url)) return null;
-          const isPrefill = offer.priceLabel === 'search_prefill';
-          const isSkyscannerPrefill =
-            isPrefill && /skyscanner/i.test(`${offer.provider || ''} ${offer.domain || ''} ${offer.url || ''}`);
+          const isPrefill =
+            offer.priceLabel === 'search_prefill' || offer.priceLabel === 'airline_direct_prefill';
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
           const priceAmount = formatBookingOfferPriceAmount(offer);
           const subtitle = bookingOfferSubtitle(offer, t);
-          const ctaLabel = isSkyscannerPrefill
-            ? t('open_skyscanner_search')
-            : isPrefill
-              ? t('open_flight_search')
-              : t('open_booking_site');
+          const ctaLabel = isPrefill ? t('open_flight_search') : t('open_booking_site');
           return (
             <View style={[styles.singleCard, compact && styles.singleCardCompact, { borderColor: theme.cardBorder, backgroundColor: theme.cardBg }]}>
               <View style={styles.singleHeader}>
@@ -202,6 +213,8 @@ export function BookingOptionsFooter({
             </View>
           );
         })()
+      ) : (
+        renderResolveCta(t('book_this_flight'))
       )}
 
       {showDisclaimer ? (
