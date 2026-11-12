@@ -15,8 +15,9 @@ import {
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
-import type { FlightOption, MonetaryAmount } from '../../../types';
+import type { FlightOption, MonetaryAmount, SearchProgress } from '../../../types';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
+import { isSearchNearComplete } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -215,6 +216,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const creatingSessionRef = useRef(false);
   const emptyRetryRef = useRef(false);
   const [bootstrappingSession, setBootstrappingSession] = useState(false);
+  /** True only while backend searchProgress.phase === 'finalizing' (results imminent). */
+  const [searchNearComplete, setSearchNearComplete] = useState(false);
+  const searchProgressRef = useRef<SearchProgress | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -584,6 +588,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     // bail out permanently while status stays PENDING (infinite skeletons).
     creatingSessionRef.current = true;
     setBootstrappingSession(true);
+    setSearchNearComplete(false);
+    searchProgressRef.current = null;
 
     const generation =
       useSearchStore.getState().status === 'PENDING' && !useSearchStore.getState().sessionId
@@ -756,6 +762,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     const pollStartedAt = Date.now();
     const polledSessionId = sessionId;
     const generation = currentGeneration();
+    setSearchNearComplete(false);
+    searchProgressRef.current = null;
 
     // Shared links may have a localStorage snapshot from before airport-time migration
     // (…Z wall clocks → 07:30 instead of 06:30). Drop it so we GET the migrated session.
@@ -792,6 +800,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       let backedOff = base;
       if (elapsed > 90_000) backedOff = Math.min(Math.max(base * 3, 5000), 8000);
       else if (elapsed > 30_000) backedOff = Math.min(Math.max(base * 2, 3000), 5000);
+      // Speed up near the end so we catch finalizing → Almost done before COMPLETE.
+      const prog = searchProgressRef.current;
+      if (prog && prog.providersTotal > 0) {
+        if (prog.phase === 'finalizing') {
+          backedOff = Math.min(backedOff, 400);
+        } else if (prog.providersDone >= prog.providersTotal - 1) {
+          backedOff = Math.min(backedOff, 800);
+        }
+      }
       timer = setTimeout(() => {
         void poll();
       }, delayMs ?? backedOff);
@@ -845,6 +862,13 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         // legitimately returned zero (captcha / bad route).
         consecutiveNotFound = 0;
         const nextVersion = res.version ?? 0;
+        const progress = res.searchProgress ?? null;
+        searchProgressRef.current = progress;
+        setSearchNearComplete(isSearchNearComplete(progress));
+        if (res.session.status === 'COMPLETE' || res.session.status === 'FAILED') {
+          setSearchNearComplete(false);
+          searchProgressRef.current = null;
+        }
         const applied = searchActions.applySessionResults({
           generation,
           sessionId: polledSessionId,
@@ -1660,7 +1684,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </EditSearchModal>
 
       {/* Keep a thin banner while waiting — belt + suspenders with the cube. */}
-      {isLoading && <SearchProgressBanner language={language} theme={theme} />}
+      {isLoading && (
+        <SearchProgressBanner language={language} theme={theme} nearComplete={searchNearComplete} />
+      )}
 
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (

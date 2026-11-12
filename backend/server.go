@@ -87,6 +87,19 @@ const (
 	StatusFailed   SearchSessionStatus = "FAILED"
 )
 
+// Search progress phases for client loading copy (e.g. gate "Almost done…").
+const (
+	SearchPhaseSearching  = "searching"
+	SearchPhaseFinalizing = "finalizing"
+)
+
+// SearchProgress is live provider-completion state while a session is still PENDING.
+type SearchProgress struct {
+	ProvidersDone  int    `json:"providersDone"`
+	ProvidersTotal int    `json:"providersTotal"`
+	Phase          string `json:"phase"` // searching | finalizing
+}
+
 type ExtraSearchLeg struct {
 	Origin      string `json:"origin"`
 	Destination string `json:"destination"`
@@ -243,10 +256,11 @@ type FlightOption struct {
 }
 
 type SearchSessionResultsResponse struct {
-	Session       SearchSession                `json:"session"`
-	Version       int64                        `json:"version"`
-	Results       []FlightOption               `json:"results"`
-	ProviderStats []search.ProviderSearchStats `json:"providerStats,omitempty"`
+	Session        SearchSession                `json:"session"`
+	Version        int64                        `json:"version"`
+	Results        []FlightOption               `json:"results"`
+	ProviderStats  []search.ProviderSearchStats `json:"providerStats,omitempty"`
+	SearchProgress *SearchProgress              `json:"searchProgress,omitempty"`
 }
 
 func searchSessionTTL() time.Duration {
@@ -823,10 +837,19 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Params:            req,
 		TimeSchemaVersion: timeSchemaAirportAbsolute,
 	}
+	providersTotal := 0
+	if flightProviderRegistry != nil {
+		providersTotal = flightProviderRegistry.ProviderCount()
+	}
 	resp := SearchSessionResultsResponse{
 		Session: session,
 		Version: 1,
 		Results: nil,
+		SearchProgress: &SearchProgress{
+			ProvidersDone:  0,
+			ProvidersTotal: providersTotal,
+			Phase:          SearchPhaseSearching,
+		},
 	}
 	sessionsMu.Lock()
 	sessions[id] = resp
@@ -972,10 +995,51 @@ func publishSessionSnapshot(
 		cur.Results = options
 	}
 	cur.ProviderStats = append([]search.ProviderSearchStats{}, stats...)
+	if status == StatusComplete || status == StatusFailed {
+		cur.SearchProgress = nil
+	}
 	cur.Version++
 	sessions[sessionID] = cur
 	sessionsMu.Unlock()
 	go persistSearchSession(cur)
+	return true
+}
+
+// publishSearchProgress updates provider completion while status stays PENDING.
+func publishSearchProgress(
+	sessionID string,
+	progress SearchProgress,
+	stats []search.ProviderSearchStats,
+) bool {
+	sessionsMu.Lock()
+	cur, ok := sessions[sessionID]
+	if !ok {
+		sessionsMu.Unlock()
+		if persisted, pok := loadPersistedSession(sessionID); pok {
+			cur = persisted
+			ok = true
+		}
+		if !ok {
+			return false
+		}
+		sessionsMu.Lock()
+		if live, liveOK := sessions[sessionID]; liveOK {
+			cur = live
+		}
+	}
+	if cur.Session.Status == StatusComplete || cur.Session.Status == StatusFailed {
+		sessionsMu.Unlock()
+		return false
+	}
+	p := progress
+	cur.SearchProgress = &p
+	if stats != nil {
+		cur.ProviderStats = append([]search.ProviderSearchStats{}, stats...)
+	}
+	cur.Version++
+	sessions[sessionID] = cur
+	sessionsMu.Unlock()
+	// Progress ticks are frequent; skip durable persist (COMPLETE/FAILED still persist).
 	return true
 }
 
@@ -1001,10 +1065,34 @@ func finalizeSearchSession(
 	started := time.Now()
 	log.Printf("[SEARCH] finalize start session=%s", sessionID)
 
-	multi := flightProviderRegistry.SearchAll(ctx, sreq)
+	totalProviders := flightProviderRegistry.ProviderCount()
+	publishSearchProgress(sessionID, SearchProgress{
+		ProvidersDone:  0,
+		ProvidersTotal: totalProviders,
+		Phase:          SearchPhaseSearching,
+	}, nil)
+
+	onProgress := func(done, total int, stats []search.ProviderSearchStats) {
+		phase := SearchPhaseSearching
+		if total > 0 && done >= total {
+			phase = SearchPhaseFinalizing
+		}
+		publishSearchProgress(sessionID, SearchProgress{
+			ProvidersDone:  done,
+			ProvidersTotal: total,
+			Phase:          phase,
+		}, stats)
+	}
+
+	multi := flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress)
 	maxTransientRetries := search.SearchTransientRetryMax()
 	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
 		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
+		publishSearchProgress(sessionID, SearchProgress{
+			ProvidersDone:  0,
+			ProvidersTotal: totalProviders,
+			Phase:          SearchPhaseSearching,
+		}, nil)
 		wait := time.Duration(attempt+1) * 2 * time.Second
 		timer := time.NewTimer(wait)
 		select {
@@ -1012,7 +1100,7 @@ func finalizeSearchSession(
 			timer.Stop()
 		case <-timer.C:
 			if ctx.Err() == nil {
-				multi = flightProviderRegistry.SearchAll(ctx, sreq)
+				multi = flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress)
 			}
 		}
 	}
@@ -1027,7 +1115,27 @@ func finalizeSearchSession(
 		log.Printf("[SEARCH] finalize empty results session=%s stats=%+v", sessionID, multi.Stats)
 	}
 
+	// All providers returned — keep PENDING in finalizing while we normalize so
+	// clients can honestly show "Almost done…" before COMPLETE lands.
+	finalizingAt := time.Now()
+	publishSearchProgress(sessionID, SearchProgress{
+		ProvidersDone:  totalProviders,
+		ProvidersTotal: totalProviders,
+		Phase:          SearchPhaseFinalizing,
+	}, multi.Stats)
+
 	options := normalizeProviderOptions(multi.Results, req, cabinPref, includeBag)
+	// Brief hold so a poll can observe finalizing (and show "Almost done…") before
+	// COMPLETE clears the loading UI. Cap the wait so we never add more than ~0.9s.
+	const minFinalizingVisible = 900 * time.Millisecond
+	if wait := minFinalizingVisible - time.Since(finalizingAt); wait > 0 {
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
 	if !publishSessionSnapshot(sessionID, StatusComplete, options, multi.Stats) {
 		log.Printf("[SEARCH] finalize aborted session=%s gone", sessionID)
 		return

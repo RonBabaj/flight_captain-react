@@ -4,7 +4,12 @@ import { AppIcon } from '../AppIcon';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import { formCardStyles } from './formStyles';
-import { getPhrasesForLanguage, SEARCH_BUTTON_PHRASES } from './searchLoadingPhrases';
+import {
+  getAlmostDonePhrase,
+  getPhrasesForLanguage,
+  SEARCH_BUTTON_ALMOST_DONE,
+  SEARCH_BUTTON_PHRASES,
+} from './searchLoadingPhrases';
 
 export interface SearchSubmitButtonProps {
   label: string;
@@ -13,6 +18,8 @@ export interface SearchSubmitButtonProps {
   disabled?: boolean;
   onPress: () => void;
   compact?: boolean;
+  /** When true, lock copy to "Almost there…" (search actually finalizing). */
+  nearComplete?: boolean;
 }
 
 /** Primary search CTA with rotating loading phrases (matches regular search UX). */
@@ -23,16 +30,22 @@ export function SearchSubmitButton({
   disabled = false,
   onPress,
   compact = false,
+  nearComplete = false,
 }: SearchSubmitButtonProps) {
   const { theme } = useTheme();
   const { language } = useLocale();
   const phrases = getPhrasesForLanguage(SEARCH_BUTTON_PHRASES, language);
+  const almostDone = getAlmostDonePhrase(SEARCH_BUTTON_ALMOST_DONE, language);
   const [phraseIdx, setPhraseIdx] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!loading) {
       setPhraseIdx(0);
+      fadeAnim.setValue(1);
+      return;
+    }
+    if (nearComplete) {
       fadeAnim.setValue(1);
       return;
     }
@@ -45,7 +58,7 @@ export function SearchSubmitButton({
     };
     const id = setInterval(cycle, 2000);
     return () => clearInterval(id);
-  }, [loading, phrases.length, fadeAnim]);
+  }, [loading, phrases.length, fadeAnim, nearComplete]);
 
   return (
     <TouchableOpacity
@@ -69,7 +82,7 @@ export function SearchSubmitButton({
               { color: theme.buttonText, opacity: fadeAnim },
             ]}
           >
-            {phrases[phraseIdx]}
+            {nearComplete ? almostDone : phrases[phraseIdx]}
           </Animated.Text>
         </View>
       ) : (
