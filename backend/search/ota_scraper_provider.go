@@ -219,16 +219,46 @@ func (p *OtaScraperProvider) Search(ctx context.Context, req SearchRequest) ([]P
 	if p == nil {
 		return nil, fmt.Errorf("multisite scraper not configured")
 	}
+	// Open-jaw / extra hops: scrape each leg as one-way (same decomposition as GF2)
+	// then CombineOneWayBatches — previously we skipped and left DD GF2-only.
 	if IsOpenJaw(req) || HasExtraLegs(req) {
-		retO, retD := ResolveReturnAirports(req)
-		log.Printf("[MULTISITE] skipping dynamic-destination search (return %s→%s); GF2 handles open-jaw", retO, retD)
-		return nil, ErrProviderSkipped
+		return p.searchDynamicDestination(ctx, req)
 	}
-	key := p.cacheKey(req)
-	if cached, ok := p.cache.get(key); ok {
-		log.Printf("[MULTISITE] cacheHit=true results=%d", len(cached))
-		return cached, nil
+	return p.searchSingle(ctx, req, true)
+}
+
+// dynamicDestinationOneWayRequests builds outbound (+ extras) + return one-ways for DD/open-jaw.
+func dynamicDestinationOneWayRequests(req SearchRequest) []SearchRequest {
+	oneWay := func(origin, dest, date string) SearchRequest {
+		r := req
+		r.Origin = origin
+		r.Destination = dest
+		r.DepartureDate = date
+		r.ReturnDate = ""
+		r.ReturnOrigin = ""
+		r.ReturnDestination = ""
+		r.ExtraLegs = nil
+		return r
 	}
+	extras := CompleteExtraLegs(req.ExtraLegs)
+	out := make([]SearchRequest, 0, 2+len(extras))
+	out = append(out, oneWay(req.Origin, req.Destination, req.DepartureDate))
+	for _, e := range extras {
+		out = append(out, oneWay(e.Origin, e.Destination, e.Date))
+	}
+	retO, retD := ResolveReturnAirports(req)
+	out = append(out, oneWay(retO, retD, req.ReturnDate))
+	return out
+}
+
+func (p *OtaScraperProvider) searchDynamicDestination(ctx context.Context, req SearchRequest) ([]ProviderResult, error) {
+	steps := dynamicDestinationOneWayRequests(req)
+	if len(steps) == 0 {
+		return nil, fmt.Errorf("multisite: empty dynamic-destination steps")
+	}
+	retO, retD := ResolveReturnAirports(req)
+	log.Printf("[MULTISITE] dynamic-destination scrape legs=%d outbound=%s→%s return=%s→%s",
+		len(steps), req.Origin, req.Destination, retO, retD)
 
 	sem := otaScrapeSemaphore()
 	select {
@@ -236,6 +266,43 @@ func (p *OtaScraperProvider) Search(ctx context.Context, req SearchRequest) ([]P
 		defer func() { <-sem }()
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+
+	batches := make([][]ProviderResult, 0, len(steps))
+	for i, step := range steps {
+		label := fmt.Sprintf("%s→%s on %s", step.Origin, step.Destination, step.DepartureDate)
+		res, err := p.searchSingle(ctx, step, false)
+		if err != nil || len(res) == 0 {
+			if err != nil {
+				return nil, fmt.Errorf("multisite leg %s: %w", label, err)
+			}
+			return nil, fmt.Errorf("multisite leg %s: no offers", label)
+		}
+		log.Printf("[MULTISITE] leg %d/%d %s results=%d", i+1, len(steps), label, len(res))
+		batches = append(batches, res)
+	}
+	combined := CombineOneWayBatches(batches, "otaoj")
+	log.Printf("[MULTISITE] dynamic-destination combined=%d from %d legs", len(combined), len(batches))
+	return combined, nil
+}
+
+// searchSingle runs one classic (or one-way) scrape. acquireSem=false when the caller
+// already holds the process-wide CDP scrape gate (dynamic-destination multi-leg).
+func (p *OtaScraperProvider) searchSingle(ctx context.Context, req SearchRequest, acquireSem bool) ([]ProviderResult, error) {
+	key := p.cacheKey(req)
+	if cached, ok := p.cache.get(key); ok {
+		log.Printf("[MULTISITE] cacheHit=true results=%d", len(cached))
+		return cached, nil
+	}
+
+	if acquireSem {
+		sem := otaScrapeSemaphore()
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 
 	body := otaScraperSearchRequest{

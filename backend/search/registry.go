@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// ErrProviderSkipped marks providers that intentionally did not run (e.g. Kiwi on open-jaw).
+// ErrProviderSkipped marks providers that intentionally did not run for this request.
 // SearchAll ignores these when deciding whether the overall search failed.
 var ErrProviderSkipped = errors.New("provider skipped for this itinerary type")
 
@@ -148,6 +148,25 @@ func multisiteSoftTimeout() time.Duration {
 	return soft
 }
 
+// multisiteSoftTimeoutFor stretches the soft deadline when dynamic destinations
+// scrape multiple one-way legs (outbound + extras + return) under one Search call.
+func multisiteSoftTimeoutFor(req SearchRequest) time.Duration {
+	soft := multisiteSoftTimeout()
+	if !IsOpenJaw(req) && !HasExtraLegs(req) {
+		return soft
+	}
+	legs := 2 + len(CompleteExtraLegs(req.ExtraLegs))
+	if legs < 2 {
+		legs = 2
+	}
+	scaled := time.Duration(legs) * soft
+	const maxSoft = 4 * time.Minute
+	if scaled > maxSoft {
+		return maxSoft
+	}
+	return scaled
+}
+
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
@@ -178,7 +197,7 @@ func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest,
 			if !isFastProvider(p.Name()) {
 				soft := 20 * time.Second
 				if strings.EqualFold(p.Name(), "multisite") {
-					soft = multisiteSoftTimeout()
+					soft = multisiteSoftTimeoutFor(req)
 				}
 				// Detach from parent cancel so a short-lived HTTP create (PENDING ack)
 				// does not kill the background unified SearchAll scrape.
