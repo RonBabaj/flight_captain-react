@@ -18,21 +18,44 @@ export type DestinationMood = {
   accent?: string;
 };
 
-/** Card/list default; hero banners rewrite via moodImageUrlForVariant. */
-const unsplash = (photoId: string, width = 800) =>
-  `https://images.unsplash.com/${photoId}?auto=format&fm=webp&fit=crop&w=${width}&q=75`;
+/** Catalog default; surfaces rewrite via moodImageUrlForVariant (hero needs much more). */
+const unsplash = (photoId: string, width = 1200) =>
+  `https://images.unsplash.com/${photoId}?auto=format&fm=webp&fit=crop&w=${width}&q=80`;
+
+const MOOD_VARIANT_WIDTH: Record<'hero' | 'card' | 'compact', number> = {
+  // Full-bleed results/form banners on retina routinely exceed 1600 CSS px.
+  hero: 2400,
+  card: 1400,
+  compact: 800,
+};
+
+export type MoodImageVariant = 'hero' | 'card' | 'compact';
 
 /** Resize an existing Unsplash mood URL for hero vs card surfaces. */
-export function moodImageUrlForVariant(imageUrl: string, variant: 'hero' | 'card' | 'compact' = 'card'): string {
+export function moodImageUrlForVariant(
+  imageUrl: string,
+  variant: MoodImageVariant = 'card',
+  opts?: { widthPx?: number; dpr?: number },
+): string {
   if (!imageUrl || !imageUrl.includes('images.unsplash.com')) return imageUrl;
-  const width = variant === 'hero' ? 1200 : variant === 'compact' ? 640 : 800;
+  const dpr = Math.min(3, Math.max(1, opts?.dpr ?? 1));
+  const measured =
+    opts?.widthPx && opts.widthPx > 0 ? Math.ceil(opts.widthPx * dpr) : 0;
+  // Prefer layout×DPR when the surface is larger than the variant default
+  // (expanded results banner); never downscale below the variant floor.
+  const width = Math.min(
+    3200,
+    Math.max(MOOD_VARIANT_WIDTH[variant] ?? MOOD_VARIANT_WIDTH.card, measured),
+  );
+  const quality = variant === 'hero' ? 82 : 78;
   try {
     const u = new URL(imageUrl);
     u.searchParams.set('auto', 'format');
     u.searchParams.set('fm', 'webp');
     u.searchParams.set('fit', 'crop');
     u.searchParams.set('w', String(width));
-    if (!u.searchParams.get('q')) u.searchParams.set('q', '75');
+    u.searchParams.set('q', String(quality));
+    u.searchParams.set('dpr', String(dpr >= 2 ? 2 : 1));
     return u.toString();
   } catch {
     return imageUrl;

@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { resolveDestinationMood } from './destinationMood';
+import { moodImageUrlForVariant, resolveDestinationMood } from './destinationMood';
 import { getAirportEntry } from './airports';
 
 function assert(cond: unknown, msg: string): void {
@@ -76,6 +76,16 @@ assert(
   `expected unique mood per city, got ${unique.size} unique / ${urls.length} cities`,
 );
 
+// Expanded/full-bleed surfaces must request high-res Unsplash sources.
+const vie = resolveDestinationMood('VIE')!.imageUrl;
+const hero = new URL(moodImageUrlForVariant(vie, 'hero', { widthPx: 1100, dpr: 2 }));
+assert(Number(hero.searchParams.get('w')) >= 2200, `hero w too small: ${hero.searchParams.get('w')}`);
+assert(Number(hero.searchParams.get('w')) <= 3200, `hero w too large: ${hero.searchParams.get('w')}`);
+const compact = new URL(moodImageUrlForVariant(vie, 'compact'));
+assert(Number(compact.searchParams.get('w')) === 800, `compact w=${compact.searchParams.get('w')}`);
+const resultsLike = new URL(moodImageUrlForVariant(vie, 'hero'));
+assert(Number(resultsLike.searchParams.get('w')) >= 2400, 'results/form hero default must be ≥2400');
+
 console.log(
-  `destinationMood.test.ts OK — ${curatedCities.length} curated unique, ${byCity.size} explore cities unique`,
+  `destinationMood.test.ts OK — ${curatedCities.length} curated unique, ${byCity.size} explore cities unique, hero w=${hero.searchParams.get('w')}`,
 );

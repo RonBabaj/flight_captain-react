@@ -986,6 +986,35 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
+	// Skyscanner/Kiwi rows often lack carrier identity after DOM scrape — partner panel
+	// can also miss. Open the OTA listing for this exact search so Book is not a dead end.
+	if listing := otaListingPrefillURL(option, legIndex); listing != "" {
+		if gf2Prefill := gf2PartnerOfferFromURL(listing, fp); gf2Prefill != nil {
+			offer := publicOfferFromMatch(gf2Prefill, false)
+			if offer != nil {
+				offer.PriceLabel = "search_prefill"
+				offer.MatchConfidence = 0
+				resp := BookingResolveResponse{
+					Found:                true,
+					Status:               BookingResolveVerified,
+					ItineraryFingerprint: fp,
+					Offer:                offer,
+					Message:              "Opens the partner search with your dates — select this flight and verify the fare.",
+				}
+				logBookingResolve(bookingResolveLogEvent{
+					Event:                "resolve_verified_listing",
+					ItineraryFingerprint: fp,
+					LegIndex:             intPtrOrNil(legIndex),
+					LegRoute:             legRoute,
+					Status:               resp.Status,
+					Provider:             offer.Provider,
+					DurationMs:           time.Since(start).Milliseconds(),
+				})
+				return resp
+			}
+		}
+	}
+
 	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
 		resp := bookingResolveFailureResponse(fp, gf2Err)
 		logBookingResolve(bookingResolveLogEvent{

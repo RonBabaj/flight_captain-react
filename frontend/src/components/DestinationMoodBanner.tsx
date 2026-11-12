@@ -7,6 +7,7 @@ import {
   Animated,
   ScrollView,
   Platform,
+  PixelRatio,
   type ViewStyle,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -17,6 +18,7 @@ import {
   AIRPORT_FALLBACK_IMAGE,
   moodImageUrlForVariant,
   resolveDestinationMood,
+  type MoodImageVariant,
 } from '../data/destinationMood';
 import { useBreakpoint } from '../hooks/useResponsive';
 import { ANYWHERE_CODE } from '../types';
@@ -24,9 +26,10 @@ import type { CreateSearchSessionRequest } from '../types';
 
 type Variant = 'hero' | 'form' | 'results' | 'compact';
 
-function moodSizeForVariant(variant: Variant): 'hero' | 'card' | 'compact' {
-  if (variant === 'hero') return 'hero';
+/** Wide form/results banners need hero-tier source pixels; compact tiles stay light. */
+function moodSizeForVariant(variant: Variant): MoodImageVariant {
   if (variant === 'compact') return 'compact';
+  if (variant === 'hero' || variant === 'results' || variant === 'form') return 'hero';
   return 'card';
 }
 
@@ -69,6 +72,8 @@ export function DestinationMoodBanner({
   const [fallbackFailed, setFallbackFailed] = useState(false);
   // Defer network image until near viewport (web) or after first layout (native).
   const [shouldLoadImage, setShouldLoadImage] = useState(Platform.OS !== 'web');
+  // Layout width drives Unsplash `w` so expanded/full-bleed banners fetch sharp sources.
+  const [layoutWidth, setLayoutWidth] = useState(0);
 
   useEffect(() => {
     setImgFailed(false);
@@ -98,7 +103,9 @@ export function DestinationMoodBanner({
     return () => io.disconnect();
   }, [shouldLoadImage, mood?.imageUrl]);
 
-  const onLayout = useCallback((_e: LayoutChangeEvent) => {
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0) setLayoutWidth((prev) => (Math.abs(prev - w) >= 8 ? w : prev));
     if (Platform.OS !== 'web') setShouldLoadImage(true);
   }, []);
 
@@ -107,6 +114,9 @@ export function DestinationMoodBanner({
   const imageUri = moodImageUrlForVariant(
     imgFailed ? AIRPORT_FALLBACK_IMAGE : mood.imageUrl,
     moodSizeForVariant(variant),
+    layoutWidth > 0
+      ? { widthPx: layoutWidth, dpr: PixelRatio.get() }
+      : { dpr: PixelRatio.get() },
   );
 
   const entry = getAirportEntry(destinationCode);
