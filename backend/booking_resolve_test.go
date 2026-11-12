@@ -910,8 +910,33 @@ func TestLegDeepLink_allowsAlignedDeepLinksWhenTokenCountDiffers(t *testing.T) {
 	if got := legDeepLink(opt, 1); got != "https://mytrip.com/checkout/szg-tlv" {
 		t.Fatalf("leg 1 deeplink=%q", got)
 	}
+	// Ambiguous single token must not bind to either sliced leg.
+	if got := legBookingToken(opt, 0); got != "" {
+		t.Fatalf("leg 0 must not reuse single multi-leg token, got %q", got)
+	}
 	if got := legBookingToken(opt, 1); got != "" {
 		t.Fatalf("leg 1 must not reuse single token, got %q", got)
+	}
+}
+
+func TestOtaResolveClockHints_oneWayUsesOutDep(t *testing.T) {
+	opt := &FlightOption{
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				DepartureTime: time.Date(2027, 1, 7, 17, 35, 0, 0, time.UTC),
+			}}},
+			{Segments: []FlightSegment{{
+				DepartureTime: time.Date(2027, 1, 14, 13, 0, 0, 0, time.UTC),
+			}}},
+		},
+	}
+	out, inb := otaResolveClockHints(opt, 1, true)
+	if out != "13:00" || inb != "" {
+		t.Fatalf("one-way leg1 clocks out=%q in=%q want out=13:00", out, inb)
+	}
+	out0, in0 := otaResolveClockHints(opt, 0, true)
+	if out0 != "17:35" || in0 != "" {
+		t.Fatalf("one-way leg0 clocks out=%q in=%q", out0, in0)
 	}
 }
 

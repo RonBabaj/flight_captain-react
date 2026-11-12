@@ -877,10 +877,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     }
   }, [details?.sessionId, details?.optionId, t]);
 
-  useEffect(() => {
-    if (!showDetails || !details?.sessionId || !details?.optionId) return;
-    void handleBookFromDetails();
-  }, [showDetails, details?.sessionId, details?.optionId, handleBookFromDetails]);
+  // Do not auto-resolve on open — user clicks Book in the details footer.
 
   const handleOpenBookingUrl = async (url: string) => {
     if (!isSafeBookingUrl(url)) return;

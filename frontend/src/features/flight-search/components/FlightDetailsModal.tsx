@@ -194,21 +194,7 @@ export function FlightDetailsModal({
     await Promise.all(pending.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, forceRefresh)));
   };
 
-  // Auto-resolve partner checkout when details open (same GF2 path as Book).
-  // Depend on hop count / option id — not the hops array identity (recreated each render).
-  const hopsSignature = `${perHopBooking ? 1 : 0}:${hops.length}:${hops
-    .map((h) => `${h.legIndex}:${h.segmentIndex ?? -1}`)
-    .join(',')}`;
-  useEffect(() => {
-    if (!visible || !option || !sessionId) return;
-    if (perHopBooking && hops.length > 1) {
-      void Promise.all(hops.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, false)));
-      return;
-    }
-    void resolveHop(undefined, undefined, false);
-    // Intentionally once per open/option — resolveHop closes over latest option/session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, option?.id, sessionId, hopsSignature]);
+  // Do not auto-resolve on open — user clicks Book / Find booking for all legs.
 
   const handleShare = async () => {
     if (!option) return;

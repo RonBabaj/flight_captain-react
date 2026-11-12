@@ -771,6 +771,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       invalidateSearchSessionResultsCache(polledSessionId);
     }
 
+    const failPollBudget = () => {
+      // Silent stop left status=PENDING + results=[] → infinite loading spinner.
+      if (!isCurrentSearchGeneration(generation)) return;
+      const st = statusRef.current;
+      if (st === 'COMPLETE' || st === 'FAILED') return;
+      const storeSid = useSearchStore.getState().sessionId;
+      if (storeSid != null && storeSid !== polledSessionId) return;
+      searchActions.setError(t('search_failed_expired'));
+      searchActions.setSession(polledSessionId, useSearchStore.getState().results, 'FAILED');
+      setSearchNearComplete(false);
+    };
+
     const shouldStopPolling = () => {
       if (cancelled) return true;
       if (!isCurrentSearchGeneration(generation)) return true;
@@ -785,6 +797,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         (st === 'PENDING' || st === 'PARTIAL') &&
         Date.now() - pollStartedAt > PENDING_POLL_BUDGET_MS
       ) {
+        failPollBudget();
         return true;
       }
       return false;

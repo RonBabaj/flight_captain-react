@@ -66,8 +66,21 @@ func TestMultisiteSoftTimeoutFor_scalesOpenJaw(t *testing.T) {
 	if got < 2*base {
 		t.Fatalf("open-jaw soft=%v want at least 2×%v", got, base)
 	}
+	if got > 12*time.Minute {
+		t.Fatalf("open-jaw soft=%v exceeds 12m cap", got)
+	}
 	if gotClassic := multisiteSoftTimeoutFor(classic); gotClassic != base {
 		t.Fatalf("classic soft=%v want %v", gotClassic, base)
+	}
+	// Extra legs must not collapse to the old 4m clamp when each OW needs ~soft.
+	extra := oj
+	extra.ExtraLegs = []ExtraLeg{
+		{Origin: "VIE", Destination: "BUD", Date: "2027-01-10"},
+		{Origin: "BUD", Destination: "SZG", Date: "2027-01-12"},
+	}
+	gotExtra := multisiteSoftTimeoutFor(extra)
+	if gotExtra < 4*base {
+		t.Fatalf("extra-leg soft=%v want at least 4×%v", gotExtra, base)
 	}
 }
 

@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1794475965.1873026,
-    "seen": 1794477154.5708892,
-    "ast_hash": "5aba2d111151b1837bebbd3938670d0f",
+    "mtime": 1794478462.9812002,
+    "seen": 1794478533.6114829,
+    "ast_hash": "90d96390079642bc75346238c2a739e7",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1794474765.629196,
-    "seen": 1794474778.8932157,
-    "ast_hash": "80ced8140e44ffe6c9d393d0a514208b",
+    "mtime": 1794478471.9970903,
+    "seen": 1794478533.6114895,
+    "ast_hash": "d2c10487dde121273f678d5ea70b0a25",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1794475965.1873026,
-    "seen": 1794477154.5709028,
-    "ast_hash": "fe594f9a1eb46a6795995602166c3c52",
+    "mtime": 1794478463.241197,
+    "seen": 1794478533.6114979,
+    "ast_hash": "50a20264f34a15d6281891629eca85db",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "backend/search/registry.go": {
-    "mtime": 1794476882.7901042,
-    "seen": 1794477154.5708177,
-    "ast_hash": "81d33511ccafb8e2d75abca1b8562a11",
+    "mtime": 1794478473.7210693,
+    "seen": 1794478533.6114016,
+    "ast_hash": "74479c329055eeda6b887a04c1124eda",
     "semantic_hash": ""
   },
   "backend/search/openjaw_test.go": {
@@ -882,9 +882,9 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
-    "mtime": 1794475965.1873026,
-    "seen": 1794477154.570759,
-    "ast_hash": "40808737b2a3ceb6d927871920451ed3",
+    "mtime": 1794478513.8205724,
+    "seen": 1794478533.6113243,
+    "ast_hash": "a0f34f19e1e9a38ba1b6fa86203b5784",
     "semantic_hash": ""
   },
   "backend/bookingmatch/candidate.go": {
@@ -1212,9 +1212,9 @@
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve.go": {
-    "mtime": 1794373082.581736,
-    "seen": 1794373545.5078464,
-    "ast_hash": "758dc76a0700f69bfdb098f9e0f0086f",
+    "mtime": 1794478487.3569016,
+    "seen": 1794478533.6113129,
+    "ast_hash": "b3fc9af24353dfa6c61188a7ef0db103",
     "semantic_hash": ""
   },
   "backend/booking_gf2_resolve_test.go": {
@@ -1794,15 +1794,15 @@
     "semantic_hash": ""
   },
   "backend/search/ota_scraper_dd_test.go": {
-    "mtime": 1794474765.8691885,
-    "seen": 1794474778.893136,
-    "ast_hash": "6ae19cf126a82fe86404dd03b88a664e",
+    "mtime": 1794478519.6764987,
+    "seen": 1794478533.6113985,
+    "ast_hash": "2ec6fe7c7bc18d037eeeac6d2e77d7c1",
     "semantic_hash": ""
   },
   "backend/booking_ota_resolve.go": {
-    "mtime": 1794476998.9934754,
-    "seen": 1794477154.5707538,
-    "ast_hash": "daeb144e6ef0c5dcb129c247ea333970",
+    "mtime": 1794478485.544924,
+    "seen": 1794478533.6113172,
+    "ast_hash": "c39da7b0aacc7084697530b4a4dff525",
     "semantic_hash": ""
   },
   "backend/booking_ota_resolve_test.go": {
