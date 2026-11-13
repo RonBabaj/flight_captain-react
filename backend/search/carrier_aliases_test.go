@@ -11,11 +11,38 @@ func TestLookupAirlineIATA(t *testing.T) {
 		"WIZZAIRMALTA":   "W4",
 		"Tus Airways":    "U8",
 		"LY":             "LY",
+		"Austrian Airlines": "OS",
+		"David-Ben-Gurion International": "",
+		"DAVID-BEN-GOURION INTERNATIONAL": "",
 	}
 	for in, want := range cases {
 		if got := LookupAirlineIATA(in); got != want {
 			t.Errorf("LookupAirlineIATA(%q)=%q want %q", in, got, want)
 		}
+	}
+}
+
+func TestLooksLikeAirportLabel(t *testing.T) {
+	if !LooksLikeAirportLabel("David-Ben-Gurion International") {
+		t.Fatal("expected airport label")
+	}
+	if LooksLikeAirportLabel("Austrian Airlines") {
+		t.Fatal("airline must not look like airport")
+	}
+}
+
+func TestResolveFlightIdentity_rejectsAirportAsCarrier(t *testing.T) {
+	code, fn := ResolveFlightIdentity("David-Ben-Gurion International", "")
+	if code != "" || fn != "" {
+		t.Fatalf("got (%q, %q) want empty", code, fn)
+	}
+	code, fn = ResolveFlightIdentity("David-Ben-Gurion International", "DAVID-BEN-GOURION INTERNATIONAL")
+	if code != "" || fn != "" {
+		t.Fatalf("got (%q, %q) want empty", code, fn)
+	}
+	code, fn = ResolveFlightIdentity("Austrian Airlines", "")
+	if code != "OS" {
+		t.Fatalf("Austrian → OS, got %q / %q", code, fn)
 	}
 }
 
