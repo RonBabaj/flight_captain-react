@@ -978,64 +978,65 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	// OTA listing (Kiwi/Skyscanner results) before airline-site search prefills.
-	// Airline calendars often have no matching inventory for OTA-scraped fares
-	// (virtual interlining / wrong "direct" clocks) — send users back to the OTA
-	// that showed the price, and optionally still offer airline search as secondary.
+	// Booking shortcut policy: sell the flight we showed — never bounce to a
+	// meta-search listing (Skyscanner/Kayak/Google). Prefer airline booking for
+	// the marketing carrier; seller OTAs (Kiwi results → checkout) only when they
+	// actually sell tickets. Comparison sites are mustard; the fare is ketchup.
 	airlinePrefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp)
+	var listingOffer *PublicBookingOffer
 	if listing := otaListingPrefillURL(option, legIndex); listing != "" {
-		if gf2Prefill := gf2PartnerOfferFromURL(listing, fp); gf2Prefill != nil {
-			offer := publicOfferFromMatch(gf2Prefill, false)
-			if offer != nil {
-				offer.PriceLabel = "search_prefill"
-				offer.MatchConfidence = 0
-				resp := BookingResolveResponse{
-					Found:                true,
-					Status:               BookingResolveVerified,
-					ItineraryFingerprint: fp,
-					Offer:                offer,
-					CheapestOta:          offer,
-					Message:              "Opens the partner search with your dates — select this flight and verify the fare.",
-				}
-				if airlinePrefill != nil && !sameBookingURL(airlinePrefill.URL, offer.URL) {
-					resp.AirlineDirect = airlinePrefill
-				}
-				event := "resolve_verified_listing"
-				if resp.AirlineDirect != nil {
-					event = "resolve_verified_listing_dual"
-				}
-				logBookingResolve(bookingResolveLogEvent{
-					Event:                event,
-					ItineraryFingerprint: fp,
-					LegIndex:             intPtrOrNil(legIndex),
-					LegRoute:             legRoute,
-					Status:               resp.Status,
-					Provider:             offer.Provider,
-					DurationMs:           time.Since(start).Milliseconds(),
-				})
-				return resp
+		if raw := gf2PartnerOfferFromURL(listing, fp); raw != nil {
+			if o := publicOfferFromMatch(raw, false); o != nil {
+				o.PriceLabel = "search_prefill"
+				o.MatchConfidence = 0
+				listingOffer = o
 			}
 		}
 	}
 
-	// Airline-site templates only when no OTA listing is available. Meta prefills
-	// (Skyscanner/Google Flights) are not partner checkout — returning them as
-	// found=true left the UI with a rejected URL and no Book button.
 	if airlinePrefill != nil {
 		resp := BookingResolveResponse{
 			Found:                true,
 			Status:               BookingResolveVerified,
 			ItineraryFingerprint: fp,
 			Offer:                airlinePrefill,
+			AirlineDirect:        airlinePrefill,
 			Message:              "Opens airline site with your route prefilled — select your flight and verify the fare.",
 		}
+		event := "resolve_verified_prefill"
+		// Dual: seller OTA that priced the fare + airline booking shortcut.
+		if listingOffer != nil && !sameBookingURL(listingOffer.URL, airlinePrefill.URL) {
+			resp.CheapestOta = listingOffer
+			event = "resolve_verified_prefill_dual"
+		}
 		logBookingResolve(bookingResolveLogEvent{
-			Event:                "resolve_verified_prefill",
+			Event:                event,
 			ItineraryFingerprint: fp,
 			LegIndex:             intPtrOrNil(legIndex),
 			LegRoute:             legRoute,
 			Status:               resp.Status,
 			Provider:             airlinePrefill.Provider,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
+	}
+
+	if listingOffer != nil {
+		resp := BookingResolveResponse{
+			Found:                true,
+			Status:               BookingResolveVerified,
+			ItineraryFingerprint: fp,
+			Offer:                listingOffer,
+			CheapestOta:          listingOffer,
+			Message:              "Opens the partner site with your dates — select this flight and continue to book.",
+		}
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                "resolve_verified_listing",
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			Provider:             listingOffer.Provider,
 			DurationMs:           time.Since(start).Milliseconds(),
 		})
 		return resp
