@@ -265,7 +265,8 @@ async function scrapeSkyscanner(req, config) {
             '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
           );
           const hmRe = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
-          const skipAlt = /logo|icon|image|photo|arrow|chevron|skyscanner|direct|stop/i;
+          const skipAlt =
+            /logo|icon|image|photo|arrow|chevron|skyscanner|direct|stop|airport|a[eé]roport|international|ben[-\s]?gour?ion|terminal|flughafen|depart|arriv|hour|heure|minute/i;
           cards.forEach((card) => {
             const priceEl =
               card.querySelector('[data-testid="price"]') ||
@@ -281,19 +282,28 @@ async function scrapeSkyscanner(req, config) {
             // Extract clocks from the FULL card text — truncating to ~240 chars
             // cut off French "Vol retour" times and caused "return not loaded".
             const times = fullText.match(hmRe) || [];
-            // Airline logos / labels — DOM path previously omitted carriers entirely.
+            // Prefer airline-specific nodes; never treat airport img alts as carriers
+            // (that produced "David-Ben-Gurion International" in Flight details).
             const airlines = [];
-            card.querySelectorAll('img[alt], img[title], [data-testid*="airline"], [aria-label]').forEach((el) => {
-              const raw =
-                el.getAttribute('alt') ||
-                el.getAttribute('title') ||
-                el.getAttribute('aria-label') ||
-                el.textContent ||
-                '';
-              const label = String(raw).replace(/\s+/g, ' ').trim();
-              if (!label || label.length < 2 || label.length > 48 || skipAlt.test(label)) return;
+            const pushAirline = (raw) => {
+              const label = String(raw || '')
+                .replace(/\s+/g, ' ')
+                .replace(/\s*logo.*/i, '')
+                .trim();
+              if (!label || label.length < 2 || label.length > 40 || skipAlt.test(label)) return;
+              if (/^[A-Z0-9]{3}$/i.test(label)) return; // airport IATA
               if (!airlines.includes(label)) airlines.push(label);
-            });
+            };
+            card
+              .querySelectorAll(
+                '[data-testid*="airline"] img[alt], [data-testid*="carrier"] img[alt], [class*="Airline"] img[alt], [class*="Carrier"] img[alt]',
+              )
+              .forEach((el) => pushAirline(el.getAttribute('alt') || el.getAttribute('title')));
+            if (!airlines.length) {
+              card.querySelectorAll('img[alt], img[title]').forEach((el) => {
+                pushAirline(el.getAttribute('alt') || el.getAttribute('title'));
+              });
+            }
             out.push({
               priceText,
               link: card.querySelector('a')?.href || window.location.href,

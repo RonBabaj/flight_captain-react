@@ -221,7 +221,14 @@ func CarrierDisplayName(rawCarrier string) string {
 	if raw == "" {
 		return ""
 	}
+	if LooksLikeAirportLabel(raw) {
+		return ""
+	}
 	if isIATACarrierCode(NormalizeCarrierCode(raw)) {
+		return ""
+	}
+	// Only keep display names we can map (or short airline-like labels).
+	if LookupAirlineIATA(raw) == "" && len(airlineAliasKey(raw)) > 24 {
 		return ""
 	}
 	return raw
@@ -234,8 +241,15 @@ func ResolveFlightIdentity(marketingCarrier, flightNum string) (carrierCode, nor
 	compact := strings.ToUpper(strings.TrimSpace(flightNum))
 	compact = strings.ReplaceAll(compact, " ", "")
 	compact = strings.ReplaceAll(compact, "-", "")
+	if LooksLikeAirportLabel(flightNum) {
+		compact = ""
+	}
 	if compact == "" {
 		carrierCode = LookupAirlineIATA(marketingCarrier)
+		// Never echo a non-IATA blob as the flight number (was "DAVID-BEN-GURION…").
+		if !isIATACarrierCode(carrierCode) {
+			return carrierCode, ""
+		}
 		return carrierCode, carrierCode
 	}
 	if c, n, ok := splitFlightDesignator(compact); ok {
@@ -248,6 +262,9 @@ func ResolveFlightIdentity(marketingCarrier, flightNum string) (carrierCode, nor
 	}
 	if c, _, ok := splitFlightDesignator(normalized); ok {
 		return c, normalized
+	}
+	if !isIATACarrierCode(mkt) {
+		return mkt, ""
 	}
 	return mkt, normalized
 }

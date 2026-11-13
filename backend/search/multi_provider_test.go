@@ -160,11 +160,11 @@ func TestRegistrySearchAllPartialFailure(t *testing.T) {
 func TestRegistrySearchAllWithProgress(t *testing.T) {
 	slow := &stubProvider{name: "slow", results: []ProviderResult{{
 		ID: "1", Price: Monetary{Currency: "USD", Amount: 100}, Source: "slow",
-		Legs: []Leg{{Segments: []Segment{{From: "A", To: "B", MarketingCarrier: "X", FlightNumber: "1"}}}},
+		Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "VIE", MarketingCarrier: "OS", FlightNumber: "OS1"}}}},
 	}}}
 	fast := &stubProvider{name: "fast", results: []ProviderResult{{
 		ID: "2", Price: Monetary{Currency: "USD", Amount: 90}, Source: "fast",
-		Legs: []Leg{{Segments: []Segment{{From: "A", To: "B", MarketingCarrier: "Y", FlightNumber: "2"}}}},
+		Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "VIE", MarketingCarrier: "LY", FlightNumber: "LY2"}}}},
 	}}}
 	r := &Registry{providers: []Provider{slow, fast}}
 	var ticks []int

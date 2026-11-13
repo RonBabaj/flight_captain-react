@@ -24,7 +24,7 @@ import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, formatFlightDesignator, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
+import { displayAirlineLabel, formatSegmentCarrierLine, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
@@ -741,11 +741,7 @@ export function FlightDetailsModal({
                         {/* Segment details line */}
                         <View style={s.segDetails}>
                           <Text style={[s.segDetailText, { color: theme.textMuted }]}>
-                            {[
-                              carrierName,
-                              formatFlightDesignator(carrier, seg.flightNumber),
-                              segCabin,
-                            ].filter(Boolean).join(' · ')}
+                            {formatSegmentCarrierLine(carrierName, carrier, seg.flightNumber, segCabin)}
                           </Text>
                         </View>
                       </View>
