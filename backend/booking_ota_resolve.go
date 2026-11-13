@@ -22,6 +22,20 @@ func isOTAScrapedSource(source string) bool {
 	}
 }
 
+// isSellerOTASource is true when the scrape came from a store that sells tickets
+// (Kiwi/Expedia), not a meta-comparison site. Book should open that seller first.
+func isSellerOTASource(option *FlightOption) bool {
+	if option == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(option.Source)) {
+	case "kiwi", "expedia":
+		return true
+	default:
+		return false
+	}
+}
+
 func otaResolveSiteForSource(source string) string {
 	switch strings.ToLower(strings.TrimSpace(source)) {
 	case "skyscanner":
