@@ -179,11 +179,19 @@ export function isSafeBookingUrl(url: string): boolean {
     const u = new URL(url);
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
     const host = u.hostname.toLowerCase();
-    const path = u.pathname.toLowerCase();
-    // Skyscanner flight search/listing pages are allowed as an intentional Book
-    // fallback when partner checkout is unavailable (DOM scrape has no carriers).
-    if (host === 'skyscanner.com' || host.endsWith('.skyscanner.com') || host.includes('skyscanner.')) {
-      return path.includes('/transport/') || path.includes('/flights');
+    // Meta-search hosts are not booking handoffs — Book must open a seller
+    // (airline / OTA checkout), not another comparison results page.
+    if (
+      host === 'skyscanner.com' ||
+      host.endsWith('.skyscanner.com') ||
+      host.includes('skyscanner.') ||
+      host.includes('kayak.') ||
+      host.includes('momondo.') ||
+      host === 'google.com' ||
+      host.endsWith('.google.com') ||
+      host.includes('google.co.')
+    ) {
+      return false;
     }
     return true;
   } catch {

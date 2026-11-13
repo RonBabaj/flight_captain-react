@@ -176,9 +176,10 @@ func flightSegmentToOtaMap(s FlightSegment, leg string) map[string]interface{} {
 	return m
 }
 
-// otaListingPrefillURL returns the scraped OTA results URL when partner checkout
-// is unavailable. Full-itinerary only (legIndex < 0); per-leg resolve must not
-// reopen the outbound listing page.
+// otaListingPrefillURL returns a bookable OTA results URL (e.g. Kiwi search)
+// when partner checkout is unavailable. Full-itinerary only (legIndex < 0).
+// Meta aggregators (Skyscanner/Kayak/Google Flights) are never returned —
+// opening another comparison site is not a booking shortcut.
 func otaListingPrefillURL(option *FlightOption, legIndex int) string {
 	if option == nil || legIndex >= 0 {
 		return ""
@@ -199,11 +200,11 @@ func otaListingPrefillURL(option *FlightOption, legIndex int) string {
 	if err := bookingmatch.ValidateBookingURL(u); err != nil {
 		return ""
 	}
-	// Prefer known meta/OTA listing pages (Skyscanner transport, Kiwi results).
 	if search.IsMetaSearchAggregatorURL(u) {
-		return u
+		return ""
 	}
 	low := strings.ToLower(u)
+	// Kiwi results pages can continue into Kiwi checkout (seller OTA, not meta).
 	if strings.Contains(low, "kiwi.com") && strings.Contains(low, "/search/results") {
 		return u
 	}
