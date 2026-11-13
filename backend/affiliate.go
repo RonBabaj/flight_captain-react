@@ -162,7 +162,8 @@ func init() {
 			Code:   "OS",
 			Name:   "Austrian Airlines",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.austrian.com/at/en/booking?origin={origin}&destination={destination}&departureDate={departureDate}&cabin={cabin}",
+			// Public /at/en/booking?... 404s. LH-group partner deeplink is the live book path.
+			URLTpl: "https://www.austrian.com/deeplink/partner?origin={origin}&destination={destination}&travel={departureDate}&return={returnDate}&cabin=economy&lang=en&country=il",
 		},
 		"LX": {
 			Code:   "LX",
@@ -358,8 +359,10 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 		subid = ""
 	}
 
+	// Wizz path URLs require the literal token "null" for one-way; other airlines
+	// omit an empty return (a literal "null" query value 404s on Austrian/LH).
 	retToken := returnDate
-	if retToken == "" {
+	if retToken == "" && strings.Contains(provider.URLTpl, "wizzair.com") {
 		retToken = "null"
 	}
 

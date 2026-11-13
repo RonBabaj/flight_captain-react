@@ -978,10 +978,10 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
-	// Booking shortcut policy: sell the flight we showed — never bounce to a
-	// meta-search listing (Skyscanner/Kayak/Google). Prefer airline booking for
-	// the marketing carrier; seller OTAs (Kiwi results → checkout) only when they
-	// actually sell tickets. Comparison sites are mustard; the fare is ketchup.
+	// Sell the fare we showed — not a different store, not a dead deep link.
+	// - Seller OTA (Kiwi): primary = that OTA's results/checkout path (ketchup).
+	// - Meta scrape (Skyscanner): never listing; airline only when template works.
+	// - Airline prefill is secondary for seller-sourced fares (optional shortcut).
 	airlinePrefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp)
 	var listingOffer *PublicBookingOffer
 	if listing := otaListingPrefillURL(option, legIndex); listing != "" {
@@ -994,6 +994,33 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
+	sellerSourced := isSellerOTASource(option)
+	if sellerSourced && listingOffer != nil {
+		resp := BookingResolveResponse{
+			Found:                true,
+			Status:               BookingResolveVerified,
+			ItineraryFingerprint: fp,
+			Offer:                listingOffer,
+			CheapestOta:          listingOffer,
+			Message:              "Opens the partner site with your dates — select this flight and continue to book.",
+		}
+		event := "resolve_verified_listing"
+		if airlinePrefill != nil && !sameBookingURL(airlinePrefill.URL, listingOffer.URL) {
+			resp.AirlineDirect = airlinePrefill
+			event = "resolve_verified_listing_dual"
+		}
+		logBookingResolve(bookingResolveLogEvent{
+			Event:                event,
+			ItineraryFingerprint: fp,
+			LegIndex:             intPtrOrNil(legIndex),
+			LegRoute:             legRoute,
+			Status:               resp.Status,
+			Provider:             listingOffer.Provider,
+			DurationMs:           time.Since(start).Milliseconds(),
+		})
+		return resp
+	}
+
 	if airlinePrefill != nil {
 		resp := BookingResolveResponse{
 			Found:                true,
@@ -1003,14 +1030,8 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 			AirlineDirect:        airlinePrefill,
 			Message:              "Opens airline site with your route prefilled — select your flight and verify the fare.",
 		}
-		event := "resolve_verified_prefill"
-		// Dual: seller OTA that priced the fare + airline booking shortcut.
-		if listingOffer != nil && !sameBookingURL(listingOffer.URL, airlinePrefill.URL) {
-			resp.CheapestOta = listingOffer
-			event = "resolve_verified_prefill_dual"
-		}
 		logBookingResolve(bookingResolveLogEvent{
-			Event:                event,
+			Event:                "resolve_verified_prefill",
 			ItineraryFingerprint: fp,
 			LegIndex:             intPtrOrNil(legIndex),
 			LegRoute:             legRoute,

@@ -1,8 +1,8 @@
 {
   "backend/affiliate.go": {
-    "mtime": 1794495542.0576134,
-    "seen": 1794495826.2061915,
-    "ast_hash": "cdabae18f0a4b7fd5e4265f76704a615",
+    "mtime": 1794578357.1442618,
+    "seen": 1794578429.005941,
+    "ast_hash": "e92c44986cace65f5cdcd6036327619a",
     "semantic_hash": ""
   },
   "backend/canonical.go": {
@@ -876,9 +876,9 @@
     "semantic_hash": ""
   },
   "backend/booking_resolve.go": {
-    "mtime": 1794567466.5080345,
-    "seen": 1794567534.257315,
-    "ast_hash": "4cfb3cd3206914a4d5f14405351ef1b0",
+    "mtime": 1794578372.0924957,
+    "seen": 1794578429.005955,
+    "ast_hash": "51cbf48fc4ca82bd675d332c60f08da1",
     "semantic_hash": ""
   },
   "backend/booking_resolve_test.go": {
@@ -1008,8 +1008,8 @@
     "semantic_hash": ""
   },
   "frontend/src/api/booking.ts": {
-    "mtime": 1794567471.456024,
-    "seen": 1794567534.2574031,
+    "mtime": 1794578241.425179,
+    "seen": 1794578429.0060382,
     "ast_hash": "c6dc13d1341758450102d87ed726a17d",
     "semantic_hash": ""
   },
@@ -1800,9 +1800,9 @@
     "semantic_hash": ""
   },
   "backend/booking_ota_resolve.go": {
-    "mtime": 1794567410.7409642,
-    "seen": 1794567534.2573125,
-    "ast_hash": "ba9c4ee23fed07bf85c5f591d98a9321",
+    "mtime": 1794578378.6326168,
+    "seen": 1794578429.005953,
+    "ast_hash": "9a1019638c4c07da09ac1a8363c3fea0",
     "semantic_hash": ""
   },
   "backend/booking_ota_resolve_test.go": {
@@ -1818,9 +1818,9 @@
     "semantic_hash": ""
   },
   "backend/booking_kiwi_prod_shape_test.go": {
-    "mtime": 1794567514.2965763,
-    "seen": 1794567534.2573109,
-    "ast_hash": "77df071b0f30415baab2074116a45995",
+    "mtime": 1794578392.440899,
+    "seen": 1794578429.005952,
+    "ast_hash": "1fb5eb477c3c81177ff734f9af329a14",
     "semantic_hash": ""
   },
   "backend/search/carrier_aliases.go": {
@@ -1836,8 +1836,8 @@
     "semantic_hash": ""
   },
   "backend/booking_skyscanner_prod_shape_test.go": {
-    "mtime": 1794567493.2201972,
-    "seen": 1794567534.2573187,
+    "mtime": 1794578241.425179,
+    "seen": 1794578429.0059583,
     "ast_hash": "d8ac7da6fe2256e775789c1389a37708",
     "semantic_hash": ""
   },
@@ -1857,6 +1857,12 @@
     "mtime": 1794495542.0656123,
     "seen": 1794495826.2063184,
     "ast_hash": "73ea87c162e09e69f242625b837727be",
+    "semantic_hash": ""
+  },
+  "backend/affiliate_os_url_test.go": {
+    "mtime": 1794578406.4292097,
+    "seen": 1794578429.0059435,
+    "ast_hash": "eda6a889dec6e4dc0ca8b9bd1e718e93",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

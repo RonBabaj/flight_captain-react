@@ -139,21 +139,21 @@ func TestRunBookingMatch_prodShapeKiwiIsrairGetsAirlinePrefill(t *testing.T) {
 	fp := search.CanonicalItineraryFingerprint(it)
 	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
 	if !resp.Found || resp.Offer == nil {
-		t.Fatalf("expected Israir airline booking for Kiwi fare, got found=%v status=%s msg=%s", resp.Found, resp.Status, resp.Message)
+		t.Fatalf("expected Kiwi seller handoff for Kiwi fare, got found=%v status=%s msg=%s", resp.Found, resp.Status, resp.Message)
 	}
-	if !strings.Contains(strings.ToLower(resp.Offer.URL), "israir") {
-		t.Fatalf("expected Israir booking URL (sell the flight), got %q", resp.Offer.URL)
+	if !strings.Contains(strings.ToLower(resp.Offer.URL), "kiwi.com") {
+		t.Fatalf("expected Kiwi seller URL (sell the priced fare), got %q", resp.Offer.URL)
 	}
-	if resp.Offer.PriceLabel != "airline_direct_prefill" {
-		t.Fatalf("priceLabel=%q want airline_direct_prefill", resp.Offer.PriceLabel)
+	if resp.Offer.PriceLabel != "search_prefill" {
+		t.Fatalf("priceLabel=%q want search_prefill", resp.Offer.PriceLabel)
 	}
-	if resp.CheapestOta == nil || !strings.Contains(strings.ToLower(resp.CheapestOta.URL), "kiwi.com") {
-		t.Fatalf("expected Kiwi seller listing as secondary, got %+v", resp.CheapestOta)
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "israir") {
+		t.Fatalf("expected Israir airline secondary, got %+v", resp.AirlineDirect)
 	}
 }
 
 // HTTP path shaped like live sess_dmt5sgj985sc / opt_10: empty OTA panel + no web search
-// must open Israir booking (the flight) with Kiwi listing available as seller secondary.
+// must open Kiwi (seller of the fare) with Israir as optional airline secondary.
 func TestHandleBookingResolve_prodShapeKiwiIsrairHTTP(t *testing.T) {
 	oldGF2 := bookingGF2OffersResolver
 	oldOTA := bookingOTAOffersResolver
@@ -203,21 +203,21 @@ func TestHandleBookingResolve_prodShapeKiwiIsrairHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !out.Found || out.Status != BookingResolveVerified || out.Offer == nil {
-		t.Fatalf("expected verified Israir booking, got found=%v status=%s msg=%s body=%s", out.Found, out.Status, out.Message, rec.Body.String())
+		t.Fatalf("expected verified Kiwi seller handoff, got found=%v status=%s msg=%s body=%s", out.Found, out.Status, out.Message, rec.Body.String())
 	}
-	if !strings.Contains(strings.ToLower(out.Offer.URL), "israir") {
-		t.Fatalf("expected Israir booking URL, got %q", out.Offer.URL)
+	if !strings.Contains(strings.ToLower(out.Offer.URL), "kiwi.com") {
+		t.Fatalf("expected Kiwi seller URL, got %q", out.Offer.URL)
 	}
-	if out.Offer.PriceLabel != "airline_direct_prefill" {
-		t.Fatalf("priceLabel=%q want airline_direct_prefill", out.Offer.PriceLabel)
+	if out.Offer.PriceLabel != "search_prefill" {
+		t.Fatalf("priceLabel=%q want search_prefill", out.Offer.PriceLabel)
 	}
-	if out.CheapestOta == nil || !strings.Contains(strings.ToLower(out.CheapestOta.URL), "kiwi.com") {
-		t.Fatalf("expected Kiwi seller secondary, got %+v", out.CheapestOta)
+	if out.AirlineDirect == nil || !strings.Contains(strings.ToLower(out.AirlineDirect.URL), "israir") {
+		t.Fatalf("expected Israir airline secondary, got %+v", out.AirlineDirect)
 	}
 }
 
-// Live Wizz-on-Kiwi shape: Book the airline (shortcut); keep Kiwi listing as seller secondary.
-func TestRunBookingMatch_kiwiWizzAirlinePrimaryWithKiwiSecondary(t *testing.T) {
+// Live Wizz-on-Kiwi shape: sell on Kiwi (priced fare); Wizz airline is optional secondary.
+func TestRunBookingMatch_kiwiWizzSellerPrimaryWithAirlineSecondary(t *testing.T) {
 	oldGF2 := bookingGF2OffersResolver
 	oldOTA := bookingOTAOffersResolver
 	oldWeb := bookingMatchRunner
@@ -274,12 +274,12 @@ func TestRunBookingMatch_kiwiWizzAirlinePrimaryWithKiwiSecondary(t *testing.T) {
 	fp := search.CanonicalItineraryFingerprint(it)
 	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
 	if !resp.Found || resp.Offer == nil {
-		t.Fatalf("expected Wizz airline booking, got found=%v status=%s", resp.Found, resp.Status)
+		t.Fatalf("expected Kiwi seller handoff, got found=%v status=%s", resp.Found, resp.Status)
 	}
-	if !strings.Contains(strings.ToLower(resp.Offer.URL), "wizzair.com") {
-		t.Fatalf("primary should be Wizz airline handoff, got %q", resp.Offer.URL)
+	if !strings.Contains(strings.ToLower(resp.Offer.URL), "kiwi.com") {
+		t.Fatalf("primary should be Kiwi seller, got %q", resp.Offer.URL)
 	}
-	if resp.CheapestOta == nil || !strings.Contains(strings.ToLower(resp.CheapestOta.URL), "kiwi.com") {
-		t.Fatalf("expected Kiwi seller secondary, got %+v", resp.CheapestOta)
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "wizzair.com") {
+		t.Fatalf("expected Wizz airline secondary, got %+v", resp.AirlineDirect)
 	}
 }
