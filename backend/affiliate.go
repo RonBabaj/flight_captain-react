@@ -159,11 +159,13 @@ func init() {
 			URLTpl: "https://www.lufthansa.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
 		"OS": {
-			Code:   "OS",
-			Name:   "Austrian Airlines",
-			Type:   ProviderTypeAirline,
-			// Public /at/en/booking?... 404s. LH-group partner deeplink is the live book path.
-			URLTpl: "https://www.austrian.com/deeplink/partner?origin={origin}&destination={destination}&travel={departureDate}&return={returnDate}&cabin=economy&lang=en&country=il",
+			Code: "OS",
+			Name: "Austrian Airlines",
+			Type: ProviderTypeAirline,
+			// No public search URL. /at/en/booking 404s, and /deeplink/partner without
+			// a partner key opens the book form in an error state (default Frankfurt,
+			// empty destination). Do not emit a link until one is verified.
+			URLTpl: "",
 		},
 		"LX": {
 			Code:   "LX",

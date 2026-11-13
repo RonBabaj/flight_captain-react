@@ -755,6 +755,41 @@ func sameBookingURL(a, b string) bool {
 	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
+// scopedCarriersUniform is true when every segment in the booking scope shares one carrier.
+func scopedCarriersUniform(option *FlightOption, legIndex, segmentIndex int) bool {
+	if option == nil {
+		return false
+	}
+	var codes []string
+	consider := func(leg FlightLeg, onlySeg int) {
+		for i, seg := range leg.Segments {
+			if onlySeg >= 0 && i != onlySeg {
+				continue
+			}
+			if c := search.LookupAirlineIATA(seg.MarketingCarrier.Code); c != "" {
+				codes = append(codes, c)
+			}
+		}
+	}
+	if legIndex >= 0 && legIndex < len(option.Legs) {
+		consider(option.Legs[legIndex], segmentIndex)
+	} else {
+		for _, leg := range option.Legs {
+			consider(leg, -1)
+		}
+	}
+	if len(codes) == 0 {
+		return false
+	}
+	first := codes[0]
+	for _, c := range codes[1:] {
+		if c != first {
+			return false
+		}
+	}
+	return true
+}
+
 // publicAirlineDirectPrefillOffer builds an airline calendar/search URL offer when
 // partner checkout is unavailable (route+dates only — fare not guaranteed).
 func publicAirlineDirectPrefillOffer(
@@ -763,6 +798,10 @@ func publicAirlineDirectPrefillOffer(
 	legIndex, segmentIndex int,
 	fp string,
 ) *PublicBookingOffer {
+	// One airline site cannot sell a mix (e.g. Austrian out + Bluebird back).
+	if !scopedCarriersUniform(option, legIndex, segmentIndex) {
+		return nil
+	}
 	prefill := bookingPrefillURL(session, option, legIndex, segmentIndex)
 	if prefill == "" || !isAffiliateTemplateBookingURL(prefill) || search.IsMetaSearchAggregatorURL(prefill) {
 		return nil
