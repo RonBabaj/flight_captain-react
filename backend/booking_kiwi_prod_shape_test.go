@@ -283,3 +283,69 @@ func TestRunBookingMatch_kiwiWizzSellerPrimaryWithAirlineSecondary(t *testing.T)
 		t.Fatalf("expected Wizz airline secondary, got %+v", resp.AirlineDirect)
 	}
 }
+
+// Kiwi TLV–VIE priced as Austrian out + Bluebird back. One Austrian round-trip
+// link is a different ticket, and the OS partner deeplink errors.
+func TestRunBookingMatch_kiwiMixedCarriersNoAustrianDeeplink(t *testing.T) {
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	depOut := time.Date(2027, 1, 7, 15, 40, 0, 0, time.FixedZone("IST", 2*3600))
+	arrOut := time.Date(2027, 1, 7, 18, 25, 0, 0, time.FixedZone("CET", 1*3600))
+	depIn := time.Date(2027, 1, 14, 14, 45, 0, 0, time.FixedZone("CET", 1*3600))
+	arrIn := time.Date(2027, 1, 14, 19, 15, 0, 0, time.FixedZone("IST", 2*3600))
+	opt := &FlightOption{
+		ID: "opt_0", Source: "kiwi", VendorName: "Kiwi.com",
+		PrimaryDisplayCarrier: "OS",
+		Price:                 MonetaryAmount{Currency: "USD", Amount: 296},
+		ListingURL:            "https://www.kiwi.com/en/search/results/tel-aviv-israel/vienna-austria/2027-01-07/2027-01-14/",
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: depOut, ArrivalTime: arrOut,
+				MarketingCarrier: Carrier{Code: "OS", Name: "Austrian Airlines"},
+				DurationMinutes:  225, CabinClass: "ECONOMY",
+			}}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "VIE"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: depIn, ArrivalTime: arrIn,
+				MarketingCarrier: Carrier{Code: "BZ", Name: "Bluebird Airways"},
+				DurationMinutes:  210, CabinClass: "ECONOMY",
+			}}},
+		},
+	}
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14", Adults: 1,
+	}}
+	it, err := canonicalItineraryForOption(opt, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
+	if !resp.Found || resp.Offer == nil {
+		t.Fatalf("expected Kiwi seller, got found=%v status=%s", resp.Found, resp.Status)
+	}
+	if !strings.Contains(strings.ToLower(resp.Offer.URL), "kiwi.com") {
+		t.Fatalf("primary=%q", resp.Offer.URL)
+	}
+	if resp.AirlineDirect != nil {
+		t.Fatalf("mixed-carrier fare must not offer a single airline link, got %+v", resp.AirlineDirect)
+	}
+}

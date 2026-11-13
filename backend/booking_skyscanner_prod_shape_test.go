@@ -96,7 +96,7 @@ func TestRunBookingMatch_skyscannerEmptyCarrierNotMetaListing(t *testing.T) {
 	}
 }
 
-func TestRunBookingMatch_skyscannerWithCarrierGetsAirlinePrefill(t *testing.T) {
+func TestRunBookingMatch_skyscannerAustrianDoesNotUseBrokenDeeplink(t *testing.T) {
 	oldGF2 := bookingGF2OffersResolver
 	oldOTA := bookingOTAOffersResolver
 	oldWeb := bookingMatchRunner
@@ -127,16 +127,13 @@ func TestRunBookingMatch_skyscannerWithCarrierGetsAirlinePrefill(t *testing.T) {
 	}
 	fp := search.CanonicalItineraryFingerprint(it)
 	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
-	if !resp.Found || resp.Offer == nil {
-		t.Fatalf("expected Austrian airline prefill, got found=%v status=%s", resp.Found, resp.Status)
+	if resp.Found && resp.Offer != nil {
+		low := strings.ToLower(resp.Offer.URL)
+		if strings.Contains(low, "skyscanner") || strings.Contains(low, "austrian.com") {
+			t.Fatalf("must not Book via Skyscanner or a broken Austrian URL, got %q", resp.Offer.URL)
+		}
 	}
-	if strings.Contains(strings.ToLower(resp.Offer.URL), "skyscanner") {
-		t.Fatalf("Book must not open Skyscanner, got %q", resp.Offer.URL)
-	}
-	if !strings.Contains(strings.ToLower(resp.Offer.URL), "austrian") {
-		t.Fatalf("expected Austrian booking URL, got %q", resp.Offer.URL)
-	}
-	if resp.Offer.PriceLabel != "airline_direct_prefill" {
-		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	if resp.AirlineDirect != nil && strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "austrian.com") {
+		t.Fatalf("airline direct must not be an unverified Austrian URL: %q", resp.AirlineDirect.URL)
 	}
 }
