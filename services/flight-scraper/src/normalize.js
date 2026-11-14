@@ -15,6 +15,7 @@ function offerTemplate(params) {
   if (params.stopsHint != null && params.stopsHint > 0) {
     out.stopsHint = params.stopsHint;
   }
+  if (params.vendor) out.vendorName = params.vendor;
   return out;
 }
 
@@ -74,7 +75,7 @@ function segmentsFromRoundTripClocks(req, clocks, extras = {}) {
           to: origin,
           departureTime: retDep,
           arrivalTime: retArr,
-          airline,
+          airline: extras.inboundAirline || airline,
         }),
       );
     }

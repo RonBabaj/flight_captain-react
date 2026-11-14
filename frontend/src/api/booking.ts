@@ -179,12 +179,13 @@ export function isSafeBookingUrl(url: string): boolean {
     const u = new URL(url);
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
     const host = u.hostname.toLowerCase();
-    // Meta-search hosts are not booking handoffs — Book must open a seller
-    // (airline / OTA checkout), not another comparison results page.
+    const path = u.pathname.toLowerCase();
+    // A Skyscanner transport_deeplink is the redirect the results page already
+    // attached to this fare. The results page itself is not a booking link.
+    if (host.includes('skyscanner.')) {
+      return path.includes('transport_deeplink') || path.includes('/deeplink/');
+    }
     if (
-      host === 'skyscanner.com' ||
-      host.endsWith('.skyscanner.com') ||
-      host.includes('skyscanner.') ||
       host.includes('kayak.') ||
       host.includes('momondo.') ||
       host === 'google.com' ||

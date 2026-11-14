@@ -686,9 +686,9 @@ func gf2PartnerOfferFromURL(rawURL, fp string) *bookingmatch.BookingOffer {
 	domain := providerDomainFromURL(u)
 	urlType := bookingmatch.URLTypeExactBooking
 	status := bookingmatch.StatusVerifiedExact
-	// Meta-search pages (Skyscanner/Kayak/Google Flights) must never be treated as
-	// one-tap partner checkout — keep them only as partial search/prefill offers.
-	if search.IsMetaSearchAggregatorURL(u) {
+	// Comparison results pages are not a seller. A Skyscanner transport_deeplink is
+	// the booking redirect from the results session, so it stays a real handoff.
+	if search.IsMetaSearchAggregatorURL(u) && !search.IsTransportDeeplink(u) {
 		urlType = bookingmatch.URLTypeExactSearch
 		status = bookingmatch.StatusPartial
 	}

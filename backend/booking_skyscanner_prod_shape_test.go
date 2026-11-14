@@ -66,13 +66,16 @@ func TestRunBookingMatch_skyscannerEmptyCarrierNotMetaListing(t *testing.T) {
 		bookingOTAOffersResolver = oldOTA
 		bookingMatchRunner = oldWeb
 	}()
+	var gf2Called, webCalled bool
 	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		gf2Called = true
 		return nil, nil
 	}
 	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
 		return nil, nil
 	}
 	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		webCalled = true
 		return nil, errBookingSearchUnavailable
 	}
 
@@ -93,6 +96,53 @@ func TestRunBookingMatch_skyscannerEmptyCarrierNotMetaListing(t *testing.T) {
 	}
 	if resp.Found {
 		t.Fatalf("expected not_found without seller handoff, got found status=%s url=%v", resp.Status, resp.Offer)
+	}
+	if gf2Called || webCalled {
+		t.Fatal("a Skyscanner fare must not be re-found with a Google search")
+	}
+}
+
+func TestRunBookingMatch_skyscannerDeeplinkIsTheBooking(t *testing.T) {
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	var searched bool
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		searched = true
+		return nil, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		searched = true
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		searched = true
+		return nil, errBookingSearchUnavailable
+	}
+
+	opt := prodShapeSkyscannerEmptyCarrierOption()
+	opt.DeepLink = "https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/airli/flights?itinerary=tlv-vie"
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
+		Adults: 1, Currency: "USD",
+	}}
+	it, err := canonicalItineraryForOption(opt, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
+	if searched {
+		t.Fatal("stored session deeplink must not start Google or a second scrape")
+	}
+	if !resp.Found || resp.Offer == nil || !strings.Contains(resp.Offer.URL, "transport_deeplink") {
+		t.Fatalf("expected the session deeplink, got found=%v offer=%v", resp.Found, resp.Offer)
 	}
 }
 

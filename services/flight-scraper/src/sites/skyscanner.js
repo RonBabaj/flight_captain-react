@@ -3,6 +3,7 @@
 const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment, segmentsFromRoundTripClocks } = require('../normalize');
+const { airlinesFromCardText, pickSessionBookingUrl, extractUnifiedOffers } = require('./skyscannerParse');
 const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { waitUntil } = require('../browser/fastLoad');
@@ -296,20 +297,27 @@ async function scrapeSkyscanner(req, config) {
             };
             card
               .querySelectorAll(
-                '[data-testid*="airline"] img[alt], [data-testid*="carrier"] img[alt], [class*="Airline"] img[alt], [class*="Carrier"] img[alt]',
+                '[data-testid*="airline"], [data-testid*="carrier"], [class*="Airline"], [class*="Carrier"]',
               )
-              .forEach((el) => pushAirline(el.getAttribute('alt') || el.getAttribute('title')));
+              .forEach((el) => {
+                pushAirline(el.getAttribute('alt') || el.getAttribute('title') || el.textContent);
+              });
             if (!airlines.length) {
               card.querySelectorAll('img[alt], img[title]').forEach((el) => {
                 pushAirline(el.getAttribute('alt') || el.getAttribute('title'));
               });
             }
+            const hrefs = [];
+            card.querySelectorAll('a[href]').forEach((a) => {
+              if (a.href) hrefs.push(a.href);
+            });
             out.push({
               priceText,
               link: card.querySelector('a')?.href || window.location.href,
+              hrefs,
               times,
               airlines,
-              text: fullText.slice(0, 500),
+              text: fullText.slice(0, 1500),
             });
           });
           return out.slice(0, 30);
@@ -332,10 +340,14 @@ async function scrapeSkyscanner(req, config) {
             clocks = parseRoundTripHm(row.text);
           }
           if (!clocks) continue;
-          const airlineHint =
-            (Array.isArray(row.airlines) && row.airlines[0]) || undefined;
+          const fromText = airlinesFromCardText(row.text);
+          const outboundAirline =
+            (Array.isArray(row.airlines) && row.airlines[0]) || fromText.outbound || undefined;
+          const inboundAirline =
+            (Array.isArray(row.airlines) && row.airlines[1]) || fromText.inbound || outboundAirline;
           const segments = segmentsFromRoundTripClocks(req, clocks, {
-            airline: airlineHint,
+            airline: outboundAirline,
+            inboundAirline,
           });
           if (!segments.length) continue;
           const key = `${price}|${segments.map((s) => `${s.leg}:${s.departureTime}:${s.arrivalTime}`).join('|')}`;
@@ -347,7 +359,7 @@ async function scrapeSkyscanner(req, config) {
               destination: req.destination,
               price,
               currency: req.currency || 'EUR',
-              bookingUrl: row.link || url,
+              bookingUrl: pickSessionBookingUrl(row.hrefs) || row.link || url,
               segments,
             }),
           );
@@ -373,6 +385,8 @@ async function scrapeSkyscanner(req, config) {
 }
 
 function extractSkyscanner(payloads, req) {
+  const unified = extractUnifiedOffers(payloads, req);
+  if (unified.length) return unified;
   const out = [];
   const seen = new Set();
   for (const p of payloads) {

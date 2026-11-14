@@ -458,6 +458,13 @@ export function FlightDetailsModal({
     || '';
   const airlineName = displayAirlineLabel(option) || labelForCarrierCode(option, carrierCode);
   const multiAirline = hasMultipleAirlines(option);
+  const sourceKey = option.source ? offerSourceTranslationKey(option.source) : null;
+  const sourceLabel = sourceKey ? t(sourceKey) : option.source || '';
+  const vendorLabel = (option.vendorName || '').trim();
+  const vendorEchoesSource =
+    !vendorLabel ||
+    vendorLabel.toLowerCase() === sourceLabel.trim().toLowerCase() ||
+    vendorLabel.toLowerCase() === (option.source || '').trim().toLowerCase();
 
   const passengers = passengerCount && passengerCount > 0 ? passengerCount : 1;
   // API price is per passenger. Total = pricePerPassenger * passengerCount.
@@ -614,11 +621,8 @@ export function FlightDetailsModal({
                 ) : null}
                 {option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {(() => {
-                      const key = offerSourceTranslationKey(option.source);
-                      return key ? t(key) : option.source;
-                    })()}
-                    {option.vendorName && !multiAirline ? ` · ${option.vendorName}` : ''}
+                    {sourceLabel}
+                    {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
                   </Text>
                 ) : option.vendorName && !multiAirline ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>

@@ -100,8 +100,8 @@ func TestParseOtaOffersSolidcodeShape(t *testing.T) {
 
 func TestParseOtaOffers_dropsSkyscannerMetaDeepLink(t *testing.T) {
 	item := map[string]interface{}{
-		"price":    390.0,
-		"currency": "USD",
+		"price":      390.0,
+		"currency":   "USD",
 		"bookingUrl": "https://www.skyscanner.net/transport/flights/tlv/ber/260401/",
 		"segments": []interface{}{
 			map[string]interface{}{
@@ -120,6 +120,32 @@ func TestParseOtaOffers_dropsSkyscannerMetaDeepLink(t *testing.T) {
 	}
 	if out[0].ListingURL == "" || !strings.Contains(out[0].ListingURL, "skyscanner") {
 		t.Fatalf("ListingURL should preserve meta page for partner-panel resolve, got %q", out[0].ListingURL)
+	}
+}
+
+func TestParseOtaOffers_keepsSkyscannerTransportDeeplink(t *testing.T) {
+	raw := "https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/airli/flights?itinerary=tlv-vie"
+	item := map[string]interface{}{
+		"price":      279.0,
+		"currency":   "USD",
+		"bookingUrl": raw,
+		"segments": []interface{}{
+			map[string]interface{}{
+				"leg": "outbound", "fromCode": "TLV", "toCode": "VIE",
+				"departureTime": "2027-01-07T13:40:00", "arrivalTime": "2027-01-07T17:25:00",
+				"airlineCode": "Austrian", "durationHours": 4.75,
+			},
+		},
+	}
+	out := parseOtaOffers([]map[string]interface{}{item}, SearchRequest{Origin: "TLV", Destination: "VIE", Currency: "USD"}, "skyscanner")
+	if len(out) != 1 {
+		t.Fatalf("len=%d", len(out))
+	}
+	if out[0].DeepLink != raw {
+		t.Fatalf("session deeplink must stay bookable, got %q", out[0].DeepLink)
+	}
+	if out[0].PrimaryDisplayCarrier != "OS" {
+		t.Fatalf("airline from the card must be kept, got %q", out[0].PrimaryDisplayCarrier)
 	}
 }
 
@@ -282,4 +308,3 @@ func (s *stubProvider) Search(ctx context.Context, req SearchRequest) ([]Provide
 	}
 	return s.results, s.err
 }
-

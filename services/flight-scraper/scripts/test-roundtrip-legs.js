@@ -56,8 +56,13 @@ assert.deepStrictEqual(parseRoundTripHm(frenchCard), {
   outbound: { depHm: '13:30', arrHm: '16:35' },
   inbound: { depHm: '23:45', arrHm: '04:35' },
 });
-const frSegs = segmentsFromRoundTripClocks(req, parseRoundTripHm(frenchCard));
+const frSegs = segmentsFromRoundTripClocks(req, parseRoundTripHm(frenchCard), {
+  airline: 'Tus Airways',
+  inboundAirline: 'Smart Wings',
+});
 assert.strictEqual(frSegs.length, 2);
 assert.strictEqual(frSegs[1].leg, 'inbound');
+assert.strictEqual(frSegs[0].airlineCode, 'Tus Airways');
+assert.strictEqual(frSegs[1].airlineCode, 'Smart Wings');
 
 console.log('roundtrip legs ok');

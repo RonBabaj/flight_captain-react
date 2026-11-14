@@ -67,9 +67,9 @@ func normalizeKiwiItem(item map[string]interface{}, req SearchRequest, idx int, 
 	}
 	rawListingURL := firstString(item, "bookingUrl", "booking_url", "deepLink", "deep_link", "url", "link")
 	deepLink := rawListingURL
-	// Meta-search / OTA listing URLs are not seller checkout. Clear them so Book uses
-	// OTA partner-panel resolve (or GF2 token path) instead of opening a results page.
-	if deepLink != "" && !isLikelyPartnerCheckoutURL(deepLink) {
+	// A results page is not a seller. A transport_deeplink is the redirect that page
+	// already issued for this itinerary, so Book can open it without another search.
+	if deepLink != "" && !isLikelyPartnerCheckoutURL(deepLink) && !IsTransportDeeplink(deepLink) {
 		deepLink = ""
 	}
 	selfTransfer := detectSelfTransfer(item)
