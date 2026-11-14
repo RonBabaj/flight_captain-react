@@ -52,18 +52,18 @@ type PublicBookingOffer struct {
 
 // BookingResolveResponse is returned by POST /api/booking/resolve.
 type BookingResolveResponse struct {
-	Found                bool                `json:"found"`
-	Status               string              `json:"status"`
-	ItineraryFingerprint string              `json:"itineraryFingerprint,omitempty"`
-	Offer                *PublicBookingOffer `json:"offer,omitempty"`
-	CheapestOta          *PublicBookingOffer `json:"cheapestOta,omitempty"`
-	AirlineDirect        *PublicBookingOffer `json:"airlineDirect,omitempty"`
-	Message              string              `json:"message,omitempty"`
-	QuotedPrice          *float64            `json:"quotedPrice,omitempty"`
-	QuotedCurrency       string              `json:"quotedCurrency,omitempty"`
-	PriceMismatch        bool                        `json:"priceMismatch,omitempty"`
-	CandidatesConsidered int                         `json:"candidatesConsidered,omitempty"`
-	Alternatives         []PublicBookingAlternative  `json:"alternatives,omitempty"`
+	Found                bool                       `json:"found"`
+	Status               string                     `json:"status"`
+	ItineraryFingerprint string                     `json:"itineraryFingerprint,omitempty"`
+	Offer                *PublicBookingOffer        `json:"offer,omitempty"`
+	CheapestOta          *PublicBookingOffer        `json:"cheapestOta,omitempty"`
+	AirlineDirect        *PublicBookingOffer        `json:"airlineDirect,omitempty"`
+	Message              string                     `json:"message,omitempty"`
+	QuotedPrice          *float64                   `json:"quotedPrice,omitempty"`
+	QuotedCurrency       string                     `json:"quotedCurrency,omitempty"`
+	PriceMismatch        bool                       `json:"priceMismatch,omitempty"`
+	CandidatesConsidered int                        `json:"candidatesConsidered,omitempty"`
+	Alternatives         []PublicBookingAlternative `json:"alternatives,omitempty"`
 }
 
 // PublicBookingAlternative is a runner-up verified checkout (for transparency).
@@ -103,13 +103,13 @@ type inflightResolveEntry struct {
 }
 
 var (
-	bookingResolveCache        sync.Map
-	bookingResolveInflight     sync.Map // cacheKey -> *inflightResolveEntry
-	bookingResolveCacheTTL     = 30 * time.Minute
-	bookingResolveNegativeTTL  = 5 * time.Minute
-	bookingResolveSem          chan struct{}
-	bookingMatchRunner         = defaultBookingMatchRunner
-	bookingGF2OffersResolver   = resolveGF2PartnerOffers
+	bookingResolveCache       sync.Map
+	bookingResolveInflight    sync.Map // cacheKey -> *inflightResolveEntry
+	bookingResolveCacheTTL    = 30 * time.Minute
+	bookingResolveNegativeTTL = 5 * time.Minute
+	bookingResolveSem         chan struct{}
+	bookingMatchRunner        = defaultBookingMatchRunner
+	bookingGF2OffersResolver  = resolveGF2PartnerOffers
 	// bookingOTAOffersResolver is declared in booking_ota_resolve.go
 )
 
@@ -920,10 +920,77 @@ func finishInflightResolve(key string, entry *inflightResolveEntry) {
 	bookingResolveInflight.Delete(key)
 }
 
+// storedSessionBookingURL is the seller redirect captured while the results page
+// was open. Google rematch cannot see these cards: the scrape often has times and
+// no carrier, so the fingerprint never hits a Google itinerary.
+func storedSessionBookingURL(option *FlightOption, legIndex int) string {
+	if option == nil || !isOTAScrapedSource(option.Source) {
+		return ""
+	}
+	cands := make([]string, 0, 3)
+	if legIndex >= 0 {
+		if u := legDeepLink(option, legIndex); u != "" {
+			cands = append(cands, u)
+		}
+	}
+	cands = append(cands, option.DeepLink, option.BookingURL)
+	for _, c := range cands {
+		u := strings.TrimSpace(c)
+		if u == "" {
+			continue
+		}
+		if search.IsTransportDeeplink(u) || search.IsLikelyPartnerCheckoutURL(u) {
+			return u
+		}
+	}
+	return ""
+}
+
+func sessionBookingResponse(option *FlightOption, fp, rawURL string) (BookingResolveResponse, bool) {
+	raw := gf2PartnerOfferFromURL(rawURL, fp)
+	offer := publicOfferFromMatch(raw, false)
+	if offer == nil {
+		return BookingResolveResponse{}, false
+	}
+	if option != nil && option.Price.Amount > 0 {
+		p := option.Price.Amount
+		offer.Price = &p
+		offer.Currency = option.Price.Currency
+	}
+	if option != nil {
+		if v := strings.TrimSpace(option.VendorName); v != "" && !strings.EqualFold(v, option.Source) && !strings.EqualFold(v, "skyscanner") {
+			offer.Provider = v
+		}
+	}
+	offer.PriceLabel = "session_booking"
+	return BookingResolveResponse{
+		Found:                true,
+		Status:               BookingResolveVerified,
+		ItineraryFingerprint: fp,
+		Offer:                offer,
+		Message:              "Opens the booking page from the site that showed this fare.",
+	}, true
+}
+
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
 	start := time.Now()
 	legRoute := legRouteLabel(it)
 	normalize := bookingMatchPriceNormalizer()
+
+	if u := storedSessionBookingURL(option, legIndex); u != "" {
+		if resp, ok := sessionBookingResponse(option, fp, u); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_session_booking",
+				ItineraryFingerprint: fp,
+				LegIndex:             intPtrOrNil(legIndex),
+				LegRoute:             legRoute,
+				Status:               resp.Status,
+				Provider:             resp.Offer.Provider,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			return resp
+		}
+	}
 
 	var (
 		gf2Offers   []bookingmatch.BookingOffer
@@ -935,15 +1002,18 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		wg          sync.WaitGroup
 	)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
-	}()
+	// Fares we already scraped stay on that site. A fresh Google search is a
+	// different session and cannot be matched when the card has no carrier.
+	otaSourced := option != nil && isOTAScrapedSource(option.Source)
+	if !otaSourced {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+		}()
+	}
 
-	// OTA rows: resolve seller checkouts from Skyscanner/Kiwi booking panels
-	// (same role as GF2 getBookingDetails → getBookingURL), in parallel with GF2.
-	if option != nil && isOTAScrapedSource(option.Source) {
+	if otaSourced {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -951,7 +1021,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}()
 	}
 
-	if webBookingMatchEnabled() {
+	if !otaSourced && webBookingMatchEnabled() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

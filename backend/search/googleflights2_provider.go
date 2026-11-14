@@ -33,19 +33,19 @@ const (
 	gf2BookingRateLimitRetries = 5
 	gf2BookingRateLimitBackoff = 2 * time.Second
 	// Per-leg one-way searches (open-jaw / dynamic destinations) retry empty/transient GF2 responses.
-	gf2LegSearchRetries  = 4
-	gf2LegSearchBackoff  = 2 * time.Second
+	gf2LegSearchRetries = 4
+	gf2LegSearchBackoff = 2 * time.Second
 )
 
 // GoogleFlights2Provider calls RapidAPI google-flights2 (DataCrawler).
 type GoogleFlights2Provider struct {
-	apiKey          string
-	host            string
-	path            string // endpoint path e.g. /search or /
-	client          *http.Client
-	cache           *gf2Cache
-	limiter         *gf2RateLimiter
-	bookingLimiter  *gf2RateLimiter
+	apiKey         string
+	host           string
+	path           string // endpoint path e.g. /search or /
+	client         *http.Client
+	cache          *gf2Cache
+	limiter        *gf2RateLimiter
+	bookingLimiter *gf2RateLimiter
 }
 
 type gf2Cache struct {
@@ -597,8 +597,8 @@ func (p *GoogleFlights2Provider) doSearch(ctx context.Context, req SearchRequest
 	}
 
 	var (
-		mu      sync.Mutex
-		all     []ProviderResult
+		mu       sync.Mutex
+		all      []ProviderResult
 		firstErr error
 	)
 	var wg sync.WaitGroup
@@ -2071,6 +2071,21 @@ func IsLikelyPartnerCheckoutURL(u string) bool {
 // Google Flights, Kayak, …). Those pages are not a final seller checkout.
 func IsMetaSearchAggregatorURL(u string) bool {
 	return isMetaSearchAggregatorURL(u)
+}
+
+// IsTransportDeeplink is the redirect Skyscanner already attached to an itinerary
+// (the Select target). It is not the results page.
+func IsTransportDeeplink(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if !strings.Contains(host, "skyscanner.") {
+		return false
+	}
+	path := strings.ToLower(parsed.Path)
+	return strings.Contains(path, "transport_deeplink") || strings.Contains(path, "/deeplink/")
 }
 
 func isLikelyPartnerCheckoutURL(u string) bool {

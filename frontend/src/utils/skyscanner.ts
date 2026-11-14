@@ -110,13 +110,25 @@ export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
   return hops;
 }
 
-/** Per-hop booking cards when itinerary is split or segments need separate tickets. */
+function legCarrierCode(leg?: FlightLeg): string {
+  const codes = (leg?.segments ?? []).map((s) => segmentCarrierCode(s)).filter(Boolean);
+  if (!codes.length) return '';
+  return codes.every((c) => c === codes[0]) ? codes[0] : '*';
+}
+
+/** Separate Book buttons when the return is not the same city and the same airline. */
 export function needsPerHopBooking(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
   if (isSplitBookingItinerary(option, searchParams)) return true;
-  const legCount = option?.legs?.length ?? 0;
+  const legs = option?.legs ?? [];
+  if (legs.length >= 2) {
+    const carriers = legs.map((leg) => legCarrierCode(leg)).filter(Boolean);
+    if (carriers.some((c) => c === '*')) return true;
+    if (carriers.length >= 2 && carriers.some((c) => c !== carriers[0])) return true;
+  }
+  const legCount = legs.length;
   if (legCount === 0) return false;
   const hops = bookingHopsFromOption(option as FlightOption);
   return hops.length > legCount;

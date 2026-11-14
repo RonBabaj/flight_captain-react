@@ -117,6 +117,16 @@ func TestGF2PartnerOfferFromURL_acceptsHTTPS(t *testing.T) {
 	}
 }
 
+func TestGF2PartnerOfferFromURL_transportDeeplinkIsBooking(t *testing.T) {
+	offer := gf2PartnerOfferFromURL("https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/os?itinerary=1", "fp")
+	if offer == nil {
+		t.Fatal("expected deeplink offer")
+	}
+	if offer.VerificationStatus != "verified_exact" {
+		t.Fatalf("session deeplink must stay bookable, got %+v", offer)
+	}
+}
+
 func TestGF2PartnerOfferFromURL_metaSearchIsNotVerifiedCheckout(t *testing.T) {
 	offer := gf2PartnerOfferFromURL("https://www.skyscanner.net/transport/flights/tlv/ber/260401/", "fp")
 	if offer == nil {
@@ -190,7 +200,7 @@ func TestAllocateLegQuoteAmount_splitOpenJaw(t *testing.T) {
 	dep2 := time.Date(2027, 1, 14, 16, 45, 0, 0, time.UTC)
 	arr2 := time.Date(2027, 1, 14, 17, 50, 0, 0, time.UTC)
 	opt := &FlightOption{
-		Price: MonetaryAmount{Amount: 1000, Currency: "ILS"},
+		Price:           MonetaryAmount{Amount: 1000, Currency: "ILS"},
 		DurationMinutes: 600,
 		Legs: []FlightLeg{
 			{Segments: []FlightSegment{{DepartureTime: dep1, ArrivalTime: arr1, DurationMinutes: 165}}},
@@ -210,9 +220,9 @@ func TestAllocateLegQuoteAmount_splitOpenJaw(t *testing.T) {
 func TestAttachQuotedPriceMeta_detectsMismatch(t *testing.T) {
 	price := 1000.0
 	resp := BookingResolveResponse{
-		Found: true,
-		Offer: &PublicBookingOffer{Price: &price, Currency: "USD", URL: "https://partner.example/book"},
-		CheapestOta: &PublicBookingOffer{URL: "https://ota.example/book"},
+		Found:        true,
+		Offer:        &PublicBookingOffer{Price: &price, Currency: "USD", URL: "https://partner.example/book"},
+		CheapestOta:  &PublicBookingOffer{URL: "https://ota.example/book"},
 		Alternatives: []PublicBookingAlternative{{URL: "https://alt.example/book"}},
 	}
 	opt := &FlightOption{Price: MonetaryAmount{Amount: 600, Currency: "USD"}}
