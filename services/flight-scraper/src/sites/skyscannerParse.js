@@ -128,7 +128,6 @@ function indexEntities(payloads) {
   const carriers = new Map();
   const places = new Map();
   const legs = new Map();
-  const agents = new Map();
   const itineraries = [];
 
   const walk = (node, depth) => {
@@ -150,9 +149,6 @@ function indexEntities(payloads) {
         carriers.set(id, { code, name: cleanLabel(node.name || node.displayName) });
       }
     }
-    if (id && node.name && (node.isCarrier === true || node.agentType || node.type === 'AGENT') && !node.originPlaceId) {
-      agents.set(id, cleanLabel(node.name));
-    }
     if (
       id &&
       (node.originPlaceId || node.origin) &&
@@ -169,7 +165,7 @@ function indexEntities(payloads) {
   };
 
   for (const p of payloads || []) walk(p, 0);
-  return { carriers, places, legs, agents, itineraries };
+  return { carriers, places, legs, itineraries };
 }
 
 function carrierFromLeg(leg, carriers) {
@@ -188,23 +184,6 @@ function carrierFromLeg(leg, carriers) {
     return named.iata || named.displayCode || named.name || '';
   }
   if (typeof named === 'string') return named;
-  return '';
-}
-
-function agentName(it, agents) {
-  const opts = asList(it.pricingOptions || it.pricing_options);
-  for (const opt of opts) {
-    const ids = [].concat(opt.agentIds || opt.agent_ids || []);
-    for (const id of ids) {
-      const name = agents.get(String(id));
-      if (name && !/skyscanner/i.test(name)) return name;
-    }
-    const items = asList(opt.items);
-    for (const item of items) {
-      const name = agents.get(String(item.agentId || item.agent_id || ''));
-      if (name && !/skyscanner/i.test(name)) return name;
-    }
-  }
   return '';
 }
 
@@ -239,7 +218,7 @@ function priceFromItinerary(it) {
  * (legs + carriers + pricingOptions), instead of searching for the flight again.
  */
 function extractUnifiedOffers(payloads, req) {
-  const { carriers, places, legs, agents, itineraries } = indexEntities(payloads);
+  const { carriers, places, legs, itineraries } = indexEntities(payloads);
   const out = [];
   const seen = new Set();
   for (const it of itineraries) {
@@ -280,7 +259,6 @@ function extractUnifiedOffers(payloads, req) {
         currency: req.currency || 'USD',
         bookingUrl: sessionURLFromItinerary(it),
         segments: segs,
-        vendor: agentName(it, agents),
       }),
     );
   }
