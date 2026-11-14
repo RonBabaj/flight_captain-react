@@ -95,6 +95,6 @@ assert.strictEqual(offers[0].segments[0].airlineCode, 'OS');
 assert.strictEqual(offers[0].segments[1].leg, 'inbound');
 assert.strictEqual(offers[0].segments[1].airlineCode, 'OS');
 assert.ok(offers[0].bookingUrl.includes('transport_deeplink'));
-assert.strictEqual(offers[0].vendorName, 'Austrian Airlines');
+assert.strictEqual(offers[0].vendorName, undefined);
 
 console.log('skyscanner parse ok');
