@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View } from 'react-native';
+import { StyleSheet, ScrollView, View, KeyboardAvoidingView, Platform } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { searchActions, useSearchStore } from '../../../store';
@@ -14,6 +14,7 @@ import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { classicSearchPayload } from '../../../utils/skyscanner';
 import { useBreakpoint } from '../../../hooks/useResponsive';
+import { screenError } from '../../../utils/screenError';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -194,16 +195,20 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         merge: false,
       } as any);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('search_failed'));
+      setError(screenError(e, t('search_failed')));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.screenBg }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.screenBg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         style={{ flex: 1 }}
+        automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
           {
@@ -228,7 +233,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         origin={params.origin || undefined}
         destination={params.destination || undefined}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

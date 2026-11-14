@@ -73,6 +73,10 @@ function getSvgMarkup(name: string, color: string): string {
       return `<svg ${common}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>`;
     case 'arrow-forward':
       return `<svg ${common}><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+    case 'pricetag-outline':
+      return `<svg ${common}><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/></svg>`;
+    case 'bag-outline':
+      return `<svg ${common}><path d="M6 8h12v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`;
     default:
       return '';
   }
@@ -86,6 +90,7 @@ export const LOCAL_ICON_NAMES = new Set([
   'add-outline', 'share-outline', 'link-outline',
   'settings-outline', 'home-outline', 'person-outline', 'heart-outline', 'shield-outline',
   'information-circle-outline', 'alert-circle-outline', 'arrow-back', 'arrow-forward',
+  'pricetag-outline', 'bag-outline',
 ]);
 
 export function hasWebSvgFallback(name: string): boolean {

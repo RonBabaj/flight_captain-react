@@ -129,7 +129,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return (
       <View style={s.wrap}>
         <Text style={s.title}>{this.props.title ?? 'Something went wrong'}</Text>
-        <Text style={s.body}>If you share the console output after this screen appears, we can pinpoint the exact crash.</Text>
+        <Text style={s.body}>Try again. If it keeps happening, copy the details and send them to support.</Text>
         <View style={s.btnRow}>
           <Pressable onPress={this.reset} style={s.btn}>
             <Text style={s.btnText}>Try again</Text>
@@ -138,7 +138,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <Text style={s.btnText}>Copy details</Text>
           </Pressable>
         </View>
-        <Text selectable style={s.stack}>{details}</Text>
       </View>
     );
   }
@@ -151,6 +150,5 @@ const s = StyleSheet.create({
   btnRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   btn: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1 },
   btnText: { fontSize: 14, fontWeight: '600' },
-  stack: { marginTop: 14, fontSize: 12, opacity: 0.7 },
 });
 

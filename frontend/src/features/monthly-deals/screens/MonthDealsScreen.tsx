@@ -5,12 +5,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   ActivityIndicator,
   Modal,
   Pressable,
   useWindowDimensions,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
+import { screenError } from '../../../utils/screenError';
 import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -347,7 +350,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     dealsActions.setError(null);
     getMonthDeals(fetchParams)
       .then(applyResults)
-      .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
+      .catch(e => dealsActions.setError(screenError(e, t('deals_load_failed'))))
       .finally(() => dealsActions.setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, currency]);
@@ -393,7 +396,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           res,
         );
       })
-      .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
+      .catch(e => dealsActions.setError(screenError(e, t('deals_load_failed'))))
       .finally(() => dealsActions.setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adults, children, nonStop]);
@@ -552,7 +555,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           res,
         );
       })
-      .catch(e => dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals'))
+      .catch(e => dealsActions.setError(screenError(e, t('deals_load_failed'))))
       .finally(() => dealsActions.setLoading(false));
   };
 
@@ -666,7 +669,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       const combined = combineLegsForHub(leg1Res, leg2Res, hubAirport, o, d);
       dealsActions.setData(combined);
     } catch (e) {
-      dealsActions.setError(e instanceof Error ? e.message : 'Failed to load optimized deals');
+      dealsActions.setError(screenError(e, t('deals_load_failed')));
     } finally {
       dealsActions.setLoading(false);
     }
@@ -850,7 +853,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     try {
       setDetails(await getFlightDetails({ origin: o, destination: d, date, durationDays, currency, adults, children }));
     } catch (e) {
-      setDetailsError(e instanceof Error ? e.message : 'Failed to load flight details');
+      setDetailsError(screenError(e, t('details_load_failed')));
     } finally {
       setDetailsLoading(false);
     }
@@ -1381,13 +1384,16 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
         </View>
       ) : !mobileCompact ? (
         /* Form view: full search form scrolls with page */
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={p.scrollSingle}
           contentContainerStyle={p.contentSingle}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           {heroCard}
         </ScrollView>
+        </KeyboardAvoidingView>
       ) : (
         /* Results compact view: sticky header + scrollable results + sticky cheaper cities footer */
         <View style={{ flex: 1 }}>

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -14,6 +14,7 @@ import type { DynamicDestinationsStackParamList } from '../../../navigation/type
 import { DynamicDestinationsFormContent } from '../components/DynamicDestinationsFormContent';
 import { updateSearchUrl } from '../../../hooks/useSearchParams';
 import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
+import { screenError } from '../../../utils/screenError';
 import {
   addExtraDestinationLeg,
   MAX_EXTRA_DESTINATIONS,
@@ -108,17 +109,21 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
         merge: false,
       } as any);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('search_failed'));
+      setError(screenError(e, t('search_failed')));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={[styles.page, { backgroundColor: theme.screenBg }]}>
+    <KeyboardAvoidingView
+      style={[styles.page, { backgroundColor: theme.screenBg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         <DynamicDestinationsFormContent
@@ -132,7 +137,7 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
           error={error}
         />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

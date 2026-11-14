@@ -10,6 +10,7 @@ import { ClearableTextInput } from '../../../components/ClearableTextInput';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
+import { screenError } from '../../../utils/screenError';
 import {
   createUser,
   deleteUser,
@@ -38,11 +39,11 @@ export function UserManagementPanel() {
       const list = await fetchUsers(token);
       setUsers(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(screenError(e, t('action_failed')));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     void loadUsers();
@@ -59,7 +60,7 @@ export function UserManagementPanel() {
       setNewPassword('');
       setNewRole('user');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(screenError(e, t('action_failed')));
     } finally {
       setCreating(false);
     }
@@ -73,7 +74,7 @@ export function UserManagementPanel() {
       const updated = await updateUser(token, user.id, { role: nextRole });
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(screenError(e, t('action_failed')));
     }
   };
 
@@ -84,7 +85,7 @@ export function UserManagementPanel() {
       await deleteUser(token, user.id);
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(screenError(e, t('action_failed')));
     }
   };
 

@@ -882,7 +882,7 @@ const s = StyleSheet.create({
   price: { fontSize: 26, fontWeight: '700' },
   priceEstimateBlock: { marginTop: 8, gap: 4, maxWidth: 220 },
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
@@ -1022,7 +1022,7 @@ const s = StyleSheet.create({
     flexShrink: 0,
   },
   legStep: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -1031,5 +1031,5 @@ const s = StyleSheet.create({
   legRoute: { fontSize: 15, fontWeight: '700' },
   legDate: { fontSize: 13, marginTop: 2, marginBottom: 4 },
   splitHint: { fontSize: 12, lineHeight: 17, marginBottom: 12, textAlign: 'center' },
-  disclaimer: { marginTop: 14, fontSize: 11, textAlign: 'center', lineHeight: 15 },
+  disclaimer: { marginTop: 14, fontSize: 12, textAlign: 'center', lineHeight: 17 },
 });
