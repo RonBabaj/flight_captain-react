@@ -29,6 +29,7 @@ import {
   invalidateSearchSessionResultsCache,
 } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
+import { screenError } from '../../../utils/screenError';
 import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
@@ -401,7 +402,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
-      setSidebarSearchError(e instanceof Error ? e.message : 'Search failed');
+      setSidebarSearchError(screenError(e, t('search_failed')));
     } finally {
       creatingSessionRef.current = false;
       setSidebarSearchLoading(false);
@@ -683,7 +684,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         }
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
-          searchActions.setError(e instanceof Error ? e.message : 'Search failed');
+          searchActions.setError(screenError(e, t('search_failed')));
           searchActions.setSession(null, null, 'FAILED');
         }
       } finally {

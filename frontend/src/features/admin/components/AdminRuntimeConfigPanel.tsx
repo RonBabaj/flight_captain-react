@@ -12,6 +12,7 @@ import { useLocale } from '../../../context/LocaleContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useRuntimeConfig, useRuntimeConfigActions } from '../../../context/RuntimeConfigContext';
 import { fetchAdminRuntimeConfig, saveAdminRuntimeConfig } from '../../../api/runtimeConfig';
+import { screenError } from '../../../utils/screenError';
 import {
   DEFAULT_RUNTIME_CONFIG,
   RUNTIME_CONFIG_FIELDS,
@@ -115,7 +116,7 @@ export function AdminRuntimeConfigPanel() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(screenError(e, t('action_failed')));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -152,7 +153,7 @@ export function AdminRuntimeConfigPanel() {
       await refresh();
       setMessage(t('admin_save_success'));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(screenError(e, t('action_failed')));
     } finally {
       setSaving(false);
     }

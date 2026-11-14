@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { getDealsRange } from '../../../api';
 import type { DayDeal } from '../../../types';
+import { useLocale } from '../../../context/LocaleContext';
+import { screenError } from '../../../utils/screenError';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -48,6 +50,7 @@ export function DatePickerCalendar({
   durationDays = 7,
   label = 'Pick a date',
 }: DatePickerCalendarProps) {
+  const { t } = useLocale();
   const [data, setData] = useState<DayDeal[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,11 +75,11 @@ export function DatePickerCalendar({
     })
       .then(res => setData(res.days ?? []))
       .catch(e => {
-        setError(e instanceof Error ? e.message : 'Failed to load prices');
+        setError(screenError(e, t('prices_load_failed')));
         setData([]);
       })
       .finally(() => setLoading(false));
-  }, [origin, destination, durationDays, hasRoute]);
+  }, [origin, destination, durationDays, hasRoute, t]);
 
   // Always show next 14 days; prices only when route is set
   const dateStrings = getNext14Dates();

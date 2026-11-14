@@ -14,6 +14,7 @@ import { RootNavigator } from './src/navigation';
 import type { RootStackParamList } from './src/navigation/types';
 import { API_BASE } from './src/api/client';
 import { useExchangeRates } from './src/hooks/useExchangeRates';
+import { useKeepFocusedFieldVisible } from './src/hooks/useKeepFocusedFieldVisible';
 import {
   captureSharedLinkFromLocation,
   readBootHref,
@@ -141,6 +142,7 @@ function RTLWrapper({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   useExchangeRates();
+  useKeepFocusedFieldVisible();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const recoveredRef = useRef(false);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { AppIcon } from '../AppIcon';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
@@ -20,7 +20,10 @@ export function EditSearchModal({ visible, onClose, title, children, tall = fals
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={s.overlay}>
+      <KeyboardAvoidingView
+        style={s.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[s.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
@@ -33,12 +36,13 @@ export function EditSearchModal({ visible, onClose, title, children, tall = fals
             style={[s.scroll, tall ? s.scrollTall : null]}
             contentContainerStyle={s.content}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             nestedScrollEnabled
           >
             {children}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
