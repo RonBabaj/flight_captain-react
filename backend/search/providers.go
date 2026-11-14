@@ -39,6 +39,9 @@ type SearchRequest struct {
 	Children          int
 	Infants           int
 	Currency          string
+	// FastOnly skips the browser scraper. Background "cheaper city" searches use it
+	// so they do not queue ahead of the user's own scrape on the single shared Chrome.
+	FastOnly bool
 }
 
 // ResolveReturnAirports returns the return-leg endpoints for a round-trip search.
