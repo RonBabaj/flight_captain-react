@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   comparedHint: {
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
   },
   altBlock: {
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   altTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   altOpenHint: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     flexShrink: 0,
   },
@@ -318,8 +318,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   disclaimer: {
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
     marginTop: 2,
   },

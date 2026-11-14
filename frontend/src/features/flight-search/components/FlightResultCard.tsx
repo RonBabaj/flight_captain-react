@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
@@ -403,7 +404,8 @@ export function FlightResultCard({
         </View>
         {hasBagBadge && (
           <View style={[c.bagBadge, { backgroundColor: theme.controlBg }, isRTL && { alignSelf: 'center' }]}>
-            <Text style={[c.bagBadgeText, { color: theme.textMuted }, isRTL && { textAlign: 'center' }]}>🧳 {bagStr}</Text>
+            <AppIcon name="bag-outline" size={14} color={theme.textMuted} />
+            <Text style={[c.bagBadgeText, { color: theme.textMuted }, isRTL && { textAlign: 'center' }]}>{bagStr}</Text>
           </View>
         )}
       </View>
@@ -432,20 +434,20 @@ const c = StyleSheet.create({
   time: { fontSize: 20, fontWeight: '700', letterSpacing: -0.15, fontVariant: ['tabular-nums'] as any },
   timeSep: { fontSize: 12 },
   route: { fontSize: 12, marginTop: 2, letterSpacing: 0.35 },
-  dateStr: { fontSize: 11, marginTop: 4 },
+  dateStr: { fontSize: 12, marginTop: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   metaText: { fontSize: 12, fontWeight: '500' },
   stopsChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  stopsChipText: { fontSize: 11, fontWeight: '600' },
-  layoverHint: { fontSize: 11, flexShrink: 1 },
+  stopsChipText: { fontSize: 12, fontWeight: '600' },
+  layoverHint: { fontSize: 12, flexShrink: 1 },
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 96 },
   price: { fontSize: 22, fontWeight: '700', letterSpacing: -0.1, fontVariant: ['tabular-nums'] as any },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   estBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  estBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  wasPrice: { fontSize: 11 },
-  perPerson: { fontSize: 11, marginTop: 2 },
-  selfTransferWarn: { fontSize: 11, marginTop: 6, fontWeight: '600', lineHeight: 15 },
+  estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  wasPrice: { fontSize: 12 },
+  perPerson: { fontSize: 12, marginTop: 2 },
+  selfTransferWarn: { fontSize: 12, marginTop: 6, fontWeight: '600', lineHeight: 17 },
   bookBtn: {
     marginTop: 10,
     paddingVertical: 9,
@@ -467,7 +469,7 @@ const c = StyleSheet.create({
   },
   airlineCol: { flex: 1, minWidth: 0 },
   airlineText: { fontSize: 12, fontWeight: '500' },
-  codeshareText: { fontSize: 11, marginTop: 2 },
-  bagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  bagBadgeText: { fontSize: 11 },
+  codeshareText: { fontSize: 12, marginTop: 2 },
+  bagBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  bagBadgeText: { fontSize: 12 },
 });

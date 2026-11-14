@@ -11,6 +11,7 @@ import {
   Pressable,
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
+import { screenError } from '../../../utils/screenError';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getExploreDestinations } from '../../../api';
@@ -79,7 +80,7 @@ interface ExploreScreenProps {
 }
 
 function countryFlag(cc: string | undefined): string {
-  if (!cc || cc.length !== 2) return '✈️';
+  if (!cc || cc.length !== 2) return '';
   return [...cc.toUpperCase()]
     .map((c) => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0)))
     .join('');
@@ -561,7 +562,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         dealsActions.setData(res);
         navigation.navigate('MonthDealsResults');
       } catch (e) {
-        dealsActions.setError(e instanceof Error ? e.message : 'Failed to load deals');
+        dealsActions.setError(screenError(e, t('deals_load_failed')));
       } finally {
         dealsActions.setLoading(false);
         setSearchingDest(null);
@@ -919,6 +920,8 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     <View style={[d.searchSidebar, { backgroundColor: theme.cardBg, borderRightColor: theme.cardBorder }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         contentContainerStyle={isDealsMode ? { gap: 4 } : undefined}
       >
         {isDealsMode ? dealsFormFields : searchFormFields}
@@ -941,14 +944,20 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         onPress={() => setSortAsc(true)}
         activeOpacity={0.7}
       >
-        <Text style={[d.sortPillText, { color: sortAsc ? theme.primary : theme.text }]}>💰 {t('explore_cheapest_first')}</Text>
+        <View style={d.sortPillRow}>
+          <AppIcon name="pricetag-outline" size={16} color={sortAsc ? theme.primary : theme.text} />
+          <Text style={[d.sortPillText, { color: sortAsc ? theme.primary : theme.text }]}>{t('explore_cheapest_first')}</Text>
+        </View>
       </TouchableOpacity>
       <TouchableOpacity
         style={[d.sortPill, { borderColor: !sortAsc ? theme.primary : theme.cardBorder, backgroundColor: !sortAsc ? theme.primary + '18' : theme.controlBg, marginTop: 6 }]}
         onPress={() => setSortAsc(false)}
         activeOpacity={0.7}
       >
-        <Text style={[d.sortPillText, { color: !sortAsc ? theme.primary : theme.text }]}>💸 Most expensive</Text>
+        <View style={d.sortPillRow}>
+          <AppIcon name="pricetag-outline" size={16} color={!sortAsc ? theme.primary : theme.text} />
+          <Text style={[d.sortPillText, { color: !sortAsc ? theme.primary : theme.text }]}>{t('explore_most_expensive')}</Text>
+        </View>
       </TouchableOpacity>
 
       {/* Region */}
@@ -1177,9 +1186,12 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
         onPress={() => setSortAsc((v) => !v)}
         activeOpacity={0.7}
       >
-        <Text style={[s.sortBtnText, { color: theme.primary }]}>
-          💰 {sortAsc ? t('explore_cheapest_first') : t('explore_most_expensive')}
-        </Text>
+        <View style={s.sortBtnRow}>
+          <AppIcon name="pricetag-outline" size={16} color={theme.primary} />
+          <Text style={[s.sortBtnText, { color: theme.primary }]}>
+            {sortAsc ? t('explore_cheapest_first') : t('explore_most_expensive')}
+          </Text>
+        </View>
       </TouchableOpacity>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.regionPills}>
         {availableRegions.map((r) => (
@@ -1289,11 +1301,15 @@ function DestCard({ dest, origin, rank, theme, language, isSearching, disabled, 
     >
       {rankColor && (
         <View style={[c.rankBadge, { backgroundColor: rankColor }]}>
-          <Text style={c.rankText}>{rank === 0 ? '🏆' : rank === 1 ? '🥈' : '🥉'}</Text>
+          <Text style={c.rankText}>{rank === 0 ? '1' : rank === 1 ? '2' : '3'}</Text>
         </View>
       )}
       <View style={c.topRow}>
-        <Text style={c.flagEmoji}>{flag}</Text>
+        {flag ? (
+          <Text style={c.flagEmoji}>{flag}</Text>
+        ) : (
+          <AppIcon name="airplane-outline" size={28} color={theme.textMuted} />
+        )}
         <View style={c.cityWrap}>
           <Text style={[c.cityName, { color: theme.text }]} numberOfLines={1}>{cityName}</Text>
           <Text style={[c.airportCode, { color: theme.textMuted }]}>
@@ -1383,6 +1399,7 @@ const d = StyleSheet.create({
     borderWidth: 1,
   },
   sortPillText: { fontSize: 13, fontWeight: '600' },
+  sortPillRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   regionPill: {
     paddingVertical: 7,
     paddingHorizontal: 12,
@@ -1440,6 +1457,7 @@ const s = StyleSheet.create({
   // Mobile toolbar
   toolbar: { paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, gap: 8 },
   sortBtn: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, marginBottom: 4 },
+  sortBtnRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sortBtnText: { fontSize: 13, fontWeight: '600' },
   regionPills: { gap: 6, paddingBottom: 2 },
   regionPill: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1 },
