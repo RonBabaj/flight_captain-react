@@ -212,6 +212,32 @@ func TestRegistrySearchAllWithProgress(t *testing.T) {
 	}
 }
 
+func TestRegistrySearchAll_fastOnlySkipsScraper(t *testing.T) {
+	gf2 := &stubProvider{name: "googleflights2", results: []ProviderResult{{
+		ID: "1", Price: Monetary{Currency: "USD", Amount: 80}, Source: "googleflights2",
+		Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "ATH", MarketingCarrier: "A3", FlightNumber: "A3929"}}}},
+	}}}
+	scraper := &stubProvider{name: "multisite", delay: time.Hour}
+	r := &Registry{providers: []Provider{gf2, scraper}}
+	done := make(chan MultiSearchResult, 1)
+	go func() {
+		done <- r.SearchAll(context.Background(), SearchRequest{
+			Origin: "TLV", Destination: "ATH", DepartureDate: "2027-01-07", FastOnly: true,
+		})
+	}()
+	select {
+	case res := <-done:
+		if len(res.Stats) != 1 || res.Stats[0].Provider != "googleflights2" {
+			t.Fatalf("stats=%+v", res.Stats)
+		}
+		if len(res.Results) != 1 {
+			t.Fatalf("results=%d", len(res.Results))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("fastOnly search waited on the scraper")
+	}
+}
+
 func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
 	gf2 := &stubProvider{name: "googleflights2", err: fmt.Errorf("no flights found for return SZG→TLV")}
 	kiwi := &stubProvider{name: "kiwi", err: ErrProviderSkipped}

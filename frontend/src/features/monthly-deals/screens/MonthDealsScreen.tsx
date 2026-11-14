@@ -92,6 +92,7 @@ async function findCheapestFlightForDate(params: {
         includeCheckedBag: false,
         currency: params.currency,
         locale: params.locale,
+        fastOnly: true,
       });
 
       let attempts = 0;

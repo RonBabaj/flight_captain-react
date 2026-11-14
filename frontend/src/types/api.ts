@@ -151,6 +151,8 @@ export interface CreateSearchSessionRequest {
   infants?: number;
   currency?: string;
   locale?: string;
+  /** Google Flights only; skips the shared OTA scraper (background searches). */
+  fastOnly?: boolean;
 }
 
 export interface SearchSession {
