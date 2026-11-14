@@ -93,6 +93,23 @@ function legDuration(segments: FlightSegment[]): number {
   return segments.reduce((sum, s) => sum + segmentDurationMinutes(s), 0);
 }
 
+function stopsPhrase(stops: number, selfTransfer: boolean | undefined, t: (k: string) => string): string {
+  if (stops <= 0) return selfTransfer ? t('connection_unclear') : t('direct');
+  if (stops === 1) return `1 ${t('stop')}`;
+  return `${stops} ${t('stops')}`;
+}
+
+/** "4h 45m · Direct" for one leg, matching the line under each leg title. */
+function legDurationLine(
+  segments: FlightSegment[] | undefined,
+  selfTransfer: boolean | undefined,
+  t: (k: string) => string,
+): string {
+  const segs = segments ?? [];
+  const stops = Math.max(0, segs.length - 1);
+  return `${formatDuration(legDuration(segs))} · ${stopsPhrase(stops, selfTransfer, t)}`;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 interface FlightDetailsModalProps {
@@ -485,14 +502,8 @@ export function FlightDetailsModal({
     (acc, leg) => acc + Math.max(0, (leg.segments?.length ?? 1) - 1),
     0,
   );
-  const stopsLabel =
-    totalStops === 0
-      ? option.selfTransfer
-        ? t('connection_unclear')
-        : t('direct')
-      : totalStops === 1
-        ? `1 ${t('stop')}`
-        : `${totalStops} ${t('stops')}`;
+  const stopsLabel = stopsPhrase(totalStops, option.selfTransfer, t);
+  const titledLegs = option.legs.filter((leg) => (leg.segments?.length ?? 0) > 0);
 
   const totalDur =
     (option.outboundSummary?.durationMinutes ?? 0) > 0
@@ -624,9 +635,29 @@ export function FlightDetailsModal({
                 {airlineName ? (
                   <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
                 ) : null}
-                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
-                  {formatDuration(totalDur)} · {stopsLabel}
-                </Text>
+                {titledLegs.length > 1 ? (
+                  titledLegs.map((leg, i) => {
+                    const last = titledLegs.length - 1;
+                    const legName =
+                      i === 0
+                        ? t('outbound')
+                        : i === last
+                          ? t('return_leg')
+                          : `${t('dd_extra_section')} ${i + 1}`;
+                    return (
+                      <Text
+                        key={i}
+                        style={[s.summaryMuted, { color: theme.textMuted, textAlign: isRTL ? 'left' : 'right' }]}
+                      >
+                        {legName} · {legDurationLine(leg.segments, option.selfTransfer, t)}
+                      </Text>
+                    );
+                  })
+                ) : (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, textAlign: isRTL ? 'left' : 'right' }]}>
+                    {formatDuration(totalDur)} · {stopsLabel}
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -665,16 +696,8 @@ export function FlightDetailsModal({
                 timeDisplay,
                 'en-US',
               );
-              const legStops = Math.max(0, segs.length - 1);
-              const legStopsLabel =
-                legStops === 0
-                  ? option.selfTransfer
-                    ? t('connection_unclear')
-                    : t('direct')
-                  : legStops === 1
-                    ? `1 ${t('stop')}`
-                    : `${legStops} ${t('stops')}`;
               const dur = legDuration(segs);
+              const legStopsLabel = stopsPhrase(Math.max(0, segs.length - 1), option.selfTransfer, t);
 
               return (
                 <View key={legIdx} style={[s.legBlock, { borderTopColor: theme.cardBorder }]}>
