@@ -174,7 +174,7 @@ func CombineOneWayBatches(batches [][]ProviderResult, idPrefix string) []Provide
 			return sorted[a].Price.Amount < sorted[b].Price.Amount
 		})
 		if len(sorted) > maxPer {
-			trimmed[i] = sorted[:maxPer]
+			trimmed[i] = append(sorted[:maxPer:maxPer], directsBeyond(sorted[maxPer:], 5)...)
 		} else {
 			trimmed[i] = sorted
 		}
@@ -304,6 +304,30 @@ func finalizeCombinedBatches(acc []ProviderResult, trimmed [][]ProviderResult, i
 
 	lastBatch := trimmed[len(trimmed)-1]
 	cheapestOutbound := trimmed[0][0]
+	cheapestReturn := lastBatch[0]
+
+	// Nonstop flights are often pricier than one-stop fares, so they never make the cheapest
+	// cut. Reserve them before return diversity can fill the remaining slots.
+	outDirects := directsOnly(trimmed[0])
+	retDirects := directsOnly(lastBatch)
+	if len(outDirects) > 0 && len(retDirects) > 0 {
+		for i := 0; i < len(outDirects) && i < 3; i++ {
+			combined := mergeProviderLeg(outDirects[i], retDirects[0], 0, idPrefix)
+			combined.ID = fmt.Sprintf("%s_nonstop_%s", idPrefix, providerResultLegKey(outDirects[i]))
+			add(combined)
+		}
+	}
+	for i := 0; i < len(outDirects) && i < 5; i++ {
+		combined := mergeProviderLeg(outDirects[i], cheapestReturn, 0, idPrefix)
+		combined.ID = fmt.Sprintf("%s_outdirect_%s", idPrefix, providerResultLegKey(outDirects[i]))
+		add(combined)
+	}
+	for i := 0; i < len(retDirects) && i < 5; i++ {
+		combined := mergeProviderLeg(cheapestOutbound, retDirects[i], 0, idPrefix)
+		combined.ID = fmt.Sprintf("%s_direct_%s", idPrefix, providerResultLegKey(retDirects[i]))
+		add(combined)
+	}
+
 	returnSeen := map[string]struct{}{}
 	for _, ret := range lastBatch {
 		if len(out) >= maxOut {
@@ -321,24 +345,31 @@ func finalizeCombinedBatches(acc []ProviderResult, trimmed [][]ProviderResult, i
 		combined.ID = fmt.Sprintf("%s_div_%s", idPrefix, rk)
 		add(combined)
 	}
-	// Ensure direct flights on the return batch appear when GF2 offers them.
-	for _, ret := range lastBatch {
-		if len(out) >= maxOut {
-			break
-		}
-		if legStopCount(ret) > 0 {
-			continue
-		}
-		combined := mergeProviderLeg(cheapestOutbound, ret, 0, idPrefix)
-		combined.ID = fmt.Sprintf("%s_direct_%s", idPrefix, providerResultLegKey(ret))
-		add(combined)
-	}
 
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Price.Amount < out[j].Price.Amount
 	})
 	if len(out) > maxOut {
 		out = out[:maxOut]
+	}
+	return out
+}
+
+func directsOnly(batch []ProviderResult) []ProviderResult {
+	var out []ProviderResult
+	for _, r := range batch {
+		if len(r.Legs) > 0 && legStopCount(r) == 0 {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// directsBeyond returns up to max nonstop results from a price-sorted tail.
+func directsBeyond(tail []ProviderResult, max int) []ProviderResult {
+	out := directsOnly(tail)
+	if len(out) > max {
+		out = out[:max]
 	}
 	return out
 }

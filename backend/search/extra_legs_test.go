@@ -1,6 +1,9 @@
 package search
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestCompleteExtraLegs(t *testing.T) {
 	got := CompleteExtraLegs([]ExtraLeg{
@@ -125,5 +128,37 @@ func TestExtraLegsFingerprint(t *testing.T) {
 	})
 	if got != "BER>PRG@2026-12-20" {
 		t.Fatalf("fingerprint = %q", got)
+	}
+}
+
+func TestCombineOneWayBatches_keepsNonstopsBothWays(t *testing.T) {
+	ow := func(id string, price float64, stops int, from, to string) ProviderResult {
+		segs := []Segment{{From: from, To: to, MarketingCarrier: "OS", FlightNumber: id}}
+		if stops > 0 {
+			segs = []Segment{
+				{From: from, To: "ATH", MarketingCarrier: "A3", FlightNumber: id + "a"},
+				{From: "ATH", To: to, MarketingCarrier: "A3", FlightNumber: id + "b"},
+			}
+		}
+		return ProviderResult{ID: id, Price: Monetary{Currency: "USD", Amount: price}, Legs: []Leg{{Segments: segs}}}
+	}
+	var out, ret []ProviderResult
+	for i := 0; i < 40; i++ {
+		out = append(out, ow(fmt.Sprintf("o%d", i), 100+float64(i), 1, "TLV", "VIE"))
+		ret = append(ret, ow(fmt.Sprintf("r%d", i), 100+float64(i), 1, "VIE", "TLV"))
+	}
+	out = append(out, ow("OS858", 190, 0, "TLV", "VIE"))
+	ret = append(ret, ow("OS857", 195, 0, "VIE", "TLV"))
+
+	got := CombineOneWayBatches([][]ProviderResult{out, ret}, "gf2rt")
+	var outNonstop, retNonstop, bothNonstop bool
+	for _, r := range got {
+		o, i := len(r.Legs[0].Segments) == 1, len(r.Legs[1].Segments) == 1
+		outNonstop = outNonstop || o
+		retNonstop = retNonstop || i
+		bothNonstop = bothNonstop || (o && i)
+	}
+	if !outNonstop || !retNonstop || !bothNonstop {
+		t.Fatalf("nonstop out=%v return=%v both=%v among %d combos; pricier nonstops must not be cut", outNonstop, retNonstop, bothNonstop, len(got))
 	}
 }
