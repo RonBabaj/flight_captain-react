@@ -146,6 +146,54 @@ func TestRunBookingMatch_skyscannerDeeplinkIsTheBooking(t *testing.T) {
 	}
 }
 
+func TestRunBookingMatch_skyscannerDeeplinkDualWithAirlinePrefill(t *testing.T) {
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		p := 305.0
+		return []bookingmatch.BookingOffer{{
+			URL:                "https://www.austrian.com/xx/en/booking?x=1",
+			Domain:             "austrian.com",
+			Provider:           "Austrian Airlines",
+			Price:              &p,
+			Currency:           "USD",
+			VerificationStatus: bookingmatch.StatusVerifiedExact,
+		}}, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	opt := prodShapeSkyscannerAustrianOption()
+	opt.DeepLink = "https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/airli/flights?itinerary=tlv-vie"
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2027-01-07", ReturnDate: "2027-01-14",
+		Adults: 1, Currency: "USD",
+	}}
+	it, err := canonicalItineraryForOption(opt, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
+	if resp.CheapestOta == nil || !strings.Contains(resp.CheapestOta.URL, "transport_deeplink") {
+		t.Fatalf("expected cheapestOta=session deeplink, got %+v", resp.CheapestOta)
+	}
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "austrian") {
+		t.Fatalf("expected airlineDirect from GF2 for OS, got %+v", resp.AirlineDirect)
+	}
+}
+
 func TestRunBookingMatch_skyscannerAustrianDoesNotUseBrokenDeeplink(t *testing.T) {
 	oldGF2 := bookingGF2OffersResolver
 	oldOTA := bookingOTAOffersResolver

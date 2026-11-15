@@ -946,7 +946,7 @@ func storedSessionBookingURL(option *FlightOption, legIndex int) string {
 	return ""
 }
 
-func sessionBookingResponse(option *FlightOption, fp, rawURL string) (BookingResolveResponse, bool) {
+func sessionBookingResponse(session *SearchSession, option *FlightOption, fp, rawURL string, legIndex, segmentIndex int) (BookingResolveResponse, bool) {
 	raw := gf2PartnerOfferFromURL(rawURL, fp)
 	offer := publicOfferFromMatch(raw, false)
 	if offer == nil {
@@ -963,13 +963,66 @@ func sessionBookingResponse(option *FlightOption, fp, rawURL string) (BookingRes
 		}
 	}
 	offer.PriceLabel = "session_booking"
-	return BookingResolveResponse{
+	ota := *offer
+	ota.PriceLabel = "cheapest_ota"
+	resp := BookingResolveResponse{
 		Found:                true,
 		Status:               BookingResolveVerified,
 		ItineraryFingerprint: fp,
-		Offer:                offer,
+		Offer:                &ota,
+		CheapestOta:          &ota,
 		Message:              "Opens the booking page from the site that showed this fare.",
-	}, true
+	}
+	if prefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp); prefill != nil && !sameBookingURL(prefill.URL, ota.URL) {
+		resp.AirlineDirect = prefill
+		resp.Message = "Compare the partner price with booking on the airline site (route prefilled — verify the fare)."
+	}
+	return resp, true
+}
+
+// supplementAirlineDirectFromGF2 fills airlineDirect when a scrape session already has
+// a seller handoff but no airline search template (e.g. Austrian has no public URL).
+func dualBookingOptionCount(resp BookingResolveResponse) int {
+	n := 0
+	if resp.CheapestOta != nil {
+		n++
+	}
+	if resp.AirlineDirect != nil {
+		n++
+	}
+	return n
+}
+
+func supplementAirlineDirectFromGF2(
+	ctx context.Context,
+	session *SearchSession,
+	option *FlightOption,
+	it search.CanonicalItinerary,
+	fp string,
+	legIndex, segmentIndex int,
+	resp *BookingResolveResponse,
+) {
+	if resp == nil || resp.AirlineDirect != nil || resp.CheapestOta == nil {
+		return
+	}
+	if !scopedCarriersUniform(option, legIndex, segmentIndex) {
+		return
+	}
+	gf2Offers, err := bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+	if err != nil || len(gf2Offers) == 0 {
+		return
+	}
+	normalize := bookingMatchPriceNormalizer()
+	ad := pickAirlineDirectOffer(nil, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
+	if ad == nil {
+		return
+	}
+	airline := publicBookingOfferFromPick(ad, gf2Offers, "airline_direct", false)
+	if airline == nil || sameBookingURL(airline.URL, resp.CheapestOta.URL) {
+		return
+	}
+	resp.AirlineDirect = airline
+	resp.Message = "Compare the partner price with booking on the airline site."
 }
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
@@ -978,14 +1031,20 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	normalize := bookingMatchPriceNormalizer()
 
 	if u := storedSessionBookingURL(option, legIndex); u != "" {
-		if resp, ok := sessionBookingResponse(option, fp, u); ok {
+		if resp, ok := sessionBookingResponse(session, option, fp, u, legIndex, segmentIndex); ok {
+			supplementAirlineDirectFromGF2(ctx, session, option, it, fp, legIndex, segmentIndex, &resp)
+			event := "resolve_session_booking"
+			if resp.CheapestOta != nil && resp.AirlineDirect != nil {
+				event = "resolve_session_booking_dual"
+			}
 			logBookingResolve(bookingResolveLogEvent{
-				Event:                "resolve_session_booking",
+				Event:                event,
 				ItineraryFingerprint: fp,
 				LegIndex:             intPtrOrNil(legIndex),
 				LegRoute:             legRoute,
 				Status:               resp.Status,
 				Provider:             resp.Offer.Provider,
+				CandidateCount:       dualBookingOptionCount(resp),
 				DurationMs:           time.Since(start).Milliseconds(),
 			})
 			return resp
