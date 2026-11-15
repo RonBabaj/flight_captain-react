@@ -1061,16 +1061,14 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		wg          sync.WaitGroup
 	)
 
-	// Fares we already scraped stay on that site. A fresh Google search is a
-	// different session and cannot be matched when the card has no carrier.
+	// Scrape-sourced cards skip the web matcher, but still need GF2 for airline-direct
+	// checkout and for dual Book options (cheapest OTA vs airline).
 	otaSourced := option != nil && isOTAScrapedSource(option.Source)
-	if !otaSourced {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
-		}()
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gf2Offers, gf2Err = bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+	}()
 
 	if otaSourced {
 		wg.Add(1)
