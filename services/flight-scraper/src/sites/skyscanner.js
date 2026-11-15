@@ -197,19 +197,29 @@ async function scrapeSkyscanner(req, config) {
           /* captcha may interrupt navigation */
         }
 
+        const onWall = async () => /captcha-v2/i.test(page.url()) || (await pageLooksBlocked(page));
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
         // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
-        for (let i = 0; i < 2; i++) {
-          const href = page.url();
-          if (!/captcha-v2/i.test(href) && !(await pageLooksBlocked(page))) break;
-          const solved = await trySolvePerimeterX(page);
-          if (solved) break;
-          await page.waitForTimeout(800);
-        }
-        if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
-          noteSkyscannerBlocked();
-          return [];
-        }
+        const solveWall = async () => {
+          for (let i = 0; i < 2; i++) {
+            if (!(await onWall())) return true;
+            if (await trySolvePerimeterX(page)) break;
+            await page.waitForTimeout(800);
+          }
+          if (await onWall()) {
+            noteSkyscannerBlocked();
+            return false;
+          }
+          return true;
+        };
+        const parsedWithReturn = () => {
+          const parsed = extractSkyscanner(captured, req);
+          const missingReturn =
+            !!req.returnDate && parsed.every((o) => !(o.segments || []).some((s) => s.leg === 'inbound'));
+          return parsed.length && !missingReturn ? parsed.slice(0, config.maxOffersPerSite) : [];
+        };
+
+        if (!(await solveWall())) return [];
 
         await ensureDatedResultsUrl(page, req, config);
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
@@ -223,13 +233,24 @@ async function scrapeSkyscanner(req, config) {
 
         // Prefer early JSON exit before optional sort / DOM waits.
         await waitUntil(page, jsonUseful, { timeoutMs: 9000, intervalMs: 200 });
-        let parsed = extractSkyscanner(captured, req);
-        const jsonMissingReturn =
-          !!req.returnDate &&
-          parsed.length > 0 &&
-          parsed.every((o) => !(o.segments || []).some((s) => s.leg === 'inbound'));
-        if (parsed.length && !jsonMissingReturn) {
-          return parsed.slice(0, config.maxOffersPerSite);
+        let found = parsedWithReturn();
+        if (found.length) return found;
+
+        // PerimeterX can also swap the results page for its wall mid-search (captcha
+        // url=/). Solve it and reload the search instead of waiting on cards that never come.
+        if (await onWall()) {
+          if (!(await solveWall())) return [];
+          if (urlMissingSearchDates(page.url())) {
+            try {
+              await gotoAndSettle(page, url, config, { ready: jsonUseful });
+            } catch {
+              /* checked below */
+            }
+            if (!(await solveWall())) return [];
+          }
+          await waitUntil(page, jsonUseful, { timeoutMs: 9000, intervalMs: 200 });
+          found = parsedWithReturn();
+          if (found.length) return found;
         }
 
         try {
@@ -249,13 +270,12 @@ async function scrapeSkyscanner(req, config) {
         await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
         await page.waitForTimeout(400);
 
-        parsed = extractSkyscanner(captured, req);
-        const stillMissingReturn =
-          !!req.returnDate &&
-          parsed.length > 0 &&
-          parsed.every((o) => !(o.segments || []).some((s) => s.leg === 'inbound'));
-        if (parsed.length && !stillMissingReturn) {
-          return parsed.slice(0, config.maxOffersPerSite);
+        found = parsedWithReturn();
+        if (found.length) return found;
+        const parsed = extractSkyscanner(captured, req);
+        if (await onWall()) {
+          noteSkyscannerBlocked();
+          return [];
         }
 
         try {

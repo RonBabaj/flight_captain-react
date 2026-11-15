@@ -1,0 +1,11 @@
+---
+description: Merge, wait for deploy, then verify on the live server
+alwaysApply: true
+---
+
+When a change is ready:
+
+1. Merge the PR into `main` yourself (the user has standing approval for this).
+2. Wait for the GitHub Actions deploy workflow (`.github/workflows/deploy.yml`) on that merge to finish.
+3. Immediately test the change yourself on the live server (fly-fix.com / api.fly-fix.com, and the VPS containers and logs over SSH with `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`). Exercise the actual behavior that was changed, with a fresh search, not a cached session.
+4. If the deploy fails or anything in the live test fails or looks wrong, keep working: fix it, open a new PR, and repeat these steps. Do not stop and report until the live test passes, or until you are blocked by something only the user can fix (say what it is).
