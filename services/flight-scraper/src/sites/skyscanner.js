@@ -3,7 +3,12 @@
 const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment, segmentsFromRoundTripClocks } = require('../normalize');
-const { airlinesFromCardText, pickSessionBookingUrl, extractUnifiedOffers } = require('./skyscannerParse');
+const {
+  airlinesFromCardText,
+  pickSessionBookingUrl,
+  extractUnifiedOffers,
+  webUnifiedSettled,
+} = require('./skyscannerParse');
 const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { waitUntil } = require('../browser/fastLoad');
@@ -180,6 +185,7 @@ async function scrapeSkyscanner(req, config) {
         // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
         const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
         const jsonUseful = () => {
+          if (!webUnifiedSettled(captured)) return false;
           const parsed = extractSkyscanner(captured, req);
           if (!parsed.length) return false;
           if (!req.returnDate) return true;
@@ -216,7 +222,7 @@ async function scrapeSkyscanner(req, config) {
         }
 
         // Prefer early JSON exit before optional sort / DOM waits.
-        await waitUntil(page, jsonUseful, { timeoutMs: 7000, intervalMs: 200 });
+        await waitUntil(page, jsonUseful, { timeoutMs: 9000, intervalMs: 200 });
         let parsed = extractSkyscanner(captured, req);
         const jsonMissingReturn =
           !!req.returnDate &&

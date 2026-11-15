@@ -5,6 +5,7 @@ const {
   airlinesFromCardText,
   pickSessionBookingUrl,
   extractUnifiedOffers,
+  webUnifiedSettled,
 } = require('../src/sites/skyscannerParse');
 
 const frenchCard =
@@ -96,5 +97,52 @@ assert.strictEqual(offers[0].segments[1].leg, 'inbound');
 assert.strictEqual(offers[0].segments[1].airlineCode, 'OS');
 assert.ok(offers[0].bookingUrl.includes('transport_deeplink'));
 assert.strictEqual(offers[0].vendorName, undefined);
+
+const seg = (from, to, dep, arr, code, num) => ({
+  origin: { displayCode: from },
+  destination: { displayCode: to },
+  departure: dep,
+  arrival: arr,
+  flightNumber: num,
+  marketingCarrier: { displayCode: code, name: code },
+});
+const radar = (status, results) => ({ context: { status }, itineraries: { results } });
+const radarItinerary = (price, outSegs, inSegs) => ({
+  price: { raw: price },
+  legs: [{ segments: outSegs }, { segments: inSegs }],
+  pricingOptions: [{ items: [{ url: `/transport_deeplink/4.0/FR/fr-FR/EUR/mtfr/2/x?p=${price}` }] }],
+});
+const firstPage = radar('incomplete', [
+  radarItinerary(
+    150,
+    [seg('TLV', 'VIE', '2027-01-07T06:00:00', '2027-01-07T09:00:00', 'OS', '858')],
+    [seg('VIE', 'TLV', '2027-01-14T10:00:00', '2027-01-14T14:30:00', 'OS', '857')],
+  ),
+  radarItinerary(
+    120,
+    [
+      seg('TLV', 'ATH', '2027-01-07T05:00:00', '2027-01-07T07:00:00', 'A3', '929'),
+      seg('ATH', 'VIE', '2027-01-07T09:00:00', '2027-01-07T10:30:00', 'A3', '860'),
+    ],
+    [seg('VIE', 'TLV', '2027-01-14T10:00:00', '2027-01-14T14:30:00', 'OS', '857')],
+  ),
+]);
+const radarOffers = extractUnifiedOffers([firstPage], req);
+assert.strictEqual(radarOffers.length, 2);
+assert.strictEqual(radarOffers[0].price, 120, 'cheapest first');
+assert.strictEqual(radarOffers[0].currency, 'EUR', 'currency from the deeplink, not the request');
+assert.deepStrictEqual(
+  radarOffers[0].segments.map((s) => `${s.leg}:${s.fromCode}-${s.toCode}:${s.flightNumber}`),
+  ['outbound:TLV-ATH:A3929', 'outbound:ATH-VIE:A3860', 'inbound:VIE-TLV:OS857'],
+);
+assert.strictEqual(radarOffers[0].segments[0].departureTime, '2027-01-07T05:00:00');
+assert.ok(radarOffers[0].bookingUrl.includes('transport_deeplink'));
+
+assert.strictEqual(webUnifiedSettled([firstPage]), false, 'first page of a pending search');
+assert.strictEqual(webUnifiedSettled([radar('complete', firstPage.itineraries.results)]), true);
+assert.strictEqual(
+  webUnifiedSettled([radar('incomplete', Array(50).fill(firstPage.itineraries.results[0]))]),
+  true,
+);
 
 console.log('skyscanner parse ok');

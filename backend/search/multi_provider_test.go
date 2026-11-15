@@ -238,6 +238,36 @@ func TestRegistrySearchAll_fastOnlySkipsScraper(t *testing.T) {
 	}
 }
 
+func TestRegistrySearchAll_dedupeComparesInRequestedCurrency(t *testing.T) {
+	prev := PriceConverter
+	PriceConverter = func(amount float64, from, to string) (float64, bool) {
+		if from == "EUR" && to == "USD" {
+			return amount * 1.2, true
+		}
+		return 0, false
+	}
+	defer func() { PriceConverter = prev }()
+	leg := []Leg{{Segments: []Segment{{From: "TLV", To: "ATH", MarketingCarrier: "A3", FlightNumber: "A3927",
+		DepartureTime: time.Date(2027, 3, 3, 19, 10, 0, 0, time.UTC)}}}}
+	gf2 := &stubProvider{name: "googleflights2", results: []ProviderResult{{
+		ID: "g", Price: Monetary{Currency: "USD", Amount: 120}, Source: "googleflights2", Legs: leg,
+	}}}
+	scraped := &stubProvider{name: "multisite", results: []ProviderResult{{
+		ID: "s", Price: Monetary{Currency: "EUR", Amount: 107}, Source: "skyscanner", Legs: leg,
+	}}}
+	r := &Registry{providers: []Provider{gf2, scraped}}
+	res := r.SearchAll(context.Background(), SearchRequest{
+		Origin: "TLV", Destination: "ATH", DepartureDate: "2027-03-03", Currency: "USD",
+	})
+	if len(res.Results) != 1 {
+		t.Fatalf("results=%d", len(res.Results))
+	}
+	got := res.Results[0]
+	if got.Source != "googleflights2" || got.Price.Currency != "USD" || got.Price.Amount != 120 {
+		t.Fatalf("kept %s %.2f %s; €107 is $128.40 so the $120 copy must win", got.Source, got.Price.Amount, got.Price.Currency)
+	}
+}
+
 func TestRegistrySearchAll_openJawGF2FailNotMaskedByKiwiSkip(t *testing.T) {
 	gf2 := &stubProvider{name: "googleflights2", err: fmt.Errorf("no flights found for return SZG→TLV")}
 	kiwi := &stubProvider{name: "kiwi", err: ErrProviderSkipped}

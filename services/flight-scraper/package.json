@@ -6,7 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node scripts/test-local-time.js",
+    "test": "node scripts/test-local-time.js && node scripts/test-skyscanner-parse.js && node scripts/test-kiwi-parse.js",
     "postinstall": "npx playwright install chromium firefox --with-deps || npx playwright install chromium firefox"
   },
   "engines": {
