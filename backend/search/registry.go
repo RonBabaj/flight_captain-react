@@ -191,14 +191,26 @@ func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest,
 	if r == nil || len(r.providers) == 0 {
 		return out
 	}
-	total := len(r.providers)
+	providers := r.providers
+	if req.FastOnly {
+		providers = nil
+		for _, p := range r.providers {
+			if isFastProvider(p.Name()) {
+				providers = append(providers, p)
+			}
+		}
+		if len(providers) == 0 {
+			return out
+		}
+	}
+	total := len(providers)
 	type part struct {
 		stats   ProviderSearchStats
 		results []ProviderResult
 	}
 	ch := make(chan part, total)
 	var wg sync.WaitGroup
-	for _, p := range r.providers {
+	for _, p := range providers {
 		wg.Add(1)
 		go func(p Provider) {
 			defer wg.Done()

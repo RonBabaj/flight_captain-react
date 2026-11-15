@@ -124,6 +124,7 @@ type CreateSearchSessionRequest struct {
 	Infants           int              `json:"infants,omitempty"`
 	Currency          string           `json:"currency,omitempty"`
 	Locale            string           `json:"locale,omitempty"`
+	FastOnly          bool             `json:"fastOnly,omitempty"`
 }
 
 type SearchSession struct {
@@ -817,6 +818,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Children:          req.ChildrenOrDefault(),
 		Infants:           req.Infants,
 		Currency:          req.CurrencyOrDefault(),
+		FastOnly:          req.FastOnly,
 	})
 	// Persist sanitized params on the session so clients do not inherit stale open-jaw fields.
 	req.ReturnOrigin = sreq.ReturnOrigin

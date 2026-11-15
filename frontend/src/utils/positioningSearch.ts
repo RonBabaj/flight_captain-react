@@ -29,7 +29,7 @@ export async function findCheapestOptionForParams(
   const maxAttempts = opts?.maxAttempts ?? 6;
   const pollIntervalMs = opts?.pollIntervalMs ?? cfg.pollIntervalMs;
 
-  const session = await createSearchSessionWithRetry(base);
+  const session = await createSearchSessionWithRetry({ ...base, fastOnly: true });
   let attempts = 0;
   let lastResults: FlightOption[] = [];
 
