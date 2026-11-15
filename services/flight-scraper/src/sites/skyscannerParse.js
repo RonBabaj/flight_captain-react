@@ -213,11 +213,97 @@ function priceFromItinerary(it) {
   return priceAmount(it.price);
 }
 
+function webUnifiedPayloads(payloads) {
+  return (payloads || []).filter((p) => p && Array.isArray(p.itineraries?.results));
+}
+
+/**
+ * The results page polls web-unified-search: a first page of ~10, then hundreds, and
+ * `complete` often only after 20s+. Enough results to stop waiting is either.
+ */
+function webUnifiedSettled(payloads, minResults = 50) {
+  return webUnifiedPayloads(payloads).some((p) => {
+    const n = p.itineraries.results.length;
+    return n >= minResults || (n > 0 && String(p.context?.status || '').toLowerCase() === 'complete');
+  });
+}
+
+function deeplinkCurrency(url) {
+  const m = String(url || '').match(/\/transport_deeplink\/[^/]+\/[^/]+\/[^/]+\/([A-Z]{3})\//);
+  return m ? m[1] : '';
+}
+
+function airportCode(place) {
+  const code = String(place?.displayCode || place?.flightPlaceId || place?.id || '')
+    .trim()
+    .toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : '';
+}
+
+/**
+ * `web-unified-search` (radar API) shape: itineraries.results[].legs[].segments[].
+ * Times are airport wall clocks without a zone, which the API parses per airport.
+ */
+function extractWebUnifiedOffers(payloads, req) {
+  const sources = webUnifiedPayloads(payloads);
+  if (!sources.length) return [];
+  const results = sources.reduce((a, p) => (p.itineraries.results.length > a.length ? p.itineraries.results : a), []);
+  const out = [];
+  const seen = new Set();
+  for (const it of results) {
+    const legs = Array.isArray(it.legs) ? it.legs : [];
+    if (!legs.length || (req.returnDate && legs.length < 2)) continue;
+    const segs = [];
+    legs.forEach((leg, i) => {
+      for (const s of leg.segments || []) {
+        const from = airportCode(s.origin);
+        const to = airportCode(s.destination);
+        if (!from || !to || !s.departure) continue;
+        const carrier = s.marketingCarrier || {};
+        const code = iataCode(carrier.displayCode || carrier.alternateId);
+        const num = String(s.flightNumber || '').replace(/\D/g, '');
+        segs.push(
+          segment({
+            leg: i === 0 ? 'outbound' : 'inbound',
+            from,
+            to,
+            departureTime: s.departure,
+            arrivalTime: s.arrival,
+            airline: code || cleanLabel(carrier.name),
+            flightNumber: code && num ? `${code}${num}` : '',
+          }),
+        );
+      }
+    });
+    if (!segs.length || (req.returnDate && !segs.some((s) => s.leg === 'inbound'))) continue;
+    const price = priceAmount(it.price) || priceFromItinerary(it);
+    if (!price) continue;
+    const bookingUrl = sessionURLFromItinerary(it);
+    const key = `${price}|${segs.map((s) => `${s.fromCode}${s.toCode}${s.departureTime}${s.flightNumber}`).join('|')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(
+      offerTemplate({
+        origin: req.origin,
+        destination: req.destination,
+        price,
+        currency: deeplinkCurrency(bookingUrl) || req.currency || 'USD',
+        bookingUrl,
+        selfTransfer: !!it.isSelfTransfer,
+        segments: segs,
+      }),
+    );
+  }
+  return out.sort((a, b) => a.price - b.price);
+}
+
 /**
  * Read itineraries out of the JSON the results page already loaded
  * (legs + carriers + pricingOptions), instead of searching for the flight again.
  */
 function extractUnifiedOffers(payloads, req) {
+  const webUnified = extractWebUnifiedOffers(payloads, req);
+  if (webUnified.length) return webUnified;
   const { carriers, places, legs, itineraries } = indexEntities(payloads);
   const out = [];
   const seen = new Set();
@@ -269,5 +355,6 @@ module.exports = {
   airlinesFromCardText,
   pickSessionBookingUrl,
   extractUnifiedOffers,
+  webUnifiedSettled,
   rejectAirlineLabel,
 };

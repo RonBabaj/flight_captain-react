@@ -8,6 +8,7 @@ const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
 const { waitUntil } = require('../browser/fastLoad');
 const { kiwiPlaceSlug } = require('./kiwiPlaces');
+const { extractKiwiUmbrella, kiwiUmbrellaSettled } = require('./kiwiParse');
 
 function kiwiSearchUrl(req) {
   const o = kiwiPlaceSlug(req.origin, { cityName: req.originCity, countryCode: req.originCountry });
@@ -118,7 +119,20 @@ async function scrapeKiwi(req, config) {
       await clearKiwiSpaState(page);
 
       const captured = attachJsonCapture(page, /skypicker|kiwi\.com|graphql|search|itinerar|booking-api/i);
-      const jsonReady = () => extractFromCaptured(captured, req).length > 0;
+      const fromCaptured = () => {
+        const umbrella = extractKiwiUmbrella(captured, req);
+        return umbrella.length ? umbrella : extractFromCaptured(captured, req);
+      };
+      // Each umbrella response is the same top-10 re-ranked while providers finish (~13s);
+      // give the final version a short grace period, not the whole pending phase.
+      let umbrellaSince = 0;
+      const jsonReady = () => {
+        if (extractKiwiUmbrella(captured, req).length) {
+          if (!umbrellaSince) umbrellaSince = Date.now();
+          return kiwiUmbrellaSettled(captured) || Date.now() - umbrellaSince >= 3000;
+        }
+        return extractFromCaptured(captured, req).length > 0;
+      };
 
       lastHref = await ensureKiwiResultsUrl(page, url, req, config, { ready: jsonReady });
       if (await pageLooksBlocked(page)) {
@@ -129,14 +143,14 @@ async function scrapeKiwi(req, config) {
         return [];
       }
 
-      let fromNetwork = extractFromCaptured(captured, req);
+      let fromNetwork = jsonReady() ? fromCaptured() : [];
       if (fromNetwork.length > 0) {
         return fromNetwork.slice(0, config.maxOffersPerSite);
       }
 
       // Poll XHR briefly before falling back to DOM — usually faster than fixed waits.
       await waitUntil(page, jsonReady, { timeoutMs: 8000, intervalMs: 200 });
-      fromNetwork = extractFromCaptured(captured, req);
+      fromNetwork = fromCaptured();
       if (fromNetwork.length > 0) {
         return fromNetwork.slice(0, config.maxOffersPerSite);
       }
