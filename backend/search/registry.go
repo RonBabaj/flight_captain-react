@@ -252,9 +252,40 @@ func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest,
 			onProgress(len(out.Stats), total, snap)
 		}
 	}
+	convertResultsToCurrency(out.Results, req.Currency)
 	out.Results = AttachCanonicalIdentityAll(out.Results)
 	out.Results = DedupeProviderResults(out.Results)
 	return out
+}
+
+// PriceConverter converts an amount between ISO currencies using live rates; set by the API.
+// ok=false when a rate is unknown.
+var PriceConverter func(amount float64, from, to string) (converted float64, ok bool)
+
+// Scraped sites price in their own market currency (EUR from the VPS); dedupe keeps the
+// cheapest copy by raw amount, so every result must be in the requested currency first.
+func convertResultsToCurrency(results []ProviderResult, currency string) {
+	target := strings.ToUpper(strings.TrimSpace(currency))
+	if target == "" || PriceConverter == nil {
+		return
+	}
+	for i := range results {
+		p := &results[i].Price
+		from := strings.ToUpper(strings.TrimSpace(p.Currency))
+		if from == "" || from == target || p.Amount <= 0 {
+			continue
+		}
+		converted, ok := PriceConverter(p.Amount, from, target)
+		if !ok || converted <= 0 {
+			continue
+		}
+		ratio := converted / p.Amount
+		p.Amount = converted
+		p.Currency = target
+		for j := range results[i].LegPrices {
+			results[i].LegPrices[j] *= ratio
+		}
+	}
 }
 
 // AllFailed returns true when every provider that actually ran reported an error and there are no results.

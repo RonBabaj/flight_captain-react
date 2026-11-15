@@ -1245,6 +1245,13 @@ func convertPrice(amount float64, fromCurr, toCurr string) (float64, string) {
 	return usd / toRate, toCurr
 }
 
+func init() {
+	search.PriceConverter = func(amount float64, from, to string) (float64, bool) {
+		v, cur := convertPrice(amount, from, to)
+		return v, cur == to
+	}
+}
+
 // convertOptionsToCurrency converts all options' prices to requestedCurr in place.
 func convertOptionsToCurrency(options []FlightOption, requestedCurr string) {
 	for i := range options {
