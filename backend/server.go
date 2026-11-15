@@ -923,9 +923,7 @@ func normalizeProviderOptions(
 			includeBag, okCount, unknownCount, includedCount, fallbackFlag, options[0].Price.Amount, options[0].BaggageClass)
 	}
 
-	if len(options) > maxOffersReturnedToClient {
-		options = options[:maxOffersReturnedToClient]
-	}
+	options = capOptionsKeepingVariety(options, maxOffersReturnedToClient)
 
 	requestedCurr := req.CurrencyOrDefault()
 
@@ -966,10 +964,69 @@ func normalizeProviderOptions(
 	sort.Slice(options, func(i, j int) bool {
 		return options[i].Price.Amount < options[j].Price.Amount
 	})
-	if len(options) > maxOffersReturnedToClient {
-		options = options[:maxOffersReturnedToClient]
+	return capOptionsKeepingVariety(options, maxOffersReturnedToClient)
+}
+
+const (
+	capReservedNonstops  = 10
+	capReservedPerSource = 5
+)
+
+// capOptionsKeepingVariety keeps the first max options (callers sort cheapest first) but
+// reserves room for nonstop itineraries and for each provider; a plain price cut drops
+// both, since nonstops and scraped sites are rarely among the very cheapest fares.
+func capOptionsKeepingVariety(options []FlightOption, max int) []FlightOption {
+	if len(options) <= max {
+		return options
 	}
-	return options
+	picked := make([]bool, len(options))
+	n := 0
+	pick := func(i int) {
+		if !picked[i] && n < max {
+			picked[i] = true
+			n++
+		}
+	}
+	nonstops := 0
+	for i := range options {
+		if nonstops >= capReservedNonstops {
+			break
+		}
+		if optionIsNonstop(options[i]) {
+			pick(i)
+			nonstops++
+		}
+	}
+	perSource := map[string]int{}
+	for i := range options {
+		src := options[i].Source
+		if perSource[src] < capReservedPerSource {
+			pick(i)
+			perSource[src]++
+		}
+	}
+	for i := range options {
+		pick(i)
+	}
+	out := make([]FlightOption, 0, max)
+	for i := range options {
+		if picked[i] {
+			out = append(out, options[i])
+		}
+	}
+	return out
+}
+
+func optionIsNonstop(o FlightOption) bool {
+	if len(o.Legs) == 0 {
+		return false
+	}
+	for _, leg := range o.Legs {
+		if len(leg.Segments) != 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func publishSessionSnapshot(
