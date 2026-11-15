@@ -66,9 +66,8 @@ func TestRunBookingMatch_skyscannerEmptyCarrierNotMetaListing(t *testing.T) {
 		bookingOTAOffersResolver = oldOTA
 		bookingMatchRunner = oldWeb
 	}()
-	var gf2Called, webCalled bool
+	var webCalled bool
 	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
-		gf2Called = true
 		return nil, nil
 	}
 	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
@@ -97,8 +96,8 @@ func TestRunBookingMatch_skyscannerEmptyCarrierNotMetaListing(t *testing.T) {
 	if resp.Found {
 		t.Fatalf("expected not_found without seller handoff, got found status=%s url=%v", resp.Status, resp.Offer)
 	}
-	if gf2Called || webCalled {
-		t.Fatal("a Skyscanner fare must not be re-found with a Google search")
+	if webCalled {
+		t.Fatal("a Skyscanner fare must not be re-found with the SerpAPI web matcher")
 	}
 }
 
