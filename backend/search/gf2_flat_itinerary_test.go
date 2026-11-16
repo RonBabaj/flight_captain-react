@@ -82,6 +82,42 @@ func TestParseGF2Response_AttachesFlatReturnFlights(t *testing.T) {
 	}
 }
 
+func TestParseGF2Response_topFlightsWithoutPriceHistory(t *testing.T) {
+	body := []byte(`{
+		"status": true,
+		"data": {
+			"itineraries": {
+				"topFlights": [{
+					"departure_time": "28-11-2026 09:15 AM",
+					"arrival_time": "28-11-2026 02:40 PM",
+					"duration": {"raw": 385},
+					"price": "€129",
+					"flights": [{
+						"departure_airport": {"name": "PRG", "id": "PRG"},
+						"arrival_airport": {"name": "TLV", "id": "TLV"},
+						"departure_time": "28-11-2026 09:15 AM",
+						"arrival_time": "28-11-2026 02:40 PM",
+						"duration": 385,
+						"flight_number": "LY 2526",
+						"airline": "LY"
+					}]
+				}]
+			},
+			"priceHistory": {"summary": {}, "history": []}
+		}
+	}`)
+	results, err := parseGF2Response(body, "PRG", "TLV", "EUR", "2026-11-28", "", "ECONOMY")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if len(results[0].Legs) == 0 {
+		t.Fatal("expected leg")
+	}
+}
+
 func TestBuildGF2ResultFromItinerary_FlatFormat(t *testing.T) {
 	var itin map[string]interface{}
 	if err := json.Unmarshal([]byte(`{

@@ -981,16 +981,7 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 				if !ok {
 					continue
 				}
-				amount := extractGF2Price(itin)
-				if amount <= 0 {
-					amount = defaultPrice
-				}
-				if amount <= 0 {
-					continue
-				}
-				pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate, cabin)
-				if pr != nil {
-					pr.ID = fmt.Sprintf("gf2_%s_%d", id, idx)
+				if pr := gf2ProviderResultFromMapItinerary(itin, id, idx, defaultPrice, origin, dest, currency, departureDate, cabin); pr != nil {
 					*results = append(*results, *pr)
 					idx++
 				}
@@ -1011,20 +1002,36 @@ func extractGF2ItinerariesFromMap(itinsMap map[string]interface{}, priceHistory 
 			log.Printf("[GF2_DEBUG] first itinerary keys=%v", keys)
 			loggedItin = true
 		}
-		amount := extractGF2Price(itin)
-		if amount <= 0 {
-			amount = defaultPrice
-		}
-		if amount <= 0 {
-			continue
-		}
-		pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate, cabin)
-		if pr != nil {
+		if pr := gf2ProviderResultFromMapItinerary(itin, id, idx, defaultPrice, origin, dest, currency, departureDate, cabin); pr != nil {
 			pr.ID = fmt.Sprintf("gf2_%s", id)
 			*results = append(*results, *pr)
 			idx++
 		}
 	}
+}
+
+// gf2ProviderResultFromMapItinerary builds a hit from data.itineraries map entries even when
+// priceHistory.summary is empty (common on follow-up one-way legs like PRG→TLV for RT enrich).
+func gf2ProviderResultFromMapItinerary(itin map[string]interface{}, id string, idx int, defaultPrice float64, origin, dest, currency, departureDate, cabin string) *ProviderResult {
+	amount := extractGF2Price(itin)
+	if amount <= 0 {
+		amount = defaultPrice
+	}
+	pr := buildGF2ResultFromItinerary(itin, origin, dest, currency, amount, idx, departureDate, cabin)
+	if pr == nil {
+		return nil
+	}
+	if pr.Price.Amount <= 0 {
+		if a := extractGF2Price(itin); a > 0 {
+			pr.Price.Amount = a
+		} else if defaultPrice > 0 {
+			pr.Price.Amount = defaultPrice
+		} else {
+			pr.Price.Amount = 1
+		}
+	}
+	pr.ID = fmt.Sprintf("gf2_%s_%d", id, idx)
+	return pr
 }
 
 func extractGF2PriceFromHistory(priceHistory interface{}) float64 {
@@ -1507,6 +1514,16 @@ func extractGF2LegFromFlightsArray(flightsArr []interface{}, defaultFrom, defaul
 }
 
 func extractGF2Price(f map[string]interface{}) float64 {
+	if v, ok := f["price"]; ok {
+		if amt := toFloat64(v); amt > 0 {
+			return amt
+		}
+		if pm, ok := v.(map[string]interface{}); ok {
+			if amt := extractGF2Price(pm); amt > 0 {
+				return amt
+			}
+		}
+	}
 	if p, ok := f["price"].(float64); ok && p > 0 {
 		return p
 	}
