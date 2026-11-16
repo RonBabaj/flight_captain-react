@@ -16,8 +16,47 @@ GATEWAY_PORT="${FLIGHT_CHROME_GATEWAY_PORT:-9224}"
 PROFILE="${FLIGHT_CHROME_PROFILE_DIR:-/var/lib/flight-scraper-chrome}"
 USER_RUN="${FLIGHT_CHROME_USER:-fbmonitor}"
 LOG_TAG="ensure-flight-chrome"
+ENV_FILE="${FLIGHT_ENV_FILE:-/opt/apps/flight_captain-react/backend/.env}"
 
 log() { echo "[$LOG_TAG] $*"; }
+
+load_scraper_proxy_env() {
+  if [ ! -f "$ENV_FILE" ]; then
+    return 0
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source <(grep -E '^(SCRAPER_PROXY_URL|FLIGHT_CHROME_PROXY|FLIGHT_CHROME_PROXY_LOCAL_PORT)=' "$ENV_FILE" | sed 's/\r$//')
+  set +a
+}
+
+chrome_proxy_args() {
+  load_scraper_proxy_env
+  local local_port="${FLIGHT_CHROME_PROXY_LOCAL_PORT:-18118}"
+  local server="${FLIGHT_CHROME_PROXY:-}"
+
+  if [ -z "$server" ] && [ -n "${SCRAPER_PROXY_URL:-}" ]; then
+    if [[ "${SCRAPER_PROXY_URL}" == *"@"* ]]; then
+      SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      if [ -x "${SCRIPT_DIR}/ensure-scraper-proxy-forwarder.sh" ]; then
+        sudo -E "${SCRIPT_DIR}/ensure-scraper-proxy-forwarder.sh" || true
+      fi
+      server="http://127.0.0.1:${local_port}"
+    else
+      server="${SCRAPER_PROXY_URL}"
+    fi
+  fi
+
+  if [ -z "$server" ]; then
+    return 0
+  fi
+  if [[ "$server" == *"@"* ]]; then
+    log "ERROR: use FLIGHT_CHROME_PROXY=http://127.0.0.1:${local_port} + ensure-scraper-proxy-forwarder.sh for authenticated proxies"
+    return 1
+  fi
+  log "Chrome egress proxy: ${server}"
+  printf '%s\n' "--proxy-server=${server}"
+}
 
 ensure_gateway_proxy() {
   local gw="$1"
@@ -69,6 +108,7 @@ PROXY_GW="$(docker network inspect proxy --format '{{range .IPAM.Config}}{{.Gate
 
 if curl -sf "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
   log "OK: Chrome CDP already listening on ${PORT} (DISPLAY=${DISPLAY})"
+  log "NOTE: to change residential proxy, restart flight Chrome (proxy is set at Chrome start)"
   ensure_gateway_proxy "$PROXY_GW"
   exit 0
 fi
@@ -84,6 +124,8 @@ sudo touch /var/log/flight-chrome.log /var/log/flight-chrome-socat.log
 sudo chown "$USER_RUN:$USER_RUN" /var/log/flight-chrome.log 2>/dev/null || true
 
 # Chrome CDP binds loopback on modern builds; Docker reachability is via socat on GATEWAY_PORT.
+mapfile -t CHROME_PROXY_EXTRA < <(chrome_proxy_args || true)
+
 log "Starting Google Chrome on DISPLAY=${DISPLAY} port=${PORT} profile=${PROFILE}"
 sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --remote-debugging-port="${PORT}" \
@@ -97,6 +139,7 @@ sudo -u "$USER_RUN" env DISPLAY="$DISPLAY" nohup google-chrome-stable \
   --disable-features=IsolateOrigins,site-per-process,ServiceWorker,InterestCohortAPI \
   --disable-blink-features=AutomationControlled \
   --window-size=1400,900 \
+  "${CHROME_PROXY_EXTRA[@]}" \
   about:blank \
   >>"/var/log/flight-chrome.log" 2>&1 &
 

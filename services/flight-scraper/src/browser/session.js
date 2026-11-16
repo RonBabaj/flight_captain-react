@@ -169,6 +169,12 @@ async function withPage(config, fn, options = {}) {
     config.cdpUrls?.length > 0 ? config.cdpUrls : config.cdpUrl ? [config.cdpUrl] : [];
 
   if (cdpUrls.length > 0) {
+    if (proxyUrl && !withPage._cdpProxyWarned) {
+      withPage._cdpProxyWarned = true;
+      console.warn(
+        '[flight-scraper] SCRAPER_PROXY_URL does not apply to CDP tabs — set proxy on flight Chrome (scripts/vps/ensure-flight-chrome.sh + SCRAPER_PROXY_URL in backend/.env)',
+      );
+    }
     let lastErr;
     for (const cdpUrl of cdpUrls) {
       try {
