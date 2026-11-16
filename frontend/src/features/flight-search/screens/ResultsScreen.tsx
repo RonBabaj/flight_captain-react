@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useNavigation } from '@react-navigation/native';
-import type { FlightOption, MonetaryAmount, SearchProgress } from '../../../types';
+import type { FlightOption, MonetaryAmount, SearchProgress, SearchSessionResultsResponse } from '../../../types';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import { isSearchNearComplete } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
@@ -225,6 +225,23 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [resultsHasMore, setResultsHasMore] = useState(false);
+  const [loadingMoreResults, setLoadingMoreResults] = useState(false);
+  const resultsNextOffsetRef = useRef(0);
+  const RESULTS_PAGE_SIZE = 50;
+
+  const syncResultsPagination = useCallback((res: SearchSessionResultsResponse) => {
+    const total = res.totalResults ?? res.results?.length ?? 0;
+    const loaded = (res.offset ?? 0) + (res.results?.length ?? 0);
+    setResultsHasMore(!!res.hasMore || loaded < total);
+    resultsNextOffsetRef.current = loaded;
+  }, []);
+
+  useEffect(() => {
+    setResultsHasMore(false);
+    resultsNextOffsetRef.current = 0;
+    setLoadingMoreResults(false);
+  }, [sessionId, searchNonce]);
 
   // Only clear the empty-retry latch for a brand-new user search (searchNonce bump
   // from Edit Search / form), not when beginSearch briefly sets PENDING without a
@@ -399,6 +416,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         version: res.version ?? 1,
       });
       if (!applied) return;
+      syncResultsPagination(res);
       updateUrl({ ...payload, sessionId: session.id });
       navigation.navigate('Results', { sessionId: session.id });
     } catch (e) {
@@ -681,6 +699,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             results: res.results ?? [],
             version: res.version ?? 1,
           });
+          syncResultsPagination(res);
         }
       } catch (e) {
         if (!cancelled && isCurrentSearchGeneration(generation)) {
@@ -900,6 +919,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           version: nextVersion,
         });
         if (applied) {
+          syncResultsPagination(res);
           sharedLinkHydrationRef.current = false;
           logDeepLinkDiagnostics('poll-ok', {
             routeParams: route.params as Record<string, unknown>,
@@ -1516,6 +1536,51 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     />
   );
 
+  const loadMoreResults = useCallback(async () => {
+    if (!sessionId || !resultsHasMore || loadingMoreResults) return;
+    setLoadingMoreResults(true);
+    try {
+      const matchParams =
+        sharedLinkHydrationRef.current || !storeParamsRef.current
+          ? undefined
+          : storeParamsRef.current;
+      const res = await getSearchSessionResults(sessionId, matchParams, {
+        offset: resultsNextOffsetRef.current,
+        limit: RESULTS_PAGE_SIZE,
+      });
+      searchActions.appendResults(res.results ?? []);
+      syncResultsPagination(res);
+    } catch {
+      searchActions.setError(t('search_failed'));
+    } finally {
+      setLoadingMoreResults(false);
+    }
+  }, [sessionId, resultsHasMore, loadingMoreResults, t, syncResultsPagination]);
+
+  const resultsListFooter = (
+    <View>
+      {resultsHasMore && status === 'COMPLETE' && !showNoMatch ? (
+        <TouchableOpacity
+          style={[styles.loadMoreBtn, { borderColor: theme.primary }]}
+          onPress={() => void loadMoreResults()}
+          disabled={loadingMoreResults}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+        >
+          {loadingMoreResults ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <>
+              <Text style={[styles.loadMoreText, { color: theme.primary }]}>{t('load_more')}</Text>
+              <AppIcon name="chevron-down" size={16} color={theme.primary} fallbackText="↓" />
+            </>
+          )}
+        </TouchableOpacity>
+      ) : null}
+      {positioningSection}
+    </View>
+  );
+
   const resultsList = (
     isLoading && filtered.length === 0 ? (
       // Structure-preview cards (not a 3D cube) — page shape before results arrive.
@@ -1572,7 +1637,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             }
           />
         )}
-        ListFooterComponent={positioningSection}
+        ListFooterComponent={resultsListFooter}
         ListEmptyComponent={
           showNoMatch ? (
             <View
@@ -2210,4 +2275,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  loadMoreText: { fontSize: 14, fontWeight: '600' },
 });

@@ -263,6 +263,11 @@ type SearchSessionResultsResponse struct {
 	Results        []FlightOption               `json:"results"`
 	ProviderStats  []search.ProviderSearchStats `json:"providerStats,omitempty"`
 	SearchProgress *SearchProgress              `json:"searchProgress,omitempty"`
+	// Pagination for GET /api/search/sessions/{id} (full list stays in the stored snapshot).
+	TotalResults int  `json:"totalResults,omitempty"`
+	Offset       int  `json:"offset,omitempty"`
+	Limit        int  `json:"limit,omitempty"`
+	HasMore      bool `json:"hasMore"`
 }
 
 func searchSessionTTL() time.Duration {
@@ -331,9 +336,41 @@ func startSearchSessionCleanup() {
 }
 
 const (
-	maxOffersReturnedToClient = 50
-	minOkForStrictBags        = 10 // soft-strict: if BAG_OK count >= this, use only BAG_OK; else BAG_OK+ BAG_UNKNOWN
+	defaultSearchResultsPageSize  = 50
+	defaultSearchResultsMaxStored = 200
+	maxSearchResultsMaxStored     = 500
+	minOkForStrictBags            = 10 // soft-strict: if BAG_OK count >= this, use only BAG_OK; else BAG_OK+ BAG_UNKNOWN
 )
+
+func searchResultsPageSize() int {
+	raw := strings.TrimSpace(os.Getenv("SEARCH_RESULTS_PAGE_SIZE"))
+	if raw == "" {
+		return defaultSearchResultsPageSize
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 1 {
+		return defaultSearchResultsPageSize
+	}
+	if v > maxSearchResultsMaxStored {
+		return maxSearchResultsMaxStored
+	}
+	return v
+}
+
+func searchResultsMaxStored() int {
+	raw := strings.TrimSpace(os.Getenv("SEARCH_RESULTS_MAX_STORED"))
+	if raw == "" {
+		return defaultSearchResultsMaxStored
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < defaultSearchResultsPageSize {
+		return defaultSearchResultsMaxStored
+	}
+	if v > maxSearchResultsMaxStored {
+		return maxSearchResultsMaxStored
+	}
+	return v
+}
 
 // Baggage classification for soft-strict filtering (additive to response).
 const (
@@ -923,7 +960,7 @@ func normalizeProviderOptions(
 			includeBag, okCount, unknownCount, includedCount, fallbackFlag, options[0].Price.Amount, options[0].BaggageClass)
 	}
 
-	options = capOptionsKeepingVariety(options, maxOffersReturnedToClient)
+	options = capOptionsKeepingVariety(options, searchResultsMaxStored())
 
 	requestedCurr := req.CurrencyOrDefault()
 
@@ -964,7 +1001,7 @@ func normalizeProviderOptions(
 	sort.Slice(options, func(i, j int) bool {
 		return options[i].Price.Amount < options[j].Price.Amount
 	})
-	return capOptionsKeepingVariety(options, maxOffersReturnedToClient)
+	return capOptionsKeepingVariety(options, searchResultsMaxStored())
 }
 
 const (
@@ -1252,8 +1289,53 @@ func handleGetSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
-	log.Printf("[SESSION_GET] id=%s status=%s results=%d ua=%q", id, resp.Session.Status, len(resp.Results), truncateUA(r.UserAgent(), 80))
-	writeJSON(w, http.StatusOK, sanitizeSessionForClient(resp))
+	offset, limit := parseSearchSessionPageQuery(r)
+	page := pageSearchSessionForClient(resp, offset, limit)
+	log.Printf("[SESSION_GET] id=%s status=%s total=%d page=%d offset=%d limit=%d ua=%q",
+		id, resp.Session.Status, page.TotalResults, len(page.Results), offset, limit, truncateUA(r.UserAgent(), 80))
+	writeJSON(w, http.StatusOK, page)
+}
+
+func parseSearchSessionPageQuery(r *http.Request) (offset, limit int) {
+	limit = searchResultsPageSize()
+	if ls := strings.TrimSpace(r.URL.Query().Get("limit")); ls != "" {
+		if v, err := strconv.Atoi(ls); err == nil && v >= 1 {
+			limit = v
+			if limit > searchResultsMaxStored() {
+				limit = searchResultsMaxStored()
+			}
+		}
+	}
+	if os := strings.TrimSpace(r.URL.Query().Get("offset")); os != "" {
+		if v, err := strconv.Atoi(os); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+	return offset, limit
+}
+
+func pageSearchSessionForClient(resp SearchSessionResultsResponse, offset, limit int) SearchSessionResultsResponse {
+	out := sanitizeSessionForClient(resp)
+	total := len(out.Results)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	var page []FlightOption
+	if offset < total {
+		page = append([]FlightOption(nil), out.Results[offset:end]...)
+	} else {
+		page = []FlightOption{}
+	}
+	out.Results = page
+	out.TotalResults = total
+	out.Offset = offset
+	out.Limit = limit
+	out.HasMore = offset+len(page) < total
+	return out
 }
 
 // sanitizeSessionForClient copies a session snapshot and removes booking tokens /

@@ -178,6 +178,11 @@ export interface SearchSessionResultsResponse {
   version: number;
   results: FlightOption[];
   searchProgress?: SearchProgress;
+  /** Total ranked offers stored for this session (may exceed results.length per page). */
+  totalResults?: number;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
 }
 
 export function isSearchNearComplete(progress?: SearchProgress | null): boolean {
