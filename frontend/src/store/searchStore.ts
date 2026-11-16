@@ -157,6 +157,20 @@ export const searchActions = {
       };
     }),
 
+  /** Append paged results (load more) without resetting session version. */
+  appendResults: (extra: FlightOption[]) =>
+    useSearchStore.setState((state) => {
+      if (!extra.length) return state;
+      const seen = new Set(state.results.map((r) => r.id));
+      const merged = [...state.results];
+      for (const row of extra) {
+        if (seen.has(row.id)) continue;
+        merged.push(row);
+        seen.add(row.id);
+      }
+      return { results: merged };
+    }),
+
   setLoading: (isLoading: boolean) =>
     useSearchStore.setState({ isLoading }),
 

@@ -187,11 +187,17 @@ export function searchParamsMatch(
   return true;
 }
 
-/** Get session status and results. Uses memory + localStorage cache for COMPLETE snapshots. */
+export type SearchSessionPageOpts = { offset?: number; limit?: number };
+
+/** Get session status and results. Uses memory + localStorage cache for COMPLETE snapshots (first page only). */
 export async function getSearchSessionResults(
   sessionId: string,
-  paramsMatchExpected?: Partial<CreateSearchSessionRequest> | null
+  paramsMatchExpected?: Partial<CreateSearchSessionRequest> | null,
+  page?: SearchSessionPageOpts
 ): Promise<SearchSessionResultsResponse> {
+  if ((page?.offset ?? 0) > 0) {
+    return fetchFresh(sessionId, page);
+  }
   ensureLegacyPurge();
   const now = Date.now();
 
@@ -241,11 +247,20 @@ export function invalidateSearchSessionResultsCache(sessionId: string): void {
   } catch {}
 }
 
-async function fetchFresh(sessionId: string): Promise<SearchSessionResultsResponse> {
-  const data = await apiGet<SearchSessionResultsResponse>(`${SESSIONS_PATH}/${sessionId}`);
-  resultsCache.set(sessionId, { data, at: Date.now() });
-  if (data.results?.length && data.session?.status === 'COMPLETE') {
-    setToStorage(sessionId, data);
+async function fetchFresh(
+  sessionId: string,
+  page?: SearchSessionPageOpts
+): Promise<SearchSessionResultsResponse> {
+  const qs = new URLSearchParams();
+  if (page?.offset != null) qs.set('offset', String(page.offset));
+  if (page?.limit != null) qs.set('limit', String(page.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const data = await apiGet<SearchSessionResultsResponse>(`${SESSIONS_PATH}/${sessionId}${suffix}`);
+  if ((page?.offset ?? 0) === 0) {
+    resultsCache.set(sessionId, { data, at: Date.now() });
+    if (data.session?.status === 'COMPLETE') {
+      setToStorage(sessionId, data);
+    }
   }
   return data;
 }
