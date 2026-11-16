@@ -27,16 +27,18 @@ if docker ps --format '{{.Names}}' | grep -qx scraper-proxy-forwarder; then
   exit 0
 fi
 
-if ! docker image inspect ghcr.io/go-gost/gost:latest >/dev/null 2>&1; then
-  log "Pulling gost image..."
-  docker pull ghcr.io/go-gost/gost:latest
+GOST_IMAGE="${SCRAPER_GOST_IMAGE:-gogost/gost:latest}"
+
+if ! docker image inspect "${GOST_IMAGE}" >/dev/null 2>&1; then
+  log "Pulling gost image (${GOST_IMAGE})..."
+  docker pull "${GOST_IMAGE}"
 fi
 
 log "Starting forwarder 127.0.0.1:${LOCAL_PORT} → upstream (residential)"
 docker rm -f scraper-proxy-forwarder 2>/dev/null || true
 docker run -d --name scraper-proxy-forwarder --restart unless-stopped \
   -p "127.0.0.1:${LOCAL_PORT}:8080" \
-  ghcr.io/go-gost/gost:latest \
+  "${GOST_IMAGE}" \
   -L "http://:8080" -F "${UPSTREAM}"
 
 for _ in $(seq 1 15); do
