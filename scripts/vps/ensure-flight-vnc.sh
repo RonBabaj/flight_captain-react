@@ -27,10 +27,10 @@ sudo chown "${VNC_USER}:${VNC_USER}" "/home/${VNC_USER}/.vnc"
 
 if [ -n "${FLIGHT_VNC_PASSWORD:-}" ]; then
   log "Updating VNC password from FLIGHT_VNC_PASSWORD"
-  echo "${FLIGHT_VNC_PASSWORD}" | sudo -u "${VNC_USER}" x11vnc -storepasswd "/dev/stdin" "${AUTH_FILE}" >/dev/null
+  sudo -u "${VNC_USER}" x11vnc -storepasswd "${FLIGHT_VNC_PASSWORD}" "${AUTH_FILE}" >/dev/null
 elif [ ! -f "${AUTH_FILE}" ]; then
   FLIGHT_VNC_PASSWORD="$(openssl rand -base64 12 | tr -d '/+=' | head -c 12)"
-  echo "${FLIGHT_VNC_PASSWORD}" | sudo -u "${VNC_USER}" x11vnc -storepasswd "/dev/stdin" "${AUTH_FILE}" >/dev/null
+  sudo -u "${VNC_USER}" x11vnc -storepasswd "${FLIGHT_VNC_PASSWORD}" "${AUTH_FILE}" >/dev/null
   log "Created VNC password (store in secrets): ${FLIGHT_VNC_PASSWORD}"
 fi
 
