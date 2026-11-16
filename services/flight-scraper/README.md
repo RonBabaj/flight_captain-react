@@ -42,6 +42,22 @@ Optional:
 - `SCRAPER_WARM_ON_START=1` — enable cookie warm loop
 - `SCRAPER_SESSION_RETRIES=3`
 - `SCRAPER_PROXY_URL` — only if you need a different egress IP
+- `SCRAPER_PX_SOLVE_ATTEMPTS` / `SCRAPER_PX_HOLD_MS` — PerimeterX press-and-hold retries (default 3 / 5200ms)
+- `SCRAPER_SKY_WARM_COOLDOWN_MS` — pause Skyscanner homepage warm after a block (default 2h)
+
+### When Skyscanner returns 0 offers
+
+Skyscanner often serves **PerimeterX** (`/sttc/px/captcha-v2/`) to datacenter IPs and automated CDP Chrome. The scraper reads **`web-unified-search` JSON** in the browser; if the wall wins, you get **0 offers** (Google Flights still fills the session).
+
+**Improve scrape reliability (highest impact first):**
+
+1. **Residential egress** — set `SCRAPER_PROXY_URL` on the VPS to a mobile/residential proxy in EU (Skyscanner `.fr` matches FR geo).
+2. **Warm the shared Chrome profile** — `SCRAPER_WARM_ON_START=1` (periodic Kiwi + Skyscanner.fr cookie dismiss).
+3. **One manual pass on the captcha** — VNC/`DISPLAY :99` on the VPS: open the same flight Chrome profile (`scripts/vps/ensure-flight-chrome.sh`), complete Press & Hold once; cookies stick in `/var/lib/flight-scraper-chrome`.
+4. **Serial sites when blocked** — `SCRAPER_SERIAL_SITES=1` reduces parallel tab pressure on PX (slower per search).
+5. **Tune PX solver** — `SCRAPER_PX_SOLVE_ATTEMPTS`, `SCRAPER_PX_HOLD_MS` (headed Chrome only; no solve in headless Playwright).
+
+Scraper errors now distinguish **`skyscanner blocked (perimeterx captcha)`** vs empty JSON/DOM parses — check `flight-scraper` logs and `docker logs flight-scraper`.
 
 ## Docker
 
