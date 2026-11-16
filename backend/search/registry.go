@@ -148,8 +148,8 @@ func isFastProvider(name string) bool {
 }
 
 func multisiteSoftTimeout() time.Duration {
-	// Safety cap for hung CDP scrapes (optimized path should finish well under this).
-	soft := 90 * time.Second
+	// Safety cap for hung CDP scrapes. Skyscanner CDP on VPS often needs 3+ minutes behind residential proxy.
+	soft := 240 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("FLIGHT_SCRAPER_SOFT_TIMEOUT_SEC")); raw != "" {
 		if sec, err := time.ParseDuration(raw + "s"); err == nil && sec > 0 {
 			soft = sec
