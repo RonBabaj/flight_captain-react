@@ -90,34 +90,77 @@ async function preferUsCulture(page) {
   }
 }
 
+/** Path Skyscanner wanted before redirecting to sttc/px/captcha-v2 (base64 `url` query). */
+function skyscannerPathFromCaptchaPage(href, host = 'www.skyscanner.fr') {
+  try {
+    const u = new URL(href);
+    const enc = u.searchParams.get('url');
+    if (!enc) return '';
+    const path = Buffer.from(enc, 'base64').toString('utf8');
+    if (!/\/transport\//i.test(path)) return '';
+    const h = String(host || 'www.skyscanner.fr').replace(/^https?:\/\//, '').split('/')[0];
+    return `https://${h}${path.startsWith('/') ? path : `/${path}`}`;
+  } catch {
+    return '';
+  }
+}
+
+function pxHoldMs() {
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_HOLD_MS || 5200) || 5200, 3000), 12_000);
+}
+
+function pxSolveAttempts() {
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 3) || 3, 1), 6);
+}
+
+async function pressHoldInBox(page, box) {
+  const x = box.x + box.width * 0.5;
+  const y = box.y + Math.min(box.height * 0.55, 280);
+  await page.mouse.move(x, y);
+  await page.waitForTimeout(200);
+  await page.mouse.down();
+  await page.waitForTimeout(pxHoldMs());
+  await page.mouse.up();
+  await page.waitForTimeout(1500);
+}
+
 /** Best-effort PerimeterX "Press & Hold" on headed Chrome (CDP). */
 async function trySolvePerimeterX(page) {
   if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
     return false;
   }
-  const targets = ['#px-captcha', '#px-captcha-wrapper', 'div[style*="cursor"]', 'body'];
-  for (const sel of targets) {
-    try {
-      const loc = page.locator(sel).first();
-      const box = await loc.boundingBox({ timeout: 2000 });
-      if (!box || box.width < 20 || box.height < 20) continue;
-      // Hold near the typical "Press & Hold" control (upper-mid of captcha card).
-      const x = box.x + box.width * 0.5;
-      const y = box.y + Math.min(box.height * 0.55, 280);
-      await page.mouse.move(x, y);
-      await page.waitForTimeout(200);
-      await page.mouse.down();
-      await page.waitForTimeout(4200);
-      await page.mouse.up();
-      await page.waitForTimeout(1500);
-      if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
-        return true;
+  const selectors = ['#px-captcha', '#px-captcha-wrapper', '[class*="captcha"]', 'div[style*="cursor"]', 'body'];
+  for (let attempt = 0; attempt < pxSolveAttempts(); attempt++) {
+    for (const frame of [page, ...page.frames()]) {
+      for (const sel of selectors) {
+        try {
+          const loc = frame.locator(sel).first();
+          const box = await loc.boundingBox({ timeout: 1500 });
+          if (!box || box.width < 20 || box.height < 20) continue;
+          await pressHoldInBox(page, box);
+          if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
+            return true;
+          }
+        } catch {
+          /* try next target */
+        }
       }
-    } catch {
-      /* try next target */
     }
+    await page.waitForTimeout(600);
   }
   return false;
+}
+
+async function leaveCaptchaForSearch(page, req, config, preferFr) {
+  const resume = skyscannerPathFromCaptchaPage(page.url(), preferFr);
+  const target = resume || skyscannerUrl(req, preferFr);
+  if (!target || /captcha-v2/i.test(target)) return false;
+  try {
+    await gotoAndSettle(page, target, config);
+  } catch {
+    /* checked below */
+  }
+  return !(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url());
 }
 
 /**
@@ -174,12 +217,17 @@ async function scrapeSkyscanner(req, config) {
   const url = skyscannerUrl(req, preferFr);
 
   return runWithRetries(config.headless, 'skyscanner', async () => {
+    let endedOnWall = false;
     const offers = await withPage(
       config.headless,
       async (page) => {
         // Only seed US culture when scraping .com; on .fr it fights geo and can worsen PX.
         if (!/\.fr$/i.test(preferFr)) {
           await preferUsCulture(page);
+        } else {
+          await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'fr', 'en'] });
+          });
         }
 
         // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
@@ -201,12 +249,14 @@ async function scrapeSkyscanner(req, config) {
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
         // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
         const solveWall = async () => {
-          for (let i = 0; i < 2; i++) {
+          for (let i = 0; i < pxSolveAttempts(); i++) {
             if (!(await onWall())) return true;
-            if (await trySolvePerimeterX(page)) break;
+            const solved = await trySolvePerimeterX(page);
+            if (solved || (await leaveCaptchaForSearch(page, req, config, preferFr))) return true;
             await page.waitForTimeout(800);
           }
           if (await onWall()) {
+            endedOnWall = true;
             noteSkyscannerBlocked();
             return false;
           }
@@ -223,6 +273,7 @@ async function scrapeSkyscanner(req, config) {
 
         await ensureDatedResultsUrl(page, req, config);
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
+          endedOnWall = true;
           noteSkyscannerBlocked();
           return [];
         }
@@ -274,6 +325,7 @@ async function scrapeSkyscanner(req, config) {
         if (found.length) return found;
         const parsed = extractSkyscanner(captured, req);
         if (await onWall()) {
+          endedOnWall = true;
           noteSkyscannerBlocked();
           return [];
         }
@@ -398,11 +450,12 @@ async function scrapeSkyscanner(req, config) {
     );
 
     if (offers.length) return { offers, error: undefined };
+    if (endedOnWall) {
+      return { offers: [], error: 'skyscanner blocked (perimeterx captcha)' };
+    }
     return {
       offers: [],
-      error: config.proxyUrl
-        ? 'no skyscanner offers parsed'
-        : 'no skyscanner offers (captcha or empty results)',
+      error: config.proxyUrl ? 'no skyscanner offers parsed' : 'no skyscanner offers (empty or unmatched json)',
     };
   }).then(({ offers, error }) => ({
     offers: offers || [],
