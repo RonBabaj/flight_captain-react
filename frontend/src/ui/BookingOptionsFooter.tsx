@@ -186,7 +186,7 @@ export function BookingOptionsFooter({
           const isPrefill =
             offer.priceLabel === 'search_prefill' || offer.priceLabel === 'airline_direct_prefill';
           const title = bookingOfferProviderLabel(offer, t('book_this_flight'));
-          const priceAmount = formatBookingOfferPriceAmount(offer);
+          const priceAmount = formatBookingOfferPriceAmount(offer, t);
           const subtitle = bookingOfferSubtitle(offer, t);
           const host = (offer.domain || offer.provider || '').toLowerCase();
           const ctaLabel = isPrefill

@@ -4,6 +4,13 @@ import { getCurrencySymbol } from '../utils/exchangeRates';
 export function bookingOfferProviderLabel(offer: PublicBookingOffer, fallback = ''): string {
   const raw = (offer.provider || offer.domain || fallback).trim();
   if (!raw) return fallback;
+  if (/^(flight|flights|partner|ota|travel|booking)$/i.test(raw)) {
+    const fromDomain = offer.domain ? formatProviderDisplayName(offer.domain) : '';
+    if (fromDomain && !/^(flight|flights|partner|ota|travel|booking)$/i.test(fromDomain)) {
+      return fromDomain;
+    }
+    return fallback || raw;
+  }
   return formatProviderDisplayName(raw);
 }
 
@@ -24,16 +31,23 @@ export function formatProviderDisplayName(raw: string): string {
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
-export function formatBookingOfferPriceAmount(offer: PublicBookingOffer): string | null {
+export function formatBookingOfferPriceAmount(
+  offer: PublicBookingOffer,
+  t?: (key: string) => string,
+): string | null {
   if (offer.price == null || !offer.currency) return null;
-  return `${getCurrencySymbol(offer.currency)} ${offer.price.toFixed(0)}`;
+  const amount = `${getCurrencySymbol(offer.currency)} ${offer.price.toFixed(0)}`;
+  if (offer.priceLabel === 'airline_direct_prefill' && t) {
+    return `${amount} (${t('search_quote_price')})`;
+  }
+  return amount;
 }
 
 export function formatBookingOfferPriceLine(
   offer: PublicBookingOffer,
   t: (key: string) => string,
 ): string | null {
-  const amount = formatBookingOfferPriceAmount(offer);
+  const amount = formatBookingOfferPriceAmount(offer, t);
   if (!amount) return null;
   const hint =
     offer.priceLabel === 'google_flights_partner' ? ` (${t('partner_listing_price')})` : '';
