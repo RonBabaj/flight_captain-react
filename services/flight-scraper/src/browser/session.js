@@ -20,6 +20,7 @@ const SITE_HOST = {
 async function pickReusablePage(context, site) {
   const pat = SITE_HOST[site];
   if (!pat || !context) return null;
+  let blankFallback = null;
   for (const p of context.pages()) {
     let url = '';
     try {
@@ -27,10 +28,16 @@ async function pickReusablePage(context, site) {
     } catch {
       continue;
     }
-    if (!pat.test(url) || /captcha-v2|px-cloud/i.test(url)) continue;
-  if (await pageLooksBlocked(p)) continue;
+    if (/captcha-v2|px-cloud|sttc\/px/i.test(url)) continue;
+    if (!url || /^about:blank$/i.test(url)) {
+      if (!blankFallback) blankFallback = p;
+      continue;
+    }
+    if (!pat.test(url)) continue;
+    if (await pageLooksBlocked(p)) continue;
     return p;
   }
+  if (blankFallback) return blankFallback;
   return null;
 }
 
