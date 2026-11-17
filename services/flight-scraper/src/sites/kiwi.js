@@ -262,7 +262,7 @@ async function scrapeKiwi(req, config) {
           });
         })
         .filter(Boolean);
-    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
+    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'], site: 'kiwi' });
 
       if (offers.length) return { offers, error: undefined };
       const wrongRoute = lastHref && !kiwiPathLooksCorrect(lastHref, req);

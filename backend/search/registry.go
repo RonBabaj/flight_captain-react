@@ -163,7 +163,7 @@ func multisiteSoftTimeout() time.Duration {
 func multisiteSoftTimeoutFor(req SearchRequest) time.Duration {
 	soft := multisiteSoftTimeout()
 	// Serial Kiwi→Skyscanner on one Chrome needs ~2× the per-site budget or Skyscanner never runs.
-	if envTruthy(os.Getenv("FLIGHT_SCRAPER_SERIAL_SITES")) {
+	if envTruthy(os.Getenv("FLIGHT_SCRAPER_SERIAL_SITES")) || envTruthy(os.Getenv("SCRAPER_SERIAL_SITES")) {
 		soft = soft * 2
 		const serialCap = 12 * time.Minute
 		if soft > serialCap {

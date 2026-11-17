@@ -446,7 +446,7 @@ async function scrapeSkyscanner(req, config) {
         if (fromDom.length) return fromDom;
         return parsed.slice(0, config.maxOffersPerSite);
       },
-      { proxyUrl: config.proxyUrl, engines: ['chromium'] },
+      { proxyUrl: config.proxyUrl, engines: ['chromium'], site: 'skyscanner' },
     );
 
     if (offers.length) return { offers, error: undefined };
