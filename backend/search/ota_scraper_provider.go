@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	// Kiwi + Skyscanner serial CDP scrapes often need >5m on a cold/contended VPS.
-	otaScraperHTTPTimeout = 8 * time.Minute
+	// Serial Skyscanner→Kiwi CDP on VPS can approach 10m when proxy + PX recovery run.
+	otaScraperHTTPTimeout = 12 * time.Minute
 	// Partner-panel resolve is on the Book click path — keep a tighter bound.
 	otaPartnerResolveHTTPTimeout = 90 * time.Second
 	defaultOtaScraperURL         = "http://flight-scraper:3099"
