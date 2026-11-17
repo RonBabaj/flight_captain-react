@@ -3,9 +3,6 @@
 const { scrapeKiwi } = require('./sites/kiwi');
 const { scrapeSkyscanner } = require('./sites/skyscanner');
 const { scrapeExpedia } = require('./sites/expedia');
-const { withCdpBrowser } = require('./browser/session');
-const { runWithOpenPage } = require('./browser/parallelContext');
-
 const SITE_FNS = {
   kiwi: scrapeKiwi,
   skyscanner: scrapeSkyscanner,
@@ -52,21 +49,39 @@ async function scrapeAll(req, config) {
 
   // Serial CDP: Skyscanner often needs the full scrape window after Kiwi; run it first
   // so it is not starved when SCRAPER_SERIAL_SITES=1 on the VPS.
-  const orderedSites = (() => {
-    if (!config.serialSites) return unique;
-    const sky = unique.filter((s) => s === 'skyscanner');
-    const rest = unique.filter((s) => s !== 'skyscanner');
-    return [...sky, ...rest];
-  })();
+  const skyscannerFirst = (sites) => {
+    const sky = sites.filter((s) => s === 'skyscanner');
+    const rest = sites.filter((s) => s !== 'skyscanner');
+    return sky.length ? [...sky, ...rest] : sites;
+  };
+  const orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
+    ? skyscannerFirst(unique)
+    : unique;
 
   let results;
-  // One headed Chrome: parallel tabs on a single CDP connection (shared lock).
-  // Serial mode is opt-in for low-RAM hosts (SCRAPER_SERIAL_SITES=1).
-  if (!config.serialSites && unique.length > 1 && hasCdp(config)) {
-    console.log(`[flight-scraper] parallel CDP scrape sites=${unique.join(',')}`);
-    results = await withCdpBrowser(config, async ({ openPage }) =>
-      runWithOpenPage(openPage, () => Promise.all(unique.map((site) => runOne(site, req, config)))),
-    );
+  // Parallel CDP tabs routinely trip Skyscanner PerimeterX on the shared VPS Chrome profile.
+  // On CDP, always run Skyscanner first (alone), then other OTAs — even when SCRAPER_SERIAL_SITES=0.
+  if (unique.length > 1 && hasCdp(config)) {
+    console.log(`[flight-scraper] serial CDP scrape sites=${orderedSites.join(',')}`);
+    results = [];
+    for (const site of orderedSites) {
+      results.push(await runOne(site, req, config));
+    }
+    const skyIdx = results.findIndex((r) => r.site === 'skyscanner');
+    if (skyIdx >= 0) {
+      const sky = results[skyIdx];
+      const blocked =
+        !(sky.offers && sky.offers.length) &&
+        /blocked|captcha|perimeterx|robot/i.test(String(sky.error || ''));
+      if (blocked) {
+        console.log('[flight-scraper] skyscanner blocked — one CDP retry after kiwi');
+        await new Promise((r) => setTimeout(r, 2500));
+        const retry = await runOne('skyscanner', req, config);
+        if (retry.offers?.length) {
+          results[skyIdx] = retry;
+        }
+      }
+    }
   } else if (config.serialSites) {
     console.log(`[flight-scraper] serial scrape sites=${orderedSites.join(',')}`);
     results = [];
