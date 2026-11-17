@@ -79,8 +79,12 @@ func TestMultisiteSoftTimeoutFor_scalesOpenJaw(t *testing.T) {
 		{Origin: "BUD", Destination: "SZG", Date: "2027-01-12"},
 	}
 	gotExtra := multisiteSoftTimeoutFor(extra)
-	if gotExtra < 4*base {
-		t.Fatalf("extra-leg soft=%v want at least 4×%v", gotExtra, base)
+	wantExtra := 4 * base
+	if wantExtra > 12*time.Minute {
+		wantExtra = 12 * time.Minute
+	}
+	if gotExtra < wantExtra {
+		t.Fatalf("extra-leg soft=%v want at least %v (4 legs, 12m cap)", gotExtra, wantExtra)
 	}
 }
 
