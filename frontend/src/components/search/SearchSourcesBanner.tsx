@@ -17,10 +17,17 @@ interface SearchSourcesBannerProps {
   stats: ProviderSearchStats[] | null | undefined;
   loadedCount: number;
   totalCount?: number;
+  /** Live breakdown from merged results (skyscanner vs kiwi cards). */
+  sourceCounts?: { googleflights2: number; kiwi: number; skyscanner: number; other: number };
 }
 
 /** Shows which providers contributed to the current results session. */
-export function SearchSourcesBanner({ stats, loadedCount, totalCount }: SearchSourcesBannerProps) {
+export function SearchSourcesBanner({
+  stats,
+  loadedCount,
+  totalCount,
+  sourceCounts,
+}: SearchSourcesBannerProps) {
   const { theme } = useTheme();
   const { t } = useLocale();
 
@@ -63,6 +70,14 @@ export function SearchSourcesBanner({ stats, loadedCount, totalCount }: SearchSo
       <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
         {summary.parts}
       </Text>
+      {sourceCounts ? (
+        <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
+          {t('search_sources_in_list')
+            .replace('{gf2}', String(sourceCounts.googleflights2))
+            .replace('{kiwi}', String(sourceCounts.kiwi))
+            .replace('{sky}', String(sourceCounts.skyscanner))}
+        </Text>
+      ) : null}
       {summary.gf2Only ? (
         <Text style={[styles.warn, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('search_ota_unavailable')}

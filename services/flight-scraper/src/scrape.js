@@ -50,6 +50,15 @@ async function scrapeAll(req, config) {
   const unique = [...new Set(sites)];
   const started = Date.now();
 
+  // Serial CDP: Skyscanner often needs the full scrape window after Kiwi; run it first
+  // so it is not starved when SCRAPER_SERIAL_SITES=1 on the VPS.
+  const orderedSites = (() => {
+    if (!config.serialSites) return unique;
+    const sky = unique.filter((s) => s === 'skyscanner');
+    const rest = unique.filter((s) => s !== 'skyscanner');
+    return [...sky, ...rest];
+  })();
+
   let results;
   // One headed Chrome: parallel tabs on a single CDP connection (shared lock).
   // Serial mode is opt-in for low-RAM hosts (SCRAPER_SERIAL_SITES=1).
@@ -59,9 +68,9 @@ async function scrapeAll(req, config) {
       runWithOpenPage(openPage, () => Promise.all(unique.map((site) => runOne(site, req, config)))),
     );
   } else if (config.serialSites) {
-    console.log(`[flight-scraper] serial scrape sites=${unique.join(',')}`);
+    console.log(`[flight-scraper] serial scrape sites=${orderedSites.join(',')}`);
     results = [];
-    for (const site of unique) {
+    for (const site of orderedSites) {
       results.push(await runOne(site, req, config));
     }
   } else {

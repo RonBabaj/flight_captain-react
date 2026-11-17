@@ -1024,6 +1024,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Загружено {loaded} из {total} рейсов',
   },
   source_multisite: { en: 'Kiwi + Skyscanner', he: 'Kiwi + Skyscanner', ru: 'Kiwi + Skyscanner' },
+  search_sources_in_list: {
+    en: 'In this list: Google {gf2} · Kiwi {kiwi} · Skyscanner {sky}',
+    he: 'ברשימה: Google {gf2} · Kiwi {kiwi} · Skyscanner {sky}',
+    ru: 'В списке: Google {gf2} · Kiwi {kiwi} · Skyscanner {sky}',
+  },
   source_googleflights2: { en: 'Google Flights', he: 'Google Flights', ru: 'Google Flights' },
   source_kiwi: { en: 'Kiwi', he: 'Kiwi', ru: 'Kiwi' },
   source_skyscanner: { en: 'Skyscanner', he: 'Skyscanner', ru: 'Skyscanner' },

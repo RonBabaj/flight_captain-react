@@ -1,17 +1,17 @@
 # Graph Report - workspace  (2026-11-17)
 
 ## Corpus Check
-- 317 files · ~264,932 words
+- 317 files · ~265,218 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 8, .mdc 2, .example 2)
 
 ## Summary
-- 2658 nodes · 8578 edges · 113 communities (92 shown, 21 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 720 edges (avg confidence: 0.85)
+- 2658 nodes · 8580 edges · 113 communities (92 shown, 21 thin omitted)
+- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 721 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `381cb9d4`
+- Built from commit: `c47dedab`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -531,16 +531,16 @@ Nodes (3): parseSearchSessionPageQuery(), searchResultsMaxStored(), searchResult
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Fly-Fix` connect `Features` to `MonthDealsScreen.tsx`?**
-  _High betweenness centrality (0.311) - this node is a cross-community bridge._
+  _High betweenness centrality (0.314) - this node is a cross-community bridge._
 - **What connects `flightcaptainweb`, `expo/tsconfig.base`, `DISPLAY` to the rest of the system?**
   _3 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `destinationMood.test.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
 - **Why does `Multi-provider flight search` connect `Features` to `budget_config.go`?**
-  _High betweenness centrality (0.305) - this node is a cross-community bridge._
+  _High betweenness centrality (0.309) - this node is a cross-community bridge._
 - **Should `Issue` be split into smaller, more focused modules?**
   _Cohesion score 0.10365853658536585 - nodes in this community are weakly interconnected._
 - **Why does `Recent enhancements` connect `MonthDealsScreen.tsx` to `Features`, `react-native`?**
-  _High betweenness centrality (0.300) - this node is a cross-community bridge._
+  _High betweenness centrality (0.304) - this node is a cross-community bridge._
 - **Should `testing.T` be split into smaller, more focused modules?**
   _Cohesion score 0.046620046620046623 - nodes in this community are weakly interconnected._

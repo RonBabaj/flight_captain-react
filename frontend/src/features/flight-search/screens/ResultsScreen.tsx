@@ -109,6 +109,9 @@ const defaultFormParams: CreateSearchSessionRequest = {
   locale: 'en-US',
 };
 
+/** Cheapest-first: deprioritize Kiwi virtual interlining so GF2/Skyscanner connections surface first. */
+const SELF_TRANSFER_PRICE_PENALTY_USD = 45;
+
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
 function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
   const priceNorm = maxPrice > 0 ? opt.price.amount / maxPrice : 0;
@@ -126,7 +129,9 @@ function sortResults(
 ): FlightOption[] {
   return [...results].sort((a, b) => {
     if (sortField === 'price') {
-      const diff = a.price.amount - b.price.amount;
+      const adj = (o: FlightOption) =>
+        o.price.amount + (o.selfTransfer ? SELF_TRANSFER_PRICE_PENALTY_USD : 0);
+      const diff = adj(a) - adj(b);
       return sortOrder === 'asc' ? diff : -diff;
     }
     if (sortField === 'duration') {
@@ -1240,6 +1245,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     return sortResults(list, sortField, sortOrder);
   }, [results, filters, sortField, sortOrder]);
 
+  const sourceCounts = useMemo(() => {
+    const counts = { googleflights2: 0, kiwi: 0, skyscanner: 0, other: 0 };
+    for (const o of results) {
+      const s = (o.source || '').toLowerCase();
+      if (s === 'googleflights2' || s === 'gf2') counts.googleflights2 += 1;
+      else if (s === 'kiwi') counts.kiwi += 1;
+      else if (s === 'skyscanner') counts.skyscanner += 1;
+      else counts.other += 1;
+    }
+    return counts;
+  }, [results]);
+
   const toggleSort = (field: typeof sortField) => {
     if (field === 'best') {
       searchActions.setSort('best', 'desc');
@@ -1635,6 +1652,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               stats={providerStats}
               loadedCount={results.length}
               totalCount={resultsTotal}
+              sourceCounts={sourceCounts}
             />
           ) : null
         }
