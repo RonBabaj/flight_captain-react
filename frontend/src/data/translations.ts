@@ -1012,6 +1012,18 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'החלפה עצמאית — ייתכן שיידרשו כרטיסים נפרדים',
     ru: 'Самостоятельная пересадка — могут потребоваться отдельные билеты',
   },
+  search_source_failed: { en: 'unavailable', he: 'לא זמין', ru: 'недоступно' },
+  search_ota_unavailable: {
+    en: 'Kiwi / Skyscanner did not return prices for this search — only Google Flights results are shown. The scraper may need a captcha solve on the VPS.',
+    he: 'Kiwi / Skyscanner לא החזירו מחירים בחיפוש הזה — מוצגות רק תוצאות Google Flights. ייתכן שנדרש לפתור קאפצ׳ה בשרת.',
+    ru: 'Kiwi / Skyscanner не вернули цены — показаны только результаты Google Flights. Возможно, на VPS нужно пройти капчу.',
+  },
+  results_loaded_of_total: {
+    en: '{loaded} of {total} flights loaded',
+    he: '{loaded} מתוך {total} טיסות נטענו',
+    ru: 'Загружено {loaded} из {total} рейсов',
+  },
+  source_multisite: { en: 'Kiwi + Skyscanner', he: 'Kiwi + Skyscanner', ru: 'Kiwi + Skyscanner' },
   source_googleflights2: { en: 'Google Flights', he: 'Google Flights', ru: 'Google Flights' },
   source_kiwi: { en: 'Kiwi', he: 'Kiwi', ru: 'Kiwi' },
   source_skyscanner: { en: 'Skyscanner', he: 'Skyscanner', ru: 'Skyscanner' },

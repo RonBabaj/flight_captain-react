@@ -349,11 +349,14 @@ func (p *OtaScraperProvider) searchSingle(ctx context.Context, req SearchRequest
 		for _, s := range parsed.Sites {
 			if s.Error != "" {
 				errs = append(errs, s.Site+": "+s.Error)
+			} else if len(s.Offers) == 0 {
+				errs = append(errs, s.Site+": no offers parsed")
 			}
 		}
 		if len(errs) > 0 {
 			return nil, fmt.Errorf("multisite scraper: no offers (%s)", strings.Join(errs, "; "))
 		}
+		return nil, fmt.Errorf("multisite scraper: no offers from configured sites")
 	}
 	if len(results) > 0 {
 		p.cache.set(key, results)

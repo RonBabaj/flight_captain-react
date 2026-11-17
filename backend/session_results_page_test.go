@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestPageSearchSessionForClient(t *testing.T) {
@@ -33,7 +34,7 @@ func TestPageSearchSessionForClient(t *testing.T) {
 func TestHandleGetSessionPaginationQuery(t *testing.T) {
 	id := "sess_page_test"
 	resp := SearchSessionResultsResponse{
-		Session: SearchSession{ID: id, Status: StatusComplete},
+		Session: SearchSession{ID: id, Status: StatusComplete, CreatedAt: time.Now().UTC()},
 		Results: make([]FlightOption, 75),
 	}
 	sessionsMu.Lock()

@@ -65,6 +65,7 @@ import {
   POSITIONING_HUB_AIRPORTS,
 } from '../../../utils/positioningSearch';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
+import { SearchSourcesBanner } from '../../../components/search/SearchSourcesBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
@@ -158,6 +159,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     sortField,
     sortOrder,
     filters,
+    providerStats,
   } = useSearchStore();
   const isDynamicDestinations = useMemo(() => {
     if (isDynamicDestinationsSearch(storeParams)) return true;
@@ -226,6 +228,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [resultsHasMore, setResultsHasMore] = useState(false);
+  const [resultsTotal, setResultsTotal] = useState<number | undefined>(undefined);
   const [loadingMoreResults, setLoadingMoreResults] = useState(false);
   const resultsNextOffsetRef = useRef(0);
   const RESULTS_PAGE_SIZE = 50;
@@ -233,12 +236,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const syncResultsPagination = useCallback((res: SearchSessionResultsResponse) => {
     const total = res.totalResults ?? res.results?.length ?? 0;
     const loaded = (res.offset ?? 0) + (res.results?.length ?? 0);
+    setResultsTotal(total > 0 ? total : undefined);
     setResultsHasMore(!!res.hasMore || loaded < total);
     resultsNextOffsetRef.current = loaded;
   }, []);
 
   useEffect(() => {
     setResultsHasMore(false);
+    setResultsTotal(undefined);
     resultsNextOffsetRef.current = 0;
     setLoadingMoreResults(false);
   }, [sessionId, searchNonce]);
@@ -413,6 +418,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         session: res.session ?? session,
         status: res.session?.status ?? session.status,
         results: res.results ?? [],
+        providerStats: res.providerStats,
         version: res.version ?? 1,
       });
       if (!applied) return;
@@ -697,6 +703,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             session: res.session ?? (session as any),
             status: res.session?.status ?? session.status,
             results: res.results ?? [],
+            providerStats: res.providerStats,
             version: res.version ?? 1,
           });
           syncResultsPagination(res);
@@ -916,6 +923,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           session: res.session,
           status: res.session.status,
           results: res.results ?? [],
+          providerStats: res.providerStats,
           version: nextVersion,
         });
         if (applied) {
@@ -1621,6 +1629,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         ref={resultsListRef}
         data={filtered}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          status === 'COMPLETE' && results.length > 0 ? (
+            <SearchSourcesBanner
+              stats={providerStats}
+              loadedCount={results.length}
+              totalCount={resultsTotal}
+            />
+          ) : null
+        }
         renderItem={({ item }) => (
           <FlightResultCard
             option={item}

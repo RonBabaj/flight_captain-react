@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   CreateSearchSessionRequest,
   FlightOption,
+  ProviderSearchStats,
   SearchSession,
   SearchSessionStatus,
 } from '../types';
@@ -25,6 +26,7 @@ interface SearchState {
   session: SearchSession | null;
   status: SearchSessionStatus | null;
   results: FlightOption[];
+  providerStats: ProviderSearchStats[] | null;
   version: number;
   /**
    * Monotonic counter bumped on every new user-initiated search.
@@ -54,6 +56,7 @@ export const useSearchStore = create<SearchState>(() => ({
   session: null,
   status: null,
   results: [],
+  providerStats: null,
   version: 0,
   searchGeneration: 0,
   isLoading: false,
@@ -89,6 +92,7 @@ export const searchActions = {
         ? { sessionId: null, session: null, status: 'PENDING' as SearchSessionStatus }
         : {}),
       results: [],
+      providerStats: null,
       version: 0,
       searchGeneration: nextGen,
       error: null,
@@ -104,7 +108,7 @@ export const searchActions = {
         sessionId,
         session,
         status,
-        ...(sessionChanged ? { results: [], version: 0 } : {}),
+        ...(sessionChanged ? { results: [], providerStats: null, version: 0 } : {}),
       };
     }),
 
@@ -115,6 +119,7 @@ export const searchActions = {
     session: SearchSession | null;
     status: SearchSessionStatus | null;
     results: FlightOption[];
+    providerStats?: ProviderSearchStats[] | null;
     version: number;
   }): boolean => {
     const state = useSearchStore.getState();
@@ -139,6 +144,7 @@ export const searchActions = {
       session: opts.session,
       status: opts.status,
       results: opts.results,
+      providerStats: opts.providerStats ?? null,
       version: nextVersion,
       ...(state.params == null && opts.session?.params ? { params: opts.session.params } : {}),
     });
@@ -195,6 +201,7 @@ export const searchActions = {
       session: null,
       status: null,
       results: [],
+      providerStats: null,
       version: 0,
       searchGeneration: useSearchStore.getState().searchGeneration + 1,
       isLoading: false,

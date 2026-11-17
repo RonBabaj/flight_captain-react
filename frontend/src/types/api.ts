@@ -173,10 +173,20 @@ export interface SearchProgress {
   phase: 'searching' | 'finalizing' | string;
 }
 
+/** Per-provider completion from unified search (GF2 + multisite). */
+export interface ProviderSearchStats {
+  provider: string;
+  durationMs: number;
+  results: number;
+  error?: string;
+  cacheHit?: boolean;
+}
+
 export interface SearchSessionResultsResponse {
   session: SearchSession;
   version: number;
   results: FlightOption[];
+  providerStats?: ProviderSearchStats[];
   searchProgress?: SearchProgress;
   /** Total ranked offers stored for this session (may exceed results.length per page). */
   totalResults?: number;
