@@ -162,6 +162,14 @@ func multisiteSoftTimeout() time.Duration {
 // scrape multiple one-way legs (outbound + extras + return) under one Search call.
 func multisiteSoftTimeoutFor(req SearchRequest) time.Duration {
 	soft := multisiteSoftTimeout()
+	// Serial Kiwi→Skyscanner on one Chrome needs ~2× the per-site budget or Skyscanner never runs.
+	if envTruthy(os.Getenv("FLIGHT_SCRAPER_SERIAL_SITES")) || envTruthy(os.Getenv("SCRAPER_SERIAL_SITES")) {
+		soft = soft * 2
+		const serialCap = 12 * time.Minute
+		if soft > serialCap {
+			soft = serialCap
+		}
+	}
 	if !IsOpenJaw(req) && !HasExtraLegs(req) {
 		return soft
 	}

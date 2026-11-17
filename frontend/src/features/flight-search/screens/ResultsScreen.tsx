@@ -65,6 +65,7 @@ import {
   POSITIONING_HUB_AIRPORTS,
 } from '../../../utils/positioningSearch';
 import { SearchProgressBanner } from '../../../components/search/SearchProgressBanner';
+import { SearchSourcesBanner } from '../../../components/search/SearchSourcesBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
@@ -108,6 +109,9 @@ const defaultFormParams: CreateSearchSessionRequest = {
   locale: 'en-US',
 };
 
+/** Cheapest-first: deprioritize Kiwi virtual interlining so GF2/Skyscanner connections surface first. */
+const SELF_TRANSFER_PRICE_PENALTY_USD = 45;
+
 /** Weighted score for "Best": lower is better (price + stops penalty + duration penalty). */
 function bestScore(opt: FlightOption, maxPrice: number, maxDuration: number): number {
   const priceNorm = maxPrice > 0 ? opt.price.amount / maxPrice : 0;
@@ -125,7 +129,9 @@ function sortResults(
 ): FlightOption[] {
   return [...results].sort((a, b) => {
     if (sortField === 'price') {
-      const diff = a.price.amount - b.price.amount;
+      const adj = (o: FlightOption) =>
+        o.price.amount + (o.selfTransfer ? SELF_TRANSFER_PRICE_PENALTY_USD : 0);
+      const diff = adj(a) - adj(b);
       return sortOrder === 'asc' ? diff : -diff;
     }
     if (sortField === 'duration') {
@@ -158,6 +164,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     sortField,
     sortOrder,
     filters,
+    providerStats,
   } = useSearchStore();
   const isDynamicDestinations = useMemo(() => {
     if (isDynamicDestinationsSearch(storeParams)) return true;
@@ -226,6 +233,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [resultsHasMore, setResultsHasMore] = useState(false);
+  const [resultsTotal, setResultsTotal] = useState<number | undefined>(undefined);
   const [loadingMoreResults, setLoadingMoreResults] = useState(false);
   const resultsNextOffsetRef = useRef(0);
   const RESULTS_PAGE_SIZE = 50;
@@ -233,12 +241,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const syncResultsPagination = useCallback((res: SearchSessionResultsResponse) => {
     const total = res.totalResults ?? res.results?.length ?? 0;
     const loaded = (res.offset ?? 0) + (res.results?.length ?? 0);
+    setResultsTotal(total > 0 ? total : undefined);
     setResultsHasMore(!!res.hasMore || loaded < total);
     resultsNextOffsetRef.current = loaded;
   }, []);
 
   useEffect(() => {
     setResultsHasMore(false);
+    setResultsTotal(undefined);
     resultsNextOffsetRef.current = 0;
     setLoadingMoreResults(false);
   }, [sessionId, searchNonce]);
@@ -413,6 +423,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         session: res.session ?? session,
         status: res.session?.status ?? session.status,
         results: res.results ?? [],
+        providerStats: res.providerStats,
         version: res.version ?? 1,
       });
       if (!applied) return;
@@ -697,6 +708,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             session: res.session ?? (session as any),
             status: res.session?.status ?? session.status,
             results: res.results ?? [],
+            providerStats: res.providerStats,
             version: res.version ?? 1,
           });
           syncResultsPagination(res);
@@ -916,6 +928,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           session: res.session,
           status: res.session.status,
           results: res.results ?? [],
+          providerStats: res.providerStats,
           version: nextVersion,
         });
         if (applied) {
@@ -1231,6 +1244,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     }
     return sortResults(list, sortField, sortOrder);
   }, [results, filters, sortField, sortOrder]);
+
+  const sourceCounts = useMemo(() => {
+    const counts = { googleflights2: 0, kiwi: 0, skyscanner: 0, other: 0 };
+    for (const o of results) {
+      const s = (o.source || '').toLowerCase();
+      if (s === 'googleflights2' || s === 'gf2') counts.googleflights2 += 1;
+      else if (s === 'kiwi') counts.kiwi += 1;
+      else if (s === 'skyscanner') counts.skyscanner += 1;
+      else counts.other += 1;
+    }
+    return counts;
+  }, [results]);
 
   const toggleSort = (field: typeof sortField) => {
     if (field === 'best') {
@@ -1621,6 +1646,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         ref={resultsListRef}
         data={filtered}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          status === 'COMPLETE' && results.length > 0 ? (
+            <SearchSourcesBanner
+              stats={providerStats}
+              loadedCount={results.length}
+              totalCount={resultsTotal}
+              sourceCounts={sourceCounts}
+            />
+          ) : null
+        }
         renderItem={({ item }) => (
           <FlightResultCard
             option={item}

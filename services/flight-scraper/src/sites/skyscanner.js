@@ -283,7 +283,7 @@ async function scrapeSkyscanner(req, config) {
         }
 
         // Prefer early JSON exit before optional sort / DOM waits.
-        await waitUntil(page, jsonUseful, { timeoutMs: 9000, intervalMs: 200 });
+        await waitUntil(page, jsonUseful, { timeoutMs: 14000, intervalMs: 200 });
         let found = parsedWithReturn();
         if (found.length) return found;
 
@@ -299,7 +299,7 @@ async function scrapeSkyscanner(req, config) {
             }
             if (!(await solveWall())) return [];
           }
-          await waitUntil(page, jsonUseful, { timeoutMs: 9000, intervalMs: 200 });
+          await waitUntil(page, jsonUseful, { timeoutMs: 14000, intervalMs: 200 });
           found = parsedWithReturn();
           if (found.length) return found;
         }
@@ -332,7 +332,7 @@ async function scrapeSkyscanner(req, config) {
 
         try {
           await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
-            timeout: 12000,
+            timeout: 18000,
           });
         } catch {
           /* DOM scrape anyway */
@@ -446,7 +446,7 @@ async function scrapeSkyscanner(req, config) {
         if (fromDom.length) return fromDom;
         return parsed.slice(0, config.maxOffersPerSite);
       },
-      { proxyUrl: config.proxyUrl, engines: ['chromium'] },
+      { proxyUrl: config.proxyUrl, engines: ['chromium'], site: 'skyscanner' },
     );
 
     if (offers.length) return { offers, error: undefined };

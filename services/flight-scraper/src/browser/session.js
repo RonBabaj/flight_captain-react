@@ -11,6 +11,36 @@ const { blockHeavyResources } = require('./fastLoad');
 let browserPromises = {};
 
 /** Close ad/captcha/junk tabs so scrapes don't inherit a poisoned SPA tab. */
+const SITE_HOST = {
+  skyscanner: /skyscanner\.(fr|net|com|co\.uk|de|es|it|nl|pt)\//i,
+  kiwi: /kiwi\.com\//i,
+};
+
+/** Prefer an already-open OTA tab (human-warmed) over a fresh tab that often hits bot walls. */
+async function pickReusablePage(context, site) {
+  const pat = SITE_HOST[site];
+  if (!pat || !context) return null;
+  let blankFallback = null;
+  for (const p of context.pages()) {
+    let url = '';
+    try {
+      url = p.url();
+    } catch {
+      continue;
+    }
+    if (/captcha-v2|px-cloud|sttc\/px/i.test(url)) continue;
+    if (!url || /^about:blank$/i.test(url)) {
+      if (!blankFallback) blankFallback = p;
+      continue;
+    }
+    if (!pat.test(url)) continue;
+    if (await pageLooksBlocked(p)) continue;
+    return p;
+  }
+  if (blankFallback) return blankFallback;
+  return null;
+}
+
 async function pruneJunkPages(context) {
   if (!context) return;
   const pages = context.pages();
@@ -59,7 +89,7 @@ async function getBrowser(engine, headless, config) {
   return browserPromises[key];
 }
 
-async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
+async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl, options = {}) {
   return withCdpLock(async () => {
     // Reuse the default Chrome context — newContext() + service workers crashes Playwright CDP
     // (assert on service_worker target attach). Flight Chrome is started with SW disabled.
@@ -73,8 +103,13 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
       /* already attached */
     }
     await pruneJunkPages(context);
-    const page = await context.newPage();
-    await blockHeavyResources(page);
+    const site = String(options.site || '').toLowerCase();
+    let page = site ? await pickReusablePage(context, site) : null;
+    const reuse = !!page;
+    if (!page) {
+      page = await context.newPage();
+      await blockHeavyResources(page);
+    }
     try {
       return await fn(page, {
         dismissCookieBanners,
@@ -83,10 +118,12 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl) {
         cdpUrl,
       });
     } finally {
-      try {
-        await page.close();
-      } catch {
-        /* ignore */
+      if (!reuse) {
+        try {
+          await page.close();
+        } catch {
+          /* ignore */
+        }
       }
       await pruneJunkPages(context);
       if (ownedContext) {
@@ -129,10 +166,15 @@ async function withCdpBrowser(config, fn) {
     }
     await pruneJunkPages(context);
 
-    const openPage = async (pageFn) => {
+    const openPage = async (pageFn, opts = {}) => {
       await pruneJunkPages(context);
-      const page = await context.newPage();
-      await blockHeavyResources(page);
+      const site = String(opts.site || '').toLowerCase();
+      let page = site ? await pickReusablePage(context, site) : null;
+      let reuse = !!page;
+      if (!page) {
+        page = await context.newPage();
+        await blockHeavyResources(page);
+      }
       try {
         return await pageFn(page, {
           dismissCookieBanners,
@@ -141,7 +183,9 @@ async function withCdpBrowser(config, fn) {
           cdpUrl,
         });
       } finally {
-        await page.close().catch(() => {});
+        if (!reuse) {
+          await page.close().catch(() => {});
+        }
         await pruneJunkPages(context);
       }
     };
@@ -161,7 +205,7 @@ async function withPage(config, fn, options = {}) {
   // Parallel multi-site scrape: reuse the shared CDP page factory (no nested lock).
   const hook = getOpenPageHook();
   if (typeof hook === 'function') {
-    return hook(fn);
+    return hook(fn, options);
   }
 
   const proxyUrl = options.proxyUrl || config.proxyUrl;
@@ -178,7 +222,7 @@ async function withPage(config, fn, options = {}) {
     let lastErr;
     for (const cdpUrl of cdpUrls) {
       try {
-        const out = await withPageViaCdp(cdpUrl, config, fn, proxyUrl);
+        const out = await withPageViaCdp(cdpUrl, config, fn, proxyUrl, options);
         const empty = Array.isArray(out) ? out.length === 0 : !out;
         if (!empty) {
           return out;

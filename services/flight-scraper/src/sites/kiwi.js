@@ -247,6 +247,9 @@ async function scrapeKiwi(req, config) {
           // DOM cards often collapse connections into one TLV→BCN hop with
           // origin-dep / final-arr clocks (~9h "direct"). Honor StopCountBadge.
           const stopHint = parseKiwiStopBadge(row.stopBadge);
+          const textLower = String(row.text || '').toLowerCase();
+          const virtual =
+            /self[-\s]?transfer|separate tickets|virtual interlining|protect.*connection/i.test(textLower);
           return offerTemplate({
             origin: req.origin,
             destination: req.destination,
@@ -254,12 +257,12 @@ async function scrapeKiwi(req, config) {
             currency: req.currency || 'USD',
             bookingUrl: row.bookingUrl,
             segments,
-            selfTransfer: stopHint > 0,
+            selfTransfer: virtual,
             stopsHint: stopHint > 0 ? stopHint : undefined,
           });
         })
         .filter(Boolean);
-    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'] });
+    }, { proxyUrl: config.proxyUrl, engines: ['chromium', 'firefox'], site: 'kiwi' });
 
       if (offers.length) return { offers, error: undefined };
       const wrongRoute = lastHref && !kiwiPathLooksCorrect(lastHref, req);

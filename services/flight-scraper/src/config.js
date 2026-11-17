@@ -27,7 +27,7 @@ module.exports = {
   defaultSites: parseSites(process.env.FLIGHT_SCRAPER_SITES),
   parseSites,
   headless: process.env.PLAYWRIGHT_HEADLESS !== '0',
-  maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 40), 80),
+  maxOffersPerSite: Math.min(Number(process.env.SCRAPER_MAX_OFFERS || 60), 120),
   navigationTimeoutMs: Number(process.env.SCRAPER_NAV_TIMEOUT_MS || 45000),
   // Post-nav settle; keep short — JSON capture / selectors abort waits early.
   settleMs: Number(process.env.SCRAPER_SETTLE_MS || 800),
