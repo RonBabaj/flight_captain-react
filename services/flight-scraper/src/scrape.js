@@ -4,6 +4,11 @@ const { scrapeKiwi } = require('./sites/kiwi');
 const { scrapeSkyscanner } = require('./sites/skyscanner');
 const { scrapeExpedia } = require('./sites/expedia');
 const { isSkyscannerBlocked } = require('./warm');
+const {
+  totalScrapeBudgetMs,
+  siteTimeBudgetMs,
+  siteEnvCapMs,
+} = require('./scrapeBudget');
 const SITE_FNS = {
   kiwi: scrapeKiwi,
   skyscanner: scrapeSkyscanner,
@@ -14,31 +19,78 @@ function hasCdp(config) {
   return !!(config.cdpUrls?.length || config.cdpUrl);
 }
 
-async function runOne(site, req, config) {
+async function runWithSiteBudget(site, req, config) {
+  const started = Date.now();
+  const budgetMs = config.siteMaxMs;
   const fn = SITE_FNS[site];
   if (!fn) {
     return { site, offers: [], error: `unknown site ${site}`, durationMs: 0 };
   }
-  const started = Date.now();
-  try {
-    const { offers, error } = await fn(req, config);
-    const durationMs = Date.now() - started;
-    console.log(
-      `[flight-scraper] site=${site} durationMs=${durationMs} offers=${(offers || []).length}${
-        error ? ` error=${String(error).slice(0, 120)}` : ''
-      }`,
-    );
-    return {
-      site,
-      offers: offers || [],
-      error,
-      durationMs,
-    };
-  } catch (err) {
-    const durationMs = Date.now() - started;
-    console.log(`[flight-scraper] site=${site} durationMs=${durationMs} error=${String(err.message || err).slice(0, 120)}`);
-    return { site, offers: [], error: String(err.message || err), durationMs };
+  const work = (async () => {
+    try {
+      const { offers, error } = await fn(req, config);
+      const durationMs = Date.now() - started;
+      console.log(
+        `[flight-scraper] site=${site} durationMs=${durationMs} offers=${(offers || []).length}${
+          error ? ` error=${String(error).slice(0, 120)}` : ''
+        }`,
+      );
+      return {
+        site,
+        offers: offers || [],
+        error,
+        durationMs,
+      };
+    } catch (err) {
+      const durationMs = Date.now() - started;
+      console.log(
+        `[flight-scraper] site=${site} durationMs=${durationMs} error=${String(err.message || err).slice(0, 120)}`,
+      );
+      return { site, offers: [], error: String(err.message || err), durationMs };
+    }
+  })();
+
+  if (!budgetMs || budgetMs < 1000) {
+    return work;
   }
+
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      console.log(`[flight-scraper] site=${site} siteMaxMs=${budgetMs} exceeded`);
+      resolve({
+        site,
+        offers: [],
+        error: 'site time budget exceeded',
+        durationMs: Date.now() - started,
+      });
+    }, budgetMs);
+  });
+  const result = await Promise.race([work, timeout]);
+  clearTimeout(timer);
+  return result;
+}
+
+async function scrapeSerial(req, config, orderedSites, opts = {}) {
+  const started = Date.now();
+  const scrapeBudgetMs = totalScrapeBudgetMs();
+  const results = [];
+  for (let i = 0; i < orderedSites.length; i++) {
+    const site = orderedSites[i];
+    const elapsed = Date.now() - started;
+    const remaining = scrapeBudgetMs - elapsed;
+    if (remaining < 5000) {
+      console.log(`[flight-scraper] scrapeAll budget exceeded — skip ${site}`);
+      results.push({ site, offers: [], error: 'scrape budget exceeded', durationMs: 0 });
+      continue;
+    }
+    const sitesLeft = orderedSites.length - i;
+    const siteMaxMs = siteTimeBudgetMs(site, remaining, sitesLeft, opts);
+    console.log(`[flight-scraper] site=${site} budgetMs=${siteMaxMs} remainingMs=${remaining}`);
+    const siteConfig = { ...config, siteMaxMs };
+    results.push(await runWithSiteBudget(site, req, siteConfig));
+  }
+  return results;
 }
 
 async function scrapeAll(req, config) {
@@ -58,8 +110,10 @@ async function scrapeAll(req, config) {
   let orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
     ? skyscannerFirst(unique)
     : unique;
+  const pxCooldown =
+    hasCdp(config) && unique.includes('skyscanner') && unique.includes('kiwi') && isSkyscannerBlocked();
   // After a PX wall, Skyscanner first can burn 10+ minutes before Kiwi runs; serve Kiwi first.
-  if (hasCdp(config) && unique.includes('skyscanner') && unique.includes('kiwi') && isSkyscannerBlocked()) {
+  if (pxCooldown) {
     orderedSites = ['kiwi', 'skyscanner'];
     console.log('[flight-scraper] skyscanner PX cooldown — scrape kiwi before skyscanner');
   }
@@ -69,29 +123,14 @@ async function scrapeAll(req, config) {
   // On CDP, always run Skyscanner first (alone), then other OTAs — even when SCRAPER_SERIAL_SITES=0.
   if (unique.length > 1 && hasCdp(config)) {
     console.log(`[flight-scraper] serial CDP scrape sites=${orderedSites.join(',')}`);
-    results = [];
-    const scrapeBudgetMs = Math.min(
-      Math.max(Number(process.env.SCRAPER_ALL_MAX_MS || 600_000) || 600_000, 120_000),
-      720_000,
-    );
-    for (const site of orderedSites) {
-      if (Date.now() - started > scrapeBudgetMs) {
-        console.log(`[flight-scraper] scrapeAll budget exceeded — skip ${site}`);
-        results.push({ site, offers: [], error: 'scrape budget exceeded', durationMs: 0 });
-        continue;
-      }
-      results.push(await runOne(site, req, config));
-    }
+    results = await scrapeSerial(req, config, orderedSites, { skyscannerPxCooldown: pxCooldown });
     // Do not run a second full Skyscanner scrape in the same request — it routinely pushes
     // scrapeAll past the API soft deadline when the first pass already hit PerimeterX.
   } else if (config.serialSites) {
     console.log(`[flight-scraper] serial scrape sites=${orderedSites.join(',')}`);
-    results = [];
-    for (const site of orderedSites) {
-      results.push(await runOne(site, req, config));
-    }
+    results = await scrapeSerial(req, config, orderedSites, { skyscannerPxCooldown: pxCooldown });
   } else {
-    results = await Promise.all(unique.map((site) => runOne(site, req, config)));
+    results = await Promise.all(unique.map((site) => runWithSiteBudget(site, req, config)));
   }
 
   console.log(

@@ -1,5 +1,7 @@
 /** Rotating status copy shared by progress banners, submit buttons, and overlays. */
 /** "Almost done" is intentionally excluded — show it only via SEARCH_ALMOST_DONE when nearComplete. */
+import type { ProviderSearchStats, SearchProgress } from '../../types';
+
 export const SEARCH_PROGRESS_PHRASES: Record<string, string[]> = {
   en: [
     'Searching hundreds of airlines…',
@@ -19,6 +21,25 @@ export const SEARCH_PROGRESS_PHRASES: Record<string, string[]> = {
     'Проверяем прямые и стыковочные рейсы…',
     'Ищем лучшие тарифы…',
   ],
+};
+
+/** Provider-aware status when unified search is mid-flight (no result cards yet). */
+export const SEARCH_PROVIDER_PHRASES: Record<string, Record<string, string>> = {
+  en: {
+    gf2: 'Loading Google Flights…',
+    ota: 'Checking Kiwi & Skyscanner…',
+    both: 'Merging Google Flights with Kiwi & Skyscanner…',
+  },
+  he: {
+    gf2: 'טוען Google Flights…',
+    ota: 'בודק Kiwi ו-Skyscanner…',
+    both: 'ממזג Google Flights עם Kiwi ו-Skyscanner…',
+  },
+  ru: {
+    gf2: 'Загружаем Google Flights…',
+    ota: 'Проверяем Kiwi и Skyscanner…',
+    both: 'Сводим Google Flights с Kiwi и Skyscanner…',
+  },
 };
 
 /** Locked copy when searchProgress.phase === 'finalizing' (results are imminent). */
@@ -67,4 +88,43 @@ export function getAlmostDonePhrase(
   language: string,
 ): string {
   return map[language] ?? map.en;
+}
+
+function providerPhraseMap(language: string) {
+  return SEARCH_PROVIDER_PHRASES[language] ?? SEARCH_PROVIDER_PHRASES.en;
+}
+
+function statsHasProvider(stats: ProviderSearchStats[] | null | undefined, name: string) {
+  return (stats ?? []).some((s) => s.provider.toLowerCase() === name.toLowerCase());
+}
+
+/**
+ * Honest loading copy from live provider completion (still PENDING — no partial results).
+ */
+export function pickSearchStatusPhrase(
+  language: string,
+  progress: SearchProgress | null | undefined,
+  stats: ProviderSearchStats[] | null | undefined,
+  nearComplete: boolean,
+  phraseIdx: number,
+): string {
+  if (nearComplete || progress?.phase === 'finalizing') {
+    return getAlmostDonePhrase(SEARCH_ALMOST_DONE, language);
+  }
+  const pmap = providerPhraseMap(language);
+  const total = progress?.providersTotal ?? 0;
+  const done = progress?.providersDone ?? 0;
+  if (total <= 0) {
+    return getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language)[phraseIdx] ?? pmap.gf2;
+  }
+  const gf2Finished = statsHasProvider(stats, 'googleflights2');
+  const multisiteFinished = statsHasProvider(stats, 'multisite');
+  if (total >= 2) {
+    if (done === 0) return pmap.both;
+    if (gf2Finished && !multisiteFinished) return pmap.ota;
+    if (multisiteFinished && !gf2Finished) return pmap.gf2;
+    if (done > 0 && done < total) return pmap.both;
+  }
+  const rotating = getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language);
+  return rotating[phraseIdx % rotating.length] ?? rotating[0];
 }

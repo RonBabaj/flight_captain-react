@@ -1225,7 +1225,7 @@ func finalizeSearchSession(
 	options := normalizeProviderOptions(multi.Results, req, cabinPref, includeBag)
 	// Brief hold so a poll can observe finalizing (and show "Almost done…") before
 	// COMPLETE clears the loading UI. Cap the wait so we never add more than ~0.9s.
-	const minFinalizingVisible = 900 * time.Millisecond
+	const minFinalizingVisible = 550 * time.Millisecond
 	if wait := minFinalizingVisible - time.Since(finalizingAt); wait > 0 {
 		timer := time.NewTimer(wait)
 		select {
