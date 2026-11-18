@@ -44,6 +44,8 @@ Optional:
 - `SCRAPER_PROXY_URL` — only if you need a different egress IP
 - `SCRAPER_PX_SOLVE_ATTEMPTS` / `SCRAPER_PX_HOLD_MS` — PerimeterX press-and-hold retries (default 3 / 5200ms)
 - `SCRAPER_SKY_WARM_COOLDOWN_MS` — pause Skyscanner homepage warm after a block (default 2h)
+- `SCRAPER_ALL_MAX_MS` — total wall clock for serial CDP multisite (default 8m, max 12m)
+- `SCRAPER_KIWI_MAX_MS` / `SCRAPER_SKY_MAX_MS` / `SCRAPER_SKY_COOLDOWN_MAX_MS` — per-site caps within that budget
 
 ### When Skyscanner returns 0 offers
 

@@ -114,8 +114,11 @@ function pxSolveAttempts() {
   return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 1) || 1, 1), 3);
 }
 
-function skyBudgetMs() {
-  return Math.min(Math.max(Number(process.env.SCRAPER_SKY_MAX_MS || 150_000) || 150_000, 45_000), 300_000);
+function skyBudgetMs(config) {
+  const base = Math.min(Math.max(Number(process.env.SCRAPER_SKY_MAX_MS || 150_000) || 150_000, 45_000), 300_000);
+  const cap = config?.siteMaxMs;
+  if (cap && cap > 0) return Math.min(base, cap);
+  return base;
 }
 
 async function pressHoldInBox(page, box) {
@@ -254,7 +257,7 @@ async function scrapeSkyscanner(req, config) {
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
         // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
         const scrapeStarted = Date.now();
-        const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs();
+        const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs(config);
         const solveWall = async () => {
           for (let i = 0; i < pxSolveAttempts(); i++) {
             if (overSkyBudget()) break;

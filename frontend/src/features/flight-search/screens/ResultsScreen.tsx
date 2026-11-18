@@ -1812,6 +1812,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           theme={theme}
           nearComplete={searchNearComplete}
           progress={searchProgress}
+          providerStats={providerStats}
         />
       )}
 
