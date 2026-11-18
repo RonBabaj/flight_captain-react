@@ -294,4 +294,15 @@ function noteSkyscannerBlocked() {
   skyscannerBlockedUntil = Date.now() + SKY_BLOCK_COOLDOWN_MS;
 }
 
-module.exports = { warmAll, warmStatus, startWarmLoop, WARM_URLS, noteSkyscannerBlocked };
+function isSkyscannerBlocked() {
+  return Date.now() < skyscannerBlockedUntil;
+}
+
+module.exports = {
+  warmAll,
+  warmStatus,
+  startWarmLoop,
+  WARM_URLS,
+  noteSkyscannerBlocked,
+  isSkyscannerBlocked,
+};

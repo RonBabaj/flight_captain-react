@@ -3,6 +3,7 @@
 const { scrapeKiwi } = require('./sites/kiwi');
 const { scrapeSkyscanner } = require('./sites/skyscanner');
 const { scrapeExpedia } = require('./sites/expedia');
+const { isSkyscannerBlocked } = require('./warm');
 const SITE_FNS = {
   kiwi: scrapeKiwi,
   skyscanner: scrapeSkyscanner,
@@ -54,9 +55,14 @@ async function scrapeAll(req, config) {
     const rest = sites.filter((s) => s !== 'skyscanner');
     return sky.length ? [...sky, ...rest] : sites;
   };
-  const orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
+  let orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
     ? skyscannerFirst(unique)
     : unique;
+  // After a PX wall, Skyscanner first can burn 10+ minutes before Kiwi runs; serve Kiwi first.
+  if (hasCdp(config) && unique.includes('skyscanner') && unique.includes('kiwi') && isSkyscannerBlocked()) {
+    orderedSites = ['kiwi', 'skyscanner'];
+    console.log('[flight-scraper] skyscanner PX cooldown — scrape kiwi before skyscanner');
+  }
 
   let results;
   // Parallel CDP tabs routinely trip Skyscanner PerimeterX on the shared VPS Chrome profile.
@@ -64,24 +70,20 @@ async function scrapeAll(req, config) {
   if (unique.length > 1 && hasCdp(config)) {
     console.log(`[flight-scraper] serial CDP scrape sites=${orderedSites.join(',')}`);
     results = [];
+    const scrapeBudgetMs = Math.min(
+      Math.max(Number(process.env.SCRAPER_ALL_MAX_MS || 600_000) || 600_000, 120_000),
+      720_000,
+    );
     for (const site of orderedSites) {
+      if (Date.now() - started > scrapeBudgetMs) {
+        console.log(`[flight-scraper] scrapeAll budget exceeded — skip ${site}`);
+        results.push({ site, offers: [], error: 'scrape budget exceeded', durationMs: 0 });
+        continue;
+      }
       results.push(await runOne(site, req, config));
     }
-    const skyIdx = results.findIndex((r) => r.site === 'skyscanner');
-    if (skyIdx >= 0) {
-      const sky = results[skyIdx];
-      const blocked =
-        !(sky.offers && sky.offers.length) &&
-        /blocked|captcha|perimeterx|robot/i.test(String(sky.error || ''));
-      if (blocked) {
-        console.log('[flight-scraper] skyscanner blocked — one CDP retry after kiwi');
-        await new Promise((r) => setTimeout(r, 2500));
-        const retry = await runOne('skyscanner', req, config);
-        if (retry.offers?.length) {
-          results[skyIdx] = retry;
-        }
-      }
-    }
+    // Do not run a second full Skyscanner scrape in the same request — it routinely pushes
+    // scrapeAll past the API soft deadline when the first pass already hit PerimeterX.
   } else if (config.serialSites) {
     console.log(`[flight-scraper] serial scrape sites=${orderedSites.join(',')}`);
     results = [];

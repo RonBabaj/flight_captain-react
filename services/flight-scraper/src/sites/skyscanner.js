@@ -110,7 +110,12 @@ function pxHoldMs() {
 }
 
 function pxSolveAttempts() {
-  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 3) || 3, 1), 6);
+  // VPS headed CDP: one press-and-hold try; extra attempts rarely clear PX and cost minutes.
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 1) || 1, 1), 3);
+}
+
+function skyBudgetMs() {
+  return Math.min(Math.max(Number(process.env.SCRAPER_SKY_MAX_MS || 150_000) || 150_000, 45_000), 300_000);
 }
 
 async function pressHoldInBox(page, box) {
@@ -248,11 +253,15 @@ async function scrapeSkyscanner(req, config) {
         const onWall = async () => /captcha-v2/i.test(page.url()) || (await pageLooksBlocked(page));
         // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
         // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
+        const scrapeStarted = Date.now();
+        const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs();
         const solveWall = async () => {
           for (let i = 0; i < pxSolveAttempts(); i++) {
+            if (overSkyBudget()) break;
             if (!(await onWall())) return true;
             const solved = await trySolvePerimeterX(page);
-            if (solved || (await leaveCaptchaForSearch(page, req, config, preferFr))) return true;
+            if (solved) return true;
+            if (!overSkyBudget() && (await leaveCaptchaForSearch(page, req, config, preferFr))) return true;
             await page.waitForTimeout(800);
           }
           if (await onWall()) {
@@ -269,9 +278,10 @@ async function scrapeSkyscanner(req, config) {
           return parsed.length && !missingReturn ? parsed.slice(0, config.maxOffersPerSite) : [];
         };
 
-        if (!(await solveWall())) return [];
+        if (!(await solveWall()) || overSkyBudget()) return [];
 
         await ensureDatedResultsUrl(page, req, config);
+        if (overSkyBudget()) return [];
         if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
           endedOnWall = true;
           noteSkyscannerBlocked();
