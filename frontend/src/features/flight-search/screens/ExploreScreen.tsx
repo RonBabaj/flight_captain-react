@@ -641,6 +641,13 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     });
   }, [destinations, regionFilter, routeCountryFilter, sortAsc]);
 
+  // Worldwide explore can return other regions first; country/region filters must not
+  // flash "no destinations" while live GF2 batches are still filling the list.
+  const awaitingFilteredResults =
+    (loading || liveRefreshing) &&
+    displayed.length === 0 &&
+    (routeCountryFilter != null || regionFilter !== 'All');
+
   const tripLabel = isDealsMode
     ? `${formatMonthYear(localYear, localMonth, language)} · ${localDuration} ${t('days')}`
     : returnDate
@@ -1007,6 +1014,11 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             <Text style={[s.retryText, { color: theme.primary }]}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
+      ) : awaitingFilteredResults ? (
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[s.loadingTitle, { color: theme.text }]}>{t('explore_live_updating')}</Text>
+        </View>
       ) : destinations.length === 0 ? (
         <View style={s.centered}>
           <AppIcon name="search-outline" size={44} color={theme.textMuted} fallbackText="?" />
@@ -1179,7 +1191,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
       </View>
     ) : null;
 
-  const mobileToolbar = !loading && !error && destinations.length > 0 && (
+  const mobileToolbar = !loading && !error && destinations.length > 0 && !awaitingFilteredResults && (
     <View style={[s.toolbar, { backgroundColor: theme.navBg, borderBottomColor: theme.cardBorder }]}>
       <TouchableOpacity
         style={[s.sortBtn, { borderColor: theme.cardBorder, backgroundColor: theme.controlBg }]}
