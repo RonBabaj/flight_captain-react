@@ -1,8 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import type { Theme } from '../../theme/ThemeContext';
-import type { ProviderSearchStats, SearchProgress } from '../../types';
-import { pickSearchStatusPhrase } from './searchLoadingPhrases';
+import type { SearchProgress } from '../../types';
+import {
+  getAlmostDonePhrase,
+  getPhrasesForLanguage,
+  SEARCH_ALMOST_DONE,
+  SEARCH_PROGRESS_PHRASES,
+} from './searchLoadingPhrases';
 import { searchProgressRatio } from './searchProgressRatio';
 
 interface SearchProgressBannerProps {
@@ -12,8 +17,6 @@ interface SearchProgressBannerProps {
   nearComplete?: boolean;
   /** Live backend provider completion; drives the bar instead of a looping animation. */
   progress?: SearchProgress | null;
-  /** Finished providers so far (same snapshot as poll — no partial flight list). */
-  providerStats?: ProviderSearchStats[] | null;
 }
 
 /** Inline progress banner shown above results while a search is loading. */
@@ -22,8 +25,9 @@ export function SearchProgressBanner({
   theme,
   nearComplete = false,
   progress = null,
-  providerStats = null,
 }: SearchProgressBannerProps) {
+  const phrases = getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language);
+  const almostDone = getAlmostDonePhrase(SEARCH_ALMOST_DONE, language);
   const [phraseIdx, setPhraseIdx] = useState(0);
   const [startedAt] = useState(() => Date.now());
   const [tick, setTick] = useState(0);
@@ -47,11 +51,11 @@ export function SearchProgressBanner({
         Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
-      setPhraseIdx((i) => i + 1);
+      setPhraseIdx((i) => (i + 1) % phrases.length);
     };
     const id = setInterval(cycle, 2200);
     return () => clearInterval(id);
-  }, [fadeAnim, nearComplete]);
+  }, [phrases.length, fadeAnim, nearComplete]);
 
   // Monotonic fill toward the latest target ratio.
   useEffect(() => {
@@ -81,7 +85,7 @@ export function SearchProgressBanner({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
-  const label = pickSearchStatusPhrase(language, progress, providerStats, nearComplete, phraseIdx);
+  const label = nearComplete ? almostDone : phrases[phraseIdx];
   const a11yValue = Math.round(lastRatioRef.current * 100);
 
   return (
