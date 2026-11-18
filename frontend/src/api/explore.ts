@@ -25,6 +25,8 @@ export interface GetExploreDestinationsParams {
   prefetch?: boolean;
   /** Fetch next batch of live prices for this session (max ~12 GF2 calls). */
   live?: boolean;
+  /** ISO country code when Explore is scoped to a country destination (e.g. JM). */
+  country?: string;
 }
 
 export interface ExploreResponse {
@@ -96,6 +98,7 @@ export async function getExploreDestinations(
   q.set('offset', String(params.offset ?? 0));
   q.set('limit', String(params.limit ?? 10));
   if (params.prefetch) q.set('prefetch', 'true');
+  if (params.country?.trim()) q.set('country', params.country.trim().toUpperCase());
 
   const res = await apiGet<ExploreResponse>(`${EXPLORE_PATH}?${q.toString()}`, timeoutMs);
   return {

@@ -367,6 +367,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             returnDate: ret || undefined,
             currency: routeCurrency,
             adults: formParams.adults ?? adults ?? 1,
+            country: routeCountryFilter ?? undefined,
           };
 
     const pageSize = 64;

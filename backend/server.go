@@ -2529,8 +2529,12 @@ func handleExplore(w http.ResponseWriter, r *http.Request) {
 	// prefetch=true skips the initial live GF2 batch (cached prices only; no estimate placeholders). Client then polls ?live=true to grow the list.
 	prefetch := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("prefetch")), "true")
 
-	sessionKey := exploreSessionKey(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+	countryFilter := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("country")))
+	sessionKey := exploreSessionKey(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop, countryFilter)
 	rows, liveQ := exploreBuildRowsAndQueue(origin, dep, ret, useMonthDealsExplore, exploreYear, exploreMonth, exploreDuration, currency, adults, children, nonStop)
+	if countryFilter != "" {
+		liveQ = mergeExploreLiveQueuePriority(exploreAirportsForCountry(countryFilter), liveQ)
+	}
 	sess := &exploreSession{
 		Key:               sessionKey,
 		Rows:              rows,

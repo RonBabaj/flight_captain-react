@@ -23,8 +23,8 @@ var exploreFixedPool = []string{
 	"SYD", "MEL", "AKL",
 	// North America
 	"JFK", "LAX", "SFO", "ORD", "DFW", "ATL", "MIA", "YYZ", "YVR", "MEX", "CUN",
-	// Latin America
-	"GRU", "EZE", "BOG", "LIM", "SCL",
+	// Latin America / Caribbean
+	"GRU", "EZE", "BOG", "LIM", "SCL", "KIN", "MBJ",
 }
 
 const explorePoolMax = 64

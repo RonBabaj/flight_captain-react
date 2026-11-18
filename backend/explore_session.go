@@ -73,20 +73,21 @@ func getExploreSession(id string) *exploreSession {
 	return s
 }
 
-func exploreSessionKey(origin, dep, ret string, useMonth bool, year, month, duration int, currency string, adults, children int, nonStop bool) string {
+func exploreSessionKey(origin, dep, ret string, useMonth bool, year, month, duration int, currency string, adults, children int, nonStop bool, country string) string {
 	ns := "0"
 	if nonStop {
 		ns = "1"
 	}
+	cc := strings.ToUpper(strings.TrimSpace(country))
 	if useMonth {
 		return strings.Join([]string{
 			origin, "m", dep, ret,
 			strconv.Itoa(year), strconv.Itoa(month), strconv.Itoa(duration),
-			currency, strconv.Itoa(adults), strconv.Itoa(children), ns,
+			currency, strconv.Itoa(adults), strconv.Itoa(children), ns, cc,
 		}, "|")
 	}
 	return strings.Join([]string{
-		origin, "d", dep, ret, currency, strconv.Itoa(adults), strconv.Itoa(children), ns,
+		origin, "d", dep, ret, currency, strconv.Itoa(adults), strconv.Itoa(children), ns, cc,
 	}, "|")
 }
 
