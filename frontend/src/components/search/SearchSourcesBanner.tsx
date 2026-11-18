@@ -43,7 +43,8 @@ export function SearchSourcesBanner({
     const multisite = stats.find((s) => s.provider === 'multisite');
     const gf2 = stats.find((s) => s.provider === 'googleflights2');
     const gf2Only = !!(gf2 && gf2.results > 0 && multisite && multisite.results === 0);
-    return { parts: parts.join(' · '), gf2Only };
+    const otaFailed = !!(multisite?.error && multisite.results === 0);
+    return { parts: parts.join(' · '), gf2Only, otaFailed };
   }, [stats, t]);
 
   if (!summary) return null;
@@ -60,7 +61,7 @@ export function SearchSourcesBanner({
       style={[
         styles.wrap,
         {
-          backgroundColor: summary.gf2Only ? theme.warningBg : theme.cardBg,
+          backgroundColor: summary.gf2Only && summary.otaFailed ? theme.warningBg : theme.cardBg,
           borderColor: theme.cardBorder,
         },
       ]}
@@ -70,7 +71,7 @@ export function SearchSourcesBanner({
       <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
         {summary.parts}
       </Text>
-      {sourceCounts ? (
+      {sourceCounts && !summary.gf2Only ? (
         <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('search_sources_in_list')
             .replace('{gf2}', String(sourceCounts.googleflights2))
@@ -78,7 +79,7 @@ export function SearchSourcesBanner({
             .replace('{sky}', String(sourceCounts.skyscanner))}
         </Text>
       ) : null}
-      {summary.gf2Only ? (
+      {summary.gf2Only && summary.otaFailed ? (
         <Text style={[styles.warn, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('search_ota_unavailable')}
         </Text>
