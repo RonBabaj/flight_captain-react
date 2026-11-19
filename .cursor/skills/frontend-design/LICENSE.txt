@@ -1,0 +1,3 @@
+Anthropic Skills — frontend-design skill
+Source: https://github.com/anthropics/skills/tree/main/skills/frontend-design
+Refer to the upstream repository for license terms applicable to that skill package.

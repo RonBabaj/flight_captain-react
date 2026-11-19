@@ -197,17 +197,19 @@ export function DestinationMoodBanner({
         />
         <View style={[styles.labelRow, isRTL && { flexDirection: 'row-reverse' }]}>
           <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
-            <Text
-              style={[
-                styles.eyebrow,
-                {
-                  color: theme.isDark ? theme.primaryLight : theme.primary,
-                  fontFamily: theme.fontBody,
-                },
-              ]}
-            >
-              {t('destination_mood_eyebrow')}
-            </Text>
+            {variant !== 'results' ? (
+              <Text
+                style={[
+                  styles.eyebrow,
+                  {
+                    color: theme.isDark ? theme.primaryLight : theme.primary,
+                    fontFamily: theme.fontBody,
+                  },
+                ]}
+              >
+                {t('destination_mood_eyebrow')}
+              </Text>
+            ) : null}
             <Text
               style={[
                 styles.city,
