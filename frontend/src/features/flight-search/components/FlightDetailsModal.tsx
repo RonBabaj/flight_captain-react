@@ -433,9 +433,6 @@ export function FlightDetailsModal({
           </>
         ) : (
           <>
-            {!useFullScreen ? (
-              <Text style={[s.bookThisHint, { color: theme.textMuted }]}>{t('book_this_flight_hint')}</Text>
-            ) : null}
             {renderBookingAction(
               'full',
               undefined,
@@ -551,7 +548,7 @@ export function FlightDetailsModal({
         <View style={containerStyle}>
           {/* ── Header ── */}
           <View style={[s.header, { borderBottomColor: theme.cardBorder }]}>
-            <Text style={[s.headerTitle, { color: theme.text }]}>{t('flight_details')}</Text>
+            <Text style={[s.headerTitle, { color: theme.text, fontFamily: theme.fontDisplay }]}>{t('flight_details')}</Text>
             <View style={s.headerActions}>
               <TouchableOpacity
                 onPress={handleShare}
@@ -584,7 +581,7 @@ export function FlightDetailsModal({
             {/* ── Summary row (price + meta; RTL swaps sides) ── */}
             <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View>
-                <Text style={[s.price, { color: theme.primary }]}>
+                <Text style={[s.price, { color: theme.price, fontFamily: theme.fontDisplay }]}>
                   {priceSymbol} {totalAmount.toFixed(0)}
                 </Text>
                 {passengers > 1 && (
@@ -619,14 +616,11 @@ export function FlightDetailsModal({
                     {option.selfTransferWarning || t('self_transfer_warning')}
                   </Text>
                 ) : null}
-                {option.source ? (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {sourceLabel}
-                    {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
-                  </Text>
-                ) : option.vendorName && !multiAirline ? (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {t('via_vendor').replace('{vendor}', option.vendorName)}
+                {(option.source || (option.vendorName && !multiAirline)) ? (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 6 }]}>
+                    {vendorLabel && !multiAirline && !vendorEchoesSource
+                      ? t('via_vendor').replace('{vendor}', vendorLabel)
+                      : sourceLabel}
                   </Text>
                 ) : null}
                 {breakdownParts.length > 0 && (
@@ -874,6 +868,7 @@ const s = StyleSheet.create({
   },
 
   summaryRow: {
+    gap: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
@@ -882,7 +877,7 @@ const s = StyleSheet.create({
   price: { fontSize: 26, fontWeight: '700' },
   priceEstimateBlock: { marginTop: 8, gap: 4, maxWidth: 220 },
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  estBadgeText: { fontSize: 12, fontWeight: '600' },
   priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
@@ -931,8 +926,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
   },
   sellerRow: {
     flexDirection: 'row',
@@ -1008,8 +1001,8 @@ const s = StyleSheet.create({
   legBookingList: { gap: 10 },
   legBookingRow: { gap: 10, paddingBottom: 4 },
   legBookingCard: {
-    borderWidth: 1,
-    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
     padding: 14,
     width: '100%',
   },

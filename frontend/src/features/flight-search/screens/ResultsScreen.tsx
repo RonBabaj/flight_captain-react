@@ -1466,9 +1466,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       <TouchableOpacity
         style={[
           styles.cheaperChip,
+          styles.cheaperChipQuiet,
           {
-            backgroundColor: theme.primary + '18',
-            borderColor: theme.primary + '44',
+            backgroundColor: theme.controlBg,
+            borderColor: theme.cardBorder,
           },
         ]}
         onPress={() => {
@@ -1491,7 +1492,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           String(positioningOptions.length),
         )}
       >
-        <Text style={[styles.cheaperChipText, { color: theme.primary }]} numberOfLines={1}>
+        <Text style={[styles.cheaperChipText, { color: theme.text }]} numberOfLines={1}>
           {cheaperCitiesFolded
             ? t('cheaper_cities_show').replace('{n}', String(positioningOptions.length))
             : t('cheaper_cities_hide')}
@@ -1564,6 +1565,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       // Structure-preview cards (not a 3D cube) — page shape before results arrive.
       <View style={{ flex: 1 }}>
         <View style={styles.listContent}>
+          <SearchProgressBanner
+            language={language}
+            theme={theme}
+            nearComplete={searchNearComplete}
+            progress={searchProgress}
+            providerStats={providerStats}
+            compact
+          />
           <ResultsSkeletonList theme={theme} count={4} />
         </View>
         {positioningSection}
@@ -1760,17 +1769,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         {modalSearchForm}
       </EditSearchModal>
 
-      {/* Keep a thin banner while waiting — belt + suspenders with the cube. */}
-      {isLoading && (
-        <SearchProgressBanner
-          language={language}
-          theme={theme}
-          nearComplete={searchNearComplete}
-          progress={searchProgress}
-          providerStats={providerStats}
-        />
-      )}
-
       <View style={[styles.main, isRTL && { direction: 'rtl' }]}>
         {showSearchBesideResults ? (
           <>
@@ -1877,7 +1875,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     style={[
                       styles.filtersBtn,
                       {
-                        backgroundColor: theme.controlBg,
+                        backgroundColor: theme.cardBg,
+                        borderColor: theme.cardBorder,
                         flexDirection: isRTL ? 'row-reverse' : 'row',
                         alignItems: 'center',
                         gap: 6,
@@ -2109,9 +2108,10 @@ const styles = StyleSheet.create({
   toolbarStacked: {
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
+    gap: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
   },
   toolbarSortWrap: {
     flex: 1,
@@ -2131,20 +2131,28 @@ const styles = StyleSheet.create({
   },
   toolbarActionsRow: {
     width: '100%',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: 10,
   },
   filtersBtn: {
     flexShrink: 0,
     paddingVertical: 8,
-    paddingHorizontal: 11,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   filtersBtnText: { fontSize: 12, fontWeight: '600' },
+  cheaperChipQuiet: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '72%',
+  },
   cheaperChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     maxWidth: 200,
     flexShrink: 1,
   },

@@ -14,6 +14,8 @@ interface SearchProgressBannerProps {
   progress?: SearchProgress | null;
   /** Finished providers so far (same snapshot as poll — no partial flight list). */
   providerStats?: ProviderSearchStats[] | null;
+  /** Tighter padding when nested above skeleton cards (Results loading). */
+  compact?: boolean;
 }
 
 /** Inline progress banner shown above results while a search is loading. */
@@ -23,6 +25,7 @@ export function SearchProgressBanner({
   nearComplete = false,
   progress = null,
   providerStats = null,
+  compact = false,
 }: SearchProgressBannerProps) {
   const [phraseIdx, setPhraseIdx] = useState(0);
   const [startedAt] = useState(() => Date.now());
@@ -86,7 +89,17 @@ export function SearchProgressBanner({
 
   return (
     <View
-      style={[s.wrap, { backgroundColor: theme.isDark ? theme.controlBg : theme.infoBg }]}
+      style={[
+        s.wrap,
+        compact && s.wrapCompact,
+        {
+          backgroundColor: compact
+            ? 'transparent'
+            : theme.isDark
+              ? theme.controlBg
+              : theme.infoBg,
+        },
+      ]}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: a11yValue }}
@@ -106,6 +119,7 @@ export function SearchProgressBanner({
 
 const s = StyleSheet.create({
   wrap: { paddingTop: 6, paddingBottom: 10, paddingHorizontal: 14 },
+  wrapCompact: { paddingTop: 4, paddingBottom: 8, paddingHorizontal: 4 },
   track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
   fill: { height: 3, borderRadius: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },

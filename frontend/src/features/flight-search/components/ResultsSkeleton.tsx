@@ -130,10 +130,11 @@ const sk = StyleSheet.create({
   list: { flex: 1, paddingTop: 4, paddingBottom: 24 },
   card: {
     marginHorizontal: 12,
-    marginVertical: 5,
-    padding: 14,
+    marginVertical: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   carrierRow: {
     flexDirection: 'row',

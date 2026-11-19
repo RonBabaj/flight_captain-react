@@ -75,7 +75,7 @@ const lightTheme: Theme = {
   primary: ACCENT.navy,
   primaryLight: ACCENT.sky,
   navBg: '#FFFFFF',
-  screenBg: '#F4F6F8',
+  screenBg: '#F3F1ED',
   cardBg: '#FFFFFF',
   cardBorder: '#DCE3EA',
   text: '#121820',
@@ -199,12 +199,12 @@ function persistThemeMode(mode: ThemeMode): void {
 
 export function ThemeProvider({
   children,
-  defaultMode = 'dark',
+  defaultMode = 'light',
 }: {
   children: React.ReactNode;
   defaultMode?: ThemeMode;
 }) {
-  // Prefer saved preference; otherwise start dark (product default).
+  // Prefer saved preference; otherwise light (boarding-pass default).
   const [mode, setModeState] = useState<ThemeMode>(() => loadSavedThemeMode(defaultMode));
 
   useEffect(() => {
