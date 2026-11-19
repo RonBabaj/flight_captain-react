@@ -1,17 +1,17 @@
 # Graph Report - workspace  (2026-11-19)
 
 ## Corpus Check
-- 329 files · ~269,607 words
+- 329 files · ~269,716 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 18 file(s) not represented in the graph (top: (none) 8, .mdc 2, .example 2)
 
 ## Summary
-- 2716 nodes · 8739 edges · 109 communities (89 shown, 20 thin omitted)
+- 2716 nodes · 8740 edges · 109 communities (89 shown, 20 thin omitted)
 - Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 731 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `294cd94b`
+- Built from commit: `12a645f6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -515,16 +515,16 @@ Nodes (6): buildMonthDays(), CalendarModal(), getMonthStart(), Props, styles, WE
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Fly-Fix` connect `Features` to `AppIcon`?**
-  _High betweenness centrality (0.298) - this node is a cross-community bridge._
+  _High betweenness centrality (0.302) - this node is a cross-community bridge._
 - **What connects `flightcaptainweb`, `expo/tsconfig.base`, `DISPLAY` to the rest of the system?**
   _3 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `.ResolveQuotedPartnerBooking` be split into smaller, more focused modules?**
   _Cohesion score 0.10638297872340426 - nodes in this community are weakly interconnected._
 - **Why does `Multi-provider flight search` connect `Features` to `server.go`?**
-  _High betweenness centrality (0.296) - this node is a cross-community bridge._
+  _High betweenness centrality (0.301) - this node is a cross-community bridge._
 - **Should `DestinationMoodBanner.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.08534850640113797 - nodes in this community are weakly interconnected._
 - **Why does `Recent enhancements` connect `AppIcon` to `Features`, `useTheme`?**
-  _High betweenness centrality (0.288) - this node is a cross-community bridge._
+  _High betweenness centrality (0.292) - this node is a cross-community bridge._
 - **Should `CanonicalSegment` be split into smaller, more focused modules?**
   _Cohesion score 0.08418367346938775 - nodes in this community are weakly interconnected._

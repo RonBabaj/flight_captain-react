@@ -1942,26 +1942,26 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 {t('positioning_split_hint')}
               </Text>
               <TouchableOpacity
-                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.primary }]}
+                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
                 onPress={() =>
                   openPositioningLegSearch(storeParams?.origin || '', positioningDetails.hubAirport)
                 }
                 activeOpacity={0.8}
               >
-                <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
+                <Text style={[styles.positioningPrimaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
                   {t('search_route_leg')
                     .replace('{from}', storeParams?.origin || '')
                     .replace('{to}', positioningDetails.hubAirport)}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.primary }]}
+                style={[styles.positioningPrimaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
                 onPress={() =>
                   openPositioningLegSearch(positioningDetails.hubAirport, storeParams?.destination || '')
                 }
                 activeOpacity={0.8}
               >
-                <Text style={[styles.positioningPrimaryBtnText, { color: '#fff' }]}>
+                <Text style={[styles.positioningPrimaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
                   {t('search_route_leg')
                     .replace('{from}', positioningDetails.hubAirport)
                     .replace('{to}', storeParams?.destination || '')}

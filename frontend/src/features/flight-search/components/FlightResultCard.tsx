@@ -258,7 +258,7 @@ export function FlightResultCard({
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onDetails}
-      style={[c.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+      style={[c.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}
     >
       <View style={[c.row1, ...row()]}>
         <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>

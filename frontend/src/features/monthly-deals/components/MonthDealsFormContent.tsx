@@ -68,7 +68,7 @@ export function MonthDealsFormContent({
       style={[
         formCardStyles.card,
         compact && formCardStyles.cardCompact,
-        { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
       ]}
     >
       {compact && routeSummary ? (

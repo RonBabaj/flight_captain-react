@@ -17,7 +17,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <Text
       style={[
         styles.label,
-        { color: active ? theme.onPrimary : theme.text, fontFamily: theme.fontBody },
+        { color: active ? theme.buttonText : theme.text, fontFamily: theme.fontBody },
         active && styles.labelActive,
       ]}
     >
@@ -30,7 +30,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
       <TouchableOpacity
         style={[
           styles.chip,
-          { backgroundColor: active ? theme.primary : theme.controlBg, borderColor: active ? theme.primary : theme.cardBorder },
+          { backgroundColor: active ? theme.buttonBg : theme.controlBg, borderColor: active ? theme.buttonBg : theme.cardBorder },
           style,
         ]}
         disabled
@@ -45,7 +45,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <TouchableOpacity
       style={[
         styles.chip,
-        { backgroundColor: active ? theme.primary : theme.controlBg, borderColor: active ? theme.primary : theme.cardBorder },
+        { backgroundColor: active ? theme.buttonBg : theme.controlBg, borderColor: active ? theme.buttonBg : theme.cardBorder },
         style,
       ]}
       onPress={onPress}

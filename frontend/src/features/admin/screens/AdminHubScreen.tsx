@@ -25,10 +25,10 @@ export function AdminHubScreen() {
     return (
       <SettingsPageLayout title={t('admin_hub_title')} subtitle={t('admin_sign_in_required')}>
         <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+          style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
           onPress={() => navigation.navigate('Login' as never)}
         >
-          <Text style={styles.primaryBtnText}>{t('auth_sign_in')}</Text>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('auth_sign_in')}</Text>
         </TouchableOpacity>
       </SettingsPageLayout>
     );
@@ -68,5 +68,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  primaryBtnText: { fontWeight: '600', fontSize: 15 },
 });

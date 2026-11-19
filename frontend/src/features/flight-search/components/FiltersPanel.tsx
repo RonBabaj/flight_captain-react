@@ -113,8 +113,8 @@ export function FiltersPanel({
                 const sel = filters.airlines.includes(code);
                 return (
                   <TouchableOpacity key={code} style={f.airlineRow} onPress={() => toggleAirline(code)} activeOpacity={0.6}>
-                    <View style={[f.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
-                      {sel && <Text style={f.checkMark}>✓</Text>}
+                    <View style={[f.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}>
+                      {sel && <Text style={[f.checkMark, { color: theme.buttonText }]}>✓</Text>}
                     </View>
                     <Text style={[f.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
                     <Text style={[f.airlineCount, { color: theme.textMuted }]}>{count}</Text>
@@ -211,7 +211,7 @@ const f = StyleSheet.create({
 
   airlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  checkMark: { fontSize: 12, fontWeight: '700' },
   airlineName: { fontSize: 13, flex: 1 },
   airlineCount: { fontSize: 12 },
 

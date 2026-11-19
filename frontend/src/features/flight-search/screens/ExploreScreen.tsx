@@ -958,12 +958,12 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           key={r}
           style={[
             d.regionPill,
-            { borderColor: regionFilter === r ? theme.primary : theme.cardBorder, backgroundColor: regionFilter === r ? theme.primary : theme.controlBg },
+            { borderColor: regionFilter === r ? theme.buttonBg : theme.cardBorder, backgroundColor: regionFilter === r ? theme.buttonBg : theme.controlBg },
           ]}
           onPress={() => setRegionFilter(r)}
           activeOpacity={0.7}
         >
-          <Text style={[d.regionPillText, { color: regionFilter === r ? '#fff' : theme.text }]}>{r}</Text>
+          <Text style={[d.regionPillText, { color: regionFilter === r ? theme.buttonText : theme.text }]}>{r}</Text>
         </TouchableOpacity>
       ))}
 
@@ -1196,12 +1196,12 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
             style={[
               s.regionPill,
               { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
-              regionFilter === r && { backgroundColor: theme.primary, borderColor: theme.primary },
+              regionFilter === r && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg },
             ]}
             onPress={() => setRegionFilter(r)}
             activeOpacity={0.7}
           >
-            <Text style={[s.regionPillText, { color: regionFilter === r ? '#fff' : theme.text }]}>{r}</Text>
+            <Text style={[s.regionPillText, { color: regionFilter === r ? theme.buttonText : theme.text }]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -1387,7 +1387,7 @@ const d = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
-  searchBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  searchBtnText: { fontSize: 15, fontWeight: '700' },
   sortPill: {
     paddingVertical: 8,
     paddingHorizontal: 12,

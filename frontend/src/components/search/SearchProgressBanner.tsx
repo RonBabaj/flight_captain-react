@@ -92,7 +92,7 @@ export function SearchProgressBanner({
       accessibilityValue={{ min: 0, max: 100, now: a11yValue }}
     >
       <View style={[s.track, { backgroundColor: theme.isDark ? theme.cardBorder : theme.controlBg }]}>
-        <Animated.View style={[s.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
+        <Animated.View style={[s.fill, { width: progressWidth, backgroundColor: theme.buttonBg }]} />
       </View>
       <View style={s.row}>
         <ActivityIndicator size="small" color={theme.primary} />

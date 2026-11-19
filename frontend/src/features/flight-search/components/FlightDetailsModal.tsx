@@ -584,7 +584,7 @@ export function FlightDetailsModal({
             {/* ── Summary row (price + meta; RTL swaps sides) ── */}
             <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
               <View>
-                <Text style={[s.price, { color: theme.primary }]}>
+                <Text style={[s.price, { color: theme.price, fontFamily: theme.fontDisplay }]}>
                   {priceSymbol} {totalAmount.toFixed(0)}
                 </Text>
                 {passengers > 1 && (
@@ -794,11 +794,11 @@ export function FlightDetailsModal({
                     </View>
                     {seller.bookingUrl ? (
                       <TouchableOpacity
-                        style={[s.sellerBookBtn, { backgroundColor: theme.controlBg }]}
+                        style={[s.sellerBookBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
                         onPress={() => Linking.openURL(seller.bookingUrl!)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[s.sellerBookText, { color: theme.primary }]}>{t('book_now')}</Text>
+                        <Text style={[s.sellerBookText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('book_now')}</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>

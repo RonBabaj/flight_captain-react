@@ -958,11 +958,11 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               return (
                 <TouchableOpacity
                   key={String(val)}
-                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
                   onPress={() => dealsActions.setMaxStops(val)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>{label}</Text>
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: theme.buttonText, fontWeight: '600' }]}>{label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -980,11 +980,11 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               return (
                 <TouchableOpacity
                   key={dow}
-                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
                   onPress={() => dealsActions.togglePreferredDay(dow)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>{t(DAY_KEYS[dow])}</Text>
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: theme.buttonText, fontWeight: '600' }]}>{t(DAY_KEYS[dow])}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1003,11 +1003,11 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
         <View style={fl.secBody}>
           <View style={fl.chipRow}>
             <TouchableOpacity
-              style={[fl.chip, { borderColor: theme.cardBorder }, maxPrice == null && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              style={[fl.chip, { borderColor: theme.cardBorder }, maxPrice == null && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
               onPress={() => dealsActions.setMaxPrice(null)}
               activeOpacity={0.7}
             >
-              <Text style={[fl.chipText, { color: theme.text }, maxPrice == null && { color: '#fff', fontWeight: '600' }]}>{t('any_price')}</Text>
+              <Text style={[fl.chipText, { color: theme.text }, maxPrice == null && { color: theme.buttonText, fontWeight: '600' }]}>{t('any_price')}</Text>
             </TouchableOpacity>
             {highestPrice > 0 && ([0.25, 0.5, 0.75] as const).map((frac) => {
               const limit = Math.round(highestPrice * frac);
@@ -1018,11 +1018,11 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
               return (
                 <TouchableOpacity
                   key={frac}
-                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                  style={[fl.chip, { borderColor: theme.cardBorder }, active && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
                   onPress={() => dealsActions.setMaxPrice(active ? null : limit)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[fl.chipText, { color: theme.text }, active && { color: '#fff', fontWeight: '600' }]}>≤ {sym} {limit}</Text>
+                  <Text style={[fl.chipText, { color: theme.text }, active && { color: theme.buttonText, fontWeight: '600' }]}>≤ {sym} {limit}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1046,8 +1046,8 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                     onPress={() => dealsActions.toggleAirline(code)}
                     activeOpacity={0.6}
                   >
-                    <View style={[fl.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
-                      {sel && <Text style={fl.checkMark}>✓</Text>}
+                    <View style={[fl.check, { borderColor: theme.cardBorder }, sel && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}>
+                      {sel && <Text style={[fl.checkMark, { color: theme.buttonText }]}>✓</Text>}
                     </View>
                     <Text style={[fl.airlineName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
                     <Text style={[fl.airlineCount, { color: theme.textMuted }]}>{count}</Text>
@@ -1194,7 +1194,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                 </View>
                 {/* Price is on the visual-start side in RTL (left) because of row-reverse.
                     Align text to left within its own cell so it reads naturally there. */}
-                <Text style={[p.dealPrice, { color: theme.primary }, isRTL && { textAlign: 'left' }]}>
+                <Text style={[p.dealPrice, { color: theme.price, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'left' }]}>
                   {sym} {amount.toFixed(0)}
                 </Text>
               </View>
@@ -1261,7 +1261,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
             <ScrollView style={m.scroll} contentContainerStyle={m.scrollContent} bounces={false}>
               {/* Price + summary (RTL swaps sides) */}
               <View style={[m.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
-                <Text style={[m.price, { color: theme.primary }]}>
+                <Text style={[m.price, { color: theme.price, fontFamily: theme.fontDisplay }]}>
                   {(() => {
                     const { amount: a, currency: c } = getDisplayPrice(details.totalPrice.amount, details.totalPrice.currency, currency);
                     const sym = getCurrencySymbol(c);
@@ -1451,7 +1451,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           savingsCurrency={hubSummaryModal.savings.currency}
           footer={
             <TouchableOpacity
-              style={[hfm.ctaBtn, { backgroundColor: theme.primary }]}
+              style={[hfm.ctaBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
               activeOpacity={0.85}
               onPress={() => {
                 const hub = hubSummaryModal.hubAirport;
@@ -1459,7 +1459,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
                 handleViewOptimizedHub(hub);
               }}
             >
-              <Text style={hfm.ctaText}>
+              <Text style={[hfm.ctaText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
                 {t('search_via')} {hubSummaryModal.hubAirport}
               </Text>
             </TouchableOpacity>
@@ -1727,7 +1727,7 @@ const fl = StyleSheet.create({
 
   airlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  checkMark: { fontSize: 12, fontWeight: '700' },
   airlineName: { fontSize: 13, flex: 1 },
   airlineCount: { fontSize: 12 },
 
@@ -1739,7 +1739,7 @@ const fl = StyleSheet.create({
 
 const hfm = StyleSheet.create({
   ctaBtn: { borderRadius: 999, paddingVertical: 13, alignItems: 'center' },
-  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  ctaText: { fontSize: 15, fontWeight: '700' },
 });
 
 // ─── Explore "Anywhere" destination picker sheet styles ───────────────────────

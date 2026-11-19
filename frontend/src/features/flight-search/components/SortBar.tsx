@@ -40,6 +40,7 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
           {
             backgroundColor: theme.controlBg,
             borderColor: theme.cardBorder,
+            borderRadius: theme.radiusMd,
           },
           isRTL && { flexDirection: 'row-reverse' },
         ]}

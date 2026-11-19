@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../../theme/ThemeContext';
+import { layout, useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
@@ -31,7 +31,7 @@ import { updateSearchUrl } from '../../hooks/useSearchParams';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const MAX_CONTENT = 1040;
+const MAX_CONTENT = layout.maxContentWidth;
 
 function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
   const sized = moodImageUrlForVariant(uri, 'card');
@@ -139,7 +139,7 @@ export function LandingScreen() {
         />
         <View
           pointerEvents="none"
-          style={[styles.horizonGlow, { backgroundColor: theme.primary + '28' }]}
+          style={[styles.horizonGlow, { backgroundColor: theme.atmosphere }]}
         />
         <View
           style={[
