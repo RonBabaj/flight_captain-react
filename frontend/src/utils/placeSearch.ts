@@ -6,7 +6,12 @@ import {
   type AirportCityResult,
   type AirportCityType,
 } from '../types';
-import { searchAirportsLocal, getAirportEntry, PLACE_SEARCH_LIMIT } from '../data/airports';
+import {
+  searchAirportsLocal,
+  getAirportEntry,
+  getCityDisplayName,
+  PLACE_SEARCH_LIMIT,
+} from '../data/airports';
 export { PLACE_SEARCH_LIMIT } from '../data/airports';
 import {
   COUNTRY_DIRECTORY,
@@ -205,6 +210,24 @@ export async function flushActiveAutocomplete(): Promise<void> {
     // ignore
   }
   await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+/** Human place name for summaries and headers (no IATA suffix). */
+export function destinationLabelForCode(
+  code: string | undefined,
+  language: LanguageCode,
+  t: (key: string) => string,
+): string {
+  const upper = (code || '').trim().toUpperCase();
+  if (!upper) return '';
+  if (upper === ANYWHERE_CODE) return t('anywhere');
+  if (isCountryDestination(upper)) {
+    const cc = parseCountryDestination(upper);
+    const country = cc ? getCountryEntry(cc) : null;
+    return country ? getCountryDisplayName(country, language) : upper;
+  }
+  const entry = getAirportEntry(upper);
+  return entry ? getCityDisplayName(entry, language) : upper;
 }
 
 export function formatPlaceCodeForDisplay(

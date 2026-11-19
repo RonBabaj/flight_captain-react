@@ -58,7 +58,7 @@ import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { classicSearchPayload } from '../../../utils/skyscanner';
 import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
-import { flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { destinationLabelForCode, flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import {
   findCheapestOptionForParams,
@@ -1406,14 +1406,20 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   if ((isOpenJaw || extraLegs.length > 0) && params?.origin && params?.destination) {
     const retFrom = (params.returnOrigin || params.destination).toUpperCase();
     const retTo = (params.returnDestination || params.origin).toUpperCase();
-    summaryParts.push(`${params.origin}→${params.destination}`);
+    summaryParts.push(
+      `${destinationLabelForCode(params.origin, language, t)}→${destinationLabelForCode(params.destination, language, t)}`,
+    );
     extraLegs.forEach((l) => {
-      summaryParts.push(`${l.origin.toUpperCase()}→${l.destination.toUpperCase()}`);
+      summaryParts.push(
+        `${destinationLabelForCode(l.origin, language, t)}→${destinationLabelForCode(l.destination, language, t)}`,
+      );
     });
-    summaryParts.push(`${retFrom}→${retTo}`);
+    summaryParts.push(
+      `${destinationLabelForCode(retFrom, language, t)}→${destinationLabelForCode(retTo, language, t)}`,
+    );
   } else {
-    if (params?.origin) summaryParts.push(params.origin);
-    if (params?.destination) summaryParts.push(params.destination);
+    if (params?.origin) summaryParts.push(destinationLabelForCode(params.origin, language, t));
+    if (params?.destination) summaryParts.push(destinationLabelForCode(params.destination, language, t));
   }
   if (params?.departureDate) summaryParts.push(params.departureDate);
   if (params?.returnDate) summaryParts.push(params.returnDate);

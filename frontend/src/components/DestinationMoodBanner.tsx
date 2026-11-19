@@ -23,6 +23,7 @@ import {
 import { useBreakpoint } from '../hooks/useResponsive';
 import { ANYWHERE_CODE } from '../types';
 import type { CreateSearchSessionRequest } from '../types';
+import { destinationLabelForCode } from '../utils/placeSearch';
 
 type Variant = 'hero' | 'form' | 'results' | 'compact';
 
@@ -122,7 +123,7 @@ export function DestinationMoodBanner({
   const entry = getAirportEntry(destinationCode);
   const cityLabel =
     labelOverride ||
-    (entry ? getCityDisplayName(entry, language) : mood.labelEn) ||
+    (entry ? getCityDisplayName(entry, language) : destinationLabelForCode(destinationCode, language, t)) ||
     mood.labelEn;
 
   const height =
