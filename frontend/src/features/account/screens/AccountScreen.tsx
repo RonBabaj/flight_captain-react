@@ -28,10 +28,10 @@ export function AccountScreen() {
       <SettingsPageLayout title={t('account_page_title')} subtitle={t('account_guest_subtitle')}>
         <View style={styles.guestActions}>
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+            style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
             onPress={() => navigation.navigate('Login' as never)}
           >
-            <Text style={styles.primaryBtnText}>{t('auth_sign_in')}</Text>
+            <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('auth_sign_in')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryBtn, { borderColor: theme.cardBorder }]}
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  primaryBtnText: { fontWeight: '600', fontSize: 15 },
   secondaryBtn: {
     borderWidth: 1,
     borderRadius: 10,

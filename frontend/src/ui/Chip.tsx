@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface ChipProps {
@@ -17,7 +17,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <Text
       style={[
         styles.label,
-        { color: active ? theme.onPrimary : theme.text, fontFamily: theme.fontBody },
+        { color: active ? theme.buttonText : theme.text, fontFamily: theme.fontBody },
         active && styles.labelActive,
       ]}
     >
@@ -27,17 +27,16 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
 
   if (!onPress) {
     return (
-      <TouchableOpacity
+      <View
         style={[
           styles.chip,
-          { backgroundColor: active ? theme.primary : theme.controlBg, borderColor: active ? theme.primary : theme.cardBorder },
+          { backgroundColor: active ? theme.buttonBg : theme.controlBg, borderColor: active ? theme.buttonBg : theme.cardBorder },
           style,
         ]}
-        disabled
         accessibilityRole="text"
       >
         {content}
-      </TouchableOpacity>
+      </View>
     );
   }
 
@@ -45,7 +44,7 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
     <TouchableOpacity
       style={[
         styles.chip,
-        { backgroundColor: active ? theme.primary : theme.controlBg, borderColor: active ? theme.primary : theme.cardBorder },
+        { backgroundColor: active ? theme.buttonBg : theme.controlBg, borderColor: active ? theme.buttonBg : theme.cardBorder },
         style,
       ]}
       onPress={onPress}

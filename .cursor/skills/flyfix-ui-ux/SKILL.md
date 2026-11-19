@@ -1,93 +1,84 @@
 ---
 name: flyfix-ui-ux
 description: >-
-  Fly-Fix product UI/UX language — boarding-pass color system, anti-AI-generic
-  visuals, results chrome, destination mood photos, and responsive layout rules.
-  Use when changing frontend design, theme tokens, landing, search, results,
-  cards, sort/filter chrome, typography, or motion.
+  Fly-Fix product UI/UX language — evolved boarding-pass system, aviation navy +
+  signal coral CTAs, anti-AI-generic visuals, results chrome, destination mood
+  photos, and responsive layout rules. Use when changing frontend design, theme
+  tokens, landing, search, results, cards, sort/filter chrome, typography, or
+  motion.
 ---
 
 # Fly-Fix UI / UX
 
 Apply this skill for any visual or interaction change in `frontend/`.
 
-For a general design-studio pass (typography, restraint, anti-template critique), also read **`.cursor/skills/frontend-design/SKILL.md`** ([Anthropic frontend-design](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md)). Fly-Fix tokens win when they conflict with generic defaults.
+For a general design-studio pass (typography, restraint, anti-template critique), also read **`.cursor/skills/frontend-design/SKILL.md`**. Fly-Fix tokens win when they conflict with generic defaults.
 
 ## Design north star
 
-**Boarding-pass travel tool** — calm paper/ink surfaces, one navy action color, amber for fares, real destination photography. Feels like a modern airline product, not a neon SaaS landing page.
+**Premium travel utility** — evolved from the boarding-pass look: **Cloud Paper** surfaces, **Aviation Navy** ink, **Signal Coral** for primary actions, **Deep Evergreen** success, real destination photography. Not neon SaaS or purple-gradient AI templates.
+
+### Phase 0 decisions (locked)
+
+| Topic | Choice |
+|-------|--------|
+| Primary CTA | Signal Coral `#FF735C` (navy label on coral for WCAG) |
+| Typography | **Manrope** (display) + **Inter** (body) — full switch |
+| Default theme | **Light**; ship **light + dark** in Phase 1 |
+| Copy | Keep current marketing copy |
+| Explore / architecture | Unchanged; hotels out of scope |
+| Rebrand | Evolve boarding-pass + new palette (both, not hard swap) |
 
 ### Avoid (AI-vibe tells)
 
-- Neon teal / cyan primary on charcoal dark mode as the default look
+- Neon teal / cyan primary on charcoal as the default look
 - Purple → indigo gradients, glow shadows, glassmorphism stacks
-- Cream `#F4F1EA` + terracotta + display serif “editorial AI” cluster
+- Cream + terracotta + display serif “editorial AI” cluster
 - `rounded-full` pill forests, multi-layer drop shadows, emoji decoration
-- Flat single-hue “AI dashboard” with no brand hierarchy
 - Crowding the first viewport with stats, chips, and promo strips
 
 ### Prefer
 
-- Light mode as the default experience; dark is a cabin option
-- Restrained **ink navy** CTAs (`theme.primary` / `theme.buttonBg`)
-- **Amber fares** via `theme.price` — prices are not the same color as CTAs
+- Light mode as the default; dark is a paired cabin theme
+- **Coral** primary actions (`theme.buttonBg`); **navy** links/headings (`theme.primary`)
+- **Navy** (light) / **paper** (dark) for fares via `theme.price` — not coral
 - Paper neutrals (`screenBg`, `cardBg`, hairline borders)
-- Modest radii (`theme.radiusMd` ≈ 10, `radiusLg` ≈ 14)
-- **Archivo** (display — ticket/terminal) + **IBM Plex Sans** (body — UI/fares) on web
-- Real destination photos for mood — see `destinationMood.ts`
+- Radii `theme.radiusMd` ≈ 12, `radiusLg` ≈ 16
+- **Manrope** + **Inter** on web
+- Real destination photos — `destinationMood.ts`
 
 ## Tokens (source of truth)
 
-`frontend/src/theme/ThemeContext.tsx`
+- Palette & scale: `frontend/src/theme/tokens.ts`
+- Runtime themes: `frontend/src/theme/ThemeContext.tsx`
+- Motion helpers: `frontend/src/theme/motion.ts`
 
 | Token | Role |
 |-------|------|
-| `primary` / `buttonBg` | Actions, active segments, links |
+| `primary` | Brand ink, links, headings |
+| `buttonBg` / `buttonText` | Primary actions (coral + navy text) |
 | `price` | Money / fare emphasis only |
-| `atmosphere` | Soft hero wash — not a second brand color |
-| `controlBg` | Segment tracks, chips idle, inputs secondary |
+| `atmosphere` | Soft hero wash |
+| `controlBg` | Segment tracks, chips idle |
 | `fontDisplay` / `fontBody` | Type roles |
 
-Do not hardcode indigo/teal hex in components. Prefer theme tokens.
+Do not hardcode legacy navy `#163A5F` or teal in components. Prefer theme tokens.
 
 ## Screen rules
 
-### Landing
-
-- Brand-first hero: **Fly-Fix** dominates; one headline, one short line, one CTA group
-- No cards in the hero; no overlay stickers on hero media
-- **Get in the mood** strip below the fold — horizontal destination photos that prefill Search
-- Features: one job per section, stacked rows (not a card grid)
-
-### Search form
-
-- When `destination` is set, show `DestinationMoodBanner` (not in compact sidebar)
-- Keep form chrome quiet — mood photo carries atmosphere
-
-### Results
-
-- Mood banner under summary when destination is known
-- Sort = **segmented control** (`SortBar`) — equal-width segments, no wrapping chips
-- Mobile toolbar: sort full-width, then Nearby hubs / Filters on the next row
-- Flight cards: times + route hierarchy; **Select** CTA; price uses `theme.price`
-- Cheaper cities: quiet chip + folded progressive disclosure
+(Unchanged from prior skill — landing brand-first, search mood banner, results segment sort, responsive breakpoints in `useResponsive.ts`.)
 
 ## Responsive
 
-`frontend/src/hooks/useResponsive.ts`
+`frontend/src/hooks/useResponsive.ts` — `useContentGutter()`, `useIsDesktop()`, `useIsNarrowPhone()`.
 
-- `mobile` < 720, `tablet` < 1100, `desktop` ≥ 1100
-- Prefer stacking over squeezing; never truncate sort labels
-
-## Motion
-
-- Short, purposeful entrance (brand fade/slide, mood fade-in)
-- No perpetual glow or bounce on chrome
+- Multi-column results / month-deals sidebars at **desktop (≥1100)** only; nav drawer below desktop.
+- Shared gutters 20 / 24 / 48 px from design tokens.
 
 ## Checklist before shipping UI
 
 1. Could this first viewport belong to another brand if nav were removed? If yes, strengthen brand.
-2. Are prices amber (`theme.price`) and CTAs navy/sky (`theme.buttonBg`)?
-3. Any leftover teal/purple hardcoded hex?
-4. Sort still one clean segment track on mobile width ~390?
-5. Destination mood photo loads (Unsplash URL HEAD 200) or gradient fallback shows?
+2. Are prices on `theme.price` and primary CTAs on coral (`theme.buttonBg`)?
+3. Any leftover teal/purple or old Archivo-only assumptions?
+4. Sort segment active state uses coral, not navy fill?
+5. Destination mood photo loads or gradient fallback shows?

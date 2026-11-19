@@ -21,6 +21,7 @@ import {
   type MoodImageVariant,
 } from '../data/destinationMood';
 import { useBreakpoint } from '../hooks/useResponsive';
+import { motion, useReducedMotion } from '../theme/motion';
 import { ANYWHERE_CODE } from '../types';
 import type { CreateSearchSessionRequest } from '../types';
 import { destinationLabelForCode } from '../utils/placeSearch';
@@ -67,7 +68,8 @@ export function DestinationMoodBanner({
   const { language, isRTL, t } = useLocale();
   const bp = useBreakpoint();
   const mood = resolveDestinationMood(destinationCode);
-  const opacity = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
+  const opacity = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const hostRef = useRef<View | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
@@ -79,10 +81,14 @@ export function DestinationMoodBanner({
   useEffect(() => {
     setImgFailed(false);
     setFallbackFailed(false);
-    opacity.setValue(0);
     if (!mood) return;
-    Animated.timing(opacity, { toValue: 1, duration: 420, useNativeDriver: true }).start();
-  }, [mood?.imageUrl, opacity]);
+    if (reducedMotion) {
+      opacity.setValue(1);
+      return;
+    }
+    opacity.setValue(0);
+    Animated.timing(opacity, { toValue: 1, duration: motion.slowMs + 100, useNativeDriver: true }).start();
+  }, [mood?.imageUrl, opacity, reducedMotion]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || shouldLoadImage) return;

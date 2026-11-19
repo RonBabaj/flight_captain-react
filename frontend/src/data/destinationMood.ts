@@ -185,7 +185,7 @@ function moodFromPool(key: string, labelEn: string): DestinationMood {
   return {
     labelEn,
     imageUrl,
-    accent: '#163A5F',
+    accent: '#172A40',
   };
 }
 
@@ -199,12 +199,12 @@ const BY_CODE: Record<string, DestinationMood> = {
   PRG: {
     labelEn: 'Prague',
     imageUrl: unsplash('photo-1519677100203-a0e668c92439'),
-    accent: '#163A5F',
+    accent: '#172A40',
   },
   PAR: {
     labelEn: 'Paris',
     imageUrl: unsplash('photo-1502602898657-3e91760cbb34'),
-    accent: '#163A5F',
+    accent: '#172A40',
   },
   CDG: {
     labelEn: 'Paris',
@@ -446,7 +446,7 @@ const BY_CODE: Record<string, DestinationMood> = {
     labelEn: 'Salzburg',
     // Fortress / Alpine old-town mood (distinct from Vienna).
     imageUrl: unsplash('photo-1571896349842-33c89424de2d'),
-    accent: '#163A5F',
+    accent: '#172A40',
   },
   INN: {
     labelEn: 'Innsbruck',

@@ -40,6 +40,7 @@ export function Button({
 
   const containerStyle: ViewStyle[] = [
     styles.base,
+    { borderRadius: theme.radiusMd },
     size === 'sm' ? styles.sm : styles.md,
     variant === 'primary' && { backgroundColor: theme.buttonBg },
     variant === 'secondary' && {
@@ -54,7 +55,7 @@ export function Button({
 
   const labelColor =
     variant === 'primary'
-      ? theme.onPrimary
+      ? theme.buttonText
       : variant === 'secondary'
         ? theme.text
         : theme.primary;

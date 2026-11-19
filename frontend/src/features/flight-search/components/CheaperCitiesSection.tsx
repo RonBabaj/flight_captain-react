@@ -18,7 +18,6 @@ export interface CheaperCitiesOption {
 interface Props {
   loading: boolean;
   options: CheaperCitiesOption[];
-  isMobile: boolean;
   folded: boolean;
   onToggleFold: () => void;
   onView: (hub: string) => void;
@@ -36,7 +35,6 @@ const MAX_VISIBLE = 5;
 export function CheaperCitiesSection({
   loading,
   options,
-  isMobile,
   folded,
   onToggleFold,
   onView,

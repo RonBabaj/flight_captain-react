@@ -161,14 +161,14 @@ export function UserManagementPanel() {
           ))}
         </View>
         <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+          style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
           onPress={handleCreate}
           disabled={creating || !newEmail.trim() || newPassword.length < 8}
         >
           {creating ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.primaryBtnText}>{t('settings_users_create_button')}</Text>
+            <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('settings_users_create_button')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -221,6 +221,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  primaryBtnText: { fontWeight: '600', fontSize: 15 },
   errorText: { fontSize: 13, marginTop: 4 },
 });

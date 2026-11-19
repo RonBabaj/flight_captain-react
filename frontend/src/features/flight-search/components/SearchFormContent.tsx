@@ -63,7 +63,7 @@ export function SearchFormContent({
           : [
               formCardStyles.card,
               compact && formCardStyles.cardCompact,
-              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
             ]
       }
     >
@@ -94,7 +94,7 @@ export function SearchFormContent({
           return (
             <TouchableOpacity
               key={tt}
-              style={[formCardStyles.tab, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+              style={[formCardStyles.tab, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
               onPress={() => setTripType(tt)}
               activeOpacity={0.7}
             >

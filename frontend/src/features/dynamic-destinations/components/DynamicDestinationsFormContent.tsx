@@ -72,7 +72,7 @@ export function DynamicDestinationsFormContent({
           : [
               formCardStyles.card,
               compact && formCardStyles.cardCompact,
-              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
             ]
       }
     >

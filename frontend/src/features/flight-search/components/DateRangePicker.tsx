@@ -179,7 +179,7 @@ export function DateRangePicker({
                   style={[
                     styles.cell,
                     isPast && { opacity: 0.3 },
-                    selected && { backgroundColor: theme.primary, borderRadius: 999 },
+                    selected && { backgroundColor: theme.buttonBg, borderRadius: 999 },
                   ]}
                   disabled={isPast}
                   onPress={() => handleDayPress(date)}
@@ -188,7 +188,7 @@ export function DateRangePicker({
                     style={[
                       styles.dayNum,
                       { color: isPast ? theme.textMuted : theme.text },
-                      selected && { color: '#fff' },
+                      selected && { color: theme.buttonText },
                     ]}
                   >
                     {new Date(date + 'T00:00:00Z').getUTCDate()}

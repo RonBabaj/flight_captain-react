@@ -10,6 +10,7 @@ import {
   SEARCH_BUTTON_ALMOST_DONE,
   SEARCH_BUTTON_PHRASES,
 } from './searchLoadingPhrases';
+import { motion, useReducedMotion } from '../../theme/motion';
 
 export interface SearchSubmitButtonProps {
   label: string;
@@ -37,6 +38,7 @@ export function SearchSubmitButton({
   const phrases = getPhrasesForLanguage(SEARCH_BUTTON_PHRASES, language);
   const almostDone = getAlmostDonePhrase(SEARCH_BUTTON_ALMOST_DONE, language);
   const [phraseIdx, setPhraseIdx] = useState(0);
+  const reducedMotion = useReducedMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -45,20 +47,20 @@ export function SearchSubmitButton({
       fadeAnim.setValue(1);
       return;
     }
-    if (nearComplete) {
+    if (nearComplete || reducedMotion) {
       fadeAnim.setValue(1);
       return;
     }
     const cycle = () => {
       Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: motion.fastMs + 70, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: motion.fastMs + 70, useNativeDriver: true }),
       ]).start();
       setPhraseIdx((i) => (i + 1) % phrases.length);
     };
     const id = setInterval(cycle, 2000);
     return () => clearInterval(id);
-  }, [loading, phrases.length, fadeAnim, nearComplete]);
+  }, [loading, phrases.length, fadeAnim, nearComplete, reducedMotion]);
 
   return (
     <TouchableOpacity

@@ -4,6 +4,7 @@ import type { Theme } from '../../theme/ThemeContext';
 import type { ProviderSearchStats, SearchProgress } from '../../types';
 import { pickSearchStatusPhrase } from './searchLoadingPhrases';
 import { searchProgressRatio } from './searchProgressRatio';
+import { motion, useReducedMotion } from '../../theme/motion';
 
 interface SearchProgressBannerProps {
   language: string;
@@ -27,31 +28,33 @@ export function SearchProgressBanner({
   const [phraseIdx, setPhraseIdx] = useState(0);
   const [startedAt] = useState(() => Date.now());
   const [tick, setTick] = useState(0);
+  const reducedMotion = useReducedMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0.06)).current;
   const lastRatioRef = useRef(0.06);
 
   // Soft crawl tick (~1s) so the bar advances between provider polls.
   useEffect(() => {
+    if (reducedMotion) return;
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [reducedMotion]);
 
   useEffect(() => {
-    if (nearComplete) {
+    if (nearComplete || reducedMotion) {
       fadeAnim.setValue(1);
       return;
     }
     const cycle = () => {
       Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: motion.fastMs, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: motion.fastMs, useNativeDriver: true }),
       ]).start();
       setPhraseIdx((i) => i + 1);
     };
     const id = setInterval(cycle, 2200);
     return () => clearInterval(id);
-  }, [fadeAnim, nearComplete]);
+  }, [fadeAnim, nearComplete, reducedMotion]);
 
   // Monotonic fill toward the latest target ratio.
   useEffect(() => {
@@ -63,7 +66,7 @@ export function SearchProgressBanner({
     lastRatioRef.current = target;
     Animated.timing(progressAnim, {
       toValue: target,
-      duration: 450,
+      duration: reducedMotion ? 0 : motion.standardMs + 230,
       useNativeDriver: false,
     }).start();
   }, [
@@ -92,7 +95,7 @@ export function SearchProgressBanner({
       accessibilityValue={{ min: 0, max: 100, now: a11yValue }}
     >
       <View style={[s.track, { backgroundColor: theme.isDark ? theme.cardBorder : theme.controlBg }]}>
-        <Animated.View style={[s.fill, { width: progressWidth, backgroundColor: theme.primary }]} />
+        <Animated.View style={[s.fill, { width: progressWidth, backgroundColor: theme.buttonBg }]} />
       </View>
       <View style={s.row}>
         <ActivityIndicator size="small" color={theme.primary} />

@@ -13,12 +13,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../../theme/ThemeContext';
+import { layout, useTheme } from '../../theme/ThemeContext';
+import { motion, useReducedMotion } from '../../theme/motion';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
-import { useBreakpoint } from '../../hooks/useResponsive';
+import { useBreakpoint, useContentGutter } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
   AIRPORT_FALLBACK_IMAGE,
@@ -31,7 +32,7 @@ import { updateSearchUrl } from '../../hooks/useSearchParams';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const MAX_CONTENT = 1040;
+const MAX_CONTENT = layout.maxContentWidth;
 
 function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
   const sized = moodImageUrlForVariant(uri, 'card');
@@ -64,22 +65,30 @@ export function LandingScreen() {
   const insets = useSafeAreaInsets();
   const breakpoint = useBreakpoint();
   const isMobile = breakpoint === 'mobile';
+  const gutter = useContentGutter();
   useDocumentTitle(t('nav_home'));
 
   const brandOpacity = useRef(new Animated.Value(0)).current;
   const brandY = useRef(new Animated.Value(18)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
   const [showStickyCta, setShowStickyCta] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) {
+      brandOpacity.setValue(1);
+      brandY.setValue(0);
+      ctaOpacity.setValue(1);
+      return;
+    }
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(brandOpacity, { toValue: 1, duration: 520, useNativeDriver: true }),
-        Animated.timing(brandY, { toValue: 0, duration: 520, useNativeDriver: true }),
+        Animated.timing(brandOpacity, { toValue: 1, duration: motion.slowMs + 200, useNativeDriver: true }),
+        Animated.timing(brandY, { toValue: 0, duration: motion.slowMs + 200, useNativeDriver: true }),
       ]),
-      Animated.timing(ctaOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+      Animated.timing(ctaOpacity, { toValue: 1, duration: motion.standardMs + 160, useNativeDriver: true }),
     ]).start();
-  }, [brandOpacity, brandY, ctaOpacity]);
+  }, [brandOpacity, brandY, ctaOpacity, reducedMotion]);
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');
@@ -139,7 +148,7 @@ export function LandingScreen() {
         />
         <View
           pointerEvents="none"
-          style={[styles.horizonGlow, { backgroundColor: theme.primary + '28' }]}
+          style={[styles.horizonGlow, { backgroundColor: theme.atmosphere }]}
         />
         <View
           style={[
@@ -147,7 +156,7 @@ export function LandingScreen() {
             {
               maxWidth: MAX_CONTENT,
               paddingTop: isMobile ? 24 : 40,
-              paddingHorizontal: isMobile ? 0 : 4,
+              paddingHorizontal: gutter,
             },
           ]}
         >
@@ -228,7 +237,7 @@ export function LandingScreen() {
       </View>
 
       {/* Mood destinations — below hero, one job: inspire */}
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <Text
           style={[
             styles.sectionTitle,
@@ -277,7 +286,7 @@ export function LandingScreen() {
       </View>
 
       {/* Why Fly-Fix */}
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <Text
           style={[
             styles.sectionTitle,
@@ -308,7 +317,7 @@ export function LandingScreen() {
         ))}
       </View>
 
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <TouchableOpacity
           style={[
             styles.btnPrimary,
@@ -337,6 +346,7 @@ export function LandingScreen() {
               backgroundColor: theme.screenBg,
               borderTopColor: theme.cardBorder,
               paddingBottom: Math.max(insets.bottom, 10),
+              paddingHorizontal: gutter,
             },
           ]}
         >
@@ -370,7 +380,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     paddingBottom: 40,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
   },
   horizonBand: {
     position: 'absolute',

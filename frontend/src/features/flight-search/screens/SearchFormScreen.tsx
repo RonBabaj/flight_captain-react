@@ -13,7 +13,8 @@ import { useSearchParams, updateSearchUrl, parseSearchParamsFromUrl } from '../.
 import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { classicSearchPayload } from '../../../utils/skyscanner';
-import { useBreakpoint } from '../../../hooks/useResponsive';
+import { useBreakpoint, useContentGutter } from '../../../hooks/useResponsive';
+import { layout } from '../../../theme/tokens';
 import { screenError } from '../../../utils/screenError';
 
 const defaultParams: CreateSearchSessionRequest = {
@@ -36,6 +37,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   const { currency, locale, t } = useLocale();
   const { paramsFromUrl, updateUrl } = useSearchParams();
   const breakpoint = useBreakpoint();
+  const gutter = useContentGutter();
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('round-trip');
   const [params, setParams] = useState<CreateSearchSessionRequest>(() => {
     const cached = getCachedSearch();
@@ -195,8 +197,8 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
         contentContainerStyle={[
           styles.content,
           {
-            paddingHorizontal: breakpoint === 'mobile' ? 14 : 24,
-            maxWidth: breakpoint === 'desktop' ? 680 : 640,
+            paddingHorizontal: gutter,
+            maxWidth: breakpoint === 'desktop' ? 720 : layout.maxContentWidth,
           },
         ]}
         keyboardShouldPersistTaps="handled"

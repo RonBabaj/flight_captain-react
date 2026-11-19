@@ -5,6 +5,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import type { Theme } from '../../../theme/ThemeContext';
+import { motion, useReducedMotion } from '../../../theme/motion';
 
 function Bone({
   theme,
@@ -100,18 +101,23 @@ export function ResultsSkeletonCard({ theme }: { theme: Theme }) {
 }
 
 export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?: number }) {
-  const pulse = useRef(new Animated.Value(0.55)).current;
+  const reducedMotion = useReducedMotion();
+  const pulse = useRef(new Animated.Value(reducedMotion ? 0.85 : 0.55)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      pulse.setValue(0.85);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.55, duration: 750, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: motion.standardMs + 530, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.55, duration: motion.standardMs + 530, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [pulse, reducedMotion]);
 
   return (
     <Animated.View
@@ -129,7 +135,7 @@ export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?
 const sk = StyleSheet.create({
   list: { flex: 1, paddingTop: 4, paddingBottom: 24 },
   card: {
-    marginHorizontal: 12,
+    marginHorizontal: 0,
     marginVertical: 5,
     padding: 14,
     borderRadius: 14,

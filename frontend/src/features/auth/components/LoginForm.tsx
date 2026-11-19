@@ -95,14 +95,14 @@ export function LoginForm({
       />
       {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+        style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
         onPress={handleSignIn}
         disabled={submitting || !email.trim() || !password}
       >
         {submitting ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.buttonText} />
         ) : (
-          <Text style={styles.primaryBtnText}>{t('auth_sign_in')}</Text>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('auth_sign_in')}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -211,14 +211,14 @@ export function RegisterForm({
       />
       {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+        style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
         onPress={handleRegister}
         disabled={submitting || !email.trim() || !password || !confirmPassword}
       >
         {submitting ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.buttonText} />
         ) : (
-          <Text style={styles.primaryBtnText}>{t('auth_create_account')}</Text>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('auth_create_account')}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -317,14 +317,14 @@ export function ChangePasswordForm({ compact }: { compact?: boolean }) {
       {error ? <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text> : null}
       {message ? <Text style={[styles.successText, { color: theme.primary }]}>{message}</Text> : null}
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+        style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
         onPress={handleSubmit}
         disabled={submitting || !currentPassword || !newPassword || !confirmPassword}
       >
         {submitting ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.buttonText} />
         ) : (
-          <Text style={styles.primaryBtnText}>{t('auth_change_password_button')}</Text>
+          <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('auth_change_password_button')}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  primaryBtnText: { fontWeight: '600', fontSize: 15 },
   errorText: { marginTop: 4, fontSize: 13 },
   successText: { marginTop: 4, fontSize: 13 },
 });

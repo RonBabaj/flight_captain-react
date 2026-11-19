@@ -132,7 +132,7 @@ export function PassengerCabinPicker({
                   style={[
                     styles.cabinBtn,
                     { backgroundColor: theme.cardBg, borderColor: theme.inputBorder },
-                    cabinClass === c && { backgroundColor: theme.primary, borderColor: theme.primary },
+                    cabinClass === c && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg },
                   ]}
                   onPress={() => onCabinChange(c)}
                 >
@@ -140,7 +140,7 @@ export function PassengerCabinPicker({
                     style={[
                       styles.cabinBtnText,
                       { color: theme.text },
-                      cabinClass === c && { color: '#fff' },
+                      cabinClass === c && { color: theme.buttonText },
                     ]}
                   >
                     {t(c === 'ECONOMY' ? 'cabin_economy' : c === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : c === 'BUSINESS' ? 'cabin_business' : 'cabin_first')}
@@ -151,13 +151,13 @@ export function PassengerCabinPicker({
             </>
             )}
             <TouchableOpacity
-              style={[styles.doneBtn, { backgroundColor: theme.primary }]}
+              style={[styles.doneBtn, { backgroundColor: theme.buttonBg }]}
               onPress={() => {
                 setOpen(false);
                 onDone?.();
               }}
             >
-              <Text style={styles.doneBtnText}>{t('done')}</Text>
+              <Text style={[styles.doneBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('done')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -217,5 +217,5 @@ const styles = StyleSheet.create({
   },
   cabinBtnText: { fontSize: 14 },
   doneBtn: { marginTop: 24, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  doneBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  doneBtnText: { fontSize: 17, fontWeight: '600' },
 });

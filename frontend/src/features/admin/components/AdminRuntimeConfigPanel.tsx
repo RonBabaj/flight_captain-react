@@ -201,14 +201,14 @@ export function AdminRuntimeConfigPanel() {
           <Text style={{ color: theme.text }}>{t('admin_reset_defaults')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+          style={[styles.primaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
           onPress={handleSave}
           disabled={saving || loading}
         >
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.primaryBtnText}>{t('admin_save')}</Text>
+            <Text style={[styles.primaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>{t('admin_save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     minWidth: 120,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  primaryBtnText: { fontWeight: '600', fontSize: 15 },
   secondaryBtn: {
     borderWidth: 1,
     borderRadius: 10,

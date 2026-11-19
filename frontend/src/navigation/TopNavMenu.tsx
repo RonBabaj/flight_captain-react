@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { useSearchStore } from '../store';
-import { useIsMobile } from '../hooks/useResponsive';
+import { useIsCompactLayout } from '../hooks/useResponsive';
 import type { RootStackParamList } from './types';
 
 type RouteProps = RouteProp<RootStackParamList, keyof RootStackParamList>;
@@ -90,7 +90,8 @@ export function TopNavMenu() {
   const sessionId = useSearchStore((s) => s.sessionId);
   const currentRoot = route.name;
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const isMobile = useIsMobile();
+  /** Drawer nav below desktop — avoids cramming four tabs at tablet widths (720–1099). */
+  const navDrawer = useIsCompactLayout();
 
   const nestedName =
     currentRoot === 'Search' || currentRoot === 'DynamicDestinations' || currentRoot === 'MonthDeals'
@@ -190,7 +191,7 @@ export function TopNavMenu() {
           },
         ]}
       >
-        {isMobile ? (
+        {navDrawer ? (
           <>
             <View style={[styles.mobileSide, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity
@@ -219,22 +220,22 @@ export function TopNavMenu() {
             </View>
             <View style={styles.menuWrap}>
               <TouchableOpacity style={styles.tab} onPress={handleGoToHome} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isHome && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isHome && { color: theme.tabActive }]}>
                   {t('nav_home')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToSearch} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isSearch && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isSearch && { color: theme.tabActive }]}>
                   {t('nav_search')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToDeals} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isDeals && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDeals && { color: theme.tabActive }]}>
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToDynamic} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isDynamic && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDynamic && { color: theme.tabActive }]}>
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
@@ -249,22 +250,22 @@ export function TopNavMenu() {
             </View>
             <View style={styles.menuWrap}>
               <TouchableOpacity style={styles.tab} onPress={handleGoToHome} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isHome && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isHome && { color: theme.tabActive }]}>
                   {t('nav_home')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToSearch} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isSearch && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isSearch && { color: theme.tabActive }]}>
                   {t('nav_search')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToDeals} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isDeals && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDeals && { color: theme.tabActive }]}>
                   {t('nav_monthly_deals')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tab} onPress={handleGoToDynamic} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive }, isDynamic && { color: theme.tabActive }]}>
+                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDynamic && { color: theme.tabActive }]}>
                   {t('nav_dynamic_destinations')}
                 </Text>
               </TouchableOpacity>
@@ -274,7 +275,7 @@ export function TopNavMenu() {
         )}
       </View>
 
-      {isMobile && (
+      {navDrawer && (
         <Modal visible={showMobileMenu} transparent animationType="slide">
           <Pressable style={styles.mobileMenuOverlay} onPress={closeMobileMenu}>
             <View
