@@ -58,7 +58,8 @@ import { clampExploreSearchDates } from '../../../utils/bookableDates';
 import { classicSearchPayload } from '../../../utils/skyscanner';
 import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
-import { destinationLabelForCode, flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { buildResultsSearchSummary } from '../../../utils/searchSummaryDisplay';
 import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
 import {
   findCheapestOptionForParams,
@@ -1399,41 +1400,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   }
 
   const params = storeParams;
-  const summaryParts: string[] = [];
-  const extraLegs = (params?.extraLegs ?? []).filter((l) => (l.origin || '').trim() && (l.destination || '').trim());
-  const isOpenJaw =
-    !!(params?.returnOrigin && params.returnOrigin.toUpperCase() !== (params.destination || '').toUpperCase());
-  if ((isOpenJaw || extraLegs.length > 0) && params?.origin && params?.destination) {
-    const retFrom = (params.returnOrigin || params.destination).toUpperCase();
-    const retTo = (params.returnDestination || params.origin).toUpperCase();
-    summaryParts.push(
-      `${destinationLabelForCode(params.origin, language, t)}→${destinationLabelForCode(params.destination, language, t)}`,
-    );
-    extraLegs.forEach((l) => {
-      summaryParts.push(
-        `${destinationLabelForCode(l.origin, language, t)}→${destinationLabelForCode(l.destination, language, t)}`,
-      );
-    });
-    summaryParts.push(
-      `${destinationLabelForCode(retFrom, language, t)}→${destinationLabelForCode(retTo, language, t)}`,
-    );
-  } else {
-    if (params?.origin) summaryParts.push(destinationLabelForCode(params.origin, language, t));
-    if (params?.destination) summaryParts.push(destinationLabelForCode(params.destination, language, t));
-  }
-  if (params?.departureDate) summaryParts.push(params.departureDate);
-  if (params?.returnDate) summaryParts.push(params.returnDate);
-  const pax = [params?.adults, (params?.children ?? 0), (params?.infants ?? 0)].filter(
-    (n) => n && n > 0
-  );
-  if (pax.length && params?.adults != null) {
-    summaryParts.push(`${params.adults} ${params.adults === 1 ? t('adult') : t('adults')}`);
-  }
-  if (params?.cabinClass) {
-    const cabinKey = params.cabinClass === 'ECONOMY' ? 'cabin_economy' : params.cabinClass === 'PREMIUM_ECONOMY' ? 'cabin_premium_economy' : params.cabinClass === 'BUSINESS' ? 'cabin_business' : 'cabin_first';
-    summaryParts.push(t(cabinKey));
-  }
-  const summaryStr = summaryParts.join(' · ');
+  const tripSummary = buildResultsSearchSummary(params, language, locale, t);
   const showSearchBesideResults = !isMobile;
   const searchReturnRoute =
     tripType === 'round-trip' && params?.origin && params?.destination
@@ -1768,7 +1735,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       <SearchSummaryBar
-        summary={summaryStr || t('search_results')}
+        headline={tripSummary.headline}
+        subtitle={tripSummary.subtitle}
+        summary={tripSummary.plain}
         showEditButton={isMobile}
         onEditPress={openEditSearch}
       />
@@ -2094,8 +2063,8 @@ const styles = StyleSheet.create({
 
   moodStrip: {
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 2,
+    paddingTop: 4,
+    paddingBottom: 0,
   },
   searchColumn: {
     width: 300,

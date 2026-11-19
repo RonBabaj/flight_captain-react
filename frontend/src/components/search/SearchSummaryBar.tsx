@@ -5,7 +5,12 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 
 export interface SearchSummaryBarProps {
-  summary: string;
+  /** Legacy single-line summary (used when headline is omitted). */
+  summary?: string;
+  /** Primary route line, e.g. Tel Aviv → Jamaica */
+  headline?: string;
+  /** Secondary meta: dates, travelers, cabin */
+  subtitle?: string;
   /** When false, hides the Edit button (e.g. desktop sidebar already shows the form). */
   showEditButton?: boolean;
   onEditPress?: () => void;
@@ -15,6 +20,8 @@ export interface SearchSummaryBarProps {
 
 export function SearchSummaryBar({
   summary,
+  headline,
+  subtitle,
   showEditButton = true,
   onEditPress,
   leading,
@@ -22,19 +29,31 @@ export function SearchSummaryBar({
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
 
+  const titleText = headline || summary || '';
+  const hasStructured = Boolean(headline);
+
   const content = (
     <>
       {leading}
-      <Text
-        style={[
-          s.text,
-          { color: theme.text, fontFamily: theme.fontBody },
-          leading ? { flex: 1 } : undefined,
-        ]}
-        numberOfLines={1}
-      >
-        {summary}
-      </Text>
+      <View style={[s.textBlock, leading ? { flex: 1 } : undefined]}>
+        <Text
+          style={[
+            hasStructured ? s.headline : s.text,
+            { color: theme.text, fontFamily: hasStructured ? theme.fontDisplay : theme.fontBody },
+          ]}
+          numberOfLines={hasStructured ? 2 : 1}
+        >
+          {titleText}
+        </Text>
+        {hasStructured && subtitle ? (
+          <Text
+            style={[s.subtitle, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}
+            numberOfLines={2}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
       {showEditButton && onEditPress ? (
         <View
           style={[
@@ -64,7 +83,7 @@ export function SearchSummaryBar({
         onPress={onEditPress}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel={t('edit_search')}
+        accessibilityLabel={[titleText, subtitle].filter(Boolean).join('. ') || t('edit_search')}
       >
         {content}
       </TouchableOpacity>
@@ -93,7 +112,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  text: { flex: 1, fontSize: 13, fontWeight: '600' },
+  textBlock: { flex: 1, minWidth: 0, gap: 2 },
+  text: { fontSize: 13, fontWeight: '600' },
+  headline: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2, lineHeight: 20 },
+  subtitle: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
   editChip: {
     flexDirection: 'row',
     alignItems: 'center',

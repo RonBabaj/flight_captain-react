@@ -29,7 +29,6 @@ import {
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
 import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
-import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
 import type { FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -266,7 +265,7 @@ export function FlightResultCard({
           <LegScheduleBlock
             summary={outboundSummary}
             routeStr={outboundRouteStr}
-            routeColor={theme.textMuted}
+            routeColor={theme.text}
             showTimes
             selfTransfer={option.selfTransfer}
             t={t}
@@ -346,21 +345,6 @@ export function FlightResultCard({
               {option.selfTransferWarning || t('self_transfer_warning')}
             </Text>
           ) : null}
-          {(() => {
-            const sourceKey = offerSourceTranslationKey(option.source);
-            const label =
-              option.vendorName && !multiAirline
-                ? t('via_vendor').replace('{vendor}', option.vendorName)
-                : sourceKey
-                  ? t(sourceKey)
-                  : '';
-            if (!label) return null;
-            return (
-              <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-                {label}
-              </Text>
-            );
-          })()}
           {perPassengerStr ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {perPassengerStr}
@@ -418,10 +402,11 @@ export function FlightResultCard({
 const c = StyleSheet.create({
   card: {
     marginHorizontal: 12,
-    marginVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
+    marginVertical: 6,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   row1: {
     flexDirection: 'row',
