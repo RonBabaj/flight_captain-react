@@ -7,6 +7,7 @@
  */
 
 import { AIRPORT_DICTIONARY, getAirportEntry } from './airports';
+import { getCountryEntry } from './countries';
 import { isCountryDestination, parseCountryDestination } from '../types';
 
 export type DestinationMood = {
@@ -587,6 +588,11 @@ const BY_COUNTRY: Record<string, DestinationMood> = {
   PL: BY_CODE.WAW,
   GE: BY_CODE.TBS,
   AM: BY_CODE.EVN,
+  JM: {
+    labelEn: 'Jamaica',
+    imageUrl: unsplash('photo-1559628233-100c798642d4'),
+    accent: '#0E4D6E',
+  },
 };
 
 /** Destinations surfaced on the landing “get in the mood” strip. */
@@ -656,7 +662,10 @@ export function resolveDestinationMood(destinationCode: string | undefined | nul
 
   if (isCountryDestination(raw)) {
     const cc = parseCountryDestination(raw) || raw.replace(/^COUNTRY[:-]?/, '');
-    return BY_COUNTRY[cc] ?? moodFromPool(`COUNTRY:${cc}`, cc);
+    if (BY_COUNTRY[cc]) return BY_COUNTRY[cc];
+    const country = getCountryEntry(cc);
+    const label = country?.name || cc;
+    return moodFromPool(`COUNTRY:${cc}`, label);
   }
 
   const direct = BY_CODE[raw];

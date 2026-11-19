@@ -23,6 +23,7 @@ import {
 import { useBreakpoint } from '../hooks/useResponsive';
 import { ANYWHERE_CODE } from '../types';
 import type { CreateSearchSessionRequest } from '../types';
+import { destinationLabelForCode } from '../utils/placeSearch';
 
 type Variant = 'hero' | 'form' | 'results' | 'compact';
 
@@ -122,7 +123,7 @@ export function DestinationMoodBanner({
   const entry = getAirportEntry(destinationCode);
   const cityLabel =
     labelOverride ||
-    (entry ? getCityDisplayName(entry, language) : mood.labelEn) ||
+    (entry ? getCityDisplayName(entry, language) : destinationLabelForCode(destinationCode, language, t)) ||
     mood.labelEn;
 
   const height =
@@ -132,10 +133,10 @@ export function DestinationMoodBanner({
         : 280
       : variant === 'results'
         ? bp === 'mobile'
-          ? 110
+          ? 128
           : bp === 'tablet'
-            ? 130
-            : 148
+            ? 140
+            : 152
         : variant === 'compact'
           ? 88
           : bp === 'mobile'
@@ -152,6 +153,7 @@ export function DestinationMoodBanner({
             borderRadius: theme.radiusLg,
             opacity,
             borderColor: theme.cardBorder,
+            marginBottom: variant === 'results' ? 8 : 14,
           },
           style,
         ]}
@@ -194,24 +196,20 @@ export function DestinationMoodBanner({
             { backgroundColor: (mood.accent || theme.primary) + (theme.isDark ? '33' : '22') },
           ]}
         />
-        <View style={[styles.labelRow, isRTL && { flexDirection: 'row-reverse' }]}>
-          <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
-            <Text
-              style={[
-                styles.eyebrow,
-                {
-                  color: theme.isDark ? theme.primaryLight : theme.primary,
-                  fontFamily: theme.fontBody,
-                },
-              ]}
-            >
-              {t('destination_mood_eyebrow')}
-            </Text>
+        <View
+          style={[
+            styles.labelRow,
+            variant === 'results' && styles.labelRowResults,
+            isRTL && { flexDirection: 'row-reverse' },
+          ]}
+        >
+          {variant === 'results' ? (
             <Text
               style={[
                 styles.city,
+                styles.cityOnPhoto,
                 {
-                  color: theme.isDark ? '#fff' : theme.text,
+                  color: '#fff',
                   fontFamily: theme.fontDisplay,
                   textAlign: isRTL ? 'right' : 'left',
                 },
@@ -220,7 +218,34 @@ export function DestinationMoodBanner({
             >
               {cityLabel}
             </Text>
-          </View>
+          ) : (
+            <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
+              <Text
+                style={[
+                  styles.eyebrow,
+                  {
+                    color: theme.isDark ? theme.primaryLight : theme.primary,
+                    fontFamily: theme.fontBody,
+                  },
+                ]}
+              >
+                {t('destination_mood_eyebrow')}
+              </Text>
+              <Text
+                style={[
+                  styles.city,
+                  {
+                    color: theme.isDark ? '#fff' : theme.text,
+                    fontFamily: theme.fontDisplay,
+                    textAlign: isRTL ? 'right' : 'left',
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {cityLabel}
+              </Text>
+            </View>
+          )}
         </View>
       </Animated.View>
     </View>
@@ -299,6 +324,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     padding: 14,
+  },
+  labelRowResults: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  cityOnPhoto: {
+    fontSize: 24,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
   },
   pill: {
     alignSelf: 'flex-start',

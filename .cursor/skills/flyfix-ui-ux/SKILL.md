@@ -11,6 +11,8 @@ description: >-
 
 Apply this skill for any visual or interaction change in `frontend/`.
 
+For a general design-studio pass (typography, restraint, anti-template critique), also read **`.cursor/skills/frontend-design/SKILL.md`** ([Anthropic frontend-design](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md)). Fly-Fix tokens win when they conflict with generic defaults.
+
 ## Design north star
 
 **Boarding-pass travel tool** — calm paper/ink surfaces, one navy action color, amber for fares, real destination photography. Feels like a modern airline product, not a neon SaaS landing page.

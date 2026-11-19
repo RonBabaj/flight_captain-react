@@ -71,8 +71,15 @@ export function SearchSourcesBanner({
 
   if (!summary) return null;
 
+  const hasProviderErrors = stats?.some((s) => Boolean(s.error?.trim())) ?? false;
+  const showWarning = (summary.gf2Only && summary.otaFailed) || hasProviderErrors;
+  const showPaginationHint =
+    !showWarning && totalCount != null && totalCount > loadedCount && loadedCount > 0;
+
+  if (!showWarning && !showPaginationHint) return null;
+
   const countLabel =
-    totalCount != null && totalCount > loadedCount
+    showPaginationHint
       ? t('results_loaded_of_total')
           .replace('{loaded}', String(loadedCount))
           .replace('{total}', String(totalCount))
@@ -89,16 +96,15 @@ export function SearchSourcesBanner({
       ]}
       accessibilityRole="summary"
     >
-      <Text style={[styles.count, { color: theme.text, fontFamily: theme.fontBody }]}>{countLabel}</Text>
-      <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
-        {summary.parts}
-      </Text>
-      {sourceCounts && !summary.gf2Only ? (
+      {showPaginationHint ? (
+        <Text style={[styles.count, { color: theme.textMuted, fontFamily: theme.fontBody }]}>{countLabel}</Text>
+      ) : null}
+      {showWarning ? (
+        <Text style={[styles.count, { color: theme.text, fontFamily: theme.fontBody }]}>{countLabel}</Text>
+      ) : null}
+      {showWarning ? (
         <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
-          {t('search_sources_in_list')
-            .replace('{gf2}', String(sourceCounts.googleflights2))
-            .replace('{kiwi}', String(sourceCounts.kiwi))
-            .replace('{sky}', String(sourceCounts.skyscanner))}
+          {summary.parts}
         </Text>
       ) : null}
       {summary.gf2Only && summary.otaFailed ? (

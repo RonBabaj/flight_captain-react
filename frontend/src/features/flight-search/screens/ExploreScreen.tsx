@@ -30,7 +30,7 @@ import {
   makeCountryDestination,
   parseCountryDestination,
 } from '../../../types';
-import { flushActiveAutocomplete } from '../../../utils/placeSearch';
+import { destinationLabelForCode, flushActiveAutocomplete } from '../../../utils/placeSearch';
 import type { ExploreDestination } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { ExploreScreenParams } from '../../../navigation/types';
@@ -217,22 +217,6 @@ function getRegion(code: string): string {
 }
 
 const RANK_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'] as const;
-
-function destinationLabelForCode(
-  code: string | undefined,
-  language: string,
-  t: (key: string) => string,
-): string {
-  const upper = (code || '').trim().toUpperCase();
-  if (!upper || upper === ANYWHERE_CODE) return t('anywhere');
-  if (isCountryDestination(upper)) {
-    const cc = parseCountryDestination(upper);
-    const country = cc ? getCountryEntry(cc) : null;
-    return country ? getCountryDisplayName(country, language as any) : upper;
-  }
-  const entry = getAirportEntry(upper);
-  return entry ? getCityDisplayName(entry, language as any) : upper;
-}
 
 export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const params = route.params;

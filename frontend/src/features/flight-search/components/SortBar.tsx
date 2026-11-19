@@ -105,10 +105,9 @@ const s = StyleSheet.create({
     gap: 10,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.55,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   count: {
     fontSize: 12,
