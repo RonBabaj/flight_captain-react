@@ -198,6 +198,16 @@ export function LandingScreen() {
             >
               {t('landing_hero_subtitle')}
             </Text>
+            <View
+              style={[
+                styles.boardingAccent,
+                isRTL ? { flexDirection: 'row-reverse' } : undefined,
+              ]}
+              accessibilityElementsHidden
+            >
+              <View style={[styles.boardingStub, { backgroundColor: theme.primary }]} />
+              <View style={[styles.boardingRule, { backgroundColor: theme.cardBorder }]} />
+            </View>
           </Animated.View>
 
           <Animated.View
@@ -417,8 +427,24 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     fontSize: 16.5,
     lineHeight: 25,
-    marginBottom: 26,
+    marginBottom: 14,
     maxWidth: 480,
+  },
+  boardingAccent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 22,
+    maxWidth: 320,
+  },
+  boardingStub: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+  },
+  boardingRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
   },
   heroCtas: {
     gap: 14,

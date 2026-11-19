@@ -31,6 +31,7 @@ import {
 } from '../../../utils/legSummary';
 import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
+import { TicketStub } from '../../../ui/TicketStub';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,14 @@ function LegScheduleBlock({
         </View>
       ) : null}
       {routeStr ? (
-        <Text style={[c.route, { color: routeColor, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
+        <Text
+          style={[
+            c.route,
+            { color: routeColor, fontFamily: theme.fontDisplay, fontWeight: '700' },
+            isRTL && { textAlign: 'right' },
+          ]}
+          numberOfLines={1}
+        >
           {routeStr}
         </Text>
       ) : null}
@@ -257,11 +265,13 @@ export function FlightResultCard({
   const row = (rtlStyle?: object) => (isRTL ? [{ flexDirection: 'row-reverse' as const }, rtlStyle] : []);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onDetails}
-      style={[c.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}
-    >
+    <TouchableOpacity activeOpacity={0.7} onPress={onDetails} style={c.cardWrap}>
+      <TicketStub
+        innerStyle={{
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+        }}
+      >
       <View style={[c.row1, stackPrice && c.row1Stacked, ...row(stackPrice ? { alignItems: 'stretch' as const } : undefined)]}>
         <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>
           <LegScheduleBlock
@@ -395,6 +405,7 @@ export function FlightResultCard({
           </View>
         )}
       </View>
+      </TicketStub>
     </TouchableOpacity>
   );
 }
@@ -402,13 +413,9 @@ export function FlightResultCard({
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const c = StyleSheet.create({
-  card: {
+  cardWrap: {
     marginHorizontal: 0,
     marginVertical: 6,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
   },
   row1: {
     flexDirection: 'row',
@@ -436,7 +443,7 @@ const c = StyleSheet.create({
   price: { fontSize: 22, fontWeight: '700', letterSpacing: -0.1, fontVariant: ['tabular-nums'] as any },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   estBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  estBadgeText: { fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
   wasPrice: { fontSize: 12 },
   perPerson: { fontSize: 12, marginTop: 2 },
   selfTransferWarn: { fontSize: 12, marginTop: 6, fontWeight: '600', lineHeight: 17 },

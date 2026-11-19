@@ -2,9 +2,9 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
-import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
+import { SearchFormHeadline } from '../../../components/search/SearchFormHeadline';
+import { SearchFormTicketShell } from '../../../components/search/SearchFormTicketShell';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
-import { formCardStyles } from '../../../components/search/formStyles';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { formatMonthYear } from '../../../utils/monthNames';
@@ -33,6 +33,8 @@ export interface MonthDealsFormContentProps {
   error: string | null;
   compact?: boolean;
 }
+
+const MOOD_H = 132;
 
 export function MonthDealsFormContent({
   origin,
@@ -63,180 +65,170 @@ export function MonthDealsFormContent({
       ? `${origin.trim().toUpperCase()} → ${destination.trim().toUpperCase()}`
       : null;
 
-  return (
-    <View
-      style={[
-        formCardStyles.card,
-        compact && formCardStyles.cardCompact,
-        { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
-      ]}
-    >
+  const showMood = !!destination.trim() && destination.trim().toUpperCase() !== ANYWHERE_CODE;
+
+  const inner = (
+    <View style={compact ? styles.compactPad : styles.ticketPad}>
       {compact && routeSummary ? (
-        <Text style={[styles.routeSummary, { color: theme.textMuted }]} numberOfLines={1}>
+        <Text style={[styles.routeSummary, { color: theme.textMuted, fontFamily: theme.fontBody }]} numberOfLines={1}>
           {routeSummary}
         </Text>
       ) : (
-        <FormHeroHeader
-          icon="calendar-outline"
-          title={t('monthly_deals')}
-          subtitle={t('monthly_deals_hero')}
-        />
+        <>
+          <Text style={[styles.dealsTitle, { color: theme.text, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right' }]}>
+            {t('monthly_deals')}
+          </Text>
+          <SearchFormHeadline origin={origin} destination={destination} tripType="one-way" />
+        </>
       )}
 
-      {!!destination.trim() &&
-        destination.trim().toUpperCase() !== ANYWHERE_CODE && (
-          <DestinationMoodBanner
-            destinationCode={destination}
-            variant={compact ? 'compact' : 'form'}
-          />
-        )}
-
-      <AirportAutocomplete
-        label={t('from')}
-        value={origin}
-        onChange={onOriginChange}
-        placeholder={t('city_country_or_airport')}
-        countryMode="resolve-primary"
-      />
-      <AirportAutocomplete
-        label={t('to')}
-        value={destination}
-        onChange={onDestinationChange}
-        placeholder={t('city_country_or_airport')}
-        showAnywhere
-        countryMode="country-code"
-      />
-
-      <PassengerCabinPicker
-        adults={adults}
-        children={children}
-        cabinClass="ECONOMY"
-        onAdultsChange={onAdultsChange}
-        onChildrenChange={onChildrenChange}
-        onCabinChange={() => {}}
-        label={t('passengers_cabin')}
-        passengersOnly
-      />
-
-      <Text style={[formCardStyles.label, { color: theme.text }, isRTL && { textAlign: 'right' }]}>
-        {t('trip_duration_days')}
-      </Text>
-      <View style={styles.stepperRow}>
-        <TouchableOpacity
-          style={[styles.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
-          onPress={() => onDurationChange(Math.max(1, durationDays - 1))}
-        >
-          <Text style={[styles.stepBtnText, { color: theme.text }]}>−</Text>
-        </TouchableOpacity>
-        <Text style={[styles.stepValue, { color: theme.text }]}>
-          {durationDays} {t('days')}
-        </Text>
-        <TouchableOpacity
-          style={[styles.stepBtn, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
-          onPress={() => onDurationChange(Math.min(21, durationDays + 1))}
-        >
-          <Text style={[styles.stepBtnText, { color: theme.text }]}>+</Text>
-        </TouchableOpacity>
+      <View style={[styles.routeBlock, { borderColor: theme.cardBorder, backgroundColor: theme.screenBg }]}>
+        <AirportAutocomplete
+          label={t('from')}
+          value={origin}
+          onChange={onOriginChange}
+          placeholder={t('city_country_or_airport')}
+          countryMode="resolve-primary"
+          fieldVariant="route"
+        />
+        <View style={[styles.routeRule, { backgroundColor: theme.cardBorder }]} />
+        <AirportAutocomplete
+          label={t('to')}
+          value={destination}
+          onChange={onDestinationChange}
+          placeholder={t('city_country_or_airport')}
+          showAnywhere
+          countryMode="country-code"
+          fieldVariant="route"
+        />
       </View>
 
-      <View
-        style={[
-          styles.monthNav,
-          { backgroundColor: theme.controlBg, borderColor: theme.cardBorder },
-          isRTL && { direction: 'rtl' },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={onPrevMonth}
-          style={[styles.navBtn, atEarliestDealsMonth && { opacity: 0.45 }]}
-          disabled={atEarliestDealsMonth}
-          activeOpacity={atEarliestDealsMonth ? 1 : 0.7}
-        >
-          <View style={styles.navBtnInner}>
-            <AppIcon
-              name={isRTL ? 'chevron-forward' : 'chevron-back'}
-              size={18}
-              color={atEarliestDealsMonth ? theme.textMuted : theme.primary}
-              fallbackText={t('prev')}
-            />
-            <Text style={[styles.navText, { color: atEarliestDealsMonth ? theme.textMuted : theme.primary }]}>
-              {t('prev')}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <Text style={[styles.monthTitle, { color: theme.text }]}>
-          {formatMonthYear(year, month, language)}
+      <View style={[styles.detailsBlock, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
+        <PassengerCabinPicker
+          adults={adults}
+          children={children}
+          cabinClass="ECONOMY"
+          onAdultsChange={onAdultsChange}
+          onChildrenChange={onChildrenChange}
+          onCabinChange={() => {}}
+          label={t('passengers_cabin')}
+          passengersOnly
+        />
+        <Text style={[styles.fieldLabel, { color: theme.textMuted, fontFamily: theme.fontBody }]}>{t('month')}</Text>
+        <View style={[styles.monthNav, isRTL && { flexDirection: 'row-reverse' }]}>
+          <TouchableOpacity
+            onPress={onPrevMonth}
+            disabled={atEarliestDealsMonth}
+            style={[styles.stepBtn, { borderColor: theme.cardBorder, opacity: atEarliestDealsMonth ? 0.4 : 1 }]}
+          >
+            <AppIcon name="chevron-back" size={18} color={theme.text} fallbackText="" />
+          </TouchableOpacity>
+          <Text style={[styles.monthLabel, { color: theme.text, fontFamily: theme.fontDisplay }]}>
+            {formatMonthYear(year, month, language)}
+          </Text>
+          <TouchableOpacity onPress={onNextMonth} style={[styles.stepBtn, { borderColor: theme.cardBorder }]}>
+            <AppIcon name="chevron-forward" size={18} color={theme.text} fallbackText="" />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.fieldLabel, { color: theme.textMuted, fontFamily: theme.fontBody, marginTop: 12 }]}>
+          {t('trip_duration_days')}
         </Text>
-        <TouchableOpacity onPress={onNextMonth} style={styles.navBtn}>
-          <View style={styles.navBtnInner}>
-            <Text style={[styles.navText, { color: theme.primary }]}>{t('next')}</Text>
-            <AppIcon
-              name={isRTL ? 'chevron-back' : 'chevron-forward'}
-              size={18}
-              color={theme.primary}
-              fallbackText={t('next')}
-            />
-          </View>
-        </TouchableOpacity>
+        <View style={[styles.stepperRow, isRTL && { flexDirection: 'row-reverse' }]}>
+          <TouchableOpacity
+            onPress={() => onDurationChange(Math.max(1, durationDays - 1))}
+            style={[styles.stepBtn, { borderColor: theme.cardBorder }]}
+          >
+            <Text style={{ color: theme.text, fontSize: 18 }}>−</Text>
+          </TouchableOpacity>
+          <Text style={[styles.stepValue, { color: theme.text, fontFamily: theme.fontDisplay }]}>
+            {durationDays} {t('days')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => onDurationChange(Math.min(21, durationDays + 1))}
+            style={[styles.stepBtn, { borderColor: theme.cardBorder }]}
+          >
+            <Text style={{ color: theme.text, fontSize: 18 }}>+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {error ? (
-        <Text
-          style={[
-            formCardStyles.error,
-            {
-              color: theme.error,
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 8,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: theme.error,
-              backgroundColor: theme.error + '14',
-            },
-          ]}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-        >
+        <Text style={[styles.error, { color: theme.error, fontFamily: theme.fontBody }]} accessibilityRole="alert">
           {error}
         </Text>
       ) : null}
 
       <SearchSubmitButton
         label={t('search_deals')}
+        icon="calendar-outline"
         loading={loading}
-        disabled={!origin.trim() || !destination.trim()}
         onPress={onSearch}
         compact={compact}
       />
     </View>
   );
+
+  if (compact) {
+    return (
+      <View
+        style={[
+          styles.compactCard,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
+        ]}
+      >
+        {inner}
+      </View>
+    );
+  }
+
+  return (
+    <SearchFormTicketShell accentHeight={showMood ? MOOD_H + 40 : undefined}>
+      {showMood ? <DestinationMoodBanner destinationCode={destination} variant="form" flushTop /> : null}
+      {inner}
+    </SearchFormTicketShell>
+  );
 }
 
 const styles = StyleSheet.create({
-  routeSummary: { fontSize: 14, marginBottom: 10 },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
+  ticketPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  compactPad: { padding: 14 },
+  compactCard: { borderWidth: StyleSheet.hairlineWidth },
+  dealsTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4, letterSpacing: 0.2 },
+  routeSummary: { fontSize: 13, marginBottom: 10 },
+  routeBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 4,
+    marginBottom: 14,
+  },
+  routeRule: { height: StyleSheet.hairlineWidth, marginVertical: 2, marginHorizontal: 4 },
+  detailsBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  monthLabel: { fontSize: 17, fontWeight: '700' },
   stepBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  stepBtnText: { fontSize: 20, fontWeight: '600' },
-  stepValue: { fontSize: 16, minWidth: 56, textAlign: 'center' },
-  monthNav: {
+  stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderRadius: 12,
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 4,
   },
-  navBtn: {},
-  navBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  navText: { fontWeight: '600', fontSize: 14 },
-  monthTitle: { fontSize: 16, fontWeight: '700', marginHorizontal: 16, textAlign: 'center' },
+  stepValue: { fontSize: 17, fontWeight: '700', minWidth: 72, textAlign: 'center' },
+  error: { marginBottom: 12, fontSize: 14 },
 });

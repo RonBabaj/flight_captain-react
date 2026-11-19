@@ -12,7 +12,8 @@ import {
   DestinationMoodStrip,
   collectTripDestinationCodes,
 } from '../../../components/DestinationMoodBanner';
-import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
+import { SearchFormHeadline } from '../../../components/search/SearchFormHeadline';
+import { SearchFormTicketShell } from '../../../components/search/SearchFormTicketShell';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
 import { formCardStyles } from '../../../components/search/formStyles';
 import { AirportAutocomplete } from '../../flight-search/components/AirportAutocomplete';
@@ -64,51 +65,53 @@ export function DynamicDestinationsFormContent({
         : `${params.departureDate} → ${params.returnDate}`
       : t('select_dates');
 
-  return (
-    <View
-      style={
-        embedded
-          ? undefined
-          : [
-              formCardStyles.card,
-              compact && formCardStyles.cardCompact,
-              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
-            ]
-      }
-    >
-      <FormHeroHeader
-        icon="airplane-outline"
-        title={t('dd_title')}
-        subtitle={compact ? undefined : t('dd_subtitle')}
-        compact={compact}
-        compactLabel={t('dd_title')}
-        iconColor={theme.primary}
-      />
+  const showMood = !embedded && !compact && moodCodes.length > 0;
+  const MOOD_H = 132;
 
-      {moodCodes.length > 0 && (
-        <DestinationMoodStrip
-          destinationCodes={moodCodes}
-          variant={compact || embedded ? 'compact' : 'form'}
-        />
-      )}
+  const formInner = (
+    <View style={embedded ? undefined : compact ? styles.compactPad : styles.ticketPad}>
+      {!embedded && !compact ? (
+        <>
+          <Text style={[styles.formTitle, { color: theme.text, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right' }]}>
+            {t('dd_title')}
+          </Text>
+          <SearchFormHeadline
+            origin={params.origin}
+            destination={params.destination}
+            tripType={params.returnDate ? 'round-trip' : 'one-way'}
+          />
+          <Text style={[styles.formSubtitle, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>
+            {t('dd_subtitle')}
+          </Text>
+        </>
+      ) : null}
 
-      <Text style={[formCardStyles.sectionLabel, { color: theme.primary }, isRTL && { textAlign: 'right' }]}>
+      {(embedded || compact) && moodCodes.length > 0 ? (
+        <DestinationMoodStrip destinationCodes={moodCodes} variant={compact || embedded ? 'compact' : 'form'} />
+      ) : null}
+
+      <Text style={[formCardStyles.sectionLabel, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>
         {t('dd_outbound_section')}
       </Text>
-      <AirportAutocomplete
-        label={t('from')}
-        value={params.origin}
-        onChange={(c) => update('origin', c)}
-        placeholder={t('city_country_or_airport')}
-        countryMode="resolve-primary"
-      />
-      <AirportAutocomplete
-        label={t('to')}
-        value={params.destination}
-        onChange={(c) => update('destination', c)}
-        placeholder={t('city_country_or_airport')}
-        countryMode="resolve-primary"
-      />
+      <View style={[styles.routeBlock, { borderColor: theme.cardBorder, backgroundColor: theme.screenBg }]}>
+        <AirportAutocomplete
+          label={t('from')}
+          value={params.origin}
+          onChange={(c) => update('origin', c)}
+          placeholder={t('city_country_or_airport')}
+          countryMode="resolve-primary"
+          fieldVariant="route"
+        />
+        <View style={[styles.routeRule, { backgroundColor: theme.cardBorder }]} />
+        <AirportAutocomplete
+          label={t('to')}
+          value={params.destination}
+          onChange={(c) => update('destination', c)}
+          placeholder={t('city_country_or_airport')}
+          countryMode="resolve-primary"
+          fieldVariant="route"
+        />
+      </View>
 
       {extras.map((leg, index) => (
         <View key={`extra-${index}`} style={styles.extraBlock}>
@@ -272,15 +275,55 @@ export function DynamicDestinationsFormContent({
       />
 
       {!compact ? (
-        <Text style={[formCardStyles.hint, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
+        <Text style={[formCardStyles.hint, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>
           {t('dd_example_hint')}
         </Text>
       ) : null}
     </View>
   );
+
+  if (embedded) {
+    return formInner;
+  }
+
+  if (compact) {
+    return (
+      <View
+        style={[
+          formCardStyles.card,
+          formCardStyles.cardCompact,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
+        ]}
+      >
+        {formInner}
+      </View>
+    );
+  }
+
+  return (
+    <SearchFormTicketShell accentHeight={showMood ? MOOD_H + 40 : undefined}>
+      {showMood ? (
+        <DestinationMoodStrip destinationCodes={moodCodes} variant="form" />
+      ) : null}
+      {formInner}
+    </SearchFormTicketShell>
+  );
 }
 
 const styles = StyleSheet.create({
+  ticketPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  compactPad: { padding: 14 },
+  formTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4, letterSpacing: 0.2 },
+  formSubtitle: { fontSize: 14, lineHeight: 20, marginBottom: 14, maxWidth: 420 },
+  routeBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 4,
+    marginBottom: 12,
+  },
+  routeRule: { height: StyleSheet.hairlineWidth, marginVertical: 2, marginHorizontal: 4 },
   extraBlock: { marginTop: 4, marginBottom: 4 },
   extraHeader: {
     flexDirection: 'row',
