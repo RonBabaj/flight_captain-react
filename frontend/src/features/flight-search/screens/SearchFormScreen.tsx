@@ -198,7 +198,7 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
           styles.content,
           {
             paddingHorizontal: gutter,
-            maxWidth: breakpoint === 'desktop' ? 720 : layout.maxContentWidth,
+            maxWidth: breakpoint === 'desktop' ? 560 : 520,
           },
         ]}
         keyboardShouldPersistTaps="handled"
