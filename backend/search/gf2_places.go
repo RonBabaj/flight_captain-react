@@ -81,9 +81,12 @@ func gf2MetroKey(code string) string {
 }
 
 // GF2SearchAirports returns the list of single IATA codes to query for a place.
-// Metro city codes (TYO, NYC) expand to all airports in the metro; specific airports stay as-is.
+// Use ExpandSearchDestinations for COUNTRY:XX; metro city codes (TYO, NYC) fan out here; airports stay as-is.
 func GF2SearchAirports(code string) []string {
 	code = strings.ToUpper(strings.TrimSpace(code))
+	if strings.HasPrefix(code, countryDestPrefix) {
+		return expandCountryDestination(code)
+	}
 	if code == "" {
 		return nil
 	}
