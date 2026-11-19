@@ -30,7 +30,7 @@ import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, se
 import { formatAirlineFilterLabel, resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import type { LanguageCode } from '../../../data/translations';
-import { useIsMobile } from '../../../hooks/useResponsive';
+import { useContentGutter, useIsDesktop } from '../../../hooks/useResponsive';
 import type { DayDeal, FlightDetailsResponse, FlightSegment, FlightOption, MonetaryAmount, MonthDealsResponse } from '../../../types';
 import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
 import { addDaysYmdUtc, firstBookableDepartureInMonth } from '../../../utils/bookableDates';
@@ -223,7 +223,9 @@ function buildDealsPositioningSignature(
 export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: any; view?: 'form' | 'results' }) {
   const { theme } = useTheme();
   const { currency, locale, t, isRTL, language, timeDisplay } = useLocale();
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
+  const gutter = useContentGutter();
+  const isMobile = !isDesktop;
   const { width: screenW } = useWindowDimensions();
   const { route, year, month, durationDays, preferredDays, sortField, sortOrder, maxPrice, maxStops, selectedAirlines, data, isLoading, error } = useDealsStore();
   const pending = typeof window !== 'undefined' ? getPendingDealsParams() : null;
@@ -447,7 +449,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const bestDeals = sortDeals(filteredDeals, sortField, sortOrder, highestPrice);
   const visibleDeals = bestDeals.slice(0, visibleCount);
   const hasMore = bestDeals.length > visibleCount;
-  const hasResultsLayout = (data != null || view === 'results') && !isMobile;
+  const hasResultsLayout = (data != null || view === 'results') && isDesktop;
   // On mobile, once we are on the results route (or data is loaded) collapse the full search form
   // into a compact summary bar with an "Edit search" popup (same pattern as ResultsScreen).
   const mobileCompact = isMobile && (data != null || view === 'results');
@@ -1303,7 +1305,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
   const hasFilters = data != null;
   const showForm = view === 'form';
   const showResultsShell = view === 'results';
-  const showDesktopSidebar = !isMobile && view === 'results';
+  const showDesktopSidebar = isDesktop && view === 'results';
 
   const summaryStr = useMemo(() => {
     const o = origin.trim().toUpperCase();
@@ -1354,7 +1356,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       {showResultsShell &&
         !!destination.trim() &&
         destination.trim().toUpperCase() !== ANYWHERE_CODE && (
-          <View style={{ paddingHorizontal: isMobile ? 12 : 16, paddingTop: 8 }}>
+          <View style={{ paddingHorizontal: gutter, paddingTop: 8 }}>
             <DestinationMoodBanner destinationCode={destination} variant="results" />
           </View>
         )}
@@ -1388,7 +1390,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={p.scrollSingle}
-          contentContainerStyle={p.contentSingle}
+          contentContainerStyle={[p.contentSingle, { paddingHorizontal: gutter }]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
         >
@@ -1404,7 +1406,7 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           </View>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={p.contentSingleResults}
+            contentContainerStyle={[p.contentSingleResults, { paddingHorizontal: gutter }]}
             keyboardShouldPersistTaps="handled"
           >
             {resultsContent}

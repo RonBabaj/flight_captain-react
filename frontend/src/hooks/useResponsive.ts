@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Dimensions } from 'react-native';
+import { layout } from '../theme/tokens';
 
 /** Mobile-first breakpoints (logical px). */
 export const BREAKPOINTS = {
@@ -7,6 +8,9 @@ export const BREAKPOINTS = {
   tablet: 720,
   desktop: 1100,
 } as const;
+
+/** Narrow phones — extra-tight typography/spacing (e.g. 320px). */
+export const NARROW_WIDTH = 360;
 
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 
@@ -44,4 +48,20 @@ export function useIsMobile(): boolean {
 export function useIsCompactLayout(): boolean {
   const bp = useBreakpoint();
   return bp !== 'desktop';
+}
+
+export function useIsDesktop(): boolean {
+  return useBreakpoint() === 'desktop';
+}
+
+/** Shared horizontal inset: 20 mobile, 24 tablet, 48 desktop (matches design tokens). */
+export function useContentGutter(): number {
+  const bp = useBreakpoint();
+  if (bp === 'desktop') return layout.gutterDesktop;
+  if (bp === 'tablet') return 24;
+  return layout.gutterMobile;
+}
+
+export function useIsNarrowPhone(): boolean {
+  return useWindowWidth() < NARROW_WIDTH;
 }

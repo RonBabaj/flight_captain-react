@@ -18,7 +18,7 @@ import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
-import { useBreakpoint } from '../../hooks/useResponsive';
+import { useBreakpoint, useContentGutter } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
   AIRPORT_FALLBACK_IMAGE,
@@ -64,6 +64,7 @@ export function LandingScreen() {
   const insets = useSafeAreaInsets();
   const breakpoint = useBreakpoint();
   const isMobile = breakpoint === 'mobile';
+  const gutter = useContentGutter();
   useDocumentTitle(t('nav_home'));
 
   const brandOpacity = useRef(new Animated.Value(0)).current;
@@ -147,7 +148,7 @@ export function LandingScreen() {
             {
               maxWidth: MAX_CONTENT,
               paddingTop: isMobile ? 24 : 40,
-              paddingHorizontal: isMobile ? 0 : 4,
+              paddingHorizontal: gutter,
             },
           ]}
         >
@@ -228,7 +229,7 @@ export function LandingScreen() {
       </View>
 
       {/* Mood destinations — below hero, one job: inspire */}
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <Text
           style={[
             styles.sectionTitle,
@@ -277,7 +278,7 @@ export function LandingScreen() {
       </View>
 
       {/* Why Fly-Fix */}
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <Text
           style={[
             styles.sectionTitle,
@@ -308,7 +309,7 @@ export function LandingScreen() {
         ))}
       </View>
 
-      <View style={[styles.section, { paddingHorizontal: isMobile ? 16 : 20 }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <TouchableOpacity
           style={[
             styles.btnPrimary,
@@ -337,6 +338,7 @@ export function LandingScreen() {
               backgroundColor: theme.screenBg,
               borderTopColor: theme.cardBorder,
               paddingBottom: Math.max(insets.bottom, 10),
+              paddingHorizontal: gutter,
             },
           ]}
         >
@@ -370,7 +372,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     paddingBottom: 40,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
   },
   horizonBand: {
     position: 'absolute',

@@ -68,6 +68,13 @@ Do not hardcode legacy navy `#163A5F` or teal in components. Prefer theme tokens
 
 (Unchanged from prior skill — landing brand-first, search mood banner, results segment sort, responsive breakpoints in `useResponsive.ts`.)
 
+## Responsive
+
+`frontend/src/hooks/useResponsive.ts` — `useContentGutter()`, `useIsDesktop()`, `useIsNarrowPhone()`.
+
+- Multi-column results / month-deals sidebars at **desktop (≥1100)** only; nav drawer below desktop.
+- Shared gutters 20 / 24 / 48 px from design tokens.
+
 ## Checklist before shipping UI
 
 1. Could this first viewport belong to another brand if nav were removed? If yes, strengthen brand.

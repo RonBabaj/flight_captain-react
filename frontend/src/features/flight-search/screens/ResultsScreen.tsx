@@ -30,7 +30,7 @@ import {
 } from '../../../api';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { screenError } from '../../../utils/screenError';
-import { useIsMobile, useBreakpoint } from '../../../hooks/useResponsive';
+import { useBreakpoint, useContentGutter, useIsDesktop } from '../../../hooks/useResponsive';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
@@ -154,8 +154,9 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const runtimeConfig = useRuntimeConfig();
   const { updateUrl, paramsFromUrl } = useSearchParams();
   const navigation = useNavigation<any>();
-  const isMobile = useIsMobile();
   const breakpoint = useBreakpoint();
+  const isDesktop = useIsDesktop();
+  const gutter = useContentGutter();
   const {
     params: storeParams,
     sessionId: storeSessionId,
@@ -1405,7 +1406,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     params?.returnOrigin &&
     params.returnOrigin.toUpperCase() !== (params?.destination || '').toUpperCase()
   );
-  const showSearchBesideResults = !isMobile;
+  const showSearchBesideResults = isDesktop;
   const searchReturnRoute =
     tripType === 'round-trip' && params?.origin && params?.destination
       ? {
@@ -1507,7 +1508,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     <CheaperCitiesSection
       loading={positioningLoading}
       options={positioningOptions}
-      isMobile={isMobile}
+      isMobile={!isDesktop}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
       quietLoading
@@ -1567,7 +1568,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     isLoading && filtered.length === 0 ? (
       // Structure-preview cards (not a 3D cube) — page shape before results arrive.
       <View style={{ flex: 1 }}>
-        <View style={styles.listContent}>
+        <View style={[styles.listContent, { paddingHorizontal: gutter }]}>
           <ResultsSkeletonList theme={theme} count={4} />
         </View>
         {positioningSection}
@@ -1652,11 +1653,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             </View>
           ) : null
         }
-        contentContainerStyle={
-          filtered.length === 0 && !showEmpty
-            ? styles.listContentEmpty
-            : styles.listContent
-        }
+        contentContainerStyle={[
+          filtered.length === 0 && !showEmpty ? styles.listContentEmpty : styles.listContent,
+          { paddingHorizontal: gutter },
+          isDesktop && { maxWidth: 960, width: '100%', alignSelf: 'center' as const },
+        ]}
       />
     )
   );
@@ -1742,11 +1743,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         headline={tripSummary.headline}
         subtitle={tripSummary.subtitle}
         summary={tripSummary.plain}
-        showEditButton={isMobile}
+        showEditButton={!showSearchBesideResults}
         onEditPress={openEditSearch}
       />
       {tripMoodCodes.length > 0 && (
-        <View style={styles.moodStrip}>
+        <View style={[styles.moodStrip, { paddingHorizontal: gutter }]}>
           {tripMoodCodes.length === 1 ? (
             <DestinationMoodBanner destinationCode={tripMoodCodes[0]} variant="results" />
           ) : (
@@ -1794,7 +1795,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter }]}>
                     <View style={styles.toolbarSortWrap}>
                       <SortBar
                         sortField={sortField}
@@ -1830,7 +1831,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter }]}>
                     <View style={styles.toolbarSortWrap}>
                       <SortBar
                         sortField={sortField}
@@ -1849,7 +1850,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
           </>
         ) : (
           <>
-            {!isMobile && (
+            {!isDesktop && breakpoint === 'tablet' && (
               <FiltersPanel
                 variant="sidebar"
                 sidebarPosition={isRTL ? 'right' : 'left'}
@@ -1864,7 +1865,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 style={[
                   styles.toolbar,
                   styles.toolbarStacked,
-                  { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+                  { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
                 ]}
               >
                 <View style={styles.toolbarSortWrapFull}>

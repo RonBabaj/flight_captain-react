@@ -76,7 +76,7 @@ F. Shared navigation (`TopNavMenu`)
 | **0** | Audit only — **no code** |
 | **1** | Tokens + shared components in `ThemeContext` / `src/ui/` |
 | **2** | Page-by-page apply (landing, search form, results, explore, monthly deals, auth/settings — coral selections + CTAs, navy fares/links) |
-| **3** | Responsive pass (320–1280+) |
+| **3** | Responsive pass (320–1280+): gutters, desktop-only multi-column, drawer nav &lt;1100 |
 | **4** | Motion polish |
 | **5** | Independent critique + top-10 fixes |
 | **6** | Regression QA, build, a11y smoke |

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
+import { useIsNarrowPhone } from '../../../hooks/useResponsive';
 import type { SortField } from '../../../store/searchStore';
 
 export type SortOption = 'price' | 'duration' | 'best';
@@ -19,6 +20,7 @@ interface SortBarProps {
 export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
+  const narrow = useIsNarrowPhone();
   const opts: SortOption[] = ['price', 'duration', 'best'];
 
   return (
@@ -73,6 +75,7 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
               <Text
                 style={[
                   s.segLabel,
+                  narrow && s.segLabelNarrow,
                   {
                     color: active ? theme.buttonText : theme.textMuted,
                     fontFamily: theme.fontBody,
@@ -141,4 +144,5 @@ const s = StyleSheet.create({
     fontSize: 13,
     letterSpacing: -0.1,
   },
+  segLabelNarrow: { fontSize: 12, paddingHorizontal: 2 },
 });

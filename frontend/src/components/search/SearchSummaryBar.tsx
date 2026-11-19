@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { AppIcon } from '../AppIcon';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
+import { useContentGutter } from '../../hooks/useResponsive';
 
 export interface SearchSummaryBarProps {
   /** Legacy single-line summary (used when headline is omitted). */
@@ -28,6 +29,7 @@ export function SearchSummaryBar({
 }: SearchSummaryBarProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
+  const gutter = useContentGutter();
 
   const titleText = headline || summary || '';
   const hasStructured = Boolean(headline);
@@ -77,7 +79,7 @@ export function SearchSummaryBar({
       <TouchableOpacity
         style={[
           s.bar,
-          { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+          { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
           isRTL && { flexDirection: 'row-reverse' },
         ]}
         onPress={onEditPress}
@@ -94,7 +96,7 @@ export function SearchSummaryBar({
     <View
       style={[
         s.bar,
-        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder },
+        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
         isRTL && { flexDirection: 'row-reverse' },
       ]}
     >
@@ -105,7 +107,7 @@ export function SearchSummaryBar({
 
 const s = StyleSheet.create({
   bar: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 0,
     paddingVertical: Platform.OS === 'web' ? 8 : 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',

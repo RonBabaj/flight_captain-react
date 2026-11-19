@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { useLocale } from '../context/LocaleContext';
 import { useSearchStore } from '../store';
-import { useIsMobile } from '../hooks/useResponsive';
+import { useIsCompactLayout } from '../hooks/useResponsive';
 import type { RootStackParamList } from './types';
 
 type RouteProps = RouteProp<RootStackParamList, keyof RootStackParamList>;
@@ -90,7 +90,8 @@ export function TopNavMenu() {
   const sessionId = useSearchStore((s) => s.sessionId);
   const currentRoot = route.name;
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const isMobile = useIsMobile();
+  /** Drawer nav below desktop — avoids cramming four tabs at tablet widths (720–1099). */
+  const navDrawer = useIsCompactLayout();
 
   const nestedName =
     currentRoot === 'Search' || currentRoot === 'DynamicDestinations' || currentRoot === 'MonthDeals'
@@ -190,7 +191,7 @@ export function TopNavMenu() {
           },
         ]}
       >
-        {isMobile ? (
+        {navDrawer ? (
           <>
             <View style={[styles.mobileSide, isRTL && { flexDirection: 'row-reverse' }]}>
               <TouchableOpacity
@@ -274,7 +275,7 @@ export function TopNavMenu() {
         )}
       </View>
 
-      {isMobile && (
+      {navDrawer && (
         <Modal visible={showMobileMenu} transparent animationType="slide">
           <Pressable style={styles.mobileMenuOverlay} onPress={closeMobileMenu}>
             <View

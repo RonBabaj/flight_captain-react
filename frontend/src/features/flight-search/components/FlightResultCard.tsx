@@ -18,6 +18,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppIcon } from '../../../components/AppIcon';
 import { useTheme } from '../../../theme/ThemeContext';
+import { useWindowWidth } from '../../../hooks/useResponsive';
 import { useLocale } from '../../../context/LocaleContext';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
@@ -157,6 +158,7 @@ export function FlightResultCard({
 }: FlightResultCardProps) {
   const { theme } = useTheme();
   const { t, isRTL, currency: displayCurrency, timeDisplay, locale } = useLocale();
+  const stackPrice = useWindowWidth() < 400;
   const segments = option.legs?.[0]?.segments ?? [];
   const outboundSummary = buildLegPreviewSummary(segments, option.outboundSummary, option.durationMinutes);
 
@@ -260,7 +262,7 @@ export function FlightResultCard({
       onPress={onDetails}
       style={[c.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}
     >
-      <View style={[c.row1, ...row()]}>
+      <View style={[c.row1, stackPrice && c.row1Stacked, ...row(stackPrice ? { alignItems: 'stretch' as const } : undefined)]}>
         <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>
           <LegScheduleBlock
             summary={outboundSummary}
@@ -318,7 +320,7 @@ export function FlightResultCard({
           ) : null}
         </View>
 
-        <View style={[c.priceCol, isRTL && { alignItems: 'flex-start' }]}>
+        <View style={[c.priceCol, stackPrice && c.priceColStacked, isRTL && !stackPrice && { alignItems: 'flex-start' }]}>
           <Text style={[c.price, { color: theme.price, fontFamily: theme.fontDisplay }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
             {priceStr}
           </Text>
@@ -401,7 +403,7 @@ export function FlightResultCard({
 
 const c = StyleSheet.create({
   card: {
-    marginHorizontal: 12,
+    marginHorizontal: 0,
     marginVertical: 6,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
@@ -412,6 +414,10 @@ const c = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 10,
+  },
+  row1Stacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   scheduleCol: { flex: 1, minWidth: 0 },
   legBlock: { marginBottom: 8 },
@@ -426,6 +432,7 @@ const c = StyleSheet.create({
   stopsChipText: { fontSize: 12, fontWeight: '600' },
   layoverHint: { fontSize: 12, flexShrink: 1 },
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 96 },
+  priceColStacked: { alignItems: 'stretch', width: '100%', minWidth: 0, marginTop: 4 },
   price: { fontSize: 22, fontWeight: '700', letterSpacing: -0.1, fontVariant: ['tabular-nums'] as any },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   estBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
