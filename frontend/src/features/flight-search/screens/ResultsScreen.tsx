@@ -1401,6 +1401,10 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
 
   const params = storeParams;
   const tripSummary = buildResultsSearchSummary(params, language, locale, t);
+  const isOpenJaw = !!(
+    params?.returnOrigin &&
+    params.returnOrigin.toUpperCase() !== (params?.destination || '').toUpperCase()
+  );
   const showSearchBesideResults = !isMobile;
   const searchReturnRoute =
     tripType === 'round-trip' && params?.origin && params?.destination
