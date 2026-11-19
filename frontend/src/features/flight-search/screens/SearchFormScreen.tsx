@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View, KeyboardAvoidingView, Platform } from 'react-native';
 import type { CreateSearchSessionRequest } from '../../../types';
-import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
+import { ANYWHERE_CODE } from '../../../types';
 import { searchActions, useSearchStore } from '../../../store';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
@@ -119,25 +119,8 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
 
     const destUpper = params.destination.trim().toUpperCase();
 
-    if (isCountryDestination(destUpper)) {
-      const dr = clampExploreSearchDates(
-        params.departureDate || undefined,
-        params.returnDate || undefined,
-        tripType === 'round-trip',
-      );
-      navigation.navigate('Explore', {
-        origin: params.origin.trim().toUpperCase(),
-        departureDate: dr.departureDate,
-        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
-        adults: params.adults ?? 1,
-        currency: currency || 'USD',
-        countryFilter: parseCountryDestination(destUpper) ?? undefined,
-        searchNonce: Date.now(),
-      });
-      return;
-    }
-
-    // "Anywhere" — navigate to the explore screen instead of running a regular search
+    // Country / city → unified search with multi-airport fan-out (COUNTRY:JM → KIN, MBJ, …).
+    // "Anywhere" alone uses Explore (cheapest destinations worldwide).
     if (destUpper === ANYWHERE_CODE) {
       const dr = clampExploreSearchDates(
         params.departureDate || undefined,

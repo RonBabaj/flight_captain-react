@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { FlightOption, MonetaryAmount, SearchProgress, SearchSessionResultsResponse } from '../../../types';
 import type { CreateSearchSessionRequest, ExtraSearchLeg } from '../../../types';
 import { isSearchNearComplete } from '../../../types';
-import { ANYWHERE_CODE, isCountryDestination, parseCountryDestination } from '../../../types';
+import { ANYWHERE_CODE } from '../../../types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { useSearchStore, searchActions, isCurrentSearchGeneration } from '../../../store';
@@ -465,27 +465,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       return;
     }
     const destUpper = p.destination.trim().toUpperCase();
-    // Match SearchForm: country → Explore filtered by country.
-    if (isCountryDestination(destUpper)) {
-      setSidebarSearchError(null);
-      setShowEditSearchModal(false);
-      const dr = clampExploreSearchDates(
-        p.departureDate || undefined,
-        p.returnDate || undefined,
-        tripType === 'round-trip',
-      );
-      navigation.navigate('Explore', {
-        origin: p.origin.trim().toUpperCase(),
-        departureDate: dr.departureDate,
-        returnDate: tripType === 'one-way' ? undefined : dr.returnDate || undefined,
-        adults: p.adults ?? 1,
-        currency: currency || 'USD',
-        countryFilter: parseCountryDestination(destUpper) ?? undefined,
-        searchNonce: Date.now(),
-      });
-      return;
-    }
-    // Match SearchForm: Anywhere opens Explore instead of POSTing ANYWHERE to GF2.
+    // Match SearchForm: Anywhere opens Explore; country uses unified multi-airport search.
     if (destUpper === ANYWHERE_CODE) {
       setSidebarSearchError(null);
       setShowEditSearchModal(false);

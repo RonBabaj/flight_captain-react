@@ -226,7 +226,38 @@ func (p *OtaScraperProvider) Search(ctx context.Context, req SearchRequest) ([]P
 	if IsOpenJaw(req) || HasExtraLegs(req) {
 		return p.searchDynamicDestination(ctx, req)
 	}
-	return p.searchSingle(ctx, req, true)
+	dests := ExpandSearchDestinations(req.Destination)
+	if len(dests) == 0 {
+		return p.searchSingle(ctx, req, true)
+	}
+	if len(dests) == 1 {
+		req.Destination = dests[0]
+		return p.searchSingle(ctx, req, true)
+	}
+	sem := otaScrapeSemaphore()
+	select {
+	case sem <- struct{}{}:
+		defer func() { <-sem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	var combined []ProviderResult
+	var siteErrs []string
+	for _, dest := range dests {
+		step := req
+		step.Destination = dest
+		res, err := p.searchSingle(ctx, step, false)
+		if err != nil {
+			siteErrs = append(siteErrs, dest+": "+err.Error())
+			continue
+		}
+		combined = append(combined, res...)
+	}
+	combined = DedupeProviderResults(combined)
+	if len(combined) == 0 && len(siteErrs) > 0 {
+		return nil, fmt.Errorf("multisite country fan-out: %s", strings.Join(siteErrs, "; "))
+	}
+	return combined, nil
 }
 
 // dynamicDestinationOneWayRequests builds outbound (+ extras) + return one-ways for DD/open-jaw.
