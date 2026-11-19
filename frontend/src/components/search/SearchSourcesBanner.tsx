@@ -4,6 +4,27 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
 import type { ProviderSearchStats } from '../../types';
 
+/** User-visible slice of backend providerStats.error (ops detail without VPS jargon). */
+function formatProviderError(raw: string): string {
+  let s = raw.trim();
+  if (!s) return '';
+  const lower = s.toLowerCase();
+  if (lower.includes('perimeterx') || lower.includes('captcha')) {
+    return 'blocked by bot protection';
+  }
+  if (lower.includes('site time budget')) return 'timed out';
+  if (lower.includes('context deadline')) return 'timed out';
+  s = s.replace(/^multisite scraper:\s*/i, '');
+  const noOffers = s.match(/no offers \((.+)\)$/i);
+  if (noOffers) {
+    return noOffers[1]
+      .replace(/skyscanner:/gi, 'Skyscanner')
+      .replace(/kiwi:/gi, 'Kiwi')
+      .slice(0, 160);
+  }
+  return s.length > 160 ? `${s.slice(0, 157)}…` : s;
+}
+
 function labelForProvider(provider: string, t: (key: string) => string): string {
   const p = provider.toLowerCase();
   if (p === 'googleflights2' || p === 'gf2') return t('source_googleflights2');
@@ -36,7 +57,8 @@ export function SearchSourcesBanner({
     const parts = stats.map((s) => {
       const name = labelForProvider(s.provider, t);
       if (s.error) {
-        return `${name}: ${t('search_source_failed')}`;
+        const detail = formatProviderError(s.error);
+        return detail ? `${name}: ${detail}` : `${name}: ${t('search_source_failed')}`;
       }
       return `${name}: ${s.results}`;
     });
@@ -82,6 +104,11 @@ export function SearchSourcesBanner({
       {summary.gf2Only && summary.otaFailed ? (
         <Text style={[styles.warn, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('search_ota_unavailable')}
+          {(() => {
+            const ms = stats?.find((s) => s.provider === 'multisite')?.error;
+            const detail = ms ? formatProviderError(ms) : '';
+            return detail ? ` (${detail})` : '';
+          })()}
         </Text>
       ) : null}
     </View>
