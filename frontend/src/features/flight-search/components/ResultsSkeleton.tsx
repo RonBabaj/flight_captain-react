@@ -6,6 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import type { Theme } from '../../../theme/ThemeContext';
 import { motion, useReducedMotion } from '../../../theme/motion';
+import { TicketStub } from '../../../ui/TicketStub';
 
 function Bone({
   theme,
@@ -37,8 +38,11 @@ function Bone({
 
 export function ResultsSkeletonCard({ theme }: { theme: Theme }) {
   return (
+    <TicketStub
+      style={sk.cardWrap}
+      innerStyle={{ padding: 14 }}
+    >
     <View
-      style={[sk.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -97,6 +101,7 @@ export function ResultsSkeletonCard({ theme }: { theme: Theme }) {
         <Bone theme={theme} width={88} height={34} radius={10} />
       </View>
     </View>
+    </TicketStub>
   );
 }
 
@@ -134,12 +139,9 @@ export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?
 
 const sk = StyleSheet.create({
   list: { flex: 1, paddingTop: 4, paddingBottom: 24 },
-  card: {
+  cardWrap: {
     marginHorizontal: 0,
-    marginVertical: 5,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
+    marginVertical: 6,
   },
   carrierRow: {
     flexDirection: 'row',

@@ -37,6 +37,12 @@ For a general design-studio pass (typography, restraint, anti-template critique)
 - `rounded-full` pill forests, multi-layer drop shadows, emoji decoration
 - Crowding the first viewport with stats, chips, and promo strips
 
+### Search form (boarding-pass ticket)
+
+- `SearchFormTicketShell` + `SearchFormHeadline` — navy stub, mood photo flush to top, route-led type
+- **Coral** only on **Search flights**; trip type segments use **navy** fill when selected
+- Route block: hairline dividers, not stacked boxed inputs; details in mist panel
+
 ### Prefer
 
 - Light mode as the default; dark is a paired cabin theme

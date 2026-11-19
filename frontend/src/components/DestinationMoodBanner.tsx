@@ -58,11 +58,14 @@ export function DestinationMoodBanner({
   variant = 'form',
   labelOverride,
   style,
+  flushTop = false,
 }: {
   destinationCode?: string | null;
   variant?: Variant;
   labelOverride?: string;
   style?: ViewStyle;
+  /** Flush to top of search ticket (no gap / top radius). */
+  flushTop?: boolean;
 }) {
   const { theme } = useTheme();
   const { language, isRTL, t } = useLocale();
@@ -145,21 +148,25 @@ export function DestinationMoodBanner({
             : 152
         : variant === 'compact'
           ? 88
-          : bp === 'mobile'
-            ? 120
-            : 140;
+          : variant === 'form'
+            ? 132
+            : bp === 'mobile'
+              ? 120
+              : 140;
 
   return (
     <View ref={hostRef} onLayout={onLayout} collapsable={false}>
       <Animated.View
         style={[
           styles.wrap,
+          flushTop && styles.wrapFlushTop,
           {
             height,
-            borderRadius: theme.radiusLg,
+            borderRadius: flushTop ? 0 : theme.radiusLg,
             opacity,
             borderColor: theme.cardBorder,
-            marginBottom: variant === 'results' ? 8 : 14,
+            marginBottom: variant === 'results' || flushTop ? 0 : 14,
+            borderWidth: flushTop ? 0 : StyleSheet.hairlineWidth,
           },
           style,
         ]}
@@ -209,34 +216,36 @@ export function DestinationMoodBanner({
             isRTL && { flexDirection: 'row-reverse' },
           ]}
         >
-          {variant === 'results' ? (
-            <Text
-              style={[
-                styles.city,
-                styles.cityOnPhoto,
-                {
-                  color: '#fff',
-                  fontFamily: theme.fontDisplay,
-                  textAlign: isRTL ? 'right' : 'left',
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {cityLabel}
-            </Text>
-          ) : (
-            <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
+          {variant === 'results' || variant === 'form' ? (
+            <View style={isRTL ? { alignSelf: 'flex-end' } : undefined}>
               <Text
                 style={[
-                  styles.eyebrow,
+                  styles.city,
+                  styles.cityOnPhoto,
+                  variant === 'form' && styles.cityOnPhotoForm,
                   {
-                    color: theme.isDark ? theme.primaryLight : theme.primary,
-                    fontFamily: theme.fontBody,
+                    color: '#fff',
+                    fontFamily: theme.fontDisplay,
+                    textAlign: isRTL ? 'right' : 'left',
                   },
                 ]}
+                numberOfLines={1}
               >
-                {t('destination_mood_eyebrow')}
+                {cityLabel}
               </Text>
+              {variant === 'form' ? (
+                <Text
+                  style={[
+                    styles.codeOnPhoto,
+                    { fontFamily: theme.fontBody, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {(destinationCode || '').toUpperCase()}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <View style={[styles.pill, { backgroundColor: theme.isDark ? 'rgba(8,16,24,0.55)' : 'rgba(255,255,255,0.88)' }]}>
               <Text
                 style={[
                   styles.city,
@@ -316,6 +325,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 14,
   },
+  wrapFlushTop: {
+    marginBottom: 0,
+  },
   scrim: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -340,6 +352,20 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.55)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 8,
+  },
+  cityOnPhotoForm: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  codeOnPhoto: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.88)',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   pill: {
     alignSelf: 'flex-start',

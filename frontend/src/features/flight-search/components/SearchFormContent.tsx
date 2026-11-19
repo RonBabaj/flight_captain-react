@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import type { CreateSearchSessionRequest } from '../../../types';
-import { FormHeroHeader } from '../../../components/search/FormHeroHeader';
+import { SearchFormHeadline } from '../../../components/search/SearchFormHeadline';
+import { SearchFormTicketShell } from '../../../components/search/SearchFormTicketShell';
 import { SearchSubmitButton } from '../../../components/search/SearchSubmitButton';
 import { formCardStyles, makeFormThemedStyles } from '../../../components/search/formStyles';
 import { DestinationMoodBanner } from '../../../components/DestinationMoodBanner';
@@ -20,11 +21,11 @@ export interface SearchFormContentProps {
   loading: boolean;
   error: string | null;
   compact?: boolean;
-  /** Flat layout for use inside EditSearchModal (no nested card chrome). */
   embedded?: boolean;
-  /** When set, tapping Done in Passenger & cabin triggers this (e.g. re-search on results page) */
   onPassengerCabinDone?: () => void;
 }
+
+const MOOD_FORM_HEIGHT = 132;
 
 export function SearchFormContent({
   params,
@@ -55,66 +56,115 @@ export function SearchFormContent({
   const routeSummary =
     params.origin && params.destination ? `${params.origin} → ${params.destination}` : null;
 
-  return (
+  const showMood = !!params.destination && (!compact || embedded);
+  const useTicket = !embedded && !compact;
+
+  const tripTypeControl = (
     <View
-      style={
-        embedded
-          ? undefined
-          : [
-              formCardStyles.card,
-              compact && formCardStyles.cardCompact,
-              { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
-            ]
-      }
+      style={[
+        s.tripTrack,
+        { backgroundColor: theme.controlBg, borderColor: theme.cardBorder },
+        isRTL && { flexDirection: 'row-reverse' },
+      ]}
+      accessibilityRole="tablist"
     >
-      {compact ? (
-        routeSummary && (
-          <Text style={[ts.heroSubtitle, { marginBottom: 10 }]} numberOfLines={1}>
-            {routeSummary}
-          </Text>
-        )
-      ) : (
-        <FormHeroHeader
-          icon="airplane-outline"
-          title={t('find_flights')}
-          subtitle={t('compare_prices')}
-        />
-      )}
-
-      {!!params.destination && (!compact || embedded) && (
-        <DestinationMoodBanner
-          destinationCode={params.destination}
-          variant={embedded ? 'compact' : 'form'}
-        />
-      )}
-
-      <View style={[formCardStyles.tripRow, compact && formCardStyles.tripRowCompact]}>
-        {(['one-way', 'round-trip'] as const).map((tt) => {
-          const active = tripType === tt;
-          return (
-            <TouchableOpacity
-              key={tt}
-              style={[formCardStyles.tab, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }, active && { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
-              onPress={() => setTripType(tt)}
-              activeOpacity={0.7}
+      {(['one-way', 'round-trip'] as const).map((tt, index) => {
+        const active = tripType === tt;
+        const isFirst = index === 0;
+        const isLast = index === 1;
+        return (
+          <TouchableOpacity
+            key={tt}
+            style={[
+              s.tripSeg,
+              active && { backgroundColor: theme.primary },
+              isFirst && (isRTL ? s.tripSegEndRtl : s.tripSegStart),
+              isLast && (isRTL ? s.tripSegStart : s.tripSegEnd),
+            ]}
+            onPress={() => setTripType(tt)}
+            activeOpacity={0.75}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+          >
+            <Text
+              style={[
+                s.tripSegLabel,
+                { fontFamily: theme.fontBody },
+                active ? { color: '#FFFFFF', fontWeight: '700' } : { color: theme.textMuted, fontWeight: '600' },
+              ]}
             >
-              <Text style={active ? ts.tabTextActive : ts.tabText}>{t(tt === 'one-way' ? 'one_way' : 'round_trip')}</Text>
-            </TouchableOpacity>
-          );
-        })}
+              {t(tt === 'one-way' ? 'one_way' : 'round_trip')}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const fields = (
+    <>
+      {compact && routeSummary ? (
+        <Text style={[ts.heroSubtitle, { marginBottom: 10 }]} numberOfLines={1}>
+          {routeSummary}
+        </Text>
+      ) : null}
+
+      {!compact && !embedded ? (
+        <SearchFormHeadline origin={params.origin} destination={params.destination} tripType={tripType} />
+      ) : null}
+
+      {tripTypeControl}
+
+      <View style={[s.routeBlock, { borderColor: theme.cardBorder, backgroundColor: theme.screenBg }]}>
+        <AirportAutocomplete
+          label={t('from')}
+          value={params.origin}
+          onChange={(c) => update('origin', c)}
+          placeholder={t('city_country_or_airport')}
+          countryMode="resolve-primary"
+          fieldVariant="route"
+        />
+        <View style={[s.routeRule, { backgroundColor: theme.cardBorder }]} />
+        <AirportAutocomplete
+          label={t('to')}
+          value={params.destination}
+          onChange={(c) => update('destination', c)}
+          placeholder={t('city_country_or_airport')}
+          showAnywhere
+          countryMode="country-code"
+          fieldVariant="route"
+        />
       </View>
 
-      <AirportAutocomplete label={t('from')} value={params.origin} onChange={(c) => update('origin', c)} placeholder={t('city_country_or_airport')} countryMode="resolve-primary" />
-      <AirportAutocomplete label={t('to')} value={params.destination} onChange={(c) => update('destination', c)} placeholder={t('city_country_or_airport')} showAnywhere countryMode="country-code" />
+      <View style={[s.detailsBlock, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}>
+        <Text style={[s.fieldLabel, { color: theme.textMuted, fontFamily: theme.fontBody }]}>{t('dates')}</Text>
+        <TouchableOpacity
+          style={[s.dateTap, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
+          onPress={() => setShowCalendar(true)}
+          activeOpacity={0.75}
+        >
+          <Text style={[ts.dateText, { fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>{dateLabel}</Text>
+        </TouchableOpacity>
 
-      <Text style={[ts.label, compact && { marginBottom: 3, fontSize: 13 }]}>{t('dates')}</Text>
-      <TouchableOpacity
-        style={[formCardStyles.dateBtn, compact && formCardStyles.dateBtnCompact, { backgroundColor: theme.inputBg, borderColor: theme.cardBorder }]}
-        onPress={() => setShowCalendar(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={[ts.dateText, compact && { fontSize: 14 }, isRTL && { textAlign: 'right' }]}>{dateLabel}</Text>
-      </TouchableOpacity>
+        <PassengerCabinPicker
+          adults={params.adults}
+          children={params.children ?? 0}
+          cabinClass={
+            params.cabinClass === 'ECONOMY' || params.cabinClass === 'PREMIUM_ECONOMY' ||
+            params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
+              ? params.cabinClass
+              : 'ECONOMY'
+          }
+          onAdultsChange={(n) => update('adults', n)}
+          onChildrenChange={(n) => update('children', n)}
+          onCabinChange={(c) => {
+            update('cabinClass', c);
+            update('cabinPreference', c as CreateSearchSessionRequest['cabinPreference']);
+          }}
+          label={t('passengers_cabin')}
+          onDone={onPassengerCabinDone}
+        />
+      </View>
 
       <DateRangePicker
         visible={showCalendar}
@@ -122,24 +172,14 @@ export function SearchFormContent({
         mode={tripType === 'round-trip' ? 'range' : 'single'}
         initialDate={params.departureDate || undefined}
         initialEndDate={params.returnDate || undefined}
-        onSelect={(date) => { update('departureDate', date); update('returnDate', undefined as any); }}
-        onSelectRange={(start, end) => { update('departureDate', start); update('returnDate', end as any); }}
-      />
-
-      <PassengerCabinPicker
-        adults={params.adults}
-        children={params.children ?? 0}
-        cabinClass={
-          params.cabinClass === 'ECONOMY' || params.cabinClass === 'PREMIUM_ECONOMY' ||
-          params.cabinClass === 'BUSINESS' || params.cabinClass === 'FIRST'
-            ? params.cabinClass
-            : 'ECONOMY'
-        }
-        onAdultsChange={(n) => update('adults', n)}
-        onChildrenChange={(n) => update('children', n)}
-        onCabinChange={(c) => { update('cabinClass', c); update('cabinPreference', c as any); }}
-        label={t('passengers_cabin')}
-        onDone={onPassengerCabinDone}
+        onSelect={(date) => {
+          update('departureDate', date);
+          update('returnDate', undefined as CreateSearchSessionRequest['returnDate']);
+        }}
+        onSelectRange={(start, end) => {
+          update('departureDate', start);
+          update('returnDate', end as CreateSearchSessionRequest['returnDate']);
+        }}
       />
 
       {error ? (
@@ -149,10 +189,11 @@ export function SearchFormContent({
             {
               paddingVertical: 10,
               paddingHorizontal: 12,
-              borderRadius: 8,
+              borderRadius: theme.radiusMd,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: theme.error,
-              backgroundColor: theme.error + '14',
+              backgroundColor: theme.errorBg,
+              fontFamily: theme.fontBody,
             },
           ]}
           accessibilityRole="alert"
@@ -162,12 +203,84 @@ export function SearchFormContent({
         </Text>
       ) : null}
 
-      <SearchSubmitButton
-        label={t('search_flights')}
-        loading={loading}
-        onPress={onSearch}
-        compact={compact}
-      />
-    </View>
+      <SearchSubmitButton label={t('search_flights')} loading={loading} onPress={onSearch} compact={compact} />
+    </>
+  );
+
+  if (embedded) {
+    return <View style={s.embeddedPad}>{fields}</View>;
+  }
+
+  if (!useTicket) {
+    return (
+      <View
+        style={[
+          formCardStyles.card,
+          formCardStyles.cardCompact,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg },
+        ]}
+      >
+        {fields}
+      </View>
+    );
+  }
+
+  return (
+    <SearchFormTicketShell accentHeight={showMood ? MOOD_FORM_HEIGHT + 40 : undefined}>
+      {showMood ? (
+        <DestinationMoodBanner destinationCode={params.destination} variant="form" flushTop />
+      ) : null}
+      <View style={s.ticketPad}>{fields}</View>
+    </SearchFormTicketShell>
   );
 }
+
+const s = StyleSheet.create({
+  embeddedPad: { paddingVertical: 4 },
+  ticketPad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  tripTrack: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 3,
+    gap: 2,
+    marginBottom: 16,
+  },
+  tripSeg: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 9,
+  },
+  tripSegStart: { borderTopLeftRadius: 9, borderBottomLeftRadius: 9 },
+  tripSegEnd: { borderTopRightRadius: 9, borderBottomRightRadius: 9 },
+  tripSegEndRtl: { borderTopRightRadius: 9, borderBottomRightRadius: 9 },
+  routeBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 4,
+    marginBottom: 14,
+  },
+  routeRule: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 2,
+    marginHorizontal: 4,
+  },
+  detailsBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 4,
+  },
+  fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  dateTap: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+});

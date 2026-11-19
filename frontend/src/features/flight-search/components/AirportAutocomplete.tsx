@@ -40,6 +40,8 @@ interface AirportAutocompleteProps {
   placeholder?: string;
   showAnywhere?: boolean;
   countryMode?: CountrySelectMode;
+  /** `route` = boarding-pass row inside the route block */
+  fieldVariant?: 'default' | 'route';
 }
 
 export function AirportAutocomplete({
@@ -49,6 +51,7 @@ export function AirportAutocomplete({
   placeholder,
   showAnywhere = false,
   countryMode = 'none',
+  fieldVariant = 'default',
 }: AirportAutocompleteProps) {
   const { theme } = useTheme();
   const { language, t } = useLocale();
@@ -152,16 +155,26 @@ export function AirportAutocomplete({
     (query.trim().length >= MIN_CHARS && results.length > 0)
   );
 
+  const route = fieldVariant === 'route';
+
   return (
-    <View style={styles.container}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+    <View style={[styles.container, route && styles.containerRoute]}>
+      <Text
+        style={[
+          route ? styles.labelRoute : styles.label,
+          { color: route ? theme.textMuted : theme.text, fontFamily: theme.fontBody },
+        ]}
+      >
+        {label}
+      </Text>
       <ClearableTextInput
         style={[
-          styles.input,
+          route ? styles.inputRoute : styles.input,
           {
-            backgroundColor: theme.inputBg,
-            borderColor: theme.inputBorder,
+            backgroundColor: route ? 'transparent' : theme.inputBg,
+            borderColor: route ? theme.cardBorder : theme.inputBorder,
             color: theme.text,
+            fontFamily: theme.fontBody,
           },
         ]}
         placeholder={placeholder ?? t('city_country_or_airport')}
@@ -267,13 +280,24 @@ export function AirportAutocomplete({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
+  containerRoute: { marginBottom: 8 },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  labelRoute: { fontSize: 12, fontWeight: '600', marginBottom: 4, letterSpacing: 0.2 },
   input: {
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 18,
+  },
+  inputRoute: {
+    borderWidth: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    fontSize: 17,
+    fontWeight: '600',
   },
   hint: { fontSize: 13, marginTop: 6 },
   dropdownWrap: { marginTop: 8, zIndex: 1000, elevation: 8 },
