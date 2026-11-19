@@ -49,6 +49,25 @@
         height: 100%;
         flex: 1;
       }
+      /* Before React mounts: avoid bright OS scrollbar track on dark pages */
+      html {
+        color-scheme: light dark;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(90, 101, 114, 0.35) transparent;
+      }
+      *::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      *::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      *::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+        background-color: rgba(90, 101, 114, 0.35);
+      }
     </style>
     <!-- Force HTTPS as a client-side fallback. Production edge (Nginx Proxy Manager)
          should 301 http→https; this covers caches / misconfigured hosts so Chrome

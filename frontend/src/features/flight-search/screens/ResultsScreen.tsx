@@ -1611,6 +1611,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       <FlatList
         ref={resultsListRef}
         data={filtered}
+        style={{ flex: 1, backgroundColor: theme.screenBg }}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           status === 'COMPLETE' && results.length > 0 ? (
@@ -1787,7 +1788,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     { borderLeftColor: theme.cardBorder },
                   ]}
                 >
-                    <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                    <ScrollView
+                      style={[styles.searchColumnScroll, { backgroundColor: theme.screenBg }]}
+                      contentContainerStyle={styles.searchColumnContent}
+                      keyboardShouldPersistTaps="handled"
+                    >
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>
@@ -1823,7 +1828,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     { borderRightColor: theme.cardBorder },
                   ]}
                 >
-                    <ScrollView style={styles.searchColumnScroll} contentContainerStyle={styles.searchColumnContent} keyboardShouldPersistTaps="handled">
+                    <ScrollView
+                      style={[styles.searchColumnScroll, { backgroundColor: theme.screenBg }]}
+                      contentContainerStyle={styles.searchColumnContent}
+                      keyboardShouldPersistTaps="handled"
+                    >
                       {sidebarSearchForm}
                     </ScrollView>
                 </View>

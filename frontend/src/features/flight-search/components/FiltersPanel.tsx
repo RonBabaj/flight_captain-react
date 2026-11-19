@@ -148,7 +148,9 @@ export function FiltersPanel({
     return (
       <View style={[f.sidebar, { backgroundColor: theme.cardBg }, border]}>
         {header}
-        <ScrollView style={f.scroll} contentContainerStyle={f.scrollContent}>{content}</ScrollView>
+        <ScrollView style={[f.scroll, { backgroundColor: theme.cardBg }]} contentContainerStyle={f.scrollContent}>
+          {content}
+        </ScrollView>
         {footer ? <View style={[f.footer, { borderTopColor: theme.cardBorder }]}>{footer}</View> : null}
       </View>
     );
@@ -159,7 +161,9 @@ export function FiltersPanel({
       <Pressable style={f.overlay} onPress={onClose}>
         <View style={[f.panel, { backgroundColor: theme.cardBg }]} onStartShouldSetResponder={() => true}>
           {header}
-          <ScrollView style={f.scroll} contentContainerStyle={f.scrollContent}>{content}</ScrollView>
+          <ScrollView style={[f.scroll, { backgroundColor: theme.cardBg }]} contentContainerStyle={f.scrollContent}>
+          {content}
+        </ScrollView>
         </View>
       </Pressable>
     </Modal>

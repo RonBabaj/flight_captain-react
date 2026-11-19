@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Platform } from 'react-native';
+import { applyWebScrollbarTheme } from './webScrollbars';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -225,6 +226,11 @@ export function ThemeProvider({
   };
 
   const theme = mode === 'dark' ? darkTheme : lightTheme;
+
+  useEffect(() => {
+    applyWebScrollbarTheme(theme);
+  }, [theme]);
+
   const value = useMemo(
     () => ({
       theme,
