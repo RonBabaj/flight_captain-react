@@ -71,13 +71,20 @@
   "94": "GoogleFlights2Provider",
   "95": "Fly-Fix — Design System & Cursor Redesign Playbook",
   "96": "attachQuotedPriceMeta",
+  "97": "destinationLabelForCode",
+  "98": "handleCreateSession",
   "99": "auth_test.go",
   "100": "ensure-flight-vnc.sh",
   "101": "ensure-flight-chrome.sh",
   "102": "ensure-scraper-proxy-forwarder.sh",
   "103": "docker-entrypoint.sh",
   "104": "after-reboot-flight.sh",
+  "105": "handleExplore",
   "106": "Frontend Design",
+  "107": "server_carrier_test.go",
+  "108": "CalendarModal.tsx",
+  "109": "ResolveProvider",
   "110": ".agents/skills/untangle-codebase/SKILL.md",
-  "111": ".cursor/skills/untangle-codebase/SKILL.md"
+  "111": ".cursor/skills/untangle-codebase/SKILL.md",
+  "112": "GetClicksSummary"
 }
