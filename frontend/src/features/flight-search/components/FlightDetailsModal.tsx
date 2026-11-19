@@ -879,7 +879,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  price: { fontSize: 26, fontWeight: '700' },
+  price: { fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'] as const },
   priceEstimateBlock: { marginTop: 8, gap: 4, maxWidth: 220 },
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -77,9 +77,9 @@ F. Shared navigation (`TopNavMenu`)
 | **1** | Tokens + shared components in `ThemeContext` / `src/ui/` |
 | **2** | Page-by-page apply (landing, search form, results, explore, monthly deals, auth/settings — coral selections + CTAs, navy fares/links) |
 | **3** | Responsive pass (320–1280+): gutters, desktop-only multi-column, drawer nav &lt;1100 |
-| **4** | Motion polish |
-| **5** | Independent critique + top-10 fixes |
-| **6** | Regression QA, build, a11y smoke |
+| **4** | Motion polish — `theme/motion.ts`, reduced-motion, token durations |
+| **5** | Critique fixes — a11y chip, dead props, tabular fares, legal/explore gutters |
+| **6** | Regression QA, build, a11y smoke, **single PR** |
 
 Commit after each phase. Open **one PR after Phase 6**, not per phase.
 

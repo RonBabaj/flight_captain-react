@@ -7,7 +7,7 @@ import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
-import { useBreakpoint } from '../../hooks/useResponsive';
+import { useBreakpoint, useContentGutter } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 const CONTACT_EMAIL = 'support@fly-fix.com';
@@ -44,6 +44,7 @@ export function LegalPageScreen({ kind }: { kind: LegalKind }) {
   const insets = useSafeAreaInsets();
   const breakpoint = useBreakpoint();
   const isMobile = breakpoint === 'mobile';
+  const gutter = useContentGutter();
   const meta = SECTIONS[kind];
   const textAlign = isRTL ? 'right' : 'left';
   useDocumentTitle(t(meta.titleKey));
@@ -56,7 +57,7 @@ export function LegalPageScreen({ kind }: { kind: LegalKind }) {
         {
           paddingTop: isMobile ? 20 : 32,
           paddingBottom: Math.max(insets.bottom, 24) + 40,
-          paddingHorizontal: isMobile ? 18 : 24,
+          paddingHorizontal: gutter,
         },
       ]}
     >

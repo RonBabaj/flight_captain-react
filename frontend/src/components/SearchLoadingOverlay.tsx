@@ -14,6 +14,7 @@ import {
   SEARCH_PROGRESS_PHRASES,
 } from './search/searchLoadingPhrases';
 import { AppIcon } from './AppIcon';
+import { motion, useReducedMotion } from '../theme/motion';
 
 interface ExtraLeg {
   origin?: string;
@@ -58,6 +59,7 @@ export function SearchLoadingOverlay({
   const almostDone = getAlmostDonePhrase(SEARCH_ALMOST_DONE, language);
 
   const [phraseIdx, setPhraseIdx] = useState(0);
+  const reducedMotion = useReducedMotion();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -66,20 +68,20 @@ export function SearchLoadingOverlay({
       fadeAnim.setValue(1);
       return;
     }
-    if (nearComplete) {
+    if (nearComplete || reducedMotion) {
       fadeAnim.setValue(1);
       return;
     }
     const cycle = () => {
       Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: motion.fastMs + 120, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: motion.fastMs + 120, useNativeDriver: true }),
       ]).start();
       setPhraseIdx((i) => (i + 1) % phrases.length);
     };
     const id = setInterval(cycle, 2200);
     return () => clearInterval(id);
-  }, [visible, phrases.length, fadeAnim, nearComplete]);
+  }, [visible, phrases.length, fadeAnim, nearComplete, reducedMotion]);
 
   if (!visible) return null;
 

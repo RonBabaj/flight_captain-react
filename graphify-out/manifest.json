@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/SearchLoadingOverlay.tsx": {
-    "mtime": 1794495542.0656123,
-    "seen": 1794495826.2063072,
-    "ast_hash": "476bc154f0fab5704fab8827ad792219",
+    "mtime": 1795127531.1165674,
+    "seen": 1795127570.5531206,
+    "ast_hash": "d44bf852e4124f9659f70a68459bddcb",
     "semantic_hash": ""
   },
   "frontend/src/components/WebIconSvg.tsx": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/CheaperCitiesSection.tsx": {
-    "mtime": 1794373082.585736,
-    "seen": 1794373545.5079913,
-    "ast_hash": "4fce901832e7b8910ffbdc218a73cb4d",
+    "mtime": 1795127527.980925,
+    "seen": 1795127570.5531652,
+    "ast_hash": "877aa9c0701b9bb17e49e6b94d661b00",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/DatePickerCalendar.tsx": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightDetailsModal.tsx": {
-    "mtime": 1795124971.745884,
-    "seen": 1795125024.3591304,
-    "ast_hash": "7e33d589cdb3a6c0dda9b95372f07ef4",
+    "mtime": 1795127539.9879882,
+    "seen": 1795127570.5531693,
+    "ast_hash": "d160e567853c3d5d7e282f1e101214e0",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/FlightResultCard.tsx": {
@@ -408,15 +408,15 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ExploreScreen.tsx": {
-    "mtime": 1795125003.950239,
-    "seen": 1795125024.359135,
-    "ast_hash": "d8109c5f9e9665222f25776fed0ebf14",
+    "mtime": 1795127553.4918392,
+    "seen": 1795127570.5531745,
+    "ast_hash": "d580e1c4b7123e792a087f68e695ed45",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/ResultsScreen.tsx": {
-    "mtime": 1795125154.3420854,
-    "seen": 1795125194.357435,
-    "ast_hash": "fe261db5dda5b710672b79bc44fbd1b5",
+    "mtime": 1795127528.0329185,
+    "seen": 1795127570.5531752,
+    "ast_hash": "679fd6089a4c2c19afad013cfd1d72b3",
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/screens/SearchFormScreen.tsx": {
@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/landing/LandingScreen.tsx": {
-    "mtime": 1795125174.7058594,
-    "seen": 1795125194.3574374,
-    "ast_hash": "b7d33c2e6b41dcaf89de8eb75e5cd85e",
+    "mtime": 1795127510.1694655,
+    "seen": 1795127570.553178,
+    "ast_hash": "e57bed626a1d47d26159d1ada67c0841",
     "semantic_hash": ""
   },
   "frontend/src/features/landing/index.ts": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/MonthDealsScreen.tsx": {
-    "mtime": 1795125188.5417626,
-    "seen": 1795125194.3574426,
-    "ast_hash": "3b14a8749b0b933752527af2ce89c9c4",
+    "mtime": 1795127533.7843344,
+    "seen": 1795127570.553184,
+    "ast_hash": "2ed0511c95884cfec605f7792e1329cd",
     "semantic_hash": ""
   },
   "frontend/src/features/monthly-deals/screens/index.ts": {
@@ -492,9 +492,9 @@
     "semantic_hash": ""
   },
   "frontend/src/navigation/TopNavMenu.tsx": {
-    "mtime": 1795125118.7823114,
-    "seen": 1795125194.357457,
-    "ast_hash": "720f4a2998fb1845fa353db95afe89b2",
+    "mtime": 1795127552.1558294,
+    "seen": 1795127570.553199,
+    "ast_hash": "0641cc16a58b6e71704d10f8b0b3686a",
     "semantic_hash": ""
   },
   "frontend/src/navigation/index.ts": {
@@ -1044,15 +1044,15 @@
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchProgressBanner.tsx": {
-    "mtime": 1795124946.1699433,
-    "seen": 1795125024.3590925,
-    "ast_hash": "7ce3bc918cf9838b6f12552af93dc460",
+    "mtime": 1795127553.2678373,
+    "seen": 1795127570.5531263,
+    "ast_hash": "b2db0a3499028fc5ae547ce3d694020b",
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchSubmitButton.tsx": {
-    "mtime": 1794495542.0656123,
-    "seen": 1794495826.2063134,
-    "ast_hash": "c69b71d79a9d25cede2fca05c1811477",
+    "mtime": 1795127517.6541986,
+    "seen": 1795127570.5531287,
+    "ast_hash": "1c5b88245738b63e7b3014d4eb2f6c78",
     "semantic_hash": ""
   },
   "frontend/src/components/search/SearchSummaryBar.tsx": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/flight-search/components/ResultsSkeleton.tsx": {
-    "mtime": 1795123680.668724,
-    "seen": 1795123746.5576015,
-    "ast_hash": "73cb3458f94e6bf2aacf34ad9fbea66e",
+    "mtime": 1795127519.2543395,
+    "seen": 1795127570.5531719,
+    "ast_hash": "5e870a611844580644bfb7520b92097d",
     "semantic_hash": ""
   },
   "frontend/src/ui/BookingOptionCard.tsx": {
@@ -1302,9 +1302,9 @@
     "semantic_hash": ""
   },
   "frontend/src/ui/Chip.tsx": {
-    "mtime": 1795124955.8858404,
-    "seen": 1795125024.3591743,
-    "ast_hash": "1c56843fc3b783967d1d60db85c18cde",
+    "mtime": 1795127527.4170017,
+    "seen": 1795127570.553216,
+    "ast_hash": "0d2afb65a19b414faeb08ab3c090b999",
     "semantic_hash": ""
   },
   "frontend/src/ui/SearchStatusBanner.tsx": {
@@ -1416,9 +1416,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/DestinationMoodBanner.tsx": {
-    "mtime": 1795096610.6977143,
-    "seen": 1795096618.9063575,
-    "ast_hash": "8311ce41bd52cbe391013b52626c38f4",
+    "mtime": 1795127511.049561,
+    "seen": 1795127570.5531163,
+    "ast_hash": "3287c94955027a120129929d64bb4308",
     "semantic_hash": ""
   },
   "frontend/src/data/destinationMood.ts": {
@@ -1752,9 +1752,9 @@
     "semantic_hash": ""
   },
   "frontend/src/features/legal/LegalPageScreen.tsx": {
-    "mtime": 1794495542.0736113,
-    "seen": 1794495826.2063615,
-    "ast_hash": "f5906feaa3985a6b7e174750550e0e3f",
+    "mtime": 1795127534.3322937,
+    "seen": 1795127570.5531802,
+    "ast_hash": "ceb7e4b4160cb4d301953b01877d2509",
     "semantic_hash": ""
   },
   "frontend/src/features/legal/NotFoundScreen.tsx": {
@@ -2004,9 +2004,9 @@
     "semantic_hash": ""
   },
   "frontend/src/theme/motion.ts": {
-    "mtime": 1795123689.132787,
-    "seen": 1795123746.5576324,
-    "ast_hash": "42b9ba3618c4e8b3d8e0e5d7585b099a",
+    "mtime": 1795127506.0929718,
+    "seen": 1795127570.553206,
+    "ast_hash": "3f332fbf865cda87379b4a164658f5ce",
     "semantic_hash": ""
   },
   "frontend/src/theme/tokens.ts": {
@@ -2016,9 +2016,9 @@
     "semantic_hash": ""
   },
   ".cursor/skills/flyfix-redesign-playbook/SKILL.md": {
-    "mtime": 1795125174.7298594,
-    "seen": 1795125194.357562,
-    "ast_hash": "87b96b1c27429a6c2f9048c972d49826",
+    "mtime": 1795127553.7278414,
+    "seen": 1795127570.5533276,
+    "ast_hash": "f8f6c7bcb76c7666e94804b4b00873ce",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

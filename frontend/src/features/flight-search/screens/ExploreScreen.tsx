@@ -20,7 +20,7 @@ import { searchActions, dealsActions } from '../../../store';
 import { getAirportEntry, getCityDisplayName } from '../../../data/airports';
 import { getCountryDisplayName, getCountryEntry } from '../../../data/countries';
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
-import { useIsMobile } from '../../../hooks/useResponsive';
+import { useContentGutter, useIsMobile } from '../../../hooks/useResponsive';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { PassengerCabinPicker } from '../components/PassengerCabinPicker';
@@ -229,6 +229,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   const runtimeConfig = useRuntimeConfig();
   const { width } = useWindowDimensions();
   const isMobile = useIsMobile();
+  const gutter = useContentGutter();
 
   // Mutable search params (sidebar / date modal can change these)
   const [origin, setOrigin] = useState(params.origin);
@@ -1052,7 +1053,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView style={s.resultsScroll} contentContainerStyle={s.scroll}>
+        <ScrollView style={s.resultsScroll} contentContainerStyle={[s.scroll, { paddingHorizontal: gutter }]}>
           {/* Top 3 picks — always shown first when not filtering by region */}
           {regionFilter === 'All' && displayed.length > 0 && (
             <>
@@ -1459,7 +1460,7 @@ const s = StyleSheet.create({
   regionPill: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1 },
   regionPillText: { fontSize: 12, fontWeight: '600' },
   // Center column scroll
-  scroll: { padding: 16, paddingBottom: 48 },
+  scroll: { paddingTop: 12, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 10 },
   loadingTitle: { fontSize: 17, fontWeight: '700', marginTop: 12 },
   loadingSub: { fontSize: 14, textAlign: 'center' },

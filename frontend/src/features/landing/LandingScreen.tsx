@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout, useTheme } from '../../theme/ThemeContext';
+import { motion, useReducedMotion } from '../../theme/motion';
 import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
@@ -71,16 +72,23 @@ export function LandingScreen() {
   const brandY = useRef(new Animated.Value(18)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
   const [showStickyCta, setShowStickyCta] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) {
+      brandOpacity.setValue(1);
+      brandY.setValue(0);
+      ctaOpacity.setValue(1);
+      return;
+    }
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(brandOpacity, { toValue: 1, duration: 520, useNativeDriver: true }),
-        Animated.timing(brandY, { toValue: 0, duration: 520, useNativeDriver: true }),
+        Animated.timing(brandOpacity, { toValue: 1, duration: motion.slowMs + 200, useNativeDriver: true }),
+        Animated.timing(brandY, { toValue: 0, duration: motion.slowMs + 200, useNativeDriver: true }),
       ]),
-      Animated.timing(ctaOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+      Animated.timing(ctaOpacity, { toValue: 1, duration: motion.standardMs + 160, useNativeDriver: true }),
     ]).start();
-  }, [brandOpacity, brandY, ctaOpacity]);
+  }, [brandOpacity, brandY, ctaOpacity, reducedMotion]);
 
   const goSearch = () => navigation.navigate('Search');
   const goDeals = () => navigation.navigate('MonthDeals');

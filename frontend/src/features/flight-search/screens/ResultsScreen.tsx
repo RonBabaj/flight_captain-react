@@ -31,6 +31,7 @@ import {
 import { setCachedSearch } from '../../../utils/searchCache';
 import { screenError } from '../../../utils/screenError';
 import { useBreakpoint, useContentGutter, useIsDesktop } from '../../../hooks/useResponsive';
+import { motion, useReducedMotion } from '../../../theme/motion';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
 import { mergeDeepLinkParams, logDeepLinkDiagnostics } from '../../../utils/deepLinkParams';
@@ -157,6 +158,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const breakpoint = useBreakpoint();
   const isDesktop = useIsDesktop();
   const gutter = useContentGutter();
+  const reducedMotion = useReducedMotion();
   const {
     params: storeParams,
     sessionId: storeSessionId,
@@ -1292,11 +1294,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       (!!sessionId && results.length === 0) ||
       (results.length > 0 && filtered.length === 0);
     if (hasVisualContent) {
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      if (reducedMotion) {
+        fadeAnim.setValue(1);
+      } else {
+        Animated.timing(fadeAnim, { toValue: 1, duration: motion.standardMs + 30, useNativeDriver: true }).start();
+      }
     } else {
       fadeAnim.setValue(0);
     }
-  }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim]);
+  }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim, reducedMotion]);
 
   if (status === 'FAILED') {
     // Re-running must clear the dead sessionId from EVERY source the resolver
@@ -1508,7 +1514,6 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     <CheaperCitiesSection
       loading={positioningLoading}
       options={positioningOptions}
-      isMobile={!isDesktop}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
       quietLoading

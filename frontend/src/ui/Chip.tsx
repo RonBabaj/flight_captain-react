@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface ChipProps {
@@ -27,17 +27,16 @@ export function Chip({ label, active = false, onPress, style, accessibilityLabel
 
   if (!onPress) {
     return (
-      <TouchableOpacity
+      <View
         style={[
           styles.chip,
           { backgroundColor: active ? theme.buttonBg : theme.controlBg, borderColor: active ? theme.buttonBg : theme.cardBorder },
           style,
         ]}
-        disabled
         accessibilityRole="text"
       >
         {content}
-      </TouchableOpacity>
+      </View>
     );
   }
 

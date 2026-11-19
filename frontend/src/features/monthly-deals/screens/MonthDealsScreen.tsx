@@ -1070,7 +1070,6 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
     <CheaperCitiesSection
       loading={positioningLoading}
       options={positioningOptions}
-      isMobile={isMobile}
       folded={cheaperCitiesFolded}
       onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
       onView={(hub) => {
