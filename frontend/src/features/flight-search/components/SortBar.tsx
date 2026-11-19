@@ -57,7 +57,7 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
               style={[
                 s.segBtn,
                 active && {
-                  backgroundColor: theme.primary,
+                  backgroundColor: theme.buttonBg,
                 },
                 // Keep outer corners rounded on the track ends
                 isFirst && (isRTL ? s.segEndRTL : s.segStart),
@@ -73,7 +73,7 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
                 style={[
                   s.segLabel,
                   {
-                    color: active ? theme.onPrimary : theme.textMuted,
+                    color: active ? theme.buttonText : theme.textMuted,
                     fontFamily: theme.fontBody,
                     fontWeight: active ? '700' : '600',
                   },

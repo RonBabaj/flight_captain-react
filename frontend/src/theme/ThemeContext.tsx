@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Platform } from 'react-native';
+import { applyWebScrollbarTheme } from './webScrollbars';
+import { layout, palette, radius, space } from './tokens';
 
 export type ThemeMode = 'dark' | 'light';
 
 export type Theme = {
   mode: ThemeMode;
   isDark: boolean;
+  /** Brand / links / headings */
   primary: string;
   primaryLight: string;
   navBg: string;
@@ -18,8 +21,10 @@ export type Theme = {
   inputBorder: string;
   tabActive: string;
   tabInactive: string;
+  /** Primary actions (coral) */
   buttonBg: string;
   buttonText: string;
+  /** Legacy name: contrasting text on filled primary-colored controls */
   onPrimary: string;
   error: string;
   errorBg: string;
@@ -29,118 +34,94 @@ export type Theme = {
   successBg: string;
   info: string;
   infoBg: string;
-  /** Controls, steppers, secondary surfaces */
   controlBg: string;
-  /** Price / money emphasis — warm signal, not the primary CTA color */
+  /** Fares — navy (light) / paper (dark); not the coral CTA */
   price: string;
   radiusMd: number;
   radiusLg: number;
-  /** Soft wash for hero / mood planes */
   atmosphere: string;
   fontDisplay: string | undefined;
   fontBody: string | undefined;
-  spaceXs: number;
-  spaceSm: number;
-  spaceMd: number;
-  spaceLg: number;
-  spaceXl: number;
-};
+} & typeof space;
 
-/**
- * Boarding-pass system — ink navy + paper neutrals + amber fare signal.
- * Intentionally not: neon teal SaaS, purple gradients, cream/terracotta AI clusters.
- */
-const ACCENT = {
-  navy: '#163A5F',
-  navyDeep: '#0F2A45',
-  sky: '#3D7EB5',
-  amber: '#C27803',
-  amberSoft: '#E8A317',
-};
-
-const RADIUS = { md: 10, lg: 14 };
-
-/** Archivo = terminal/ticket display; IBM Plex Sans = clear fare/UI body. */
 const FONTS = {
-  display: Platform.OS === 'web' ? 'Archivo, ui-sans-serif, sans-serif' : undefined,
-  body: Platform.OS === 'web' ? '"IBM Plex Sans", ui-sans-serif, sans-serif' : undefined,
+  display: Platform.OS === 'web' ? 'Manrope, ui-sans-serif, sans-serif' : undefined,
+  body: Platform.OS === 'web' ? 'Inter, ui-sans-serif, sans-serif' : undefined,
 };
 
-const SPACE = { spaceXs: 4, spaceSm: 8, spaceMd: 16, spaceLg: 24, spaceXl: 36 };
-
-/** Light-first: paper, ink, restrained navy CTAs */
 const lightTheme: Theme = {
   mode: 'light',
   isDark: false,
-  primary: ACCENT.navy,
-  primaryLight: ACCENT.sky,
-  navBg: '#FFFFFF',
-  screenBg: '#F4F6F8',
-  cardBg: '#FFFFFF',
-  cardBorder: '#DCE3EA',
-  text: '#121820',
-  textMuted: '#5A6572',
-  inputBg: '#FFFFFF',
-  inputBorder: '#D0D8E0',
-  tabActive: '#121820',
-  tabInactive: '#5A6572',
-  buttonBg: ACCENT.navy,
-  buttonText: '#FFFFFF',
-  onPrimary: '#FFFFFF',
+  primary: palette.aviationNavy,
+  primaryLight: '#3D5470',
+  navBg: palette.white,
+  screenBg: palette.cloudPaper,
+  cardBg: palette.white,
+  cardBorder: '#C5D4D4',
+  text: palette.aviationNavy,
+  textMuted: '#5C6B7A',
+  inputBg: palette.white,
+  inputBorder: '#C5D4D4',
+  tabActive: palette.aviationNavy,
+  tabInactive: '#5C6B7A',
+  buttonBg: palette.signalCoral,
+  buttonText: palette.aviationNavy,
+  onPrimary: palette.aviationNavy,
   error: '#B42318',
   errorBg: '#FEF3F2',
   warning: '#B54708',
   warningBg: '#FFFAEB',
-  success: '#067647',
-  successBg: '#ECFDF3',
+  success: palette.deepEvergreen,
+  successBg: '#E8F0EE',
   info: '#175CD3',
   infoBg: '#EFF8FF',
-  controlBg: '#EEF2F6',
-  price: ACCENT.amber,
-  radiusMd: RADIUS.md,
-  radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(22, 58, 95, 0.06)',
+  controlBg: palette.mist,
+  price: palette.aviationNavy,
+  radiusMd: radius.md,
+  radiusLg: radius.lg,
+  atmosphere: 'rgba(23, 42, 64, 0.06)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
-  ...SPACE,
+  ...space,
 };
 
-/** Dark: charcoal cabin, sky blue actions, soft amber fares */
 const darkTheme: Theme = {
   mode: 'dark',
   isDark: true,
-  primary: ACCENT.sky,
-  primaryLight: '#6AA8D4',
-  navBg: '#12161C',
-  screenBg: '#0C0F13',
-  cardBg: '#171C24',
-  cardBorder: '#2A3340',
-  text: '#F2F4F7',
-  textMuted: '#9AA3B0',
-  inputBg: '#171C24',
-  inputBorder: '#2A3340',
-  tabActive: '#FFFFFF',
-  tabInactive: 'rgba(242,244,247,0.65)',
-  buttonBg: ACCENT.sky,
-  buttonText: '#0C0F13',
-  onPrimary: '#0C0F13',
+  primary: '#B8D0E8',
+  primaryLight: '#D4E4F4',
+  navBg: '#141A22',
+  screenBg: '#0E1218',
+  cardBg: '#1A2230',
+  cardBorder: '#2E3D4A',
+  text: '#F2F4F6',
+  textMuted: '#9AA8B5',
+  inputBg: '#1A2230',
+  inputBorder: '#2E3D4A',
+  tabActive: '#F2F4F6',
+  tabInactive: 'rgba(242,244,246,0.65)',
+  buttonBg: palette.signalCoral,
+  buttonText: palette.aviationNavy,
+  onPrimary: palette.aviationNavy,
   error: '#F97066',
   errorBg: 'rgba(185, 35, 24, 0.16)',
   warning: '#FDB022',
   warningBg: 'rgba(181, 71, 8, 0.16)',
-  success: '#6CE9A6',
-  successBg: 'rgba(6, 118, 71, 0.22)',
+  success: '#7BD4A8',
+  successBg: 'rgba(38, 59, 55, 0.35)',
   info: '#84CAFF',
   infoBg: 'rgba(23, 92, 211, 0.16)',
-  controlBg: '#222933',
-  price: ACCENT.amberSoft,
-  radiusMd: RADIUS.md,
-  radiusLg: RADIUS.lg,
-  atmosphere: 'rgba(61, 126, 181, 0.12)',
+  controlBg: '#243040',
+  price: '#F6F5F1',
+  radiusMd: radius.md,
+  radiusLg: radius.lg,
+  atmosphere: 'rgba(255, 115, 92, 0.08)',
   fontDisplay: FONTS.display,
   fontBody: FONTS.body,
-  ...SPACE,
+  ...space,
 };
+
+export { layout, palette, radius, space };
 
 const THEME_STORAGE_KEY = 'flight_captain_theme';
 
@@ -174,7 +155,6 @@ function parseThemeMode(raw: string | null | undefined): ThemeMode | null {
   return null;
 }
 
-/** Prefer tab session, then per-browser local — works without a logged-in user. */
 function loadSavedThemeMode(fallback: ThemeMode): ThemeMode {
   const fromSession = parseThemeMode(getWebStorage('session')?.getItem(THEME_STORAGE_KEY));
   if (fromSession) return fromSession;
@@ -188,7 +168,7 @@ function persistThemeMode(mode: ThemeMode): void {
   try {
     getWebStorage('session')?.setItem(THEME_STORAGE_KEY, payload);
   } catch {
-    /* ignore quota / private mode */
+    /* ignore */
   }
   try {
     getWebStorage('local')?.setItem(THEME_STORAGE_KEY, payload);
@@ -199,12 +179,11 @@ function persistThemeMode(mode: ThemeMode): void {
 
 export function ThemeProvider({
   children,
-  defaultMode = 'dark',
+  defaultMode = 'light',
 }: {
   children: React.ReactNode;
   defaultMode?: ThemeMode;
 }) {
-  // Prefer saved preference; otherwise start dark (product default).
   const [mode, setModeState] = useState<ThemeMode>(() => loadSavedThemeMode(defaultMode));
 
   useEffect(() => {
@@ -225,19 +204,20 @@ export function ThemeProvider({
   };
 
   const theme = mode === 'dark' ? darkTheme : lightTheme;
+
+  useEffect(() => {
+    applyWebScrollbarTheme(theme);
+  }, [theme]);
+
   const value = useMemo(
     () => ({
       theme,
       setMode,
       toggleTheme,
     }),
-    [theme]
+    [theme],
   );
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
