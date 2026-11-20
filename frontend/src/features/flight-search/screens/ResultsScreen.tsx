@@ -1437,9 +1437,16 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   // poll of the URL's sessionId is in flight. That state must render as loading —
   // it used to fall through to "No flights found" for the few seconds before the
   // session resolved (or the expired-link screen appeared), which read as broken.
+  const urlSearchFields = useMemo(() => {
+    const p = mergeDeepLinkParams(route.params as Record<string, unknown>);
+    return !!(p.origin?.trim() && p.destination?.trim() && p.departureDate?.trim());
+  }, [route.params]);
   const awaitingFirstPoll = !!sessionId && status == null;
+  const coldParamResultsUrl =
+    !sessionId && urlSearchFields && results.length === 0 && status !== 'FAILED' && status !== 'COMPLETE';
   const isLoading =
-    (bootstrappingSession ||
+    (coldParamResultsUrl ||
+      bootstrappingSession ||
       awaitingFirstPoll ||
       sidebarSearchLoading ||
       status === 'PENDING' ||
