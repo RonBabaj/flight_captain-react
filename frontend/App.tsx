@@ -20,6 +20,8 @@ import {
   readBootHref,
   readSharedLinkCache,
 } from './src/utils/sharedLinkCache';
+import { ensureParamOnlyResultsDeepLink } from './src/navigation/ensureResultsDeepLink';
+import { getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
 
 // Seed shared-link stash before NavigationContainer can rewrite the URL.
 captureSharedLinkFromLocation();
@@ -119,6 +121,13 @@ const linking = {
     if (boot) return boot;
     return window.location.href;
   },
+  getStateFromPath(path, options) {
+    const normalized =
+      typeof path === 'string'
+        ? path.replace(/\/results\/+(\?|#|$)/, '/results$1').replace(/\/results\/+$/, '/results')
+        : path;
+    return defaultGetStateFromPath(normalized, options);
+  },
   subscribe: (listener: (url: string) => void) => {
     if (typeof window === 'undefined') return () => {};
     const onChange = () => listener(window.location.href);
@@ -151,15 +160,14 @@ export default function App() {
     console.log('[API_BASE_URL]', API_BASE);
   }, []);
 
-  const recoverSharedLink = useCallback(() => {
-    if (recoveredRef.current) return;
+  const onNavigationReady = useCallback(() => {
     if (!navigationRef.isReady()) return;
     const cached = readSharedLinkCache();
-    if (!cached?.sessionId) return;
-    recoveredRef.current = true;
+    if (cached?.sessionId && !recoveredRef.current) {
+      recoveredRef.current = true;
 
-    const path = (cached.pathname || '').toLowerCase();
-    const params = {
+      const path = (cached.pathname || '').toLowerCase();
+      const params = {
       sessionId: cached.sessionId,
       optionId: cached.optionId,
       flightId: cached.flightId,
@@ -172,20 +180,23 @@ export default function App() {
       adults: cached.adults,
       children: cached.children,
       currency: cached.currency,
-      cabinClass: cached.cabinClass,
-    };
+        cabinClass: cached.cabinClass,
+      };
 
-    if (path.includes('dynamic-destinations')) {
-      navigationRef.navigate('DynamicDestinations', {
-        screen: 'Results',
-        params,
-      } as never);
-    } else {
-      navigationRef.navigate('Search', {
-        screen: 'Results',
-        params,
-      } as never);
+      if (path.includes('dynamic-destinations')) {
+        navigationRef.navigate('DynamicDestinations', {
+          screen: 'Results',
+          params,
+        } as never);
+      } else {
+        navigationRef.navigate('Search', {
+          screen: 'Results',
+          params,
+        } as never);
+      }
+      return;
     }
+    ensureParamOnlyResultsDeepLink(navigationRef);
   }, [navigationRef]);
 
   return (
@@ -198,7 +209,7 @@ export default function App() {
                 <NavigationContainer
                   ref={navigationRef}
                   linking={linking}
-                  onReady={recoverSharedLink}
+                  onReady={onNavigationReady}
                 >
                   <StatusBar style="auto" />
                   <RootNavigator />
