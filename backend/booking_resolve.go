@@ -532,10 +532,11 @@ func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, gf2Raw []booki
 		quote := quoteBindingForMatch(session, option, legIndex)
 		return bookingmatch.SelectBestOffer(airlineVerified, normalize, quote)
 	}
-	if legIndex < 0 {
-		return nil
+	tplLeg := legIndex
+	if tplLeg < 0 {
+		tplLeg = 0
 	}
-	if u := BuildLegAirlineDirectURL(session, option, legIndex, segmentIndex, "", ""); u != "" {
+	if u := BuildLegAirlineDirectURL(session, option, tplLeg, segmentIndex, "", ""); u != "" {
 		quote := quoteBindingFromOption(session, option, legIndex)
 		if offer := gf2PartnerOfferFromQuoteURL(u, fp, quote); offer != nil {
 			offer.URLType = bookingmatch.URLTypeExactSearch
@@ -977,9 +978,33 @@ func sessionBookingResponse(session *SearchSession, option *FlightOption, fp, ra
 	return resp, true
 }
 
-// enrichSessionBookingDualOptions always tries airline-direct (template prefill, then GF2)
-// after attaching a Skyscanner/Kiwi session handoff so Book shows partner + airline when possible.
-func enrichSessionBookingDualOptions(
+func isAirlineOnlyPrefillLabel(label string) bool {
+	switch strings.ToLower(strings.TrimSpace(label)) {
+	case "airline_direct", "airline_direct_prefill":
+		return true
+	default:
+		return false
+	}
+}
+
+// normalizePartnerSlotForDual sets cheapestOta from Offer when the API returned a single partner handoff.
+func normalizePartnerSlotForDual(resp *BookingResolveResponse) {
+	if resp == nil || resp.CheapestOta != nil || resp.Offer == nil {
+		return
+	}
+	if isAirlineOnlyPrefillLabel(resp.Offer.PriceLabel) {
+		return
+	}
+	cp := *resp.Offer
+	if cp.PriceLabel == "" || cp.PriceLabel == "session_booking" {
+		cp.PriceLabel = "cheapest_ota"
+	}
+	resp.CheapestOta = &cp
+}
+
+// ensureDualBookingCompanion attaches airline-direct (registry prefill, then GF2) whenever we
+// already have a partner/OTA offer and a single-carrier itinerary.
+func ensureDualBookingCompanion(
 	ctx context.Context,
 	session *SearchSession,
 	option *FlightOption,
@@ -988,7 +1013,14 @@ func enrichSessionBookingDualOptions(
 	legIndex, segmentIndex int,
 	resp *BookingResolveResponse,
 ) {
-	if resp == nil || !resp.Found || resp.CheapestOta == nil {
+	if resp == nil || !resp.Found {
+		return
+	}
+	normalizePartnerSlotForDual(resp)
+	if resp.CheapestOta == nil {
+		return
+	}
+	if !scopedCarriersUniform(option, legIndex, segmentIndex) {
 		return
 	}
 	if resp.AirlineDirect == nil {
@@ -999,7 +1031,8 @@ func enrichSessionBookingDualOptions(
 	}
 	supplementAirlineDirectFromGF2(ctx, session, option, it, fp, legIndex, segmentIndex, resp)
 	if resp.AirlineDirect != nil && resp.CheapestOta != nil {
-		if resp.Message == "Opens the booking page from the site that showed this fare." {
+		if resp.Message == "Opens the booking page from the site that showed this fare." ||
+			strings.HasPrefix(resp.Message, "Opens the partner site") {
 			resp.Message = "Compare the partner price with booking on the airline site."
 		}
 	}
@@ -1050,14 +1083,20 @@ func supplementAirlineDirectFromGF2(
 	resp.Message = "Compare the partner price with booking on the airline site."
 }
 
-func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) BookingResolveResponse {
+func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) (resp BookingResolveResponse) {
 	start := time.Now()
 	legRoute := legRouteLabel(it)
 	normalize := bookingMatchPriceNormalizer()
 
+	defer func() {
+		if resp.Found {
+			ensureDualBookingCompanion(ctx, session, option, it, fp, legIndex, segmentIndex, &resp)
+		}
+	}()
+
 	if u := storedSessionBookingURL(option, legIndex); u != "" {
-		if resp, ok := sessionBookingResponse(session, option, fp, u, legIndex, segmentIndex); ok {
-			enrichSessionBookingDualOptions(ctx, session, option, it, fp, legIndex, segmentIndex, &resp)
+		if sessionResp, ok := sessionBookingResponse(session, option, fp, u, legIndex, segmentIndex); ok {
+			resp = sessionResp
 			event := "resolve_session_booking"
 			if resp.CheapestOta != nil && resp.AirlineDirect != nil {
 				event = "resolve_session_booking_dual"
@@ -1134,7 +1173,8 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		)
 	}
 
-	if resp, event, ok := tryResolve(offers); ok {
+	if resolved, event, ok := tryResolve(offers); ok {
+		resp = resolved
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                event,
 			ItineraryFingerprint: fp,
@@ -1154,7 +1194,8 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		if len(source) == 0 {
 			source = nil
 		}
-		if resp, event, ok := tryResolve(source); ok {
+		if resolved, event, ok := tryResolve(source); ok {
+			resp = resolved
 			logBookingResolve(bookingResolveLogEvent{
 				Event:                event,
 				ItineraryFingerprint: fp,
@@ -1187,7 +1228,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	sellerSourced := isSellerOTASource(option)
 	if sellerSourced && listingOffer != nil {
-		resp := BookingResolveResponse{
+		resp = BookingResolveResponse{
 			Found:                true,
 			Status:               BookingResolveVerified,
 			ItineraryFingerprint: fp,
@@ -1213,7 +1254,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	if airlinePrefill != nil {
-		resp := BookingResolveResponse{
+		resp = BookingResolveResponse{
 			Found:                true,
 			Status:               BookingResolveVerified,
 			ItineraryFingerprint: fp,
@@ -1234,7 +1275,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	if listingOffer != nil {
-		resp := BookingResolveResponse{
+		resp = BookingResolveResponse{
 			Found:                true,
 			Status:               BookingResolveVerified,
 			ItineraryFingerprint: fp,
@@ -1255,7 +1296,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	if len(offers) == 0 && gf2Err != nil && isTransientGF2BookingErr(gf2Err) {
-		resp := bookingResolveFailureResponse(fp, gf2Err)
+		resp = bookingResolveFailureResponse(fp, gf2Err)
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                "resolve_failed",
 			ItineraryFingerprint: fp,
@@ -1269,7 +1310,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 	}
 
 	if matchErr != nil && len(offers) == 0 && len(gf2CheckoutOffers(gf2Offers)) == 0 {
-		resp := bookingResolveFailureResponse(fp, matchErr)
+		resp = bookingResolveFailureResponse(fp, matchErr)
 		logBookingResolve(bookingResolveLogEvent{
 			Event:                "resolve_failed",
 			ItineraryFingerprint: fp,
@@ -1282,7 +1323,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		return resp
 	}
 
-	resp := BookingResolveResponse{
+	resp = BookingResolveResponse{
 		Found:                false,
 		Status:               BookingResolveNotFound,
 		ItineraryFingerprint: fp,

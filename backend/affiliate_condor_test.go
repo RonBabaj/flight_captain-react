@@ -117,3 +117,27 @@ func TestRunBookingMatch_skyscannerSessionDualWithCondorPrefill(t *testing.T) {
 		t.Fatal("dual options must differ")
 	}
 }
+
+func TestPickAirlineDirectOffer_fullItineraryUsesLegZeroTemplate(t *testing.T) {
+	dep := time.Date(2027, 1, 7, 10, 0, 0, 0, time.UTC)
+	arr := time.Date(2027, 1, 7, 14, 0, 0, 0, time.UTC)
+	opt := &FlightOption{
+		Legs: []FlightLeg{{
+			Segments: []FlightSegment{{
+				From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
+				DepartureTime: dep, ArrivalTime: arr,
+				MarketingCarrier: Carrier{Code: "LY"},
+			}},
+		}},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{Adults: 1}}
+	it, err := canonicalItineraryForOption(opt, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+	ad := pickAirlineDirectOffer(nil, nil, sess, opt, -1, -1, fp, bookingMatchPriceNormalizer())
+	if ad == nil || !strings.Contains(strings.ToLower(ad.URL), "elal") {
+		t.Fatalf("expected LY template for legIndex -1, got %+v", ad)
+	}
+}

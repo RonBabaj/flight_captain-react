@@ -210,6 +210,7 @@ func init() {
 			Type: ProviderTypeAirline,
 		},
 	}
+	registerExtraAirlineProviders()
 }
 
 // ResolveProvider returns the provider for the given option (PrimaryDisplayCarrier / marketing or OTA fallback).
