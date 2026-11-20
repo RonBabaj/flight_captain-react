@@ -70,6 +70,7 @@ import { SearchProgressBanner } from '../../../components/search/SearchProgressB
 import { SearchSourcesBanner } from '../../../components/search/SearchSourcesBanner';
 import { SearchSummaryBar } from '../../../components/search/SearchSummaryBar';
 import { ResultsSkeletonList } from '../components/ResultsSkeleton';
+import { StaggeredEntrance } from '../../../ui/StaggeredEntrance';
 import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
@@ -1619,22 +1620,25 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
             />
           ) : null
         }
-        renderItem={({ item }) => (
-          <FlightResultCard
-            option={item}
-            onDetails={() => openDetails(item)}
-            bookLoading={false}
-            bookLabel={t('select_flight')}
-            tripType={tripType}
-            searchReturnDate={formParams.returnDate || storeParams?.returnDate}
-            searchReturnRoute={searchReturnRoute}
-            passengerCount={
-              (storeParams?.adults ?? 0) +
-              (storeParams?.children ?? 0) +
-              (storeParams?.infants ?? 0)
-            }
-          />
+        renderItem={({ item, index }) => (
+          <StaggeredEntrance index={index} style={{ marginVertical: 4 }}>
+            <FlightResultCard
+              option={item}
+              onDetails={() => openDetails(item)}
+              bookLoading={false}
+              bookLabel={t('select_flight')}
+              tripType={tripType}
+              searchReturnDate={formParams.returnDate || storeParams?.returnDate}
+              searchReturnRoute={searchReturnRoute}
+              passengerCount={
+                (storeParams?.adults ?? 0) +
+                (storeParams?.children ?? 0) +
+                (storeParams?.infants ?? 0)
+              }
+            />
+          </StaggeredEntrance>
         )}
+        ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
         ListFooterComponent={resultsListFooter}
         ListEmptyComponent={
           showNoMatch ? (

@@ -7,6 +7,8 @@ import { useLocale } from '../context/LocaleContext';
 import { resolveAirlineLabel } from '../data/airlines';
 import { getCurrencySymbol } from '../utils/exchangeRates';
 import { BookingOptionCard } from './BookingOptionCard';
+import { BookingDualComparison } from './BookingDualComparison';
+import { BookingTrustStrip } from './BookingTrustStrip';
 import { Button } from './Button';
 import { Callout } from './Callout';
 import {
@@ -121,23 +123,19 @@ export function BookingOptionsFooter({
 
       {dual && resolved.cheapestOta && resolved.airlineDirect ? (
         <View style={styles.optionsStack}>
+          <BookingTrustStrip />
           {resolved.candidatesConsidered != null && resolved.candidatesConsidered > 1 ? (
             <Text style={[styles.comparedHint, { color: theme.textMuted }]}>
               {t('booking_sites_compared').replace('{count}', String(resolved.candidatesConsidered))}
             </Text>
           ) : null}
-          <BookingOptionCard
-            offer={resolved.cheapestOta}
-            badge="cheapest"
+          <BookingDualComparison
+            cheapest={resolved.cheapestOta}
+            airline={resolved.airlineDirect}
+            airlineName={airlineName}
             compact={compact}
-            onContinue={() => onOpenUrl(resolved.cheapestOta!.url)}
-          />
-          <BookingOptionCard
-            offer={resolved.airlineDirect}
-            badge="direct"
-            compact={compact}
-            titleOverride={airlineName}
-            onContinue={() => onOpenUrl(resolved.airlineDirect!.url)}
+            onOpenCheapest={() => onOpenUrl(resolved.cheapestOta!.url)}
+            onOpenAirline={() => onOpenUrl(resolved.airlineDirect!.url)}
           />
           {resolved.alternatives && resolved.alternatives.length > 0 ? (
             <View style={styles.altBlock}>

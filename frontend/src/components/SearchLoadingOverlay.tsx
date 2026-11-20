@@ -14,6 +14,7 @@ import {
   SEARCH_PROGRESS_PHRASES,
 } from './search/searchLoadingPhrases';
 import { AppIcon } from './AppIcon';
+import { SearchStepIndicator, type SearchLoadPhase } from './SearchStepIndicator';
 import { motion, useReducedMotion } from '../theme/motion';
 
 interface ExtraLeg {
@@ -85,6 +86,8 @@ export function SearchLoadingOverlay({
 
   if (!visible) return null;
 
+  const loadPhase: SearchLoadPhase = nearComplete ? 3 : phraseIdx % phrases.length < phrases.length / 2 ? 1 : 2;
+
   const completeExtras = (extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),
   );
@@ -133,6 +136,7 @@ export function SearchLoadingOverlay({
           {route}
         </Text>
       ) : null}
+      <SearchStepIndicator phase={loadPhase} />
       <Animated.Text style={[s.phrase, { color: theme.textMuted, opacity: fadeAnim }]}>
         {nearComplete ? almostDone : phrases[phraseIdx]}
       </Animated.Text>

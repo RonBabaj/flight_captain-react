@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   ViewStyle,
   TextStyle,
 } from 'react-native';
@@ -37,6 +38,7 @@ export function Button({
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDisabled = disabled || loading;
+  const [focused, setFocused] = useState(false);
 
   const containerStyle: ViewStyle[] = [
     styles.base,
@@ -52,6 +54,7 @@ export function Button({
     isDisabled && styles.disabled,
     style,
   ].filter(Boolean) as ViewStyle[];
+  const containerFlat = StyleSheet.flatten(containerStyle);
 
   const labelColor =
     variant === 'primary'
@@ -61,11 +64,16 @@ export function Button({
         : theme.primary;
 
   return (
-    <TouchableOpacity
-      style={containerStyle}
+    <Pressable
+      style={({ pressed }) => [
+        containerFlat,
+        pressed && !isDisabled && styles.pressed,
+        Platform.OS === 'web' && focused && !isDisabled && { outlineWidth: 2, outlineColor: theme.primary, outlineStyle: 'solid' as const, outlineOffset: 2 },
+      ]}
       onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       disabled={isDisabled}
-      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
@@ -85,7 +93,7 @@ export function Button({
           {label}
         </Text>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -115,5 +123,8 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.55,
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });
