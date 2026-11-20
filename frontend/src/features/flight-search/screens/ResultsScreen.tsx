@@ -1769,11 +1769,15 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         summary={tripSummary.plain}
         showEditButton={!showSearchBesideResults}
         onEditPress={openEditSearch}
+        tone="plain"
       />
       {tripMoodCodes.length > 0 && (
         <View style={[styles.moodStrip, { paddingHorizontal: gutter }]}>
           {tripMoodCodes.length === 1 ? (
-            <DestinationMoodBanner destinationCode={tripMoodCodes[0]} variant="results" />
+            <DestinationMoodBanner
+              destinationCode={tripMoodCodes[0]}
+              variant={breakpoint === 'mobile' ? 'compact' : 'results'}
+            />
           ) : (
             <DestinationMoodStrip destinationCodes={tripMoodCodes} variant="results" />
           )}

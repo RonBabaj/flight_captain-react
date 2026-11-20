@@ -25,13 +25,13 @@ import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '.
 import {
   buildLegPreviewSummary,
   formatDuration,
-  formatLayoverPreview,
   formatLegStopsLabel,
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
 import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
 import { TicketStub } from '../../../ui/TicketStub';
+import { AirportRouteTimeline, LayoverChips } from '../../../ui';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -50,8 +50,8 @@ function buildRoutePath(segments: FlightSegment[]): string[] {
 
 function LegScheduleBlock({
   summary,
-  routeStr,
-  routeColor,
+  routeCodes,
+  legLabel,
   showTimes,
   selfTransfer,
   t,
@@ -61,8 +61,10 @@ function LegScheduleBlock({
   locale,
 }: {
   summary: LegPreviewSummary | null;
-  routeStr: string;
-  routeColor: string;
+  /** Ordered airport codes for this leg (for timeline). */
+  routeCodes: string[];
+  /** Short section title: Outbound / Return */
+  legLabel?: string;
   showTimes: boolean;
   selfTransfer?: boolean;
   t: (key: string) => string;
@@ -71,19 +73,23 @@ function LegScheduleBlock({
   timeDisplay: FlightTimeDisplayMode;
   locale: string;
 }) {
-  if (!routeStr && !summary) return null;
+  if (!routeCodes.length && !summary) return null;
 
   const dep = formatFlightTime(summary?.departureTime, summary?.origin, timeDisplay, locale);
   const arr = formatFlightTime(summary?.arrivalTime, summary?.destination, timeDisplay, locale);
   const dur = formatDuration(summary?.durationMinutes ?? 0);
   const stopsCount = summary?.stopsCount ?? 0;
   const stopsText = formatLegStopsLabel(stopsCount, t, { selfTransfer });
-  const layoverText = formatLayoverPreview(summary?.layovers ?? [], t);
   const row = (rtlStyle?: object) => (isRTL ? [{ flexDirection: 'row-reverse' as const }, rtlStyle] : []);
   const timeSep = isRTL ? ' ← ' : ' → ';
 
   return (
     <View style={c.legBlock}>
+      {legLabel ? (
+        <Text style={[c.legLabel, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>
+          {legLabel}
+        </Text>
+      ) : null}
       {showTimes && summary ? (
         <View style={[c.timesRow, ...row()]}>
           <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{dep}</Text>
@@ -91,17 +97,8 @@ function LegScheduleBlock({
           <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{arr}</Text>
         </View>
       ) : null}
-      {routeStr ? (
-        <Text
-          style={[
-            c.route,
-            { color: routeColor, fontFamily: theme.fontDisplay, fontWeight: '700' },
-            isRTL && { textAlign: 'right' },
-          ]}
-          numberOfLines={1}
-        >
-          {routeStr}
-        </Text>
+      {routeCodes.length > 0 ? (
+        <AirportRouteTimeline codes={routeCodes} theme={theme} isRTL={isRTL} />
       ) : null}
       {showTimes && summary ? (
         <View style={[c.metaRow, ...row({ flexWrap: 'wrap' as const })]}>
@@ -126,12 +123,10 @@ function LegScheduleBlock({
               {stopsText}
             </Text>
           </View>
-          {layoverText ? (
-            <Text style={[c.layoverHint, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-              {layoverText}
-            </Text>
-          ) : null}
         </View>
+      ) : null}
+      {summary && summary.layovers.length > 0 ? (
+        <LayoverChips layovers={summary.layovers} theme={theme} isRTL={isRTL} t={t} />
       ) : null}
     </View>
   );
@@ -181,6 +176,8 @@ export function FlightResultCard({
   const legRoutes = (option.legs ?? [])
     .map((leg) => buildRoutePath(leg.segments ?? []).join(sep))
     .filter(Boolean);
+  const outboundRouteCodes = buildRoutePath(segments);
+  const returnRouteCodes = returnSegments.length ? buildRoutePath(returnSegments) : [];
   const outboundRouteStr = legRoutes[0] || '';
   const extraRouteStrs = legRoutes.slice(1, Math.max(1, legRoutes.length - 1));
   let returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
@@ -276,8 +273,8 @@ export function FlightResultCard({
         <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>
           <LegScheduleBlock
             summary={outboundSummary}
-            routeStr={outboundRouteStr}
-            routeColor={theme.text}
+            routeCodes={outboundRouteCodes}
+            legLabel={isRoundTrip ? t('outbound') : undefined}
             showTimes
             selfTransfer={option.selfTransfer}
             t={t}
@@ -299,8 +296,8 @@ export function FlightResultCard({
             returnSummary ? (
               <LegScheduleBlock
                 summary={returnSummary}
-                routeStr={returnRouteStr}
-                routeColor={theme.textMuted}
+                routeCodes={returnRouteCodes}
+                legLabel={t('return_leg')}
                 showTimes
                 selfTransfer={option.selfTransfer}
                 t={t}
@@ -382,7 +379,7 @@ export function FlightResultCard({
 
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
         <View style={[c.airlineCol, isRTL && { alignItems: 'flex-end' }]}>
-          <Text style={[c.airlineText, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
+          <Text style={[c.airlineText, { color: theme.text, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
             {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
           </Text>
           {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
@@ -398,12 +395,26 @@ export function FlightResultCard({
             </Text>
           )}
         </View>
-        {hasBagBadge && (
-          <View style={[c.bagBadge, { backgroundColor: theme.controlBg }, isRTL && { alignSelf: 'center' }]}>
-            <AppIcon name="bag-outline" size={14} color={theme.textMuted} />
-            <Text style={[c.bagBadgeText, { color: theme.textMuted }, isRTL && { textAlign: 'center' }]}>{bagStr}</Text>
-          </View>
-        )}
+        <View style={[c.footerActions, isRTL && { flexDirection: 'row-reverse' }]}>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onDetails();
+            }}
+            style={c.detailsLink}
+            accessibilityRole="button"
+            accessibilityLabel={t('view_details')}
+          >
+            <Text style={[c.detailsLinkText, { color: theme.primary, fontFamily: theme.fontBody }]}>{t('view_details')}</Text>
+            <AppIcon name={isRTL ? 'chevron-back' : 'chevron-forward'} size={14} color={theme.primary} fallbackText="›" />
+          </TouchableOpacity>
+          {hasBagBadge ? (
+            <View style={[c.bagBadge, { backgroundColor: theme.controlBg }]}>
+              <AppIcon name="bag-outline" size={14} color={theme.textMuted} />
+              <Text style={[c.bagBadgeText, { color: theme.textMuted }, isRTL && { textAlign: 'center' }]}>{bagStr}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       </TicketStub>
     </TouchableOpacity>
@@ -427,7 +438,14 @@ const c = StyleSheet.create({
     alignItems: 'stretch',
   },
   scheduleCol: { flex: 1, minWidth: 0 },
-  legBlock: { marginBottom: 8 },
+  legBlock: { marginBottom: 10 },
+  legLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   timesRow: { flexDirection: 'row', alignItems: 'baseline' },
   time: { fontSize: 20, fontWeight: '700', letterSpacing: -0.15, fontVariant: ['tabular-nums'] as any },
   timeSep: { fontSize: 12 },
@@ -437,7 +455,6 @@ const c = StyleSheet.create({
   metaText: { fontSize: 12, fontWeight: '500' },
   stopsChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   stopsChipText: { fontSize: 12, fontWeight: '600' },
-  layoverHint: { fontSize: 12, flexShrink: 1 },
   priceCol: { alignItems: 'flex-end', justifyContent: 'flex-start', minWidth: 96 },
   priceColStacked: { alignItems: 'stretch', width: '100%', minWidth: 0, marginTop: 4 },
   price: { fontSize: 22, fontWeight: '700', letterSpacing: -0.1, fontVariant: ['tabular-nums'] as any },
@@ -449,13 +466,15 @@ const c = StyleSheet.create({
   selfTransferWarn: { fontSize: 12, marginTop: 6, fontWeight: '600', lineHeight: 17 },
   bookBtn: {
     marginTop: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
     borderRadius: 10,
-    minWidth: 88,
+    minWidth: 96,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  bookBtnText: { fontSize: 13, fontWeight: '700' },
+  bookBtnText: { fontSize: 14, fontWeight: '700' },
 
   row2: {
     flexDirection: 'row',
@@ -469,6 +488,16 @@ const c = StyleSheet.create({
   airlineCol: { flex: 1, minWidth: 0 },
   airlineText: { fontSize: 12, fontWeight: '500' },
   codeshareText: { fontSize: 12, marginTop: 2 },
+  footerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  detailsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    minHeight: 36,
+  },
+  detailsLinkText: { fontSize: 13, fontWeight: '600' },
   bagBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   bagBadgeText: { fontSize: 12 },
 });

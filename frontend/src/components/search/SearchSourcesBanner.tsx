@@ -85,6 +85,20 @@ export function SearchSourcesBanner({
           .replace('{total}', String(totalCount))
       : t('results_count').replace('{n}', String(loadedCount));
 
+  if (showPaginationHint && !showWarning) {
+    return (
+      <Text
+        style={[
+          styles.inlineCount,
+          { color: theme.textMuted, fontFamily: theme.fontBody, marginHorizontal: 12, marginBottom: 8 },
+        ]}
+        accessibilityRole="text"
+      >
+        {countLabel}
+      </Text>
+    );
+  }
+
   return (
     <View
       style={[
@@ -132,6 +146,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   count: { fontSize: 13, fontWeight: '600' },
+  inlineCount: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
   sources: { fontSize: 11, lineHeight: 15 },
   warn: { fontSize: 11, lineHeight: 15 },
 });
