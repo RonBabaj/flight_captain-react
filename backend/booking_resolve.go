@@ -345,7 +345,36 @@ func buildDualBookingResolveResponse(
 		Alternatives:         alternatives,
 	}
 	resp = attachQuotedPriceMeta(resp, session, option, legIndex, extractedBeforeQuote)
+	reconcileDualBookingOffers(&resp, session, option, legIndex)
 	return resp, event, true
+}
+
+// reconcileDualBookingOffers fixes dual-compare UX: airline template prices must match the
+// full-trip search quote (not a GF2 hop scrape), and broken Skyscanner deeplinks are dropped.
+func reconcileDualBookingOffers(resp *BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int) {
+	if resp == nil || option == nil {
+		return
+	}
+	if resp.AirlineDirect != nil && resp.AirlineDirect.URL != "" && isAffiliateTemplateBookingURL(resp.AirlineDirect.URL) {
+		q := quoteBindingFromOption(session, option, legIndex)
+		if q.Amount > 0 && strings.TrimSpace(q.Currency) != "" {
+			amt := q.Amount
+			resp.AirlineDirect.Price = &amt
+			resp.AirlineDirect.Currency = q.Currency
+			resp.AirlineDirect.PriceLabel = "airline_direct_prefill"
+		}
+	}
+	if resp.CheapestOta != nil && resp.CheapestOta.URL != "" {
+		if search.IsTransportDeeplink(resp.CheapestOta.URL) && !search.IsValidSkyscannerDeeplink(resp.CheapestOta.URL) {
+			resp.CheapestOta.URL = ""
+		}
+	}
+	if resp.CheapestOta != nil && resp.CheapestOta.URL == "" {
+		resp.CheapestOta = nil
+	}
+	if resp.CheapestOta == nil && resp.Offer != nil && resp.Offer.URL == "" && resp.AirlineDirect != nil {
+		resp.Offer = resp.AirlineDirect
+	}
 }
 
 func pickDualBookingOffers(

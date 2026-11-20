@@ -183,7 +183,15 @@ export function isSafeBookingUrl(url: string): boolean {
     // A Skyscanner transport_deeplink is the redirect the results page already
     // attached to this fare. The results page itself is not a booking link.
     if (host.includes('skyscanner.')) {
-      return path.includes('transport_deeplink') || path.includes('/deeplink/');
+      if (!path.includes('transport_deeplink') && !path.includes('/deeplink/')) {
+        return false;
+      }
+      const itin =
+        u.searchParams.get('itinerary') ||
+        u.searchParams.get('itineraryid') ||
+        u.searchParams.get('itineraryId') ||
+        '';
+      return itin.trim().length >= 2;
     }
     if (
       host.includes('kayak.') ||
