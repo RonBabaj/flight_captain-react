@@ -203,7 +203,14 @@ func init() {
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://www.delta.com/flight-search?from={origin}&to={destination}&departure={departureDate}&return={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
+		// Condor — TCA search uses YYYYMMDD (handled in buildCondorSearchURL, not URLTpl).
+		"DE": {
+			Code: "DE",
+			Name: "Condor",
+			Type: ProviderTypeAirline,
+		},
 	}
+	registerExtraAirlineProviders()
 }
 
 // ResolveProvider returns the provider for the given option (PrimaryDisplayCarrier / marketing or OTA fallback).
@@ -321,7 +328,7 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	providerRegistryMu.RLock()
 	provider, ok := providerRegistry[carrier]
 	providerRegistryMu.RUnlock()
-	if !ok || provider.Type != ProviderTypeAirline || strings.TrimSpace(provider.URLTpl) == "" {
+	if !ok || provider.Type != ProviderTypeAirline {
 		return ""
 	}
 
@@ -355,6 +362,14 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 		}
 	}
 
+	if carrier == "DE" {
+		return buildCondorSearchURL(origin, dest, dep, returnDate)
+	}
+
+	if strings.TrimSpace(provider.URLTpl) == "" {
+		return ""
+	}
+
 	affID := getAffiliateID(provider.Code)
 	subid := sessionID + "_" + optionID
 	if subid == "_" {
@@ -378,6 +393,41 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))
 	return stripEmptyQueryParams(s)
+}
+
+func compactYYYYMMDD(isoDate string) string {
+	d := strings.TrimSpace(isoDate)
+	if len(d) == 10 && d[4] == '-' && d[7] == '-' {
+		return d[0:4] + d[5:7] + d[8:10]
+	}
+	return strings.ReplaceAll(d, "-", "")
+}
+
+// buildCondorSearchURL opens Condor's flight search with route and dates prefilled.
+// Fare is not guaranteed — user picks the matching flight on condor.com.
+func buildCondorSearchURL(origin, dest, dep, returnDate string) string {
+	origin = strings.ToUpper(strings.TrimSpace(origin))
+	dest = strings.ToUpper(strings.TrimSpace(dest))
+	outbound := compactYYYYMMDD(dep)
+	if origin == "" || dest == "" || outbound == "" {
+		return ""
+	}
+	q := url.Values{}
+	q.Set("action", "search")
+	q.Set("compartment", "Y")
+	q.Set("currency", "EUR")
+	q.Set("origin", origin)
+	q.Set("destination", dest)
+	q.Set("outboundDate", outbound)
+	q.Set("preselect", "false")
+	inbound := compactYYYYMMDD(returnDate)
+	if inbound != "" {
+		q.Set("inboundDate", inbound)
+		q.Set("oneway", "false")
+	} else {
+		q.Set("oneway", "true")
+	}
+	return "https://www.condor.com/tca/en/flight/search?" + q.Encode()
 }
 
 const maxClickStoreRecords = 100_000

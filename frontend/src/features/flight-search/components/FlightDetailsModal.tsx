@@ -29,7 +29,7 @@ import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
   isSplitBookingItinerary,
-  needsPerHopBooking,
+  needsPerTicketBooking,
 } from '../../../utils/skyscanner';
 import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, formatFlightShortDate } from '../../../utils/flightTimeDisplay';
 import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
@@ -140,8 +140,10 @@ export function FlightDetailsModal({
   const useFullScreen = isNarrow;
 
   const splitBooking = isSplitBookingItinerary(option, searchParams);
-  const perHopBooking = needsPerHopBooking(option, searchParams);
+  const perTicketBooking = needsPerTicketBooking(option, searchParams);
   const hops = useMemo(() => (option ? bookingHopsFromOption(option) : []), [option]);
+  const showPerTicketSection =
+    perTicketBooking && hops.length > 0 && (hops.length > 1 || splitBooking);
 
   const resolveStorageKey = (legIndex?: number, segmentIndex?: number) => {
     if (segmentIndex != null && segmentIndex >= 0) {
@@ -194,7 +196,7 @@ export function FlightDetailsModal({
   };
 
   const hopsNeedingResolve = (forceRefresh: boolean) => {
-    if (!perHopBooking || hops.length <= 1) {
+    if (!perTicketBooking || hops.length <= 1) {
       return [];
     }
     return hops.filter((hop) => {
@@ -303,7 +305,7 @@ export function FlightDetailsModal({
       return;
     }
 
-    if (perHopBooking && hops.length > 1) {
+    if (perTicketBooking && hops.length > 1) {
       const pending = hopsNeedingResolve(false);
       const includesTrigger = pending.some(
         (hop) =>
@@ -356,14 +358,14 @@ export function FlightDetailsModal({
   };
 
   const unresolvedHopCount =
-    perHopBooking && hops.length > 1
+    perTicketBooking && hops.length > 1
       ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
       : 0;
   const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
 
   /** Per-hop Book cards live in the scroll body so itinerary stays visible above them. */
   const renderPerHopBookingSection = () => {
-    if (!perHopBooking || hops.length === 0) return null;
+    if (!showPerTicketSection) return null;
     return (
       <View style={[s.perHopSection, { borderTopColor: theme.cardBorder }]}>
         <Text style={[s.splitHint, { color: theme.textMuted }]}>
@@ -414,7 +416,7 @@ export function FlightDetailsModal({
           { borderTopColor: theme.cardBorder, backgroundColor: theme.cardBg },
         ]}
       >
-        {perHopBooking && hops.length > 0 ? (
+        {showPerTicketSection ? (
           <>
             {hops.length > 1 && unresolvedHopCount > 1 ? (
               <Button
