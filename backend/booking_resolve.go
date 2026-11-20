@@ -974,11 +974,35 @@ func sessionBookingResponse(session *SearchSession, option *FlightOption, fp, ra
 		CheapestOta:          &ota,
 		Message:              "Opens the booking page from the site that showed this fare.",
 	}
-	if prefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp); prefill != nil && !sameBookingURL(prefill.URL, ota.URL) {
-		resp.AirlineDirect = prefill
-		resp.Message = "Compare the partner price with booking on the airline site (route prefilled — verify the fare)."
-	}
 	return resp, true
+}
+
+// enrichSessionBookingDualOptions always tries airline-direct (template prefill, then GF2)
+// after attaching a Skyscanner/Kiwi session handoff so Book shows partner + airline when possible.
+func enrichSessionBookingDualOptions(
+	ctx context.Context,
+	session *SearchSession,
+	option *FlightOption,
+	it search.CanonicalItinerary,
+	fp string,
+	legIndex, segmentIndex int,
+	resp *BookingResolveResponse,
+) {
+	if resp == nil || !resp.Found || resp.CheapestOta == nil {
+		return
+	}
+	if resp.AirlineDirect == nil {
+		if prefill := publicAirlineDirectPrefillOffer(session, option, legIndex, segmentIndex, fp); prefill != nil && !sameBookingURL(prefill.URL, resp.CheapestOta.URL) {
+			resp.AirlineDirect = prefill
+			resp.Message = "Compare the partner price with booking on the airline site (route prefilled — verify the fare)."
+		}
+	}
+	supplementAirlineDirectFromGF2(ctx, session, option, it, fp, legIndex, segmentIndex, resp)
+	if resp.AirlineDirect != nil && resp.CheapestOta != nil {
+		if resp.Message == "Opens the booking page from the site that showed this fare." {
+			resp.Message = "Compare the partner price with booking on the airline site."
+		}
+	}
 }
 
 // supplementAirlineDirectFromGF2 fills airlineDirect when a scrape session already has
@@ -1033,7 +1057,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 
 	if u := storedSessionBookingURL(option, legIndex); u != "" {
 		if resp, ok := sessionBookingResponse(session, option, fp, u, legIndex, segmentIndex); ok {
-			supplementAirlineDirectFromGF2(ctx, session, option, it, fp, legIndex, segmentIndex, &resp)
+			enrichSessionBookingDualOptions(ctx, session, option, it, fp, legIndex, segmentIndex, &resp)
 			event := "resolve_session_booking"
 			if resp.CheapestOta != nil && resp.AirlineDirect != nil {
 				event = "resolve_session_booking_dual"

@@ -393,6 +393,7 @@ func airlineDomainForCarrier(domain, carrier string) bool {
 		{"DL", "delta.com"},
 		{"FR", "ryanair.com"},
 		{"W6", "wizzair.com"},
+		{"DE", "condor.com"},
 	}
 	for _, chk := range checks {
 		if carrier == chk.carrier && strings.Contains(domain, chk.domain) {
@@ -492,11 +493,14 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	}
 	// Route/date search forms (no flight number) for major carriers we template-link.
 	if strings.Contains(u, "origin=") && (strings.Contains(u, "departuredate=") || strings.Contains(u, "departure=")) {
-		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com", "airfrance.", "klm.com", "turkishairlines.com", "united.com", "delta.com", "aa.com"} {
+		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com", "airfrance.", "klm.com", "turkishairlines.com", "united.com", "delta.com", "aa.com", "condor.com"} {
 			if strings.Contains(u, host) {
 				return true
 			}
 		}
+	}
+	if strings.Contains(u, "condor.com") && strings.Contains(u, "outbounddate=") {
+		return true
 	}
 	return false
 }
