@@ -15,6 +15,7 @@ import { DynamicDestinationsFormContent } from '../components/DynamicDestination
 import { updateSearchUrl } from '../../../hooks/useSearchParams';
 import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { screenError } from '../../../utils/screenError';
+import { goToSearchResults } from '../../../navigation/goToSearchResults';
 import {
   addExtraDestinationLeg,
   MAX_EXTRA_DESTINATIONS,
@@ -97,13 +98,14 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
       clearSharedLinkCache();
       // Clear any previous sessionId from the URL so Results does not poll a stale id
       // (this was leaving users stuck on e.g. sess_dll0keke7b9i after a new search).
-      updateSearchUrl({
+      const urlState = {
         ...validated.payload,
         sessionId: undefined,
         optionId: undefined,
         flightId: undefined,
-      });
-      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+      };
+      updateSearchUrl(urlState);
+      goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
     } catch (e) {
       setError(screenError(e, t('search_failed')));
     } finally {

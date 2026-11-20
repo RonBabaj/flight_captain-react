@@ -75,6 +75,7 @@ import { SearchStatusBanner } from '../../../ui/SearchStatusBanner';
 import { EditSearchModal } from '../../../components/search/EditSearchModal';
 import { HubRouteSummaryModal } from '../../../components/search/HubRouteSummaryModal';
 import { CheaperCitiesSection } from '../components/CheaperCitiesSection';
+import { goToSearchResults } from '../../../navigation/goToSearchResults';
 
 
 /** Snapshot generation for async work that must not clobber a newer search. */
@@ -1395,7 +1396,11 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       creatingSessionRef.current = false;
       setBootstrappingSession(false);
       clearDeadSessionEverywhere();
-      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+      const p2 = useSearchStore.getState().params;
+      const urlState = p2
+        ? { ...p2, sessionId: undefined, optionId: undefined, flightId: undefined }
+        : undefined;
+      goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
     };
     return (
       <View style={[styles.centered, { backgroundColor: theme.screenBg }]}>

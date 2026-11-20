@@ -16,6 +16,7 @@ import { classicSearchPayload } from '../../../utils/skyscanner';
 import { useBreakpoint, useContentGutter } from '../../../hooks/useResponsive';
 import { layout } from '../../../theme/tokens';
 import { screenError } from '../../../utils/screenError';
+import { goToSearchResults } from '../../../navigation/goToSearchResults';
 
 const defaultParams: CreateSearchSessionRequest = {
   origin: '',
@@ -85,6 +86,20 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const storeStatus = useSearchStore((s) => s.status);
+  const storeSessionId = useSearchStore((s) => s.sessionId);
+
+  // Web sometimes keeps SearchForm focused after beginSearch; escape to Results.
+  useEffect(() => {
+    if (storeStatus !== 'PENDING' || storeSessionId) return;
+    const p = useSearchStore.getState().params;
+    if (!p?.origin?.trim() || !p?.destination?.trim() || !p?.departureDate?.trim()) return;
+    const state = navigation.getState?.();
+    const current = state?.routes?.[state.index ?? 0];
+    if (current?.name !== 'SearchForm') return;
+    const urlState = { ...p, sessionId: undefined, optionId: undefined, flightId: undefined };
+    goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
+  }, [storeStatus, storeSessionId, navigation]);
 
   const update = <K extends keyof CreateSearchSessionRequest>(
     key: K,
@@ -172,9 +187,14 @@ export function SearchFormScreen({ navigation }: { navigation: any }) {
       // paint the previous route under the new summary header.
       clearSharedLinkCache();
       searchActions.beginSearch(payload);
-      // Clear any previous sessionId from the URL so Results does not poll a stale id.
-      updateUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+      const urlState = {
+        ...payload,
+        sessionId: undefined,
+        optionId: undefined,
+        flightId: undefined,
+      };
+      updateUrl(urlState);
+      goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
     } catch (e) {
       setError(screenError(e, t('search_failed')));
     } finally {
