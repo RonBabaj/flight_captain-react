@@ -112,6 +112,9 @@ func SelectBestOffer(offers []BookingOffer, normalize PriceNormalizer, quote *Qu
 		if err := ValidateBookingURL(o.URL); err != nil {
 			continue
 		}
+		if search.IsTransportDeeplink(o.URL) && !search.IsValidSkyscannerDeeplink(o.URL) {
+			continue
+		}
 		verified = append(verified, o)
 	}
 	if len(verified) == 0 {
@@ -175,6 +178,9 @@ func SelectCheapestVerifiedOffer(offers []BookingOffer, normalize PriceNormalize
 			continue
 		}
 		if err := ValidateBookingURL(o.URL); err != nil {
+			continue
+		}
+		if search.IsTransportDeeplink(o.URL) && !search.IsValidSkyscannerDeeplink(o.URL) {
 			continue
 		}
 		verified = append(verified, o)

@@ -732,6 +732,9 @@ func gf2PartnerOfferFromURL(rawURL, fp string) *bookingmatch.BookingOffer {
 	if err := bookingmatch.ValidateBookingURL(u); err != nil {
 		return nil
 	}
+	if search.IsTransportDeeplink(u) && !search.IsValidSkyscannerDeeplink(u) {
+		return nil
+	}
 	domain := providerDomainFromURL(u)
 	urlType := bookingmatch.URLTypeExactBooking
 	status := bookingmatch.StatusVerifiedExact

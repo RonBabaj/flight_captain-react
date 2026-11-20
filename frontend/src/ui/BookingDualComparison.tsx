@@ -9,6 +9,7 @@ import {
   bookingOfferSubtitle,
   formatBookingOfferPriceAmount,
 } from './bookingOfferDisplay';
+import { badgesForDualOffers } from './bookingDualDisplay';
 
 export interface BookingDualComparisonProps {
   cheapest: PublicBookingOffer;
@@ -36,6 +37,8 @@ export function BookingDualComparison({
   const partnerPrice = formatBookingOfferPriceAmount(cheapest, t) ?? '—';
   const directPrice = formatBookingOfferPriceAmount(airline, t) ?? '—';
   const directSub = bookingOfferSubtitle(airline, t);
+  const { partnerBadge, airlineBadge, partnerIsLower } = badgesForDualOffers(cheapest, airline);
+  const partnerFirst = partnerIsLower || partnerBadge === 'cheapest';
 
   return (
     <View style={styles.wrap}>
@@ -50,7 +53,7 @@ export function BookingDualComparison({
             {t('booking_compare_next')}
           </Text>
         </View>
-        <View style={[styles.dataRow, { backgroundColor: theme.successBg }]}>
+        <View style={[styles.dataRow, partnerIsLower && { backgroundColor: theme.successBg }]}>
           <Text style={[styles.cell, styles.colOption, { color: theme.text, fontWeight: '700' }]} numberOfLines={2}>
             {partnerLabel}
           </Text>
@@ -59,7 +62,7 @@ export function BookingDualComparison({
             {t('booking_compare_partner_next')}
           </Text>
         </View>
-        <View style={styles.dataRow}>
+        <View style={[styles.dataRow, !partnerIsLower && airlineBadge === 'lowest' && { backgroundColor: theme.successBg }]}>
           <Text style={[styles.cell, styles.colOption, { color: theme.text, fontWeight: '700' }]} numberOfLines={2}>
             {directLabel}
           </Text>
@@ -69,14 +72,29 @@ export function BookingDualComparison({
           </Text>
         </View>
       </View>
-      <BookingOptionCard offer={cheapest} badge="cheapest" compact={compact} onContinue={onOpenCheapest} />
-      <BookingOptionCard
-        offer={airline}
-        badge="direct"
-        compact={compact}
-        titleOverride={airlineName}
-        onContinue={onOpenAirline}
-      />
+      {partnerFirst ? (
+        <>
+          <BookingOptionCard offer={cheapest} badge={partnerBadge} compact={compact} onContinue={onOpenCheapest} />
+          <BookingOptionCard
+            offer={airline}
+            badge={airlineBadge}
+            compact={compact}
+            titleOverride={airlineName}
+            onContinue={onOpenAirline}
+          />
+        </>
+      ) : (
+        <>
+          <BookingOptionCard
+            offer={airline}
+            badge={airlineBadge}
+            compact={compact}
+            titleOverride={airlineName}
+            onContinue={onOpenAirline}
+          />
+          <BookingOptionCard offer={cheapest} badge={partnerBadge} compact={compact} onContinue={onOpenCheapest} />
+        </>
+      )}
     </View>
   );
 }

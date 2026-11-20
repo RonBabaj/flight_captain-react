@@ -2105,6 +2105,25 @@ func IsTransportDeeplink(raw string) bool {
 	return strings.Contains(path, "transport_deeplink") || strings.Contains(path, "/deeplink/")
 }
 
+// IsValidSkyscannerDeeplink rejects transport_deeplink URLs missing an itinerary token
+// (they open Skyscanner 404s instead of a booking handoff).
+func IsValidSkyscannerDeeplink(raw string) bool {
+	if !IsTransportDeeplink(raw) {
+		return false
+	}
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	q := parsed.Query()
+	for _, key := range []string{"itinerary", "itineraryid", "itineraryId"} {
+		if v := strings.TrimSpace(q.Get(key)); len(v) >= 2 {
+			return true
+		}
+	}
+	return false
+}
+
 func isLikelyPartnerCheckoutURL(u string) bool {
 	s := strings.ToLower(strings.TrimSpace(u))
 	if !strings.HasPrefix(s, "https://") {

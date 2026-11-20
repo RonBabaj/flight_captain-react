@@ -9,8 +9,9 @@ import {
   bookingOfferSubtitle,
   formatBookingOfferPriceAmount,
 } from './bookingOfferDisplay';
+import { badgeToTranslationKey, type BookingDisplayBadge } from './bookingDualDisplay';
 
-export type BookingOptionBadge = 'cheapest' | 'direct';
+export type BookingOptionBadge = BookingDisplayBadge;
 
 export interface BookingOptionCardProps {
   offer: PublicBookingOffer;
@@ -37,11 +38,13 @@ export function BookingOptionCard({
   const title = titleOverride || bookingOfferProviderLabel(offer, t('book_this_flight'));
   const priceAmount = formatBookingOfferPriceAmount(offer, t);
   const subtitle = bookingOfferSubtitle(offer, t);
-  const badgeLabel = badge === 'cheapest' ? t('booking_badge_cheapest') : t('booking_badge_direct');
+  const badgeLabel = t(badgeToTranslationKey(badge));
   const badgeColors =
-    badge === 'cheapest'
+    badge === 'cheapest' || badge === 'lowest'
       ? { fg: theme.success, bg: theme.successBg }
-      : { fg: theme.primaryLight, bg: theme.infoBg };
+      : badge === 'partner'
+        ? { fg: theme.textMuted, bg: theme.controlBg }
+        : { fg: theme.primaryLight, bg: theme.infoBg };
   const ctaLabel = t('booking_continue');
   const ctaA11y = t('booking_continue_on').replace('{provider}', title);
 

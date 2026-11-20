@@ -840,9 +840,9 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Ищем варианты бронирования для всех перелётов…',
   },
   booking_sites_compared: {
-    en: 'Compared {count} booking sites — showing cheapest',
-    he: 'הושוו {count} אתרי הזמנה — מוצג הזול ביותר',
-    ru: 'Сравнено {count} сайтов — показан самый дешёвый',
+    en: 'Compared {count} booking options',
+    he: 'הושוו {count} אפשרויות הזמנה',
+    ru: 'Сравнено {count} вариантов бронирования',
   },
   booking_cheapest_ota: {
     en: 'Cheapest OTA',
@@ -858,6 +858,16 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     en: 'Direct',
     he: 'ישיר',
     ru: 'Напрямую',
+  },
+  booking_badge_partner: {
+    en: 'Booking site',
+    he: 'אתר הזמנות',
+    ru: 'Сайт бронирования',
+  },
+  booking_badge_lowest: {
+    en: 'Lowest here',
+    he: 'המחיר הנמוך',
+    ru: 'Ниже здесь',
   },
   booking_continue_on: {
     en: 'Continue on {provider}',
