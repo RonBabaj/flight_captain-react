@@ -69,6 +69,10 @@ export function SearchLoadingOverlay({
       fadeAnim.setValue(1);
       return;
     }
+    if (phrases.length === 0) {
+      fadeAnim.setValue(1);
+      return;
+    }
     if (nearComplete || reducedMotion) {
       fadeAnim.setValue(1);
       return;
@@ -86,7 +90,12 @@ export function SearchLoadingOverlay({
 
   if (!visible) return null;
 
-  const loadPhase: SearchLoadPhase = nearComplete ? 3 : phraseIdx % phrases.length < phrases.length / 2 ? 1 : 2;
+  const loadPhase: SearchLoadPhase =
+    nearComplete || phrases.length === 0
+      ? 3
+      : phraseIdx % phrases.length < phrases.length / 2
+        ? 1
+        : 2;
 
   const completeExtras = (extraLegs ?? []).filter(
     (l) => (l.origin || '').trim() && (l.destination || '').trim(),

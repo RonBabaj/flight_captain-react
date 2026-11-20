@@ -103,11 +103,7 @@ export function DynamicDestinationsScreen({ navigation }: { navigation: Nav }) {
         optionId: undefined,
         flightId: undefined,
       });
-      navigation.navigate({
-        name: 'Results',
-        params: { sessionId: '', searchNonce: Date.now() },
-        merge: false,
-      } as any);
+      navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
     } catch (e) {
       setError(screenError(e, t('search_failed')));
     } finally {
