@@ -35,7 +35,7 @@ jobs:
             git checkout -f main
             git reset --hard origin/main
             cd frontend
-            npm ci
+            npm ci || { rm -rf node_modules && npm ci; }
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
@@ -79,7 +79,7 @@ jobs:
             git checkout -f main
             git reset --hard origin/main
             cd frontend
-            npm ci
+            npm ci || { rm -rf node_modules && npm ci; }
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
@@ -122,7 +122,7 @@ jobs:
             git checkout -f main
             git reset --hard origin/main
             cd frontend
-            npm ci
+            npm ci || { rm -rf node_modules && npm ci; }
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
@@ -164,7 +164,7 @@ jobs:
             git checkout -f main
             git reset --hard origin/main
             cd frontend
-            npm ci
+            npm ci || { rm -rf node_modules && npm ci; }
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
