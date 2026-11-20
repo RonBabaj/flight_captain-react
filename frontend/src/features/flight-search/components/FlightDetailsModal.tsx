@@ -139,8 +139,8 @@ export function FlightDetailsModal({
   const isNarrow = width < 600;
   const useFullScreen = isNarrow;
 
-  const splitBooking = isSplitBookingItinerary(option, searchParams);
-  const perTicketBooking = needsPerTicketBooking(option, searchParams);
+  const splitBooking = option ? isSplitBookingItinerary(option, searchParams) : false;
+  const perTicketBooking = option ? needsPerTicketBooking(option, searchParams) : false;
   const hops = useMemo(() => (option ? bookingHopsFromOption(option) : []), [option]);
   const showPerTicketSection =
     perTicketBooking && hops.length > 0 && (hops.length > 1 || splitBooking);

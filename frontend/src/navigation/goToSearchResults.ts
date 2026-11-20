@@ -38,5 +38,14 @@ export function goToSearchResults(
   if (urlState) {
     pushSearchResultsUrl(urlState);
   }
-  navigation.dispatch(StackActions.replace('Results', params));
+  const routeParams = urlState
+  ? {
+      ...urlState,
+      sessionId: params.sessionId ?? urlState.sessionId ?? '',
+      searchNonce: params.searchNonce,
+      optionId: params.optionId ?? urlState.optionId,
+      flightId: params.flightId ?? urlState.flightId,
+    }
+  : params;
+  navigation.dispatch(StackActions.replace('Results', routeParams));
 }
