@@ -82,7 +82,8 @@ export function legNeedsSegmentSplit(leg?: FlightLeg): boolean {
   return carriers.some((c) => c !== first);
 }
 
-export function bookingHopsFromOption(option: FlightOption): BookingHop[] {
+export function bookingHopsFromOption(option: FlightOption | null | undefined): BookingHop[] {
+  if (!option) return [];
   const hops: BookingHop[] = [];
   (option.legs ?? []).forEach((leg, legIndex) => {
     if (legNeedsSegmentSplit(leg)) {
@@ -143,8 +144,8 @@ export function needsPerHopBooking(
     if (carriers.length >= 2 && carriers.some((c) => c !== carriers[0])) return true;
   }
   const legCount = legs.length;
-  if (legCount === 0) return false;
-  const hops = bookingHopsFromOption(option as FlightOption);
+  if (legCount === 0 || !option) return false;
+  const hops = bookingHopsFromOption(option);
   return hops.length > legCount;
 }
 
@@ -156,8 +157,9 @@ export function needsPerTicketBooking(
   option?: { legs?: FlightLeg[] } | null,
   searchParams?: Partial<CreateSearchSessionRequest> | null,
 ): boolean {
+  if (!option) return false;
   if (needsPerHopBooking(option, searchParams)) return true;
-  const hops = bookingHopsFromOption(option as FlightOption);
+  const hops = bookingHopsFromOption(option);
   if (hops.length > 1) return true;
   return itineraryHasMultipleMarketingCarriers(option);
 }
