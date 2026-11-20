@@ -11,6 +11,8 @@ export type { BookingOptionsFooterProps } from './BookingOptionsFooter';
 export { BookingDualComparison } from './BookingDualComparison';
 export { BookingTrustStrip } from './BookingTrustStrip';
 export { PageTicketHeader } from './PageTicketHeader';
+export { AirportRouteTimeline } from './AirportRouteTimeline';
+export { LayoverChips } from './LayoverChips';
 export { StaggeredEntrance } from './StaggeredEntrance';
 export { SearchStatusBanner } from './SearchStatusBanner';
 export type { SearchStatusBannerProps } from './SearchStatusBanner';

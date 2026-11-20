@@ -17,6 +17,8 @@ export interface SearchSummaryBarProps {
   onEditPress?: () => void;
   /** Optional leading control (e.g. back button on Explore). */
   leading?: React.ReactNode;
+  /** `plain` — open header on results (no card slab). */
+  tone?: 'card' | 'plain';
 }
 
 export function SearchSummaryBar({
@@ -26,6 +28,7 @@ export function SearchSummaryBar({
   showEditButton = true,
   onEditPress,
   leading,
+  tone = 'card',
 }: SearchSummaryBarProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
@@ -33,6 +36,9 @@ export function SearchSummaryBar({
 
   const titleText = headline || summary || '';
   const hasStructured = Boolean(headline);
+  const plain = tone === 'plain';
+  const barBg = plain ? theme.screenBg : theme.cardBg;
+  const barBorder = plain ? 'transparent' : theme.cardBorder;
 
   const content = (
     <>
@@ -40,7 +46,7 @@ export function SearchSummaryBar({
       <View style={[s.textBlock, leading ? { flex: 1 } : undefined]}>
         <Text
           style={[
-            hasStructured ? s.headline : s.text,
+            hasStructured ? (plain ? s.headlineOpen : s.headline) : s.text,
             { color: theme.text, fontFamily: hasStructured ? theme.fontDisplay : theme.fontBody },
           ]}
           numberOfLines={hasStructured ? 2 : 1}
@@ -59,13 +65,15 @@ export function SearchSummaryBar({
       {showEditButton && onEditPress ? (
         <View
           style={[
-            s.editChip,
-            { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
+            plain ? s.editBtn : s.editChip,
+            plain
+              ? { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }
+              : { borderColor: theme.cardBorder, backgroundColor: theme.controlBg },
             { flexDirection: isRTL ? 'row-reverse' : 'row' },
           ]}
         >
-          <AppIcon name="create-outline" size={15} color={theme.primary} fallbackText="" />
-          <Text style={[s.editBtnText, { color: theme.primary, fontFamily: theme.fontBody }]}>
+          <AppIcon name="create-outline" size={plain ? 16 : 15} color={theme.primary} fallbackText="" />
+          <Text style={[plain ? s.editBtnTextOpen : s.editBtnText, { color: theme.primary, fontFamily: theme.fontBody }]}>
             {t('edit_search')}
           </Text>
         </View>
@@ -79,7 +87,8 @@ export function SearchSummaryBar({
       <TouchableOpacity
         style={[
           s.bar,
-          { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
+          plain && s.barPlain,
+          { backgroundColor: barBg, borderBottomColor: barBorder, paddingHorizontal: gutter },
           isRTL && { flexDirection: 'row-reverse' },
         ]}
         onPress={onEditPress}
@@ -96,7 +105,8 @@ export function SearchSummaryBar({
     <View
       style={[
         s.bar,
-        { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
+        plain && s.barPlain,
+        { backgroundColor: barBg, borderBottomColor: barBorder, paddingHorizontal: gutter },
         isRTL && { flexDirection: 'row-reverse' },
       ]}
     >
@@ -114,9 +124,14 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  barPlain: {
+    paddingVertical: Platform.OS === 'web' ? 10 : 12,
+    borderBottomWidth: 0,
+  },
   textBlock: { flex: 1, minWidth: 0, gap: 2 },
   text: { fontSize: 13, fontWeight: '600' },
   headline: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2, lineHeight: 20 },
+  headlineOpen: { fontSize: 18, fontWeight: '700', letterSpacing: -0.25, lineHeight: 22 },
   subtitle: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
   editChip: {
     flexDirection: 'row',
@@ -127,5 +142,16 @@ const s = StyleSheet.create({
     borderWidth: 1,
     gap: 4,
   },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+    minHeight: 40,
+  },
   editBtnText: { fontSize: 12, fontWeight: '600' },
+  editBtnTextOpen: { fontSize: 13, fontWeight: '700' },
 });
