@@ -594,11 +594,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     clearSharedLinkCache();
     searchActions.beginSearch(payload);
     updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-    navigation.navigate({
-      name: 'Results',
-      params: { sessionId: '', searchNonce: Date.now() },
-      merge: false,
-    } as any);
+    navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
     setSearchingDest(null)
   };
 
@@ -777,11 +773,7 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     clearSharedLinkCache();
     searchActions.beginSearch(payload);
     updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-    navigation.navigate({
-      name: 'Results',
-      params: { sessionId: '', searchNonce: Date.now() },
-      merge: false,
-    } as any)
+    navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
   };
 
   // ── Search / deals form fields (desktop sidebar + mobile Edit modal) ───────

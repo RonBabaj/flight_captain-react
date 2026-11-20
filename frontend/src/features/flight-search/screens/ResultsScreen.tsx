@@ -236,7 +236,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const searchProgressRef = useRef<SearchProgress | null>(null);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showEditSearchModal, setShowEditSearchModal] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // Start visible — opacity 0 on first paint caused a blank (white) Results screen during PENDING.
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const [resultsHasMore, setResultsHasMore] = useState(false);
   const [resultsTotal, setResultsTotal] = useState<number | undefined>(undefined);
   const [loadingMoreResults, setLoadingMoreResults] = useState(false);
@@ -1294,15 +1295,17 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       results.length > 0 ||
       (!!sessionId && results.length === 0) ||
       (results.length > 0 && filtered.length === 0);
-    if (hasVisualContent) {
-      if (reducedMotion) {
-        fadeAnim.setValue(1);
-      } else {
-        Animated.timing(fadeAnim, { toValue: 1, duration: motion.standardMs + 30, useNativeDriver: true }).start();
-      }
-    } else {
-      fadeAnim.setValue(0);
+    const shouldShow =
+      hasVisualContent ||
+      status === 'PENDING' ||
+      status === 'PARTIAL' ||
+      bootstrappingSession;
+    if (!shouldShow) return;
+    if (reducedMotion) {
+      fadeAnim.setValue(1);
+      return;
     }
+    Animated.timing(fadeAnim, { toValue: 1, duration: motion.standardMs + 30, useNativeDriver: true }).start();
   }, [results.length, filtered.length, bootstrappingSession, status, sessionId, fadeAnim, reducedMotion]);
 
   if (status === 'FAILED') {

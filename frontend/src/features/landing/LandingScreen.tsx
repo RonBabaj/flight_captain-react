@@ -19,6 +19,7 @@ import { useLocale } from '../../context/LocaleContext';
 import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
+import { TicketStub } from '../../ui/TicketStub';
 import { useBreakpoint, useContentGutter } from '../../hooks/useResponsive';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
@@ -161,87 +162,67 @@ export function LandingScreen() {
           ]}
         >
           <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }] }}>
-            <Text
-              style={[
-                styles.brand,
-                {
-                  color: theme.text,
-                  fontFamily: theme.fontDisplay,
-                  textAlign,
-                  fontSize: brandSize,
-                  lineHeight: brandSize + 4,
-                },
-              ]}
-              accessibilityRole="header"
-            >
-              Fly-Fix
-            </Text>
-            <Text
-              style={[
-                styles.heroTitle,
-                {
-                  color: theme.text,
-                  fontFamily: theme.fontDisplay,
-                  textAlign,
-                  fontSize: titleSize,
-                  lineHeight: titleSize + 6,
-                },
-              ]}
-            >
-              {t('landing_hero_title')}
-            </Text>
-            <Text
-              style={[
-                styles.heroSubtitle,
-                { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
-              ]}
-            >
-              {t('landing_hero_subtitle')}
-            </Text>
-            <View
-              style={[
-                styles.boardingAccent,
-                isRTL ? { flexDirection: 'row-reverse' } : undefined,
-              ]}
-              accessibilityElementsHidden
-            >
-              <View style={[styles.boardingStub, { backgroundColor: theme.primary }]} />
-              <View style={[styles.boardingRule, { backgroundColor: theme.cardBorder }]} />
-            </View>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.heroCtas,
-              isMobile ? styles.heroCtasMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
-              { opacity: ctaOpacity },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.btnPrimary,
-                { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
-                isMobile && styles.btnFullWidth,
-              ]}
-              onPress={goSearch}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('landing_cta_search')}
-            >
-              <AppIcon name="search" size={20} color={theme.buttonText} fallbackText="" />
-              <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
-                {t('landing_cta_search')}
+            <TicketStub style={styles.heroTicket} innerStyle={styles.heroTicketInner}>
+              <Text style={[styles.brandMini, { color: theme.primaryLight, fontFamily: theme.fontBody, textAlign }]}>
+                FLY-FIX
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnTextLink, isMobile && { alignSelf: 'center' }]}
-              onPress={goDeals}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.btnTextLinkLabel, { color: theme.primaryLight, fontFamily: theme.fontBody }]}>
-                {t('landing_cta_deals')}
+              <Text
+                style={[
+                  styles.heroTitle,
+                  {
+                    color: theme.text,
+                    fontFamily: theme.fontDisplay,
+                    textAlign,
+                    fontSize: titleSize,
+                    lineHeight: titleSize + 6,
+                  },
+                ]}
+                accessibilityRole="header"
+              >
+                {t('landing_hero_title')}
               </Text>
-            </TouchableOpacity>
+              <Text
+                style={[
+                  styles.heroSubtitle,
+                  { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
+                ]}
+              >
+                {t('landing_hero_subtitle')}
+              </Text>
+              <Animated.View
+                style={[
+                  styles.heroCtas,
+                  isMobile ? styles.heroCtasMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                  { opacity: ctaOpacity, marginTop: 4 },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.btnPrimary,
+                    { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
+                    isMobile && styles.btnFullWidth,
+                  ]}
+                  onPress={goSearch}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('landing_cta_search')}
+                >
+                  <AppIcon name="search" size={20} color={theme.buttonText} fallbackText="" />
+                  <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+                    {t('landing_cta_search')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnTextLink, isMobile && { alignSelf: 'center' }]}
+                  onPress={goDeals}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.btnTextLinkLabel, { color: theme.primary, fontFamily: theme.fontBody }]}>
+                    {t('landing_cta_deals')}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </TicketStub>
           </Animated.View>
         </View>
       </View>
@@ -413,10 +394,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     zIndex: 1,
   },
-  brand: {
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 10,
+  heroTicket: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    width: '100%',
+    marginBottom: 8,
+  },
+  heroTicketInner: {
+    gap: 6,
+    paddingVertical: 4,
+  },
+  brandMini: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 2.2,
+    marginBottom: 4,
   },
   heroTitle: {
     fontWeight: '700',
