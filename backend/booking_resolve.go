@@ -815,6 +815,7 @@ func publicAirlineDirectPrefillOffer(
 	}
 	offer.PriceLabel = "airline_direct_prefill"
 	offer.MatchConfidence = 0
+	fillPublicOfferSearchQuote(offer, session, option, legIndex)
 	return offer
 }
 
@@ -1036,6 +1037,7 @@ func ensureDualBookingCompanion(
 			resp.Message = "Compare the partner price with booking on the airline site."
 		}
 	}
+	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
 }
 
 // supplementAirlineDirectFromGF2 fills airlineDirect when a scrape session already has
@@ -1081,6 +1083,7 @@ func supplementAirlineDirectFromGF2(
 	}
 	resp.AirlineDirect = airline
 	resp.Message = "Compare the partner price with booking on the airline site."
+	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
 }
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) (resp BookingResolveResponse) {

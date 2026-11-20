@@ -826,6 +826,7 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		resp.QuotedPrice = &amt
 		resp.QuotedCurrency = q.Currency
 	}
+	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
 	if resp.Offer == nil || q.Amount <= 0 {
 		return resp
 	}
@@ -885,6 +886,24 @@ func applySearchQuoteToOffer(offer *bookingmatch.BookingOffer, quote search.Quot
 		offer.Currency = quote.Currency
 	}
 	return nil
+}
+
+// fillPublicOfferSearchQuote sets price/currency from the search quote when an offer has no price
+// (e.g. airline site prefill templates).
+func fillPublicOfferSearchQuote(offer *PublicBookingOffer, session *SearchSession, option *FlightOption, legIndex int) {
+	if offer == nil || option == nil {
+		return
+	}
+	if offer.Price != nil && *offer.Price > 0 && strings.TrimSpace(offer.Currency) != "" {
+		return
+	}
+	q := quoteBindingFromOption(session, option, legIndex)
+	if q.Amount <= 0 || strings.TrimSpace(q.Currency) == "" {
+		return
+	}
+	amt := q.Amount
+	offer.Price = &amt
+	offer.Currency = q.Currency
 }
 
 func bookingMatchPriceNormalizer() bookingmatch.PriceNormalizer {
