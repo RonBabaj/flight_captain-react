@@ -131,7 +131,9 @@ export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?
       accessibilityLabel="Loading flight results"
     >
       {Array.from({ length: count }, (_, i) => (
-        <ResultsSkeletonCard key={i} theme={theme} />
+        <View key={i} style={{ marginVertical: i === 0 ? 0 : 4 }}>
+          <ResultsSkeletonCard theme={theme} />
+        </View>
       ))}
     </Animated.View>
   );
@@ -142,6 +144,7 @@ const sk = StyleSheet.create({
   cardWrap: {
     marginHorizontal: 0,
     marginVertical: 6,
+    minHeight: 212,
   },
   carrierRow: {
     flexDirection: 'row',

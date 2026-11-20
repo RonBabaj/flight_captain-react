@@ -22,6 +22,7 @@ import { getCountryDisplayName, getCountryEntry } from '../../../data/countries'
 import { AirportAutocomplete } from '../components/AirportAutocomplete';
 import { useContentGutter, useIsMobile } from '../../../hooks/useResponsive';
 import { SearchLoadingOverlay } from '../../../components/SearchLoadingOverlay';
+import { PageTicketHeader } from '../../../ui/PageTicketHeader';
 import { SearchFormContent } from '../components/SearchFormContent';
 import { PassengerCabinPicker } from '../components/PassengerCabinPicker';
 import {
@@ -1135,17 +1136,17 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
   );
 
   const summaryBar = (
-    <View style={[s.summaryBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder }]}>
+    <View style={[s.summaryBar, { backgroundColor: theme.screenBg, borderBottomColor: theme.cardBorder }]}>
       <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
         <AppIcon name="arrow-back" size={20} color={theme.text} fallbackText="←" />
       </TouchableOpacity>
       <View style={s.summaryMid}>
-        <Text style={[s.summaryRoute, { color: theme.text }]} numberOfLines={1}>
-          {originFlagEmoji} {originCity} → <Text style={{ color: theme.primary }}>{summaryDestLabel}</Text>
-        </Text>
-        {tripLabel ? (
-          <Text style={[s.summaryDate, { color: theme.textMuted }]}>{tripLabel}</Text>
-        ) : null}
+        <PageTicketHeader
+          compact
+          title={`${originFlagEmoji} ${originCity} → ${summaryDestLabel}`}
+          subtitle={tripLabel || undefined}
+          style={s.exploreTicketHeader}
+        />
         {liveRefreshing && destinations.length > 0 ? (
           <View style={s.liveRefreshRow}>
             <ActivityIndicator size="small" color={theme.primary} />
@@ -1435,6 +1436,7 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 6 },
   summaryMid: { flex: 1 },
+  exploreTicketHeader: { marginVertical: 0 },
   summaryRoute: { fontSize: 15, fontWeight: '700' },
   summaryDate: { fontSize: 12, marginTop: 2 },
   liveRefreshRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },

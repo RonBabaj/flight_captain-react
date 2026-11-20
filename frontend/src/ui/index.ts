@@ -8,6 +8,10 @@ export { BookingOptionCard } from './BookingOptionCard';
 export type { BookingOptionCardProps, BookingOptionBadge } from './BookingOptionCard';
 export { BookingOptionsFooter } from './BookingOptionsFooter';
 export type { BookingOptionsFooterProps } from './BookingOptionsFooter';
+export { BookingDualComparison } from './BookingDualComparison';
+export { BookingTrustStrip } from './BookingTrustStrip';
+export { PageTicketHeader } from './PageTicketHeader';
+export { StaggeredEntrance } from './StaggeredEntrance';
 export { SearchStatusBanner } from './SearchStatusBanner';
 export type { SearchStatusBannerProps } from './SearchStatusBanner';
 export {

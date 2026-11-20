@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { RegisterForm } from '../components/LoginForm';
+import { PageTicketHeader } from '../../../ui/PageTicketHeader';
 
 export function RegisterScreen() {
   const { theme } = useTheme();
@@ -21,10 +22,11 @@ export function RegisterScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.pageTitle, { color: theme.text }]} accessibilityRole="header">
-        {t('auth_register_page_title')}
-      </Text>
-      <Text style={[styles.pageSubtitle, { color: theme.textMuted }]}>{t('auth_register_page_subtitle')}</Text>
+      <PageTicketHeader
+        title={t('auth_register_page_title')}
+        subtitle={t('auth_register_page_subtitle')}
+        style={{ marginBottom: 16 }}
+      />
       <RegisterForm onSuccess={() => navigation.navigate('Account' as never)} />
       <View style={styles.footerRow}>
         <Text style={[styles.footerText, { color: theme.textMuted }]}>{t('auth_have_account')}</Text>
