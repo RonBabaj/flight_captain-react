@@ -36,6 +36,7 @@ import type { ExploreDestination } from '../../../types';
 import type { CreateSearchSessionRequest } from '../../../types';
 import type { ExploreScreenParams } from '../../../navigation/types';
 import { updateSearchUrl } from '../../../hooks/useSearchParams';
+import { goToSearchResults } from '../../../navigation/goToSearchResults';
 import { setCachedSearch } from '../../../utils/searchCache';
 import { clearSharedLinkCache } from '../../../utils/sharedLinkCache';
 import { classicSearchPayload } from '../../../utils/skyscanner';
@@ -593,8 +594,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     setCachedSearch(payload);
     clearSharedLinkCache();
     searchActions.beginSearch(payload);
-    updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-    navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+    const urlState = { ...payload, sessionId: undefined, optionId: undefined, flightId: undefined };
+    updateSearchUrl(urlState);
+    goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
     setSearchingDest(null)
   };
 
@@ -772,8 +774,9 @@ export function ExploreScreen({ navigation, route }: ExploreScreenProps) {
     setCachedSearch(payload);
     clearSharedLinkCache();
     searchActions.beginSearch(payload);
-    updateSearchUrl({ ...payload, sessionId: undefined, optionId: undefined, flightId: undefined });
-    navigation.navigate('Results', { sessionId: '', searchNonce: Date.now() });
+    const urlState = { ...payload, sessionId: undefined, optionId: undefined, flightId: undefined };
+    updateSearchUrl(urlState);
+    goToSearchResults(navigation, { sessionId: '', searchNonce: Date.now() }, urlState);
   };
 
   // ── Search / deals form fields (desktop sidebar + mobile Edit modal) ───────
