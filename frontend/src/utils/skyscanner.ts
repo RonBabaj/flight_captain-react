@@ -116,6 +116,20 @@ function legCarrierCode(leg?: FlightLeg): string {
   return codes.every((c) => c === codes[0]) ? codes[0] : '*';
 }
 
+/** True when marketing carriers differ anywhere on the itinerary (separate tickets). */
+export function itineraryHasMultipleMarketingCarriers(
+  option?: { legs?: FlightLeg[] } | null,
+): boolean {
+  const codes = new Set<string>();
+  for (const leg of option?.legs ?? []) {
+    for (const seg of leg.segments ?? []) {
+      const c = segmentCarrierCode(seg);
+      if (c) codes.add(c);
+    }
+  }
+  return codes.size > 1;
+}
+
 /** Separate Book buttons when the return is not the same city and the same airline. */
 export function needsPerHopBooking(
   option?: { legs?: FlightLeg[] } | null,
@@ -132,6 +146,20 @@ export function needsPerHopBooking(
   if (legCount === 0) return false;
   const hops = bookingHopsFromOption(option as FlightOption);
   return hops.length > legCount;
+}
+
+/**
+ * Per-ticket booking: partner + airline direct for each hop (leg or connection segment),
+ * not a single route-level handoff for the whole itinerary.
+ */
+export function needsPerTicketBooking(
+  option?: { legs?: FlightLeg[] } | null,
+  searchParams?: Partial<CreateSearchSessionRequest> | null,
+): boolean {
+  if (needsPerHopBooking(option, searchParams)) return true;
+  const hops = bookingHopsFromOption(option as FlightOption);
+  if (hops.length > 1) return true;
+  return itineraryHasMultipleMarketingCarriers(option);
 }
 
 /** Build a shareable URL for a specific flight including search params for session recovery. */

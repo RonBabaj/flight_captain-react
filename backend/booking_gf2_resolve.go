@@ -428,6 +428,21 @@ func marketingCarrierForLegIndex(option *FlightOption, legIndex int) string {
 	return marketingCarrierForLeg(option, 0)
 }
 
+// marketingCarrierForScope is the selling airline for one resolve request (whole trip, leg, or segment).
+func marketingCarrierForScope(option *FlightOption, legIndex, segmentIndex int) string {
+	if option == nil {
+		return ""
+	}
+	if legIndex >= 0 && legIndex < len(option.Legs) {
+		segs := option.Legs[legIndex].Segments
+		if segmentIndex >= 0 && segmentIndex < len(segs) {
+			return search.LookupAirlineIATA(segs[segmentIndex].MarketingCarrier.Code)
+		}
+		return marketingCarrierForLeg(option, legIndex)
+	}
+	return marketingCarrierForLegIndex(option, legIndex)
+}
+
 func offersIncludeAirlineDirect(offers []bookingmatch.BookingOffer, carrier string) bool {
 	for _, o := range offers {
 		if airlineDomainForCarrier(o.Domain, carrier) || airlineDomainForCarrier(o.Provider, carrier) {

@@ -272,7 +272,7 @@ func buildDualBookingResolveResponse(
 	hadMultiple bool,
 	session *SearchSession,
 	option *FlightOption,
-	legIndex int,
+	legIndex, segmentIndex int,
 	fp string,
 ) (BookingResolveResponse, string, bool) {
 	if primaryPick == nil {
@@ -321,7 +321,7 @@ func buildDualBookingResolveResponse(
 
 	var alternatives []PublicBookingAlternative
 	if cheapestOtaPick != nil {
-		carrier := marketingCarrierForLegIndex(option, legIndex)
+		carrier := marketingCarrierForScope(option, legIndex, segmentIndex)
 		otaPool := offersExcludingAirlineDirect(allOffers, carrier)
 		alternatives = publicAlternativesFromOffers(otaPool, cheapestOtaPick, normalize, 4)
 	}
@@ -358,7 +358,7 @@ func pickDualBookingOffers(
 	fp string,
 	normalize bookingmatch.PriceNormalizer,
 ) (primary, cheapestOta, airlineDirect *bookingmatch.BookingOffer) {
-	cheapestOta = pickCheapestOTAOffer(sourceOffers, matchResult, session, option, legIndex, normalize)
+	cheapestOta = pickCheapestOTAOffer(sourceOffers, matchResult, session, option, legIndex, segmentIndex, normalize)
 	airlineDirect = pickAirlineDirectOffer(sourceOffers, gf2Offers, session, option, legIndex, segmentIndex, fp, normalize)
 	switch {
 	case cheapestOta != nil:
@@ -494,14 +494,14 @@ func offersExcludingAirlineDirect(all []bookingmatch.BookingOffer, carrier strin
 	return out
 }
 
-func pickCheapestOTAOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
-	carrier := marketingCarrierForLegIndex(option, legIndex)
+func pickCheapestOTAOffer(all []bookingmatch.BookingOffer, match *bookingmatch.MatchResult, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
+	carrier := marketingCarrierForScope(option, legIndex, segmentIndex)
 	otaOffers := offersExcludingAirlineDirect(all, carrier)
 	return selectBestFromVerifiedOffers(otaOffers, match, session, option, legIndex, normalize)
 }
 
 func pickAirlineDirectOffer(verified []bookingmatch.BookingOffer, gf2Raw []bookingmatch.BookingOffer, session *SearchSession, option *FlightOption, legIndex, segmentIndex int, fp string, normalize bookingmatch.PriceNormalizer) *bookingmatch.BookingOffer {
-	carrier := marketingCarrierForLegIndex(option, legIndex)
+	carrier := marketingCarrierForScope(option, legIndex, segmentIndex)
 	if carrier == "" {
 		return nil
 	}
@@ -1169,7 +1169,7 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		)
 		return buildDualBookingResolveResponse(
 			primaryPick, cheapestOtaPick, airlineDirectPick,
-			gf2Offers, sourceOffers, matchResult, hadMultiple, session, option, legIndex, fp,
+			gf2Offers, sourceOffers, matchResult, hadMultiple, session, option, legIndex, segmentIndex, fp,
 		)
 	}
 
