@@ -116,6 +116,9 @@ func TestRunBookingMatch_skyscannerSessionDualWithCondorPrefill(t *testing.T) {
 	if sameBookingURL(resp.CheapestOta.URL, resp.AirlineDirect.URL) {
 		t.Fatal("dual options must differ")
 	}
+	if resp.AirlineDirect.Price == nil || *resp.AirlineDirect.Price <= 0 {
+		t.Fatalf("airlineDirect should show search quote price, got %+v", resp.AirlineDirect)
+	}
 }
 
 func TestPickAirlineDirectOffer_fullItineraryUsesLegZeroTemplate(t *testing.T) {
