@@ -81,7 +81,7 @@ type SearchSessionStatus string
 
 const (
 	StatusPending  SearchSessionStatus = "PENDING"
-	// StatusPartial is retained for older persisted sessions only; new searches never emit it.
+	// StatusPartial: first provider finished; merged snapshot while other providers still run.
 	StatusPartial  SearchSessionStatus = "PARTIAL"
 	StatusComplete SearchSessionStatus = "COMPLETE"
 	StatusFailed   SearchSessionStatus = "FAILED"
@@ -1182,7 +1182,21 @@ func finalizeSearchSession(
 		}, stats)
 	}
 
-	multi := flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress)
+	onPartial := func(done, total int, partial search.MultiSearchResult) {
+		if total <= 1 || done >= total || len(partial.Results) == 0 {
+			return
+		}
+		options := normalizeProviderOptions(partial.Results, req, cabinPref, includeBag)
+		if len(options) == 0 {
+			return
+		}
+		if publishSessionSnapshot(sessionID, StatusPartial, options, partial.Stats) {
+			log.Printf("[SEARCH] partial session=%s providersDone=%d/%d options=%d",
+				sessionID, done, total, len(options))
+		}
+	}
+
+	multi := flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress, onPartial)
 	maxTransientRetries := search.SearchTransientRetryMax()
 	for attempt := 0; attempt < maxTransientRetries && multi.AllFailed() && multi.IsTransientFailure(); attempt++ {
 		log.Printf("[SEARCH] transient all-provider failure attempt=%d stats=%+v — retrying", attempt+1, multi.Stats)
@@ -1198,7 +1212,7 @@ func finalizeSearchSession(
 			timer.Stop()
 		case <-timer.C:
 			if ctx.Err() == nil {
-				multi = flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress)
+				multi = flightProviderRegistry.SearchAllWithProgress(ctx, sreq, onProgress, onPartial)
 			}
 		}
 	}

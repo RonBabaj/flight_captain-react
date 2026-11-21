@@ -26,19 +26,22 @@ export const SEARCH_PROGRESS_PHRASES: Record<string, string[]> = {
 /** Provider-aware status when unified search is mid-flight (no result cards yet). */
 export const SEARCH_PROVIDER_PHRASES: Record<string, Record<string, string>> = {
   en: {
-    gf2: 'Loading Google Flights…',
-    ota: 'Checking Kiwi & Skyscanner…',
-    both: 'Merging Google Flights with Kiwi & Skyscanner…',
+    parallel: 'Searching Google Flights, Kiwi & Skyscanner in parallel…',
+    gf2: 'Still checking Kiwi & Skyscanner…',
+    ota: 'Still loading Google Flights…',
+    both: 'Comparing prices across providers…',
   },
   he: {
-    gf2: 'טוען Google Flights…',
-    ota: 'בודק Kiwi ו-Skyscanner…',
-    both: 'ממזג Google Flights עם Kiwi ו-Skyscanner…',
+    parallel: 'מחפש במקביל ב-Google Flights, Kiwi ו-Skyscanner…',
+    gf2: 'עדיין בודק Kiwi ו-Skyscanner…',
+    ota: 'עדיין טוען Google Flights…',
+    both: 'משווה מחירים בין הספקים…',
   },
   ru: {
-    gf2: 'Загружаем Google Flights…',
-    ota: 'Проверяем Kiwi и Skyscanner…',
-    both: 'Сводим Google Flights с Kiwi и Skyscanner…',
+    parallel: 'Ищем параллельно в Google Flights, Kiwi и Skyscanner…',
+    gf2: 'Ещё проверяем Kiwi и Skyscanner…',
+    ota: 'Ещё загружаем Google Flights…',
+    both: 'Сравниваем цены у провайдеров…',
   },
 };
 
@@ -120,9 +123,9 @@ export function pickSearchStatusPhrase(
   const gf2Finished = statsHasProvider(stats, 'googleflights2');
   const multisiteFinished = statsHasProvider(stats, 'multisite');
   if (total >= 2) {
-    if (done === 0) return pmap.both;
-    if (gf2Finished && !multisiteFinished) return pmap.ota;
-    if (multisiteFinished && !gf2Finished) return pmap.gf2;
+    if (done === 0) return pmap.parallel;
+    if (gf2Finished && !multisiteFinished) return pmap.gf2;
+    if (multisiteFinished && !gf2Finished) return pmap.ota;
     if (done > 0 && done < total) return pmap.both;
   }
   const rotating = getPhrasesForLanguage(SEARCH_PROGRESS_PHRASES, language);
