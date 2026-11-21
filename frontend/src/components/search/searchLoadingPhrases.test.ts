@@ -5,6 +5,11 @@ import assert from 'node:assert/strict';
 import { pickSearchStatusPhrase } from './searchLoadingPhrases';
 
 assert.match(
+  pickSearchStatusPhrase('en', { providersDone: 0, providersTotal: 2, phase: 'searching' }, [], false, 0),
+  /parallel/i,
+);
+
+assert.match(
   pickSearchStatusPhrase('en', { providersDone: 1, providersTotal: 2, phase: 'searching' }, [
     { provider: 'googleflights2', durationMs: 1000, results: 40 },
   ], false, 0),

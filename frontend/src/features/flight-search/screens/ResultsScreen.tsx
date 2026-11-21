@@ -1452,6 +1452,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       status === 'PENDING' ||
       status === 'PARTIAL') &&
     results.length === 0;
+  const showSearchProgressBanner =
+    isLoading || (status === 'PARTIAL' && results.length > 0);
   const hasResults = filtered.length > 0;
   // Empty = we are on a results session, backend is not loading, and the raw list is empty
   const hasActiveSession = !!sessionId;
@@ -1794,7 +1796,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </EditSearchModal>
 
       {/* Keep a thin banner while waiting — belt + suspenders with the cube. */}
-      {isLoading && (
+      {showSearchProgressBanner && (
         <SearchProgressBanner
           language={language}
           theme={theme}

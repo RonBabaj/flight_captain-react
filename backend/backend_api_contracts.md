@@ -351,7 +351,7 @@ The actual router choice is up to you (standard library, chi, gin, etc.), but th
   - `FlightOption`, `FlightLeg`, `FlightSegment`, `AirportLike`, `Carrier`, `MonetaryAmount`.
 - **Session semantics**:
   - A `SearchSession` is immutable in its parameters after creation.
-  - New searches stay PENDING until every provider finishes, then COMPLETE once (no PARTIAL drip).
+  - New searches start PENDING, may emit PARTIAL when the first provider(s) return mergeable results while others still run, then COMPLETE when all providers finish.
   - Sessions may expire; expired sessions MUST return clear `status = FAILED` or HTTP `410 Gone`.
 - **Caching**:
   - Month deals and possibly search results may be cached internally, but the cache layer is invisible to the client.

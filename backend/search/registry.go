@@ -109,6 +109,22 @@ func (r *Registry) ProviderCount() int {
 // done/total are 1-based completion counts; stats is a snapshot of finished providers so far.
 type SearchProgressFunc func(done, total int, stats []ProviderSearchStats)
 
+// SearchPartialFunc is optional. It fires after each provider completes while others still run,
+// with merged/deduped results from finished providers only (suitable for PARTIAL session drip).
+type SearchPartialFunc func(done, total int, partial MultiSearchResult)
+
+// MergeProviderResultsForPublish normalizes raw provider rows for a client-visible snapshot.
+func MergeProviderResultsForPublish(accumulated []ProviderResult, req SearchRequest) []ProviderResult {
+	if len(accumulated) == 0 {
+		return nil
+	}
+	results := append([]ProviderResult(nil), accumulated...)
+	convertResultsToCurrency(results, req.Currency)
+	results = AttachCanonicalIdentityAll(results)
+	results = DedupeProviderResults(results)
+	return results
+}
+
 // Get returns a provider by name, or nil.
 func (r *Registry) Get(name string) Provider {
 	if r == nil {
@@ -190,11 +206,16 @@ func multisiteSoftTimeoutFor(req SearchRequest) time.Duration {
 // SearchAll queries every enabled provider in parallel, merges results, and never fails the whole
 // search solely because one provider failed (unless all fail with zero results).
 func (r *Registry) SearchAll(ctx context.Context, req SearchRequest) MultiSearchResult {
-	return r.SearchAllWithProgress(ctx, req, nil)
+	return r.SearchAllWithProgress(ctx, req, nil, nil)
 }
 
 // SearchAllWithProgress is SearchAll plus optional per-provider completion callbacks.
-func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest, onProgress SearchProgressFunc) MultiSearchResult {
+func (r *Registry) SearchAllWithProgress(
+	ctx context.Context,
+	req SearchRequest,
+	onProgress SearchProgressFunc,
+	onPartial SearchPartialFunc,
+) MultiSearchResult {
 	out := MultiSearchResult{}
 	if r == nil || len(r.providers) == 0 {
 		return out
@@ -255,14 +276,19 @@ func (r *Registry) SearchAllWithProgress(ctx context.Context, req SearchRequest,
 	for p := range ch {
 		out.Stats = append(out.Stats, p.stats)
 		out.Results = append(out.Results, p.results...)
+		done := len(out.Stats)
+		snap := append([]ProviderSearchStats(nil), out.Stats...)
 		if onProgress != nil {
-			snap := append([]ProviderSearchStats(nil), out.Stats...)
-			onProgress(len(out.Stats), total, snap)
+			onProgress(done, total, snap)
+		}
+		if onPartial != nil && total > 1 && done < total {
+			merged := MergeProviderResultsForPublish(out.Results, req)
+			if len(merged) > 0 {
+				onPartial(done, total, MultiSearchResult{Results: merged, Stats: snap})
+			}
 		}
 	}
-	convertResultsToCurrency(out.Results, req.Currency)
-	out.Results = AttachCanonicalIdentityAll(out.Results)
-	out.Results = DedupeProviderResults(out.Results)
+	out.Results = MergeProviderResultsForPublish(out.Results, req)
 	return out
 }
 

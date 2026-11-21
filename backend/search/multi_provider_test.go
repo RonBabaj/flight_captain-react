@@ -203,6 +203,7 @@ func TestRegistrySearchAllWithProgress(t *testing.T) {
 				t.Fatalf("total=%d", total)
 			}
 		},
+		nil,
 	)
 	if len(res.Results) != 2 {
 		t.Fatalf("results=%d", len(res.Results))
