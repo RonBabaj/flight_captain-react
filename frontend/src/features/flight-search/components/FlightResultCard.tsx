@@ -21,18 +21,24 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useWindowWidth } from '../../../hooks/useResponsive';
 import { useLocale } from '../../../context/LocaleContext';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
+import {
+  displayAirlineLabel,
+  distinctMarketingCarriers,
+  labelForCarrierCode,
+} from '../../../utils/displayAirlines';
 import {
   buildLegPreviewSummary,
   formatDuration,
   formatLegStopsLabel,
   type LegPreviewSummary,
 } from '../../../utils/legSummary';
-import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
+import { formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
 import { TicketStub } from '../../../ui/TicketStub';
-import { AirportRouteTimeline, LayoverChips } from '../../../ui';
-import { formatFlightTimeRange, isolateLTR } from '../../../utils/bidi';
+import { JourneyRouteBar, LayoverChips } from '../../../ui';
+import { isolateLTR } from '../../../utils/bidi';
+import { AirlineLogoRow } from '../../../components/AirlineLogo';
+import { SegmentCarrierStrip } from '../../../components/SegmentCarrierStrip';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -51,10 +57,11 @@ function buildRoutePath(segments: FlightSegment[]): string[] {
 
 function LegScheduleBlock({
   summary,
-  routeCodes,
   legLabel,
   showTimes,
   selfTransfer,
+  segments,
+  option,
   t,
   theme,
   isRTL,
@@ -62,24 +69,21 @@ function LegScheduleBlock({
   locale,
 }: {
   summary: LegPreviewSummary | null;
-  /** Ordered airport codes for this leg (for timeline). */
-  routeCodes: string[];
-  /** Short section title: Outbound / Return */
   legLabel?: string;
   showTimes: boolean;
   selfTransfer?: boolean;
+  segments: FlightSegment[];
+  option: FlightOption;
   t: (key: string) => string;
   theme: ReturnType<typeof useTheme>['theme'];
   isRTL: boolean;
   timeDisplay: FlightTimeDisplayMode;
   locale: string;
 }) {
-  if (!routeCodes.length && !summary) return null;
+  if (!summary) return null;
 
-  const dep = formatFlightTime(summary?.departureTime, summary?.origin, timeDisplay, locale);
-  const arr = formatFlightTime(summary?.arrivalTime, summary?.destination, timeDisplay, locale);
-  const dur = formatDuration(summary?.durationMinutes ?? 0);
-  const stopsCount = summary?.stopsCount ?? 0;
+  const dur = formatDuration(summary.durationMinutes ?? 0);
+  const stopsCount = summary.stopsCount ?? 0;
   const stopsText = formatLegStopsLabel(stopsCount, t, { selfTransfer });
   const row = (rtlStyle?: object) => (isRTL ? [{ justifyContent: 'flex-end' as const, alignSelf: 'stretch' as const }, rtlStyle] : []);
 
@@ -90,15 +94,12 @@ function LegScheduleBlock({
           {legLabel}
         </Text>
       ) : null}
-      {showTimes && summary ? (
-        <View style={[c.timesRow, ...row()]}>
-          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{formatFlightTimeRange(dep, arr)}</Text>
+      {showTimes ? (
+        <View style={{ direction: 'ltr' } as any}>
+          <JourneyRouteBar summary={summary} theme={theme} isRTL={isRTL} timeDisplay={timeDisplay} locale={locale} t={t} />
         </View>
       ) : null}
-      {routeCodes.length > 0 ? (
-        <AirportRouteTimeline codes={routeCodes} theme={theme} isRTL={isRTL} />
-      ) : null}
-      {showTimes && summary ? (
+      {showTimes ? (
         <View style={[c.metaRow, ...row({ flexWrap: 'wrap' as const })]}>
           <Text style={[c.metaText, { color: theme.textMuted, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]}>{dur}</Text>
           <View
@@ -123,7 +124,8 @@ function LegScheduleBlock({
           </View>
         </View>
       ) : null}
-      {summary && summary.layovers.length > 0 ? (
+      <SegmentCarrierStrip segments={segments} option={option} theme={theme} isRTL={isRTL} t={t} />
+      {summary.layovers.length > 0 ? (
         <LayoverChips layovers={summary.layovers} theme={theme} isRTL={isRTL} t={t} />
       ) : null}
     </View>
@@ -173,8 +175,6 @@ export function FlightResultCard({
   const legRoutes = (option.legs ?? [])
     .map((leg) => isolateLTR(buildRoutePath(leg.segments ?? []).join(' › ')))
     .filter(Boolean);
-  const outboundRouteCodes = buildRoutePath(segments);
-  const returnRouteCodes = returnSegments.length ? buildRoutePath(returnSegments) : [];
   const outboundRouteStr = legRoutes[0] || '';
   const extraRouteStrs = legRoutes.slice(1, Math.max(1, legRoutes.length - 1));
   let returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
@@ -203,7 +203,7 @@ export function FlightResultCard({
       : '');
   const isRoundTrip = !!(returnDate || returnRouteStr);
   const airline = displayAirlineLabel(option);
-  const multiAirline = hasMultipleAirlines(option);
+  const carrierCodes = distinctMarketingCarriers(option);
 
   const allSegments = option.legs.flatMap((l) => l.segments ?? []);
   const rankCabin = (cabin: string | undefined | null): number => {
@@ -272,10 +272,11 @@ export function FlightResultCard({
         <View style={[c.scheduleCol, isRTL && { alignItems: 'flex-end' }]}>
           <LegScheduleBlock
             summary={outboundSummary}
-            routeCodes={outboundRouteCodes}
             legLabel={isRoundTrip ? t('outbound') : undefined}
             showTimes
             selfTransfer={option.selfTransfer}
+            segments={segments}
+            option={option}
             t={t}
             theme={theme}
             isRTL={isRTL}
@@ -295,10 +296,11 @@ export function FlightResultCard({
             returnSummary ? (
               <LegScheduleBlock
                 summary={returnSummary}
-                routeCodes={returnRouteCodes}
                 legLabel={t('return_leg')}
                 showTimes
                 selfTransfer={option.selfTransfer}
+                segments={returnSegments}
+                option={option}
                 t={t}
                 theme={theme}
                 isRTL={isRTL}
@@ -380,9 +382,12 @@ export function FlightResultCard({
 
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
         <View style={[c.airlineCol, isRTL && { alignItems: 'flex-end' }]}>
-          <Text style={[c.airlineText, { color: theme.text, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
-            {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
-          </Text>
+          <View style={[c.airlineIdentity, isRTL && { flexDirection: 'row-reverse' }]}>
+            <AirlineLogoRow codes={carrierCodes} size={30} />
+            <Text style={[c.airlineText, { color: theme.text, fontFamily: theme.fontBody }, isRTL && { textAlign: 'right' }]} numberOfLines={2}>
+              {[airline, cabinStr || t('cabin_economy')].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
           {option.isCodeshare && (option.primaryOperatingCarrier || (option.marketedBy && option.marketedBy.length > 0)) && (
             <Text style={[c.codeshareText, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]} numberOfLines={1}>
               {option.primaryOperatingCarrier
@@ -487,7 +492,8 @@ const c = StyleSheet.create({
     gap: 8,
   },
   airlineCol: { flex: 1, minWidth: 0 },
-  airlineText: { fontSize: 12, fontWeight: '500' },
+  airlineIdentity: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  airlineText: { fontSize: 12, fontWeight: '500', flex: 1, minWidth: 120 },
   codeshareText: { fontSize: 12, marginTop: 2 },
   footerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   detailsLink: {
