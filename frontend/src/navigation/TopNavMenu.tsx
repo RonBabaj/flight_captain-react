@@ -187,13 +187,13 @@ export function TopNavMenu() {
           {
             backgroundColor: theme.navBg,
             borderBottomColor: theme.cardBorder,
-            direction: 'ltr',
+            direction: isRTL ? 'rtl' : 'ltr',
           },
         ]}
       >
         {navDrawer ? (
           <>
-            <View style={[styles.mobileSide, isRTL && { flexDirection: 'row-reverse' }]}>
+            <View style={styles.mobileSide}>
               <TouchableOpacity
                 style={styles.mobileMenuBtn}
                 onPress={() => setShowMobileMenu(true)}
@@ -210,41 +210,17 @@ export function TopNavMenu() {
             </View>
             {navActions}
           </>
-        ) : isRTL ? (
-          <>
-            {navActions}
-            <View style={styles.titleWrap}>
-              <Text style={[styles.title, { color: theme.tabActive, fontFamily: theme.fontDisplay }]} numberOfLines={1}>
-                {title}
-              </Text>
-            </View>
-            <View style={styles.menuWrap}>
-              <TouchableOpacity style={styles.tab} onPress={handleGoToHome} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isHome && { color: theme.tabActive }]}>
-                  {t('nav_home')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tab} onPress={handleGoToSearch} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isSearch && { color: theme.tabActive }]}>
-                  {t('nav_search')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tab} onPress={handleGoToDeals} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDeals && { color: theme.tabActive }]}>
-                  {t('nav_monthly_deals')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tab} onPress={handleGoToDynamic} activeOpacity={0.8}>
-                <Text style={[styles.tabText, { color: theme.tabInactive, fontFamily: theme.fontBody }, isDynamic && { color: theme.tabActive }]}>
-                  {t('nav_dynamic_destinations')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </>
         ) : (
           <>
             <View style={styles.titleWrap}>
-              <Text style={[styles.title, { color: theme.tabActive, fontFamily: theme.fontDisplay }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.title,
+                  { color: theme.tabActive, fontFamily: theme.fontDisplay },
+                  isRTL && { textAlign: 'right' },
+                ]}
+                numberOfLines={1}
+              >
                 {title}
               </Text>
             </View>
