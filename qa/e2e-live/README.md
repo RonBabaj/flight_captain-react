@@ -27,4 +27,17 @@ Add to Cursor **Settings → MCP**:
 npx -y @playwright/mcp@latest --headless
 ```
 
-Or use the repo file `.cursor/mcp.json` (Cloud Agents cannot attach MCP servers mid-run).
+Template for `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"]
+    }
+  }
+}
+```
+
+Cloud Agents cannot attach MCP servers mid-run; use the Node scripts here instead.
