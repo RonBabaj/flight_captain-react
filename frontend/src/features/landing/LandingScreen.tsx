@@ -20,7 +20,6 @@ import type { RootStackParamList } from '../../navigation/types';
 import { AppIcon } from '../../components/AppIcon';
 import { SiteFooter } from '../../components/SiteFooter';
 import { useBreakpoint, useContentGutter } from '../../hooks/useResponsive';
-import { palette } from '../../theme/tokens';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
   AIRPORT_FALLBACK_IMAGE,
@@ -121,11 +120,10 @@ export function LandingScreen() {
   };
 
   const textAlign = isRTL ? 'right' : 'left';
-  const heroMin = isMobile ? 480 : breakpoint === 'tablet' ? 540 : 600;
-  const brandSize = isMobile ? 42 : breakpoint === 'tablet' ? 50 : 58;
-  const titleSize = isMobile ? 22 : breakpoint === 'tablet' ? 26 : 28;
-
-  const heroAlign = isRTL ? ('flex-end' as const) : ('flex-start' as const);
+  const isDesktop = breakpoint === 'desktop';
+  const heroMin = isMobile ? 520 : isDesktop ? 620 : 560;
+  const titleSize = isMobile ? 26 : isDesktop ? 34 : 28;
+  const heroBg = moodImageUrlForVariant(LANDING_MOOD_DESTINATIONS[2]?.mood.imageUrl ?? AIRPORT_FALLBACK_IMAGE, 'hero');
 
   return (
     <View style={[styles.page, { backgroundColor: theme.screenBg, direction: isRTL ? 'rtl' : 'ltr' }]}>
@@ -142,45 +140,52 @@ export function LandingScreen() {
       onScroll={onScroll}
       scrollEventThrottle={16}
     >
-      {/* Full-bleed hero — brand first, one composition */}
       <View style={[styles.heroPlane, { minHeight: heroMin }]}>
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.screenBg }]} />
+        <Image source={{ uri: heroBg }} style={StyleSheet.absoluteFillObject} resizeMode="cover" accessibilityIgnoresInvertColors />
+        <View style={[StyleSheet.absoluteFillObject, styles.heroScrim]} />
         <View
           pointerEvents="none"
-          style={[styles.horizonBand, { backgroundColor: palette.mist + '55' }]}
-        />
-        <View
-          pointerEvents="none"
-          style={[styles.horizonGlow, { backgroundColor: theme.primary + '14' }]}
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: theme.isDark ? 'rgba(8,14,22,0.72)' : 'rgba(246,245,241,0.88)' },
+          ]}
         />
         <View
           style={[
             styles.heroInner,
             {
               maxWidth: MAX_CONTENT,
-              paddingTop: isMobile ? 24 : 40,
+              paddingTop: isMobile ? 28 : 48,
+              paddingBottom: isMobile ? 32 : 56,
               paddingHorizontal: gutter,
-              alignItems: heroAlign,
+              alignItems: isRTL ? 'flex-end' : 'flex-start',
             },
           ]}
         >
-          <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }], alignSelf: heroAlign, width: '100%', maxWidth: 560 }}>
-            <Text
+          <Animated.View
+            style={[
+              styles.heroCard,
+              {
+                opacity: brandOpacity,
+                transform: [{ translateY: brandY }],
+                backgroundColor: theme.isDark ? 'rgba(22,32,44,0.82)' : 'rgba(255,255,255,0.92)',
+                borderColor: theme.cardBorder,
+                borderRadius: theme.radiusLg + 8,
+              },
+              isRTL && isDesktop && { alignSelf: 'flex-end' },
+            ]}
+          >
+            <View
               style={[
-                styles.brand,
-                {
-                  color: theme.text,
-                  fontFamily: theme.fontDisplay,
-                  textAlign,
-                  fontSize: brandSize,
-                  lineHeight: brandSize + 4,
-                },
+                styles.brandPill,
+                { backgroundColor: theme.primary + '22', borderColor: theme.primary + '44' },
+                isRTL && { alignSelf: 'flex-end' },
               ]}
-              accessibilityRole="header"
             >
-              Fly-Fix
-            </Text>
+              <Text style={[styles.brandPillText, { color: theme.primary, fontFamily: theme.fontDisplay }]}>Fly-Fix</Text>
+            </View>
             <Text
+              accessibilityRole="header"
               style={[
                 styles.heroTitle,
                 {
@@ -188,73 +193,64 @@ export function LandingScreen() {
                   fontFamily: theme.fontDisplay,
                   textAlign,
                   fontSize: titleSize,
-                  lineHeight: titleSize + 6,
+                  lineHeight: titleSize + 8,
                 },
               ]}
             >
               {t('landing_hero_title')}
             </Text>
-            <Text
-              style={[
-                styles.heroSubtitle,
-                { color: theme.textMuted, fontFamily: theme.fontBody, textAlign },
-              ]}
-            >
+            <Text style={[styles.heroSubtitle, { color: theme.textMuted, fontFamily: theme.fontBody, textAlign }]}>
               {t('landing_hero_subtitle')}
             </Text>
-            <View style={[styles.boardingAccent, { alignSelf: heroAlign }]}>
-              <View style={[styles.boardingStub, { backgroundColor: theme.buttonBg }]} />
-              <View
-                style={[styles.boardingRule, { backgroundColor: theme.cardBorder }]}
-              />
-            </View>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.heroCtas,
-              isMobile ? styles.heroCtasMobile : styles.heroCtasDesktop,
-              !isMobile && isRTL && { justifyContent: 'flex-end', alignSelf: 'flex-end' },
-              !isMobile && !isRTL && { alignSelf: 'flex-start' },
-              { opacity: ctaOpacity, width: isMobile ? '100%' : undefined },
-            ]}
-          >
-            <TouchableOpacity
+            <Animated.View
               style={[
-                styles.btnPrimary,
-                { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
-                isRTL && { flexDirection: 'row-reverse' },
-                isMobile && styles.btnFullWidth,
+                styles.heroCtas,
+                isMobile ? styles.heroCtasMobile : styles.heroCtasDesktop,
+                { opacity: ctaOpacity },
               ]}
-              onPress={goSearch}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('landing_cta_search')}
             >
-              <AppIcon name="search" size={20} color={theme.buttonText} fallbackText="" />
-              <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
-                {t('landing_cta_search')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnTextLink, isMobile && { alignSelf: isRTL ? 'flex-end' : 'center' }]}
-              onPress={goDeals}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.btnTextLinkLabel, { color: theme.primary, fontFamily: theme.fontBody }]}>
-                {t('landing_cta_deals')}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.btnPrimary,
+                  styles.btnPrimaryHero,
+                  { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
+                  isRTL && { flexDirection: 'row-reverse' },
+                ]}
+                onPress={goSearch}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t('landing_cta_search')}
+              >
+                <AppIcon name="search" size={20} color={theme.buttonText} fallbackText="" />
+                <Text style={[styles.btnPrimaryText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+                  {t('landing_cta_search')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.btnSecondary,
+                  { borderColor: theme.cardBorder, borderRadius: theme.radiusMd, backgroundColor: theme.controlBg },
+                  isRTL && { flexDirection: 'row-reverse' },
+                ]}
+                onPress={goDeals}
+                activeOpacity={0.8}
+              >
+                <AppIcon name="calendar-outline" size={18} color={theme.text} fallbackText="" />
+                <Text style={[styles.btnSecondaryText, { color: theme.text, fontFamily: theme.fontBody }]}>
+                  {t('landing_cta_deals')}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           </Animated.View>
         </View>
       </View>
 
       {/* Mood destinations — below hero, one job: inspire */}
-      <View style={[styles.section, { paddingHorizontal: gutter, alignItems: heroAlign }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
         <Text
           style={[
             styles.sectionTitle,
-            { color: theme.text, fontFamily: theme.fontDisplay, textAlign, alignSelf: heroAlign },
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
           ]}
         >
           {t('landing_mood_title')}
@@ -282,7 +278,11 @@ export function LandingScreen() {
             return (
               <TouchableOpacity
                 key={code}
-                style={[styles.moodCard, { borderRadius: theme.radiusLg, borderColor: theme.cardBorder }]}
+                style={[
+                  styles.moodCard,
+                  isDesktop && styles.moodCardDesktop,
+                  { borderRadius: theme.radiusLg, borderColor: theme.cardBorder },
+                ]}
                 onPress={() => goDestination(code)}
                 activeOpacity={0.88}
                 accessibilityRole="button"
@@ -300,35 +300,32 @@ export function LandingScreen() {
       </View>
 
       {/* Why Fly-Fix */}
-      <View style={[styles.section, { paddingHorizontal: gutter, alignItems: heroAlign }]}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: theme.text, fontFamily: theme.fontDisplay, textAlign, alignSelf: heroAlign },
-          ]}
-        >
+      <View style={[styles.section, { paddingHorizontal: gutter }]}>
+        <Text style={[styles.sectionTitle, { color: theme.text, fontFamily: theme.fontDisplay, textAlign }]}>
           {t('landing_features_title')}
         </Text>
-        {[
-          { titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc' },
-          { titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc' },
-          { titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc' },
-        ].map((f, i) => (
-          <View
-            key={f.titleKey}
-            style={[
-              styles.featureRow,
-              i < 2 && { borderBottomColor: theme.cardBorder, borderBottomWidth: StyleSheet.hairlineWidth },
-            ]}
-          >
-            <Text style={[styles.featureTitle, { color: theme.text, fontFamily: theme.fontBody, textAlign }]}>
-              {t(f.titleKey)}
-            </Text>
-            <Text style={[styles.featureDesc, { color: theme.textMuted, fontFamily: theme.fontBody, textAlign }]}>
-              {t(f.descKey)}
-            </Text>
-          </View>
-        ))}
+        <View style={[styles.featureGrid, isDesktop && styles.featureGridDesktop]}>
+          {[
+            { titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc', icon: 'airplane-outline' as const },
+            { titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc', icon: 'options-outline' as const },
+            { titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc', icon: 'ticket-outline' as const },
+          ].map((f) => (
+            <View
+              key={f.titleKey}
+              style={[styles.featureCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderRadius: theme.radiusLg }]}
+            >
+              <View style={[styles.featureIconWrap, { backgroundColor: theme.primary + '18' }]}>
+                <AppIcon name={f.icon} size={22} color={theme.primary} fallbackText="" />
+              </View>
+              <Text style={[styles.featureTitle, { color: theme.text, fontFamily: theme.fontBody, textAlign }]}>
+                {t(f.titleKey)}
+              </Text>
+              <Text style={[styles.featureDesc, { color: theme.textMuted, fontFamily: theme.fontBody, textAlign }]}>
+                {t(f.descKey)}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={[styles.section, { paddingHorizontal: gutter }]}>
@@ -393,80 +390,55 @@ const styles = StyleSheet.create({
   heroPlane: {
     width: '100%',
     overflow: 'hidden',
-    justifyContent: 'center',
-    paddingBottom: 40,
-    paddingHorizontal: 0,
+    justifyContent: 'flex-end',
+    position: 'relative',
   },
-  horizonBand: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: '42%',
-    bottom: 0,
-    opacity: 0.5,
-  },
-  horizonGlow: {
-    position: 'absolute',
-    width: '140%',
-    height: '55%',
-    borderRadius: 999,
-    bottom: '-12%',
-    alignSelf: 'center',
-    opacity: 0.65,
+  heroScrim: {
+    backgroundColor: 'rgba(0,0,0,0.28)',
   },
   heroInner: {
     width: '100%',
     alignSelf: 'center',
     zIndex: 1,
   },
-  brand: {
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 10,
+  heroCard: {
+    width: '100%',
+    maxWidth: 640,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 14,
   },
+  brandPill: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  brandPillText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
   heroTitle: {
-    fontWeight: '700',
-    letterSpacing: -0.2,
-    marginBottom: 12,
-    maxWidth: 520,
+    fontWeight: '800',
+    letterSpacing: -0.6,
+    marginBottom: 4,
   },
   heroSubtitle: {
-    fontSize: 16.5,
-    lineHeight: 25,
-    marginBottom: 14,
-    maxWidth: 480,
-  },
-  boardingAccent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
+    fontSize: 17,
+    lineHeight: 26,
     marginBottom: 4,
-    maxWidth: 320,
-  },
-  boardingStub: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-  },
-  boardingRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
   },
   heroCtas: {
-    gap: 14,
-    alignItems: 'center',
-    marginTop: 20,
+    gap: 12,
+    marginTop: 8,
   },
   heroCtasMobile: {
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 12,
   },
   heroCtasDesktop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
     flexWrap: 'wrap',
   },
   btnFullWidth: {
@@ -476,11 +448,31 @@ const styles = StyleSheet.create({
   btnPrimary: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
     paddingVertical: 15,
     paddingHorizontal: 22,
     minHeight: 50,
   },
+  btnPrimaryHero: {
+    flex: 1,
+    minWidth: 160,
+    maxWidth: 280,
+  },
+  btnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    minHeight: 50,
+    borderWidth: 1,
+    flex: 1,
+    minWidth: 160,
+    maxWidth: 280,
+  },
+  btnSecondaryText: { fontSize: 15, fontWeight: '600' },
   btnPrimaryBlock: {
     justifyContent: 'center',
     width: '100%',
@@ -488,8 +480,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   btnPrimaryText: { fontSize: 16, fontWeight: '700' },
-  btnTextLink: { paddingVertical: 8, paddingHorizontal: 4 },
-  btnTextLinkLabel: { fontSize: 15, fontWeight: '600' },
   section: {
     paddingTop: 32,
     paddingBottom: 8,
@@ -515,11 +505,15 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   moodCard: {
-    width: 152,
-    height: 190,
+    width: 168,
+    height: 210,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: 'flex-end',
+  },
+  moodCardDesktop: {
+    width: 184,
+    height: 232,
   },
   moodScrim: {
     ...StyleSheet.absoluteFillObject,
@@ -535,10 +529,31 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  featureRow: {
-    paddingVertical: 18,
+  featureGrid: {
+    gap: 12,
+    marginTop: 8,
   },
-  featureTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  featureGridDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  featureCard: {
+    flex: 1,
+    minWidth: 240,
+    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  featureIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  featureTitle: { fontSize: 16, fontWeight: '700' },
   featureDesc: { fontSize: 15, lineHeight: 22 },
   footerTag: {
     marginTop: 20,
