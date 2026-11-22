@@ -39,4 +39,9 @@ export const layout = {
   maxContentWidth: 1280,
   gutterMobile: 20,
   gutterDesktop: 48,
+  /** Results chrome — slightly tighter than marketing pages so cards breathe horizontally. */
+  resultsGutterDesktop: 28,
+  resultsSearchColumnWidth: 272,
+  resultsSearchColumnWidthTablet: 228,
+  resultsFilterSidebarWidth: 224,
 } as const;

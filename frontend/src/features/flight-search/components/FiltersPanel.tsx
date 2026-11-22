@@ -16,6 +16,7 @@ import { distinctMarketingCarriers, providerNameForCode } from '../../../utils/d
 import type { FlightOption } from '../../../types';
 import type { SearchFilters } from '../../../store/searchStore';
 import { countByStopsFilter } from '../../../utils/itineraryStops';
+import { layout } from '../../../theme/tokens';
 
 interface FiltersPanelProps {
   filters: SearchFilters;
@@ -167,7 +168,7 @@ export function FiltersPanel({
 }
 
 const f = StyleSheet.create({
-  sidebar: { width: 240, paddingTop: 0 },
+  sidebar: { width: layout.resultsFilterSidebarWidth, paddingTop: 0 },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

@@ -165,7 +165,7 @@ export function DestinationMoodBanner({
             borderRadius: flushTop ? 0 : theme.radiusLg,
             opacity,
             borderColor: theme.cardBorder,
-            marginBottom: variant === 'results' || flushTop ? 0 : 14,
+            marginBottom: variant === 'results' || variant === 'compact' || flushTop ? 0 : 14,
             borderWidth: flushTop ? 0 : StyleSheet.hairlineWidth,
           },
           style,
@@ -390,8 +390,8 @@ const styles = StyleSheet.create({
 
 const stripStyles = StyleSheet.create({
   scroll: {
-    marginBottom: 14,
-    maxHeight: 110,
+    marginBottom: 6,
+    maxHeight: 96,
   },
   row: {
     gap: 10,
