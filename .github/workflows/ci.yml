@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Test search package
+        run: go test ./search -count=1 -short
+        working-directory: backend
+
+  frontend-phrases:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Loading phrase tests
+        run: npx --yes tsx src/components/search/searchLoadingPhrases.test.ts
+        working-directory: frontend
+
+  verify-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: partial-search-verify.sh
+        run: ./scripts/partial-search-verify.sh
+
+  prod-smoke:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+        working-directory: qa/e2e-live
+      - run: npx playwright install chromium
+        working-directory: qa/e2e-live
+      - name: Production TLV→JFK poll
+        run: node poll-session.mjs '{"origin":"TLV","destination":"JFK","departureDate":"2026-06-15","cabinClass":"ECONOMY","adults":1,"currency":"USD","locale":"he"}'
+        working-directory: qa/e2e-live
+      - name: Production UI smoke
+        run: node flyfix-ui-quick.mjs
+        working-directory: qa/e2e-live

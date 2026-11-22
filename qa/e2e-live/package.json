@@ -1,0 +1,12 @@
+{
+  "name": "flyfix-e2e-live",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "poll": "node poll-session.mjs",
+    "ui": "node flyfix-ui-quick.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.0"
+  }
+}

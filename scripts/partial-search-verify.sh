@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "== backend/search: partial stream + multi-provider =="
-(cd backend && go test ./search -run 'PartialStream|SearchAllWithProgress|MergeProvider' -count=1 -v)
+(cd backend && go test ./search -run 'PartialStream|SearchAllWithProgress|MergeProvider|Gf2Country|UnifiedSearchStagger' -count=1 -v)
 
 echo "== frontend: loading phrase copy =="
 (cd frontend && npx --yes tsx src/components/search/searchLoadingPhrases.test.ts)

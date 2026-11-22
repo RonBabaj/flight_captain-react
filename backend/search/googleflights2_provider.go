@@ -690,8 +690,8 @@ func (p *GoogleFlights2Provider) doSearchOne(ctx context.Context, req SearchRequ
 	}
 	params.Set("show_hidden", "1")
 	params.Set("currency", currency)
-	params.Set("language_code", "en-US")
-	params.Set("country_code", "US")
+	params.Set("language_code", gf2LanguageCodeForRequest(req))
+	params.Set("country_code", gf2CountryCodeForRequest(req))
 
 	base := "https://" + p.host
 	if p.path != "" && p.path != "/" {

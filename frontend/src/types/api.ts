@@ -179,6 +179,7 @@ export interface ProviderSearchStats {
   durationMs: number;
   results: number;
   error?: string;
+  note?: string;
   cacheHit?: boolean;
 }
 

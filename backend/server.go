@@ -855,6 +855,7 @@ func handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Children:          req.ChildrenOrDefault(),
 		Infants:           req.Infants,
 		Currency:          req.CurrencyOrDefault(),
+		Locale:            strings.TrimSpace(req.Locale),
 		FastOnly:          req.FastOnly,
 	})
 	// Persist sanitized params on the session so clients do not inherit stale open-jaw fields.
