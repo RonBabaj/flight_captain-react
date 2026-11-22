@@ -14,6 +14,7 @@ function formatProviderError(raw: string): string {
   }
   if (lower.includes('site time budget')) return 'timed out';
   if (lower.includes('context deadline')) return 'timed out';
+  if (lower.includes('gf2_empty_upstream')) return 'no Google Flights offers for this route';
   s = s.replace(/^multisite scraper:\s*/i, '');
   const noOffers = s.match(/no offers \((.+)\)$/i);
   if (noOffers) {
@@ -59,6 +60,10 @@ export function SearchSourcesBanner({
       if (s.error) {
         const detail = formatProviderError(s.error);
         return detail ? `${name}: ${detail}` : `${name}: ${t('search_source_failed')}`;
+      }
+      if (s.note) {
+        const detail = formatProviderError(s.note);
+        return detail ? `${name}: ${s.results} (${detail})` : `${name}: ${s.results}`;
       }
       return `${name}: ${s.results}`;
     });

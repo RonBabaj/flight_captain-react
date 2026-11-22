@@ -39,6 +39,7 @@ type SearchRequest struct {
 	Children          int
 	Infants           int
 	Currency          string
+	Locale            string // BCP-47 / language hint for GF2 market (he, en, ru)
 	// FastOnly skips the browser scraper. Background "cheaper city" searches use it
 	// so they do not queue ahead of the user's own scrape on the single shared Chrome.
 	FastOnly bool
@@ -474,6 +475,7 @@ type ProviderSearchStats struct {
 	DurationMs int64  `json:"durationMs"`
 	Results    int    `json:"results"`
 	Err        string `json:"error,omitempty"` // empty on success
+	Note       string `json:"note,omitempty"`  // non-fatal diagnostics (e.g. gf2_empty_upstream)
 	CacheHit   bool   `json:"cacheHit,omitempty"`
 }
 

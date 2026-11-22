@@ -243,6 +243,17 @@ func (r *Registry) SearchAllWithProgress(
 		wg.Add(1)
 		go func(p Provider) {
 			defer wg.Done()
+			if isFastProvider(p.Name()) && total > 1 {
+				if delay := UnifiedSearchFastProviderDelay(); delay > 0 {
+					timer := time.NewTimer(delay)
+					select {
+					case <-ctx.Done():
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
+				}
+			}
 			start := time.Now()
 			st := ProviderSearchStats{Provider: p.Name()}
 			pctx := ctx
@@ -264,6 +275,9 @@ func (r *Registry) SearchAllWithProgress(
 				st.Err = err.Error()
 				log.Printf("[SEARCH] provider=%s failed durationMs=%d err=%v", p.Name(), st.DurationMs, err)
 			} else {
+				if st.Results == 0 && strings.EqualFold(p.Name(), "googleflights2") {
+					st.Note = "gf2_empty_upstream"
+				}
 				log.Printf("[SEARCH] provider=%s ok durationMs=%d results=%d", p.Name(), st.DurationMs, st.Results)
 			}
 			ch <- part{stats: st, results: results}
