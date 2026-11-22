@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { getCurrencySymbol } from '../../../utils/exchangeRates';
@@ -28,6 +28,8 @@ interface Props {
    * Options still render when ready.
    */
   quietLoading?: boolean;
+  /** `section` = list footer; `toolbar` = inline hub pills in results toolbar (tablet/desktop). */
+  variant?: 'section' | 'toolbar';
 }
 
 const MAX_VISIBLE = 5;
@@ -41,9 +43,47 @@ export function CheaperCitiesSection({
   showAll = false,
   onShowMore,
   quietLoading = true,
+  variant = 'section',
 }: Props) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
+
+  if (variant === 'toolbar') {
+    if (loading || !options?.length) return null;
+    const visible = options.slice(0, 8);
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.toolbarScroll}
+        contentContainerStyle={[s.toolbarRow, isRTL && { flexDirection: 'row-reverse' }]}
+      >
+        {visible.map((opt) => {
+          const savingsCurrency = (opt.savings?.currency ?? 'USD') as string;
+          const savingsAmount =
+            typeof opt.savings?.amount === 'number' ? opt.savings.amount : Number(opt.savings?.amount ?? 0);
+          const savingsLabel = `${getCurrencySymbol(savingsCurrency)} ${
+            Number.isFinite(savingsAmount) ? savingsAmount.toFixed(0) : '0'
+          }`;
+          return (
+            <TouchableOpacity
+              key={opt.hubAirport}
+              style={[s.toolbarPill, { backgroundColor: theme.controlBg, borderColor: theme.cardBorder }]}
+              onPress={() => onView(opt.hubAirport)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.hubAirport} ${t('save_label')} ${savingsLabel}`}
+            >
+              <Text style={[s.toolbarHub, { color: theme.text, fontFamily: theme.fontDisplay }]}>{opt.hubAirport}</Text>
+              <Text style={[s.toolbarSave, { color: theme.primary, fontFamily: theme.fontBody }]}>
+                {t('save_label')} {savingsLabel}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    );
+  }
 
   if (loading) {
     if (quietLoading) return null;
@@ -170,4 +210,23 @@ const s = StyleSheet.create({
   btnText: { fontSize: 13, fontWeight: '600' },
   showMoreBtn: { paddingVertical: 8, alignItems: 'center' },
   showMoreText: { fontSize: 13, fontWeight: '600' },
+  toolbarScroll: { flexGrow: 0, flexShrink: 1, maxWidth: '100%' },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  toolbarPill: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    minWidth: 72,
+  },
+  toolbarHub: { fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+  toolbarSave: { fontSize: 11, fontWeight: '600', marginTop: 2 },
 });

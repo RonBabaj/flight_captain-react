@@ -1530,19 +1530,44 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       </TouchableOpacity>
     ) : null;
 
-  const positioningSection = (
-    <CheaperCitiesSection
-      loading={positioningLoading}
-      options={positioningOptions}
-      folded={cheaperCitiesFolded}
-      onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
-      quietLoading
-      onView={(hub) => {
-        const opt = positioningOptions.find((o) => o.hubAirport === hub);
-        if (opt) setPositioningDetails(opt);
-      }}
-    />
+  const onViewCheaperHub = useCallback(
+    (hub: string) => {
+      const opt = positioningOptions.find((o) => o.hubAirport === hub);
+      if (opt) setPositioningDetails(opt);
+    },
+    [positioningOptions],
   );
+
+  const showCheaperCitiesInToolbar = breakpoint !== 'mobile';
+
+  const cheaperCitiesToolbar =
+    showCheaperCitiesInToolbar && (positioningLoading || positioningOptions.length > 0) ? (
+      <View style={styles.toolbarCheaperCities}>
+        <CheaperCitiesSection
+          variant="toolbar"
+          loading={positioningLoading}
+          options={positioningOptions}
+          folded={false}
+          onToggleFold={() => {}}
+          quietLoading
+          onView={onViewCheaperHub}
+        />
+      </View>
+    ) : null;
+
+  const cheaperCitiesToolbarSlot = showCheaperCitiesInToolbar ? cheaperCitiesToolbar : cheaperCitiesChip;
+
+  const positioningSection =
+    breakpoint === 'mobile' ? (
+      <CheaperCitiesSection
+        loading={positioningLoading}
+        options={positioningOptions}
+        folded={cheaperCitiesFolded}
+        onToggleFold={() => setCheaperCitiesFolded((f) => !f)}
+        quietLoading
+        onView={onViewCheaperHub}
+      />
+    ) : null;
 
   const loadMoreResults = useCallback(async () => {
     if (!sessionId || !resultsHasMore || loadingMoreResults) return;
@@ -1836,7 +1861,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                         resultCount={filtered.length}
                       />
                     </View>
-                    {cheaperCitiesChip}
+                    {cheaperCitiesToolbarSlot}
                   </View>
                   {resultsList}
                 </Animated.View>
@@ -1872,7 +1897,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                         resultCount={filtered.length}
                       />
                     </View>
-                    {cheaperCitiesChip}
+                    {cheaperCitiesToolbarSlot}
                   </View>
                   {resultsList}
                 </Animated.View>
@@ -1909,7 +1934,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                   />
                 </View>
                 <View style={[styles.toolbarActions, styles.toolbarActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
-                  {cheaperCitiesChip}
+                  {cheaperCitiesToolbarSlot}
                   {showFiltersShortcut ? (
                     <TouchableOpacity
                       style={[
@@ -2173,6 +2198,16 @@ const styles = StyleSheet.create({
   toolbarActionsRow: {
     width: '100%',
     justifyContent: 'flex-end',
+  },
+  toolbarActionsCities: {
+    justifyContent: 'flex-start',
+    flex: 1,
+    minWidth: 0,
+  },
+  toolbarCheaperCities: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '100%',
   },
   filtersBtn: {
     flexShrink: 0,
