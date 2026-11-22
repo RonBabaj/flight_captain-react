@@ -32,6 +32,7 @@ import { formatFlightTime, formatFlightShortDate, type FlightTimeDisplayMode } f
 import type { FlightOption, FlightSegment } from '../../../types';
 import { TicketStub } from '../../../ui/TicketStub';
 import { AirportRouteTimeline, LayoverChips } from '../../../ui';
+import { formatFlightTimeRange, isolateLTR } from '../../../utils/bidi';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -80,8 +81,7 @@ function LegScheduleBlock({
   const dur = formatDuration(summary?.durationMinutes ?? 0);
   const stopsCount = summary?.stopsCount ?? 0;
   const stopsText = formatLegStopsLabel(stopsCount, t, { selfTransfer });
-  const row = (rtlStyle?: object) => (isRTL ? [{ flexDirection: 'row-reverse' as const }, rtlStyle] : []);
-  const timeSep = isRTL ? ' ← ' : ' → ';
+  const row = (rtlStyle?: object) => (isRTL ? [{ justifyContent: 'flex-end' as const, alignSelf: 'stretch' as const }, rtlStyle] : []);
 
   return (
     <View style={c.legBlock}>
@@ -92,9 +92,7 @@ function LegScheduleBlock({
       ) : null}
       {showTimes && summary ? (
         <View style={[c.timesRow, ...row()]}>
-          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{dep}</Text>
-          <Text style={[c.timeSep, { color: theme.textMuted, marginInline: 2 }]}>{timeSep}</Text>
-          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{arr}</Text>
+          <Text style={[c.time, { color: theme.text, fontFamily: theme.fontDisplay }]}>{formatFlightTimeRange(dep, arr)}</Text>
         </View>
       ) : null}
       {routeCodes.length > 0 ? (
@@ -172,9 +170,8 @@ export function FlightResultCard({
     ? buildLegPreviewSummary(returnSegments)
     : null;
 
-  const sep = isRTL ? ' ← ' : ' → ';
   const legRoutes = (option.legs ?? [])
-    .map((leg) => buildRoutePath(leg.segments ?? []).join(sep))
+    .map((leg) => isolateLTR(buildRoutePath(leg.segments ?? []).join(' › ')))
     .filter(Boolean);
   const outboundRouteCodes = buildRoutePath(segments);
   const returnRouteCodes = returnSegments.length ? buildRoutePath(returnSegments) : [];
@@ -182,7 +179,9 @@ export function FlightResultCard({
   const extraRouteStrs = legRoutes.slice(1, Math.max(1, legRoutes.length - 1));
   let returnRouteStr = legRoutes.length > 1 ? legRoutes[legRoutes.length - 1] : '';
   if (!returnRouteStr && searchReturnRoute?.from && searchReturnRoute?.to) {
-    returnRouteStr = `${searchReturnRoute.from.toUpperCase()}${sep}${searchReturnRoute.to.toUpperCase()}`;
+    returnRouteStr = isolateLTR(
+      `${searchReturnRoute.from.toUpperCase()} › ${searchReturnRoute.to.toUpperCase()}`,
+    );
   }
   const missingReturnLeg = !!(searchReturnRoute && legCount < 2);
 
