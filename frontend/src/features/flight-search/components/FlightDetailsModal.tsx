@@ -24,7 +24,14 @@ import { resolveAirlineLabel } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
-import { displayAirlineLabel, formatSegmentCarrierLine, hasMultipleAirlines, labelForCarrierCode } from '../../../utils/displayAirlines';
+import {
+  displayAirlineLabel,
+  distinctMarketingCarriers,
+  formatSegmentCarrierLine,
+  hasMultipleAirlines,
+  labelForCarrierCode,
+} from '../../../utils/displayAirlines';
+import { AirlineLogo, AirlineLogoRow } from '../../../components/AirlineLogo';
 import {
   bookingHopsFromOption,
   buildShareUrlWithOptionId,
@@ -639,7 +646,10 @@ export function FlightDetailsModal({
               </View>
               <View style={s.summaryMeta}>
                 {airlineName ? (
-                  <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
+                  <View style={[s.summaryAirlineRow, isRTL && { alignItems: 'flex-start' }]}>
+                    <AirlineLogoRow codes={distinctMarketingCarriers(option)} size={32} />
+                    <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
+                  </View>
                 ) : null}
                 {titledLegs.length > 1 ? (
                   titledLegs.map((leg, i) => {
@@ -768,8 +778,9 @@ export function FlightDetailsModal({
                         </View>
 
                         {/* Segment details line */}
-                        <View style={s.segDetails}>
-                          <Text style={[s.segDetailText, { color: theme.textMuted }]}>
+                        <View style={[s.segDetails, isRTL && { flexDirection: 'row-reverse' }]}>
+                          <AirlineLogo code={carrier} name={carrierName} size={24} />
+                          <Text style={[s.segDetailText, { color: theme.textMuted, flex: 1 }]}>
                             {formatSegmentCarrierLine(carrierName, carrier, seg.flightNumber, segCabin)}
                           </Text>
                         </View>
@@ -888,6 +899,7 @@ const s = StyleSheet.create({
   priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
+  summaryAirlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' },
   summaryText: { fontSize: 15, fontWeight: '600' },
   summaryMuted: { fontSize: 14, marginTop: 2 },
 
@@ -921,7 +933,7 @@ const s = StyleSheet.create({
   segMiddle: { flex: 1, flexDirection: 'row', alignItems: 'center', marginHorizontal: 8 },
   segLine: { flex: 1, height: 1 },
   segDuration: { fontSize: 12, marginHorizontal: 6 },
-  segDetails: { alignItems: 'center', marginBottom: 8 },
+  segDetails: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   segDetailText: { fontSize: 12, textAlign: 'center' },
 
   sellersBlockInline: {

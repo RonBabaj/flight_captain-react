@@ -12,6 +12,7 @@ export { BookingDualComparison } from './BookingDualComparison';
 export { BookingTrustStrip } from './BookingTrustStrip';
 export { PageTicketHeader } from './PageTicketHeader';
 export { AirportRouteTimeline } from './AirportRouteTimeline';
+export { JourneyRouteBar } from './JourneyRouteBar';
 export { LayoverChips } from './LayoverChips';
 export { StaggeredEntrance } from './StaggeredEntrance';
 export { SearchStatusBanner } from './SearchStatusBanner';

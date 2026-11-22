@@ -93,6 +93,20 @@ export function formatFlightWeekdayDate(
   });
 }
 
+/** Calendar-day difference between first departure and final arrival (for +1 badges). */
+export function formatArrivalDayOffset(
+  departureIso: string | undefined | null,
+  arrivalIso: string | undefined | null,
+): number {
+  const dep = flightTimeToMs(departureIso);
+  const arr = flightTimeToMs(arrivalIso);
+  if (!Number.isFinite(dep) || !Number.isFinite(arr)) return 0;
+  const depDay = Date.UTC(new Date(dep).getUTCFullYear(), new Date(dep).getUTCMonth(), new Date(dep).getUTCDate());
+  const arrDay = Date.UTC(new Date(arr).getUTCFullYear(), new Date(arr).getUTCMonth(), new Date(arr).getUTCDate());
+  const diff = Math.round((arrDay - depDay) / 86_400_000);
+  return diff > 0 ? diff : 0;
+}
+
 /** Difference in minutes between two ISO timestamps (for layovers/durations). */
 export function flightMinutesBetween(startIso: string | undefined | null, endIso: string | undefined | null): number {
   const start = flightTimeToMs(startIso);
