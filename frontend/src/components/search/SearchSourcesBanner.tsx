@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { useLocale } from '../../context/LocaleContext';
+import { AppIcon } from '../AppIcon';
 import type { ProviderSearchStats } from '../../types';
 
 /** User-visible slice of backend providerStats.error (ops detail without VPS jargon). */
@@ -21,9 +22,9 @@ function formatProviderError(raw: string): string {
     return noOffers[1]
       .replace(/skyscanner:/gi, 'Skyscanner')
       .replace(/kiwi:/gi, 'Kiwi')
-      .slice(0, 160);
+      .slice(0, 120);
   }
-  return s.length > 160 ? `${s.slice(0, 157)}…` : s;
+  return s.length > 120 ? `${s.slice(0, 117)}…` : s;
 }
 
 function labelForProvider(provider: string, t: (key: string) => string): string {
@@ -35,6 +36,43 @@ function labelForProvider(provider: string, t: (key: string) => string): string 
   return provider;
 }
 
+type ProviderChip = {
+  id: string;
+  label: string;
+  tone: 'ok' | 'warn' | 'fail';
+  line: string;
+};
+
+function providerChips(stats: ProviderSearchStats[], t: (key: string) => string): ProviderChip[] {
+  return stats.map((s) => {
+    const label = labelForProvider(s.provider, t);
+    if (s.error?.trim()) {
+      const detail = formatProviderError(s.error);
+      return {
+        id: s.provider,
+        label,
+        tone: 'fail',
+        line: detail || t('search_source_failed'),
+      };
+    }
+    if ((s.results ?? 0) > 0) {
+      return {
+        id: s.provider,
+        label,
+        tone: 'ok',
+        line: String(s.results),
+      };
+    }
+    const note = s.note?.trim() ? formatProviderError(s.note) : '';
+    return {
+      id: s.provider,
+      label,
+      tone: 'warn',
+      line: note || t('search_source_failed'),
+    };
+  });
+}
+
 interface SearchSourcesBannerProps {
   stats: ProviderSearchStats[] | null | undefined;
   loadedCount: number;
@@ -43,41 +81,32 @@ interface SearchSourcesBannerProps {
   sourceCounts?: { googleflights2: number; kiwi: number; skyscanner: number; other: number };
 }
 
-/** Shows which providers contributed to the current results session. */
+/** Compact provider status on results — warnings in a small card; pagination count stays inline. */
 export function SearchSourcesBanner({
   stats,
   loadedCount,
   totalCount,
-  sourceCounts,
 }: SearchSourcesBannerProps) {
   const { theme } = useTheme();
   const { t } = useLocale();
 
-  const summary = useMemo(() => {
+  const meta = useMemo(() => {
     if (!stats?.length) return null;
-    const parts = stats.map((s) => {
-      const name = labelForProvider(s.provider, t);
-      if (s.error) {
-        const detail = formatProviderError(s.error);
-        return detail ? `${name}: ${detail}` : `${name}: ${t('search_source_failed')}`;
-      }
-      if (s.note) {
-        const detail = formatProviderError(s.note);
-        return detail ? `${name}: ${s.results} (${detail})` : `${name}: ${s.results}`;
-      }
-      return `${name}: ${s.results}`;
-    });
     const multisite = stats.find((s) => s.provider === 'multisite');
     const gf2 = stats.find((s) => s.provider === 'googleflights2');
     const gf2Only = !!(gf2 && gf2.results > 0 && multisite && multisite.results === 0);
     const otaFailed = !!(multisite?.error && multisite.results === 0);
-    return { parts: parts.join(' · '), gf2Only, otaFailed };
+    return {
+      chips: providerChips(stats, t),
+      gf2Only,
+      otaFailed,
+    };
   }, [stats, t]);
 
-  if (!summary) return null;
+  if (!meta) return null;
 
   const hasProviderErrors = stats?.some((s) => Boolean(s.error?.trim())) ?? false;
-  const showWarning = (summary.gf2Only && summary.otaFailed) || hasProviderErrors;
+  const showWarning = (meta.gf2Only && meta.otaFailed) || hasProviderErrors;
   const showPaginationHint =
     !showWarning && totalCount != null && totalCount > loadedCount && loadedCount > 0;
 
@@ -95,7 +124,7 @@ export function SearchSourcesBanner({
       <Text
         style={[
           styles.inlineCount,
-          { color: theme.textMuted, fontFamily: theme.fontBody, marginHorizontal: 12, marginBottom: 8 },
+          { color: theme.textMuted, fontFamily: theme.fontBody, marginBottom: 8 },
         ]}
         accessibilityRole="text"
       >
@@ -104,36 +133,56 @@ export function SearchSourcesBanner({
     );
   }
 
+  const warnBg = meta.gf2Only && meta.otaFailed ? theme.warningBg : theme.cardBg;
+
   return (
     <View
       style={[
         styles.wrap,
         {
-          backgroundColor: summary.gf2Only && summary.otaFailed ? theme.warningBg : theme.cardBg,
-          borderColor: theme.cardBorder,
+          backgroundColor: warnBg,
+          borderColor: hasProviderErrors ? theme.warning : theme.cardBorder,
         },
       ]}
       accessibilityRole="summary"
     >
-      {showPaginationHint ? (
-        <Text style={[styles.count, { color: theme.textMuted, fontFamily: theme.fontBody }]}>{countLabel}</Text>
-      ) : null}
-      {showWarning ? (
-        <Text style={[styles.count, { color: theme.text, fontFamily: theme.fontBody }]}>{countLabel}</Text>
-      ) : null}
-      {showWarning ? (
-        <Text style={[styles.sources, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
-          {summary.parts}
+      <View style={styles.headerRow}>
+        {hasProviderErrors ? (
+          <AppIcon name="alert-circle-outline" size={18} color={theme.warning} fallbackText="!" />
+        ) : (
+          <AppIcon name="information-circle-outline" size={18} color={theme.textMuted} fallbackText="i" />
+        )}
+        <Text style={[styles.count, { color: theme.text, fontFamily: theme.fontBody, flex: 1 }]} numberOfLines={2}>
+          {countLabel}
         </Text>
-      ) : null}
-      {summary.gf2Only && summary.otaFailed ? (
+      </View>
+
+      <View style={styles.chipRow} accessibilityRole="text">
+        {meta.chips.map((chip) => {
+          const borderColor =
+            chip.tone === 'fail' ? theme.warning : chip.tone === 'ok' ? theme.cardBorder : theme.cardBorder;
+          const bg =
+            chip.tone === 'fail' ? theme.warningBg : chip.tone === 'ok' ? theme.controlBg : theme.screenBg;
+          const lineColor = chip.tone === 'fail' ? theme.warning : theme.textMuted;
+          return (
+            <View
+              key={chip.id}
+              style={[styles.chip, { backgroundColor: bg, borderColor }]}
+            >
+              <Text style={[styles.chipLabel, { color: theme.text, fontFamily: theme.fontBody }]} numberOfLines={1}>
+                {chip.label}
+              </Text>
+              <Text style={[styles.chipLine, { color: lineColor, fontFamily: theme.fontBody }]} numberOfLines={2}>
+                {chip.line}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {meta.gf2Only && meta.otaFailed ? (
         <Text style={[styles.warn, { color: theme.textMuted, fontFamily: theme.fontBody }]}>
           {t('search_ota_unavailable')}
-          {(() => {
-            const ms = stats?.find((s) => s.provider === 'multisite')?.error;
-            const detail = ms ? formatProviderError(ms) : '';
-            return detail ? ` (${detail})` : '';
-          })()}
         </Text>
       ) : null}
     </View>
@@ -142,16 +191,29 @@ export function SearchSourcesBanner({
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
+    marginBottom: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
   },
-  count: { fontSize: 13, fontWeight: '600' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  count: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   inlineCount: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
-  sources: { fontSize: 11, lineHeight: 15 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    minWidth: 108,
+    maxWidth: '100%',
+    flexGrow: 1,
+    flexBasis: 108,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 2,
+  },
+  chipLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+  chipLine: { fontSize: 11, lineHeight: 14, fontWeight: '500' },
   warn: { fontSize: 11, lineHeight: 15 },
 });
