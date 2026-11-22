@@ -713,13 +713,30 @@ func (p *GoogleFlights2Provider) doSearchOne(ctx context.Context, req SearchRequ
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	if diag := gf2RapidAPIDiag(resp.Header); diag != "" {
+		log.Printf("[GF2_RAPIDAPI] route=%s→%s %s", originIATA, destIATA, diag)
+	}
+
+	if upErr := gf2ErrorFromHTTPBody(resp.StatusCode, body); upErr != nil {
+		log.Printf("[GF2_ERROR] status=%d route=%s→%s err=%v body=%s", resp.StatusCode, originIATA, destIATA, upErr, truncateGF2(string(body), 300))
+		return nil, upErr
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("[GF2_ERROR] status=%d route=%s→%s body=%s", resp.StatusCode, originIATA, destIATA, truncateGF2(string(body), 300))
 		return nil, fmt.Errorf("GF2 status %d", resp.StatusCode)
 	}
 
-	return parseGF2Response(body, originIATA, destIATA, currency, req.DepartureDate, req.ReturnDate, cabin)
+	parsed, err := parseGF2Response(body, originIATA, destIATA, currency, req.DepartureDate, req.ReturnDate, cabin)
+	if err != nil {
+		return nil, err
+	}
+	if len(parsed) == 0 {
+		if peek := gf2ErrorFromHTTPBody(http.StatusOK, body); peek != nil {
+			return nil, peek
+		}
+	}
+	return parsed, err
 }
 
 func parseGF2Response(body []byte, origin, dest, currency, departureDate, returnDate, cabin string) ([]ProviderResult, error) {
