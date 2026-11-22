@@ -1422,6 +1422,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     params.returnOrigin.toUpperCase() !== (params?.destination || '').toUpperCase()
   );
   const showSearchBesideResults = isDesktop;
+  /** Mobile-only: tablet/desktop keep filters in the sidebar. */
+  const showFiltersShortcut = !showSearchBesideResults && breakpoint === 'mobile';
   const searchReturnRoute =
     tripType === 'round-trip' && params?.origin && params?.destination
       ? {
@@ -1908,34 +1910,38 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 </View>
                 <View style={[styles.toolbarActions, styles.toolbarActionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
                   {cheaperCitiesChip}
-                  <TouchableOpacity
-                    style={[
-                      styles.filtersBtn,
-                      {
-                        backgroundColor: theme.controlBg,
-                        flexDirection: isRTL ? 'row-reverse' : 'row',
-                        alignItems: 'center',
-                        gap: 6,
-                      },
-                    ]}
-                    onPress={() => setShowFiltersModal(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('filters')}
-                  >
-                    <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
-                    <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
-                  </TouchableOpacity>
+                  {showFiltersShortcut ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.filtersBtn,
+                        {
+                          backgroundColor: theme.controlBg,
+                          flexDirection: isRTL ? 'row-reverse' : 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                        },
+                      ]}
+                      onPress={() => setShowFiltersModal(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('filters')}
+                    >
+                      <AppIcon name="filter-outline" size={18} color={theme.text} fallbackText={t('filters')} />
+                      <Text style={[styles.filtersBtnText, { color: theme.text }]}>{t('filters')}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
-              <FiltersPanel
-                variant="modal"
-                visible={showFiltersModal}
-                onClose={() => setShowFiltersModal(false)}
-                filters={filters}
-                onFiltersChange={(f) => searchActions.setFilters(f)}
-                results={results}
-                noResults={results.length === 0}
-              />
+              {showFiltersShortcut ? (
+                <FiltersPanel
+                  variant="modal"
+                  visible={showFiltersModal}
+                  onClose={() => setShowFiltersModal(false)}
+                  filters={filters}
+                  onFiltersChange={(f) => searchActions.setFilters(f)}
+                  results={results}
+                  noResults={results.length === 0}
+                />
+              ) : null}
               <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {resultsList}
               </Animated.View>
