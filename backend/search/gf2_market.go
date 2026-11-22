@@ -29,16 +29,8 @@ func gf2CountryCodeForRequest(req SearchRequest) string {
 }
 
 func gf2LanguageCodeForRequest(req SearchRequest) string {
+	// RapidAPI google-flights2 rejects he-IL/he (returns status=false); market is country_code only.
 	loc := strings.ToLower(strings.TrimSpace(req.Locale))
-	if loc == "" {
-		if gf2CountryCodeForRequest(req) == "IL" {
-			return "he-IL"
-		}
-		return "en-US"
-	}
-	if strings.HasPrefix(loc, "he") {
-		return "he-IL"
-	}
 	if strings.HasPrefix(loc, "ru") {
 		return "ru-RU"
 	}
