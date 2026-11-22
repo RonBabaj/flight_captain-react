@@ -31,6 +31,7 @@ func gf2ErrorFromHTTPBody(statusCode int, body []byte) error {
 		}
 		return fmt.Errorf("GF2 upstream: status false")
 	}
+	// status=true but no data — still surface non-Success messages when present
 	if msg := gf2MessageFromMap(raw); msg != "" && gf2MessageLooksLikeBilling(msg) {
 		return fmt.Errorf("GF2 upstream: %s", msg)
 	}
@@ -42,6 +43,9 @@ func gf2MessageFromMap(raw map[string]interface{}) string {
 		if v, ok := raw[key].(string); ok && strings.TrimSpace(v) != "" {
 			return strings.TrimSpace(v)
 		}
+		if arr, ok := raw[key].([]interface{}); ok && len(arr) > 0 {
+			return gf2FormatMessageArray(arr)
+		}
 	}
 	if data, ok := raw["data"].(map[string]interface{}); ok {
 		for _, key := range []string{"message", "error"} {
@@ -51,6 +55,25 @@ func gf2MessageFromMap(raw map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+func gf2FormatMessageArray(arr []interface{}) string {
+	parts := make([]string, 0, len(arr))
+	for _, item := range arr {
+		switch v := item.(type) {
+		case string:
+			if s := strings.TrimSpace(v); s != "" {
+				parts = append(parts, s)
+			}
+		case map[string]interface{}:
+			for k, val := range v {
+				parts = append(parts, fmt.Sprintf("%s: %v", k, val))
+			}
+		default:
+			parts = append(parts, fmt.Sprintf("%v", item))
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 func gf2MessageLooksLikeBilling(msg string) bool {

@@ -20,7 +20,10 @@ if [[ -z "$KEY" ]]; then
 fi
 ORIGIN="${1:-TLV}"
 DEST="${2:-JFK}"
-DATE="${3:-2026-06-15}"
+DATE="${3:-}"
+if [[ -z "$DATE" ]]; then
+  DATE=$(date -u -d '+120 days' +%Y-%m-%d 2>/dev/null || date -u -v+120d +%Y-%m-%d)
+fi
 URL="https://${HOST}${PATH_PART}?departure_id=${ORIGIN}&arrival_id=${DEST}&outbound_date=${DATE}&travel_class=ECONOMY&adults=1&currency=USD&language_code=en-US&country_code=US&show_hidden=1"
 HDR="$(mktemp)"
 BODY="$(mktemp)"
