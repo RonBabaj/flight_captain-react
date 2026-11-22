@@ -32,8 +32,10 @@ services:
     environment:
       FLIGHT_SCRAPER_URL: http://flight-scraper:3099
       FLIGHT_SCRAPER_MAX_CONCURRENT: ${FLIGHT_SCRAPER_MAX_CONCURRENT:-1}
-      # Let multisite finish first so unified search can emit PARTIAL cards before GF2 (~60s scrape).
-      UNIFIED_SEARCH_FAST_DELAY_MS: ${UNIFIED_SEARCH_FAST_DELAY_MS:-55000}
+      # Unified search: scraper-first (GF2 optional). Keep GOOGLEFLIGHTS2_ENABLED=true for Book/Explore if you still have quota.
+      FLIGHT_PROVIDERS: ${FLIGHT_PROVIDERS:-multisite,googleflights2}
+      # No GF2 stagger when scraper is primary (set >0 only if you still run GF2 alongside and want OTA-first PARTIAL).
+      UNIFIED_SEARCH_FAST_DELAY_MS: ${UNIFIED_SEARCH_FAST_DELAY_MS:-0}
     depends_on:
       - flight-scraper
     volumes:
