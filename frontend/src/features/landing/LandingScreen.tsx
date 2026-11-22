@@ -125,8 +125,10 @@ export function LandingScreen() {
   const brandSize = isMobile ? 42 : breakpoint === 'tablet' ? 50 : 58;
   const titleSize = isMobile ? 22 : breakpoint === 'tablet' ? 26 : 28;
 
+  const heroAlign = isRTL ? ('flex-end' as const) : ('flex-start' as const);
+
   return (
-    <View style={[styles.page, { backgroundColor: theme.screenBg }]}>
+    <View style={[styles.page, { backgroundColor: theme.screenBg, direction: isRTL ? 'rtl' : 'ltr' }]}>
     <ScrollView
       style={styles.page}
       contentContainerStyle={[
@@ -158,10 +160,11 @@ export function LandingScreen() {
               maxWidth: MAX_CONTENT,
               paddingTop: isMobile ? 24 : 40,
               paddingHorizontal: gutter,
+              alignItems: heroAlign,
             },
           ]}
         >
-          <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }] }}>
+          <Animated.View style={{ opacity: brandOpacity, transform: [{ translateY: brandY }], alignSelf: heroAlign, width: '100%', maxWidth: 560 }}>
             <Text
               style={[
                 styles.brand,
@@ -199,7 +202,7 @@ export function LandingScreen() {
             >
               {t('landing_hero_subtitle')}
             </Text>
-            <View style={[styles.boardingAccent, isRTL && { flexDirection: 'row-reverse' }]}>
+            <View style={[styles.boardingAccent, { alignSelf: heroAlign }]}>
               <View style={[styles.boardingStub, { backgroundColor: theme.buttonBg }]} />
               <View
                 style={[styles.boardingRule, { backgroundColor: theme.cardBorder }]}
@@ -210,14 +213,17 @@ export function LandingScreen() {
           <Animated.View
             style={[
               styles.heroCtas,
-              isMobile ? styles.heroCtasMobile : { flexDirection: isRTL ? 'row-reverse' : 'row' },
-              { opacity: ctaOpacity },
+              isMobile ? styles.heroCtasMobile : styles.heroCtasDesktop,
+              !isMobile && isRTL && { justifyContent: 'flex-end', alignSelf: 'flex-end' },
+              !isMobile && !isRTL && { alignSelf: 'flex-start' },
+              { opacity: ctaOpacity, width: isMobile ? '100%' : undefined },
             ]}
           >
             <TouchableOpacity
               style={[
                 styles.btnPrimary,
                 { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd },
+                isRTL && { flexDirection: 'row-reverse' },
                 isMobile && styles.btnFullWidth,
               ]}
               onPress={goSearch}
@@ -231,7 +237,7 @@ export function LandingScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btnTextLink, isMobile && { alignSelf: 'center' }]}
+              style={[styles.btnTextLink, isMobile && { alignSelf: isRTL ? 'flex-end' : 'center' }]}
               onPress={goDeals}
               activeOpacity={0.75}
             >
@@ -244,11 +250,11 @@ export function LandingScreen() {
       </View>
 
       {/* Mood destinations — below hero, one job: inspire */}
-      <View style={[styles.section, { paddingHorizontal: gutter }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter, alignItems: heroAlign }]}>
         <Text
           style={[
             styles.sectionTitle,
-            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign, alignSelf: heroAlign },
           ]}
         >
           {t('landing_mood_title')}
@@ -264,9 +270,10 @@ export function LandingScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={isRTL ? { alignSelf: 'stretch' } : undefined}
           contentContainerStyle={[
             styles.moodRow,
-            isRTL && { flexDirection: 'row-reverse' },
+            isRTL && { flexDirection: 'row-reverse', paddingLeft: 8, paddingRight: 0 },
           ]}
         >
           {LANDING_MOOD_DESTINATIONS.map(({ code, mood }) => {
@@ -293,11 +300,11 @@ export function LandingScreen() {
       </View>
 
       {/* Why Fly-Fix */}
-      <View style={[styles.section, { paddingHorizontal: gutter }]}>
+      <View style={[styles.section, { paddingHorizontal: gutter, alignItems: heroAlign }]}>
         <Text
           style={[
             styles.sectionTitle,
-            { color: theme.text, fontFamily: theme.fontDisplay, textAlign },
+            { color: theme.text, fontFamily: theme.fontDisplay, textAlign, alignSelf: heroAlign },
           ]}
         >
           {t('landing_features_title')}
@@ -362,6 +369,7 @@ export function LandingScreen() {
               styles.btnPrimary,
               styles.btnPrimaryBlock,
               { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd, maxWidth: '100%' },
+              isRTL && { flexDirection: 'row-reverse' },
             ]}
             onPress={goSearch}
             activeOpacity={0.85}
@@ -404,7 +412,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     bottom: '-12%',
     alignSelf: 'center',
-    left: '-20%',
     opacity: 0.65,
   },
   heroInner: {
@@ -455,6 +462,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: 12,
+  },
+  heroCtasDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+    flexWrap: 'wrap',
   },
   btnFullWidth: {
     width: '100%',
