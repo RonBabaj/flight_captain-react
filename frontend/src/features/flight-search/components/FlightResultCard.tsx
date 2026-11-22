@@ -321,7 +321,9 @@ export function FlightResultCard({
           ) : null}
           {outboundDate ? (
             <Text style={[c.dateStr, { color: theme.textMuted }, isRTL && { textAlign: 'right' }]}>
-              {isRoundTrip ? `${outboundDate}${sep}${returnDate}` : outboundDate}
+              {isRoundTrip && returnDate
+                ? isolateLTR(`${outboundDate} · ${returnDate}`)
+                : outboundDate}
             </Text>
           ) : null}
         </View>
