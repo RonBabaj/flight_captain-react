@@ -19,6 +19,8 @@ export interface SearchSummaryBarProps {
   leading?: React.ReactNode;
   /** `plain` — open header on results (no card slab). */
   tone?: 'card' | 'plain';
+  /** Override horizontal inset (e.g. tighter results gutter on desktop). */
+  contentPadding?: number;
 }
 
 export function SearchSummaryBar({
@@ -29,10 +31,12 @@ export function SearchSummaryBar({
   onEditPress,
   leading,
   tone = 'card',
+  contentPadding,
 }: SearchSummaryBarProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
-  const gutter = useContentGutter();
+  const defaultGutter = useContentGutter();
+  const gutter = contentPadding ?? defaultGutter;
 
   const titleText = headline || summary || '';
   const hasStructured = Boolean(headline);

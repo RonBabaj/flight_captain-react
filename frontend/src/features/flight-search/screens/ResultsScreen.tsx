@@ -31,6 +31,7 @@ import {
 import { setCachedSearch } from '../../../utils/searchCache';
 import { screenError } from '../../../utils/screenError';
 import { useBreakpoint, useContentGutter, useIsDesktop } from '../../../hooks/useResponsive';
+import { layout as layoutTokens } from '../../../theme/tokens';
 import { motion, useReducedMotion } from '../../../theme/motion';
 import { useSearchParams, parseSearchParamsFromUrl } from '../../../hooks/useSearchParams';
 import { useRuntimeConfig } from '../../../context/RuntimeConfigContext';
@@ -160,6 +161,8 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
   const breakpoint = useBreakpoint();
   const isDesktop = useIsDesktop();
   const gutter = useContentGutter();
+  const resultsGutter =
+    breakpoint === 'desktop' ? layoutTokens.resultsGutterDesktop : breakpoint === 'tablet' ? 20 : gutter;
   const reducedMotion = useReducedMotion();
   const {
     params: storeParams,
@@ -1618,7 +1621,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     isLoading && filtered.length === 0 ? (
       // Structure-preview cards (not a 3D cube) — page shape before results arrive.
       <View style={{ flex: 1 }}>
-        <View style={[styles.listContent, { paddingHorizontal: gutter }]}>
+        <View style={[styles.listContent, { paddingHorizontal: resultsGutter }]}>
           <ResultsSkeletonList theme={theme} count={4} />
         </View>
         {positioningSection}
@@ -1708,8 +1711,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         }
         contentContainerStyle={[
           filtered.length === 0 && !showEmpty ? styles.listContentEmpty : styles.listContent,
-          { paddingHorizontal: gutter },
-          isDesktop && { maxWidth: 960, width: '100%', alignSelf: 'center' as const },
+          { paddingHorizontal: resultsGutter },
         ]}
       />
     )
@@ -1799,16 +1801,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
         showEditButton={!showSearchBesideResults}
         onEditPress={openEditSearch}
         tone="plain"
+        contentPadding={resultsGutter}
       />
       {tripMoodCodes.length > 0 && (
-        <View style={[styles.moodStrip, { paddingHorizontal: gutter }]}>
+        <View style={[styles.moodStrip, { paddingHorizontal: resultsGutter }]}>
           {tripMoodCodes.length === 1 ? (
-            <DestinationMoodBanner
-              destinationCode={tripMoodCodes[0]}
-              variant={breakpoint === 'mobile' ? 'compact' : 'results'}
-            />
+            <DestinationMoodBanner destinationCode={tripMoodCodes[0]} variant="compact" />
           ) : (
-            <DestinationMoodStrip destinationCodes={tripMoodCodes} variant="results" />
+            <DestinationMoodStrip destinationCodes={tripMoodCodes} variant="compact" />
           )}
         </View>
       )}
@@ -1852,7 +1852,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
                     <View style={styles.toolbarSortWrap}>
                       <SortBar
                         sortField={sortField}
@@ -1888,7 +1888,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter }]}>
+                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
                     <View style={styles.toolbarSortWrap}>
                       <SortBar
                         sortField={sortField}
@@ -1922,7 +1922,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                 style={[
                   styles.toolbar,
                   styles.toolbarStacked,
-                  { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: gutter },
+                  { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter },
                 ]}
               >
                 <View style={styles.toolbarSortWrapFull}>
@@ -2128,20 +2128,19 @@ const styles = StyleSheet.create({
   editSearchModalContent: { padding: 18, paddingBottom: 28 },
 
   moodStrip: {
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    paddingBottom: 0,
+    paddingTop: 2,
+    paddingBottom: 4,
   },
   searchColumn: {
-    width: 300,
-    minWidth: 260,
-    maxWidth: 360,
+    width: layoutTokens.resultsSearchColumnWidth,
+    minWidth: 248,
+    maxWidth: 300,
     borderRightWidth: 1,
   },
   searchColumnTablet: {
-    width: 240,
-    minWidth: 220,
-    maxWidth: 260,
+    width: layoutTokens.resultsSearchColumnWidthTablet,
+    minWidth: 212,
+    maxWidth: 248,
   },
   searchColumnRTL: { borderRightWidth: 0, borderLeftWidth: 1 },
   searchColumnScroll: { flex: 1 },
@@ -2169,7 +2168,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     overflow: 'hidden',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     gap: 8,
   },
   toolbarStacked: {
