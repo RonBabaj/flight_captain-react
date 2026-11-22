@@ -15,11 +15,11 @@ export function AirportRouteTimeline({
   const path = codes.map((c) => c.trim().toUpperCase()).filter(Boolean);
   if (path.length < 2) return null;
 
-  const sep = isRTL ? '‹' : '›';
+  const sep = '›';
 
   return (
     <View
-      style={[s.row, isRTL && { flexDirection: 'row-reverse', flexWrap: 'wrap-reverse' }]}
+      style={[s.row, isRTL && s.rowRtl]}
       accessibilityRole="text"
     >
       {path.map((code, index) => (
@@ -45,6 +45,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
     marginTop: 4,
+  },
+  rowRtl: {
+    justifyContent: 'flex-end',
+    alignSelf: 'stretch',
   },
   sep: {
     fontSize: 11,

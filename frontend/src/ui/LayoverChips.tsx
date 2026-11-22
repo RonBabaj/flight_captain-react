@@ -20,7 +20,7 @@ export function LayoverChips({
   if (!items.length) return null;
 
   return (
-    <View style={[s.row, isRTL && { flexDirection: 'row-reverse', flexWrap: 'wrap-reverse' }]}>
+    <View style={[s.row, isRTL && s.rowRtl]}>
       {items.map((lo) => {
         const label = t('layover_short')
           .replace('{duration}', formatDuration(lo.minutes))
@@ -46,6 +46,10 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 6,
+  },
+  rowRtl: {
+    justifyContent: 'flex-end',
+    alignSelf: 'stretch',
   },
   chip: {
     paddingHorizontal: 8,
