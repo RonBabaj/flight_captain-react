@@ -13,3 +13,9 @@ func TestGf2CountryCodeForRequest(t *testing.T) {
 		t.Fatal("he locale expects IL")
 	}
 }
+
+func TestGf2LanguageCodeForRequest_hebrewUsesEnUS(t *testing.T) {
+	if got := gf2LanguageCodeForRequest(SearchRequest{Locale: "he", Origin: "TLV"}); got != "en-US" {
+		t.Fatalf("GF2 API language=%q want en-US", got)
+	}
+}
