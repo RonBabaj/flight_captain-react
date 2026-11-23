@@ -278,6 +278,9 @@ func (r *Registry) SearchAllWithProgress(
 				if st.Results == 0 && strings.EqualFold(p.Name(), "googleflights2") {
 					st.Note = "gf2_empty_upstream"
 				}
+				if note := LastMultisiteSiteNote(); note != "" && strings.EqualFold(p.Name(), "multisite") {
+					st.Note = note
+				}
 				log.Printf("[SEARCH] provider=%s ok durationMs=%d results=%d", p.Name(), st.DurationMs, st.Results)
 			}
 			ch <- part{stats: st, results: results}

@@ -110,8 +110,7 @@ function pxHoldMs() {
 }
 
 function pxSolveAttempts() {
-  // VPS headed CDP: one press-and-hold try; extra attempts rarely clear PX and cost minutes.
-  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 1) || 1, 1), 3);
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 3) || 3, 1), 5);
 }
 
 function skyBudgetMs(config) {
@@ -137,7 +136,18 @@ async function trySolvePerimeterX(page) {
   if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
     return false;
   }
-  const selectors = ['#px-captcha', '#px-captcha-wrapper', '[class*="captcha"]', 'div[style*="cursor"]', 'body'];
+  const selectors = [
+    '#px-captcha',
+    '#px-captcha-wrapper',
+    '#px-captcha iframe',
+    'iframe[src*="captcha"]',
+    'button:has-text("Appuyer")',
+    'button:has-text("maintenir")',
+    '[class*="captcha"]',
+    'div[style*="cursor"]',
+    'body',
+  ];
+  const targets = [];
   for (let attempt = 0; attempt < pxSolveAttempts(); attempt++) {
     for (const frame of [page, ...page.frames()]) {
       for (const sel of selectors) {
@@ -145,7 +155,11 @@ async function trySolvePerimeterX(page) {
           const loc = frame.locator(sel).first();
           const box = await loc.boundingBox({ timeout: 1500 });
           if (!box || box.width < 20 || box.height < 20) continue;
+          const key = `${box.x}|${box.y}|${box.width}`;
+          if (targets.includes(key)) continue;
+          targets.push(key);
           await pressHoldInBox(page, box);
+          await page.waitForTimeout(1200);
           if (!(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url())) {
             return true;
           }
