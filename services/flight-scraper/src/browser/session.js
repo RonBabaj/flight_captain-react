@@ -16,8 +16,9 @@ const SITE_HOST = {
   kiwi: /kiwi\.com\//i,
 };
 
+/** Fresh Skyscanner tab every search triggers PerimeterX; default reuses headed Chrome tabs. */
 function skyFreshTab() {
-  return process.env.SCRAPER_SKY_FRESH_TAB !== '0';
+  return process.env.SCRAPER_SKY_FRESH_TAB === '1';
 }
 
 /** Close captcha / PX tabs so the next navigation does not inherit a poisoned session. */
@@ -355,6 +356,8 @@ async function warmHomepage(page, url, config) {
 }
 
 module.exports = {
+  pickReusablePage,
+  closePoisonedTabs,
   withPage,
   withCdpBrowser,
   runWithRetries,
