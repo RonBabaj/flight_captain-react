@@ -1622,7 +1622,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
       // Structure-preview cards (not a 3D cube) — page shape before results arrive.
       <View style={{ flex: 1 }}>
         <View style={[styles.listContent, { paddingHorizontal: resultsGutter }]}>
-          <ResultsSkeletonList theme={theme} count={4} />
+          <ResultsSkeletonList theme={theme} count={4} roundTrip={tripType === 'round-trip'} />
         </View>
         {positioningSection}
       </View>
