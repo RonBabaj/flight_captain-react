@@ -13,22 +13,26 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 python3 <<PY
-import re, secrets, pathlib
+import re, secrets, pathlib, sys
 path = pathlib.Path("$ENV_FILE")
 text = path.read_text()
 m = re.search(r'^SCRAPER_PROXY_URL=(.+)$', text, re.M)
 if not m:
-    raise SystemExit('SCRAPER_PROXY_URL missing')
+    sys.exit('SCRAPER_PROXY_URL missing')
 url = m.group(1).strip()
 mm = re.match(r'(https?://)([^:]+):([^@]+)@(.+)', url)
 if not mm:
-    raise SystemExit('SCRAPER_PROXY_URL must be http(s)://user:pass@host:port')
+    sys.exit('SCRAPER_PROXY_URL must be http(s)://user:pass@host:port')
 user = mm.group(2)
+# ipRoyal sticky sessions use `_session-XXXXX_lifetime-30m` on the username — do not append blindly.
+if '_session-' not in user:
+    print(
+        '[rotate-scraper-proxy] SKIP: proxy user has no _session- token; set sticky session in ipRoyal dashboard first',
+        file=sys.stderr,
+    )
+    sys.exit(2)
 sid = secrets.token_hex(6)
-if '_session-' in user:
-    user = re.sub(r'_session-[^_]+', f'_session-{sid}', user)
-else:
-    user = f'{user}_session-{sid}'
+user = re.sub(r'_session-[^_]+', f'_session-{sid}', user)
 new = f"{mm.group(1)}{user}:{mm.group(3)}@{mm.group(4)}"
 text2 = re.sub(r'^SCRAPER_PROXY_URL=.*$', 'SCRAPER_PROXY_URL=' + new, text, flags=re.M)
 path.write_text(text2)
