@@ -17,7 +17,7 @@ import { useTheme } from '../../../theme/ThemeContext';
 import { useLocale } from '../../../context/LocaleContext';
 import { AppIcon } from '../../../components/AppIcon';
 import { resolveBookingOffer } from '../../../api';
-import { isSafeBookingUrl } from '../../../api/booking';
+import { isSafeBookingUrl, pickPrimaryBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { BookingOptionsFooter, Button } from '../../../ui';
 import { resolveAirlineLabel } from '../../../data/airlines';
@@ -369,6 +369,19 @@ export function FlightDetailsModal({
       ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
       : 0;
   const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
+  const readyBookingLinkCount = useMemo(() => {
+    if (!showPerTicketSection || hops.length <= 1) return 0;
+    return hops.filter((hop) => pickPrimaryBookingUrl(legResolves[hopStorageKey(hop)])).length;
+  }, [showPerTicketSection, hops, legResolves]);
+
+  const openAllResolvedBookingLinks = async () => {
+    if (!showPerTicketSection || hops.length <= 1) return;
+    const opens = hops
+      .map((hop) => pickPrimaryBookingUrl(legResolves[hopStorageKey(hop)]))
+      .filter((url): url is string => !!url);
+    if (opens.length === 0) return;
+    await Promise.all(opens.map((url) => openUrlInNewTab(url)));
+  };
 
   /** Per-hop Book cards live in the scroll body so itinerary stays visible above them. */
   const renderPerHopBookingSection = () => {
@@ -430,6 +443,15 @@ export function FlightDetailsModal({
                 label={t('book_all_legs')}
                 onPress={() => void resolveAllUnresolvedHops(false)}
                 variant="secondary"
+                size="sm"
+                disabled={parallelLoadingCount > 0}
+              />
+            ) : null}
+            {hops.length > 1 && readyBookingLinkCount > 0 ? (
+              <Button
+                label={t('open_all_booking_links')}
+                onPress={() => void openAllResolvedBookingLinks()}
+                variant="primary"
                 size="sm"
                 disabled={parallelLoadingCount > 0}
               />
