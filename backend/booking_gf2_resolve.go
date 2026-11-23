@@ -845,11 +845,24 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		}
 		if !search.PricesMatchQuote(q.Amount, actual) {
 			resp.PriceMismatch = true
-			resp.Message = "Checkout price differs from the search quote. Booking links were withheld — verify the fare on the partner site or try again."
-			redactPriceMismatchCheckoutURLs(&resp)
+			if keepBookingLinksOnMismatch(option, legIndex) {
+				resp.Message = "Checkout price may differ from the search quote — confirm on the partner site before you pay."
+			} else {
+				resp.Message = "Checkout price differs from the search quote. Booking links were withheld — verify the fare on the partner site or try again."
+				redactPriceMismatchCheckoutURLs(&resp)
+			}
 		}
 	}
 	return resp
+}
+
+// keepBookingLinksOnMismatch: multi-ticket / per-leg resolves return parallel checkout
+// tabs (Book all legs) — withhold only on single-itinerary checkout.
+func keepBookingLinksOnMismatch(option *FlightOption, legIndex int) bool {
+	if legIndex >= 0 {
+		return true
+	}
+	return option != nil && len(option.Legs) > 1
 }
 
 // redactPriceMismatchCheckoutURLs strips checkout URLs when the resolved price

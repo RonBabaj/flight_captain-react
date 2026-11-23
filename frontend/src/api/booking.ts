@@ -173,6 +173,22 @@ export async function resolveBookingOffer(
   throw new Error('Booking search is temporarily unavailable. Please try again.');
 }
 
+/** Best checkout URL to open for a resolve response (multi-leg batch open). */
+export function pickPrimaryBookingUrl(res: BookingResolveResponse | null | undefined): string | null {
+  if (!res?.found) return null;
+  const candidates = [
+    res.cheapestOta?.url,
+    res.offer?.url,
+    res.airlineDirect?.url,
+    ...(res.alternatives ?? []).map((a) => a.url),
+  ];
+  for (const raw of candidates) {
+    const url = (raw || '').trim();
+    if (url && isSafeBookingUrl(url)) return url;
+  }
+  return null;
+}
+
 /** Client-side guard before opening an externally resolved booking URL. */
 export function isSafeBookingUrl(url: string): boolean {
   try {

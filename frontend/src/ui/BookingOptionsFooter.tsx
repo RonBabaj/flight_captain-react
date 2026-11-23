@@ -117,7 +117,7 @@ export function BookingOptionsFooter({
       {resolved.priceMismatch ? (
         <Callout
           message={resolved.message || t('price_mismatch_warning')}
-          variant="error"
+          variant={offerOpenable || dual ? 'warning' : 'error'}
         />
       ) : null}
 

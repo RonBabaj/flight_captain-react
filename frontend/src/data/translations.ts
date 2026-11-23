@@ -834,6 +834,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'מצא הזמנה לכל הטיסות',
     ru: 'Найти бронирование для всех перелётов',
   },
+  open_all_booking_links: {
+    en: 'Open all booking links',
+    he: 'פתח את כל קישורי ההזמנה',
+    ru: 'Открыть все ссылки на бронирование',
+  },
   booking_searching_all_legs: {
     en: 'Searching booking options for all legs…',
     he: 'מחפש אפשרויות הזמנה לכל הטיסות…',
