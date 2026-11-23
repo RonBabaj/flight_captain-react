@@ -68,6 +68,8 @@ Debug JSON: `blocked`, `captcha`, `parsedTotal`, `finalUrl` (`sttc/px/captcha-v2
 
 ## Scripts
 
+- **`scripts/vps/ensure-flight-stack.sh`** — after upgrade/reboot: proxy + Chrome + VNC + `docker compose up -d` (one command).
+- **`sudo scripts/vps/install-flight-stack-service.sh`** — systemd oneshot + 5m timer for auto boot/heal.
 - `scripts/vps/ensure-scraper-proxy-forwarder.sh` — loads `backend/.env`; `SCRAPER_PROXY_FORCE_RECREATE=1` recycles gost.
 - `scripts/vps/rotate-scraper-proxy-session.sh` — rotates ipRoyal `_session-` **only if** already present in proxy username; restarts forwarder + flight Chrome.
 - `scripts/vps/ensure-flight-chrome.sh` — CDP + socat gateway.
