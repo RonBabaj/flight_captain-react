@@ -26,37 +26,13 @@ import {
   LANDING_MOOD_DESTINATIONS,
   moodImageUrlForVariant,
 } from '../../data/destinationMood';
-import { getAirportEntry, getCityDisplayName } from '../../data/airports';
 import { setCachedSearch } from '../../utils/searchCache';
 import { updateSearchUrl } from '../../hooks/useSearchParams';
+import { LandingMoodRail } from './LandingMoodRail';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const MAX_CONTENT = layout.maxContentWidth;
-
-function LandingMoodImage({ uri, label }: { uri: string; label: string }) {
-  const sized = moodImageUrlForVariant(uri, 'card');
-  const [src, setSrc] = useState(sized);
-  useEffect(() => {
-    setSrc(sized);
-  }, [sized]);
-  return (
-    <Image
-      source={{ uri: src }}
-      style={StyleSheet.absoluteFillObject}
-      resizeMode="cover"
-      accessibilityLabel={label}
-      accessible
-      onError={() => {
-        setSrc((cur) =>
-          cur === AIRPORT_FALLBACK_IMAGE
-            ? cur
-            : moodImageUrlForVariant(AIRPORT_FALLBACK_IMAGE, 'card'),
-        );
-      }}
-    />
-  );
-}
 
 export function LandingScreen() {
   const { theme } = useTheme();
@@ -263,40 +239,7 @@ export function LandingScreen() {
         >
           {t('landing_mood_subtitle')}
         </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={isRTL ? { alignSelf: 'stretch' } : undefined}
-          contentContainerStyle={[
-            styles.moodRow,
-            isRTL && { flexDirection: 'row-reverse', paddingLeft: 8, paddingRight: 0 },
-          ]}
-        >
-          {LANDING_MOOD_DESTINATIONS.map(({ code, mood }) => {
-            const entry = getAirportEntry(code);
-            const label = entry ? getCityDisplayName(entry, language) : mood.labelEn;
-            return (
-              <TouchableOpacity
-                key={code}
-                style={[
-                  styles.moodCard,
-                  isDesktop && styles.moodCardDesktop,
-                  { borderRadius: theme.radiusLg, borderColor: theme.cardBorder },
-                ]}
-                onPress={() => goDestination(code)}
-                activeOpacity={0.88}
-                accessibilityRole="button"
-                accessibilityLabel={t('landing_mood_go').replace('{city}', label)}
-              >
-                <LandingMoodImage uri={mood.imageUrl} label={label} />
-                <View style={styles.moodScrim} />
-                <Text style={[styles.moodLabel, { fontFamily: theme.fontDisplay }]} numberOfLines={1}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <LandingMoodRail isDesktop={isDesktop} onSelect={goDestination} bleedGutter={gutter} />
       </View>
 
       {/* Why Fly-Fix */}
@@ -498,36 +441,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 16,
     maxWidth: 560,
-  },
-  moodRow: {
-    gap: 12,
-    paddingVertical: 4,
-    paddingRight: 8,
-  },
-  moodCard: {
-    width: 168,
-    height: 210,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    justifyContent: 'flex-end',
-  },
-  moodCardDesktop: {
-    width: 184,
-    height: 232,
-  },
-  moodScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,16,24,0.28)',
-  },
-  moodLabel: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    paddingHorizontal: 12,
-    paddingBottom: 14,
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   featureGrid: {
     gap: 12,
