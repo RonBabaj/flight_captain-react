@@ -18,12 +18,18 @@ const { pageLooksBlocked } = require('./browser/botWall');
 const { stealthInitScript } = require('./browser/stealth');
 const { withCdpLock, cdpLockBusy } = require('./browser/cdpLock');
 const { isSearchBusy } = require('./searchBusy');
+const { trySolvePerimeterX } = require('./browser/perimeterx');
+const { pickReusablePage, closePoisonedTabs } = require('./browser/session');
 
-const WARM_URLS = [
-  'https://www.kiwi.com/en/',
-  // FR mirror matches VPS geo — warming .com alone still redirects and can worsen PX.
-  'https://www.skyscanner.fr/',
-];
+const DEFAULT_SKY_WARM =
+  'https://www.skyscanner.fr/transport/vols/tlv/ber/261201/261208/?adultsv2=1&cabinclass=economy&rtn=1&preferdirects=false';
+
+function skyWarmUrl() {
+  const raw = String(process.env.SCRAPER_SKY_WARM_URL || DEFAULT_SKY_WARM).trim();
+  return raw || DEFAULT_SKY_WARM;
+}
+
+const WARM_URLS = () => ['https://www.kiwi.com/en/', skyWarmUrl()];
 
 // Keep warm navigations short so a hung Kiwi homepage cannot block a real search
 // behind the shared CDP lock for nearly a minute.
@@ -159,20 +165,34 @@ async function warmOne(cdpUrl, url) {
         /* already attached */
       }
       await pruneExtraPages(context);
-      const page = await context.newPage();
+      const site = /skyscanner/i.test(url) ? 'skyscanner' : '';
+      if (site) {
+        await closePoisonedTabs(context, site);
+      }
+      let page = site ? await pickReusablePage(context, site) : null;
+      let reuse = !!page;
+      if (!page) {
+        page = await context.newPage();
+      }
       try {
         await gotoSoft(page, url);
         await dismissCookieBanners(page).catch(() => {});
         await page.waitForTimeout(1500);
-        const blocked = await pageLooksBlocked(page).catch(() => false);
+        let blocked = await pageLooksBlocked(page).catch(() => false);
+        if (blocked && /skyscanner/i.test(url)) {
+          const solved = await trySolvePerimeterX(page).catch(() => false);
+          if (solved) blocked = false;
+        }
         const title = await page.title().catch(() => '');
         const href = page.url();
         if (/kiwi\.com/i.test(url)) {
           await resetKiwiClientState(page);
         }
-        return { url, blocked, title, href, reached: true };
+        return { url, blocked, title, href, reached: true, reusedTab: reuse };
       } finally {
-        await page.close().catch(() => {});
+        if (!reuse) {
+          await page.close().catch(() => {});
+        }
         await pruneExtraPages(context);
       }
     } finally {
@@ -211,7 +231,7 @@ async function warmAll(config) {
     let reachedAny = false;
     let blockedAny = false;
     for (const cdpUrl of cdpUrls) {
-      for (const url of WARM_URLS) {
+      for (const url of WARM_URLS()) {
         if (isSearchBusy()) {
           console.log('[flight-scraper] warm abort — search started');
           lastWarm = { ...lastWarm, detail: 'aborted (search busy)', at: Date.now(), sites };
