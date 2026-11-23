@@ -46,15 +46,17 @@ export function JourneyRouteBar({
       </View>
 
       <View style={s.railWrap}>
-        <View style={[s.railLine, { backgroundColor: theme.cardBorder }]} />
-        {stops > 0 ? (
-          <View style={[s.railDot, { backgroundColor: theme.primary, borderColor: theme.cardBg }]} />
-        ) : null}
-        <Text style={[s.railMeta, { color: theme.textMuted, fontFamily: theme.fontBody }]} numberOfLines={1}>
-          {stops > 0 && summary.layovers[0]?.airportCode
-            ? isolateLTR(summary.layovers[0].airportCode)
-            : stopsLabel}
-        </Text>
+        <View style={s.railTrack}>
+          <Text
+            style={[s.railMeta, { color: theme.textMuted, fontFamily: theme.fontBody }]}
+            numberOfLines={1}
+          >
+            {stops > 0 && summary.layovers[0]?.airportCode
+              ? isolateLTR(summary.layovers[0].airportCode)
+              : stopsLabel}
+          </Text>
+          <View style={[s.railLine, { backgroundColor: theme.cardBorder }]} />
+        </View>
       </View>
 
       <View style={[s.end, s.endRight]}>
@@ -86,14 +88,29 @@ const s = StyleSheet.create({
   time: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] as any, letterSpacing: -0.15 },
   offset: { fontSize: 13, fontWeight: '600' },
   code: { fontSize: 13, fontWeight: '700', marginTop: 2, letterSpacing: 0.4 },
-  railWrap: { flex: 1, minWidth: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
-  railLine: { position: 'absolute', left: 4, right: 4, height: 2, borderRadius: 1, top: '50%' as any },
-  railDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 2,
-    marginBottom: 14,
+  railWrap: { flex: 1, minWidth: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
+  railTrack: {
+    width: '100%',
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
-  railMeta: { fontSize: 11, fontWeight: '600', marginTop: 2, textAlign: 'center' },
+  railLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    borderRadius: 1,
+    top: 11,
+  },
+  railMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    letterSpacing: 0.35,
+    zIndex: 1,
+  },
 });

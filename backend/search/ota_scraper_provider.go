@@ -77,9 +77,49 @@ type otaScraperSearchRequest struct {
 }
 
 type otaScraperSiteResult struct {
-	Site   string                   `json:"site"`
-	Offers []map[string]interface{} `json:"offers"`
-	Error  string                   `json:"error,omitempty"`
+	Site       string                   `json:"site"`
+	Offers     []map[string]interface{} `json:"offers"`
+	Error      string                   `json:"error,omitempty"`
+	DurationMs int64                    `json:"durationMs,omitempty"`
+}
+
+var (
+	lastMultisiteSiteNote string
+	lastMultisiteNoteMu   sync.Mutex
+)
+
+// SetLastMultisiteSiteNote records per-site scraper outcomes for providerStats.Note (ops visibility).
+func SetLastMultisiteSiteNote(note string) {
+	lastMultisiteNoteMu.Lock()
+	lastMultisiteSiteNote = strings.TrimSpace(note)
+	lastMultisiteNoteMu.Unlock()
+}
+
+// LastMultisiteSiteNote returns the note from the most recent multisite scrape in this process.
+func LastMultisiteSiteNote() string {
+	lastMultisiteNoteMu.Lock()
+	defer lastMultisiteNoteMu.Unlock()
+	return lastMultisiteSiteNote
+}
+
+func summarizeMultisiteSites(sites []otaScraperSiteResult) string {
+	var parts []string
+	for _, s := range sites {
+		site := strings.ToLower(strings.TrimSpace(s.Site))
+		if site == "" {
+			continue
+		}
+		err := strings.TrimSpace(s.Error)
+		if err == "" && len(s.Offers) == 0 {
+			err = "no offers"
+		}
+		if err != "" {
+			parts = append(parts, fmt.Sprintf("%s:0 (%s)", site, truncateStr(err, 80)))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s:%d", site, len(s.Offers)))
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 type otaScraperSearchResponse struct {
@@ -374,6 +414,11 @@ func (p *OtaScraperProvider) searchSingle(ctx context.Context, req SearchRequest
 		return nil, fmt.Errorf("multisite scraper parse: %w", err)
 	}
 	results := flattenOtaScraperResponse(parsed, req)
+	for _, s := range parsed.Sites {
+		log.Printf("[MULTISITE] site=%s offers=%d durationMs=%d err=%s",
+			s.Site, len(s.Offers), s.DurationMs, truncateStr(s.Error, 160))
+	}
+	SetLastMultisiteSiteNote(summarizeMultisiteSites(parsed.Sites))
 	log.Printf("[MULTISITE] cacheHit=false results=%d sites=%d", len(results), len(parsed.Sites))
 	if len(results) == 0 {
 		var errs []string

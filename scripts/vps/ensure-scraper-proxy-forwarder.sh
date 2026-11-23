@@ -7,10 +7,23 @@
 set -euo pipefail
 
 LOCAL_PORT="${FLIGHT_CHROME_PROXY_LOCAL_PORT:-18118}"
-UPSTREAM="${SCRAPER_PROXY_URL:-}"
 LOG_TAG="scraper-proxy-forwarder"
+ENV_FILE="${FLIGHT_ENV_FILE:-/opt/apps/flight_captain-react/backend/.env}"
 
 log() { echo "[$LOG_TAG] $*"; }
+
+load_scraper_proxy_env() {
+  if [ ! -f "$ENV_FILE" ]; then
+    return 0
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source <(grep -E '^(SCRAPER_PROXY_URL|FLIGHT_CHROME_PROXY_LOCAL_PORT)=' "$ENV_FILE" | sed 's/\r$//')
+  set +a
+}
+
+load_scraper_proxy_env
+UPSTREAM="${SCRAPER_PROXY_URL:-}"
 
 if [ -z "$UPSTREAM" ]; then
   log "SCRAPER_PROXY_URL unset — nothing to forward"
@@ -23,8 +36,12 @@ if ! [[ "$UPSTREAM" =~ ^https?:// ]]; then
 fi
 
 if docker ps --format '{{.Names}}' | grep -qx scraper-proxy-forwarder; then
-  log "OK: scraper-proxy-forwarder already running"
-  exit 0
+  if [ "${SCRAPER_PROXY_FORCE_RECREATE:-0}" != "1" ]; then
+    log "OK: scraper-proxy-forwarder already running (set SCRAPER_PROXY_FORCE_RECREATE=1 to rotate upstream)"
+    exit 0
+  fi
+  log "Recreating scraper-proxy-forwarder (SCRAPER_PROXY_FORCE_RECREATE=1)"
+  docker rm -f scraper-proxy-forwarder 2>/dev/null || true
 fi
 
 GOST_IMAGE="${SCRAPER_GOST_IMAGE:-gogost/gost:latest}"

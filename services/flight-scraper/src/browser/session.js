@@ -16,8 +16,34 @@ const SITE_HOST = {
   kiwi: /kiwi\.com\//i,
 };
 
+function skyFreshTab() {
+  return process.env.SCRAPER_SKY_FRESH_TAB !== '0';
+}
+
+/** Close captcha / PX tabs so the next navigation does not inherit a poisoned session. */
+async function closePoisonedTabs(context, site) {
+  if (!context) return;
+  const pat = site ? SITE_HOST[site] : null;
+  for (const p of context.pages()) {
+    let url = '';
+    try {
+      url = p.url();
+    } catch {
+      continue;
+    }
+    const poisoned =
+      /captcha-v2|px-cloud|sttc\/px/i.test(url) || (pat && pat.test(url) && (await pageLooksBlocked(p)));
+    if (poisoned) {
+      await p.close().catch(() => {});
+    }
+  }
+}
+
 /** Prefer an already-open OTA tab (human-warmed) over a fresh tab that often hits bot walls. */
 async function pickReusablePage(context, site) {
+  if (site === 'skyscanner' && skyFreshTab()) {
+    return null;
+  }
   const pat = SITE_HOST[site];
   if (!pat || !context) return null;
   let blankFallback = null;
@@ -104,6 +130,9 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl, options = {}) {
     }
     await pruneJunkPages(context);
     const site = String(options.site || '').toLowerCase();
+    if (site) {
+      await closePoisonedTabs(context, site);
+    }
     let page = site ? await pickReusablePage(context, site) : null;
     const reuse = !!page;
     if (!page) {
