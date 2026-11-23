@@ -47,18 +47,15 @@ export function JourneyRouteBar({
 
       <View style={s.railWrap}>
         <View style={s.railTrack}>
-          <View style={[s.railLine, { backgroundColor: theme.cardBorder }]} />
           <Text
-            style={[
-              s.railMeta,
-              { color: theme.textMuted, fontFamily: theme.fontBody, backgroundColor: theme.cardBg },
-            ]}
+            style={[s.railMeta, { color: theme.textMuted, fontFamily: theme.fontBody }]}
             numberOfLines={1}
           >
             {stops > 0 && summary.layovers[0]?.airportCode
               ? isolateLTR(summary.layovers[0].airportCode)
               : stopsLabel}
           </Text>
+          <View style={[s.railLine, { backgroundColor: theme.cardBorder }]} />
         </View>
       </View>
 
