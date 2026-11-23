@@ -1,6 +1,6 @@
 /**
  * Structure-preview cards for Results while search is PENDING —
- * mirrors FlightResultCard layout so the page reads as “about to fill in”.
+ * mirrors FlightResultCard layout (schedule + price, footer logos) so CLS stays low.
  */
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
@@ -36,76 +36,77 @@ function Bone({
   );
 }
 
-export function ResultsSkeletonCard({ theme }: { theme: Theme }) {
+function LegJourneyPreview({ theme }: { theme: Theme }) {
   return (
-    <TicketStub
-      style={sk.cardWrap}
-      innerStyle={{ padding: 14 }}
-    >
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      {/* Airline / carriers row */}
-      <View style={sk.carrierRow}>
-        <Bone theme={theme} width={28} height={28} radius={14} />
-        <View style={{ flex: 1, gap: 6 }}>
-          <Bone theme={theme} width="55%" height={12} />
-          <Bone theme={theme} width="35%" height={10} />
+    <View style={sk.legBlock}>
+      <Bone theme={theme} width={52} height={9} radius={4} style={{ marginBottom: 6 }} />
+      <View style={sk.journeyRow}>
+        <View style={sk.timeCol}>
+          <Bone theme={theme} width={52} height={20} />
+          <Bone theme={theme} width={32} height={10} style={{ marginTop: 4 }} />
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-          <Bone theme={theme} width={72} height={20} radius={8} />
-          <Bone theme={theme} width={56} height={10} />
+        <View style={sk.railCol}>
+          <Bone theme={theme} width="85%" height={2} radius={1} />
+          <Bone theme={theme} width={36} height={9} style={{ marginTop: 10, alignSelf: 'center' }} />
+        </View>
+        <View style={[sk.timeCol, { alignItems: 'flex-end' }]}>
+          <Bone theme={theme} width={52} height={20} />
+          <Bone theme={theme} width={32} height={10} style={{ marginTop: 4 }} />
         </View>
       </View>
-
-      <View style={[sk.divider, { backgroundColor: theme.cardBorder }]} />
-
-      {/* Outbound leg: times + route + duration */}
-      <View style={sk.legRow}>
-        <View style={sk.timeBlock}>
-          <Bone theme={theme} width={48} height={18} />
-          <Bone theme={theme} width={36} height={10} style={{ marginTop: 6 }} />
-        </View>
-        <View style={sk.midBlock}>
-          <Bone theme={theme} width="70%" height={8} />
-          <Bone theme={theme} width="40%" height={8} style={{ marginTop: 8, alignSelf: 'center' }} />
-        </View>
-        <View style={[sk.timeBlock, { alignItems: 'flex-end' }]}>
-          <Bone theme={theme} width={48} height={18} />
-          <Bone theme={theme} width={36} height={10} style={{ marginTop: 6 }} />
-        </View>
-      </View>
-
-      {/* Return leg preview */}
-      <View style={[sk.legRow, { marginTop: 14 }]}>
-        <View style={sk.timeBlock}>
-          <Bone theme={theme} width={48} height={18} />
-          <Bone theme={theme} width={36} height={10} style={{ marginTop: 6 }} />
-        </View>
-        <View style={sk.midBlock}>
-          <Bone theme={theme} width="70%" height={8} />
-          <Bone theme={theme} width="40%" height={8} style={{ marginTop: 8, alignSelf: 'center' }} />
-        </View>
-        <View style={[sk.timeBlock, { alignItems: 'flex-end' }]}>
-          <Bone theme={theme} width={48} height={18} />
-          <Bone theme={theme} width={36} height={10} style={{ marginTop: 6 }} />
-        </View>
-      </View>
-
-      <View style={[sk.divider, { backgroundColor: theme.cardBorder }]} />
-
-      {/* Footer: stops + Book */}
-      <View style={sk.footerRow}>
-        <Bone theme={theme} width="38%" height={12} />
-        <Bone theme={theme} width={88} height={34} radius={10} />
+      <View style={sk.metaRow}>
+        <Bone theme={theme} width={44} height={10} />
+        <Bone theme={theme} width={56} height={22} radius={6} />
       </View>
     </View>
+  );
+}
+
+export function ResultsSkeletonCard({
+  theme,
+  roundTrip = true,
+}: {
+  theme: Theme;
+  roundTrip?: boolean;
+}) {
+  return (
+    <TicketStub style={sk.cardWrap} innerStyle={{ paddingVertical: 12, paddingHorizontal: 14 }}>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={sk.row1}>
+          <View style={sk.scheduleCol}>
+            <LegJourneyPreview theme={theme} />
+            {roundTrip ? <LegJourneyPreview theme={theme} /> : null}
+            <Bone theme={theme} width="42%" height={10} style={{ marginTop: 4 }} />
+          </View>
+
+          <View style={sk.priceCol}>
+            <Bone theme={theme} width={80} height={22} radius={6} />
+            <Bone theme={theme} width={64} height={10} style={{ marginTop: 6 }} />
+            <Bone theme={theme} width={96} height={44} radius={10} style={{ marginTop: 10 }} />
+          </View>
+        </View>
+
+        <View style={[sk.row2, { borderTopColor: theme.cardBorder }]}>
+          <View style={sk.footerAirline}>
+            <Bone theme={theme} width={30} height={30} radius={8} />
+            <Bone theme={theme} width="55%" height={12} style={{ flex: 1 }} />
+          </View>
+          <Bone theme={theme} width={72} height={14} />
+        </View>
+      </View>
     </TicketStub>
   );
 }
 
-export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?: number }) {
+export function ResultsSkeletonList({
+  theme,
+  count = 4,
+  roundTrip = true,
+}: {
+  theme: Theme;
+  count?: number;
+  roundTrip?: boolean;
+}) {
   const reducedMotion = useReducedMotion();
   const pulse = useRef(new Animated.Value(reducedMotion ? 0.85 : 0.55)).current;
 
@@ -124,15 +125,18 @@ export function ResultsSkeletonList({ theme, count = 4 }: { theme: Theme; count?
     return () => loop.stop();
   }, [pulse, reducedMotion]);
 
+  const minH = roundTrip ? 248 : 196;
+
   return (
     <Animated.View
       style={[sk.list, { opacity: pulse }]}
       accessibilityRole="progressbar"
       accessibilityLabel="Loading flight results"
+      accessibilityState={{ busy: true }}
     >
       {Array.from({ length: count }, (_, i) => (
-        <View key={i} style={{ marginVertical: i === 0 ? 0 : 4 }}>
-          <ResultsSkeletonCard theme={theme} />
+        <View key={i} style={{ marginVertical: i === 0 ? 0 : 4, minHeight: minH }}>
+          <ResultsSkeletonCard theme={theme} roundTrip={roundTrip} />
         </View>
       ))}
     </Animated.View>
@@ -144,24 +148,29 @@ const sk = StyleSheet.create({
   cardWrap: {
     marginHorizontal: 0,
     marginVertical: 6,
-    minHeight: 212,
+    flex: 1,
   },
-  carrierRow: {
+  row1: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
+    alignItems: 'flex-start',
   },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 12 },
-  legRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  timeBlock: { width: 56 },
-  midBlock: { flex: 1, alignItems: 'center' },
-  footerRow: {
+  scheduleCol: { flex: 1, minWidth: 0 },
+  priceCol: { alignItems: 'flex-end', minWidth: 96 },
+  legBlock: { marginBottom: 10 },
+  journeyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeCol: { width: 56 },
+  railCol: { flex: 1, minWidth: 40, alignItems: 'center', paddingVertical: 2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  row2: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
   },
+  footerAirline: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
 });

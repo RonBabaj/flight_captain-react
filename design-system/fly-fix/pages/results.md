@@ -1,6 +1,6 @@
 # Results
 
-- Skeleton cards mirror `FlightResultCard` + `TicketStub` layout (stable min heights).
+- Skeleton cards mirror `FlightResultCard` (schedule + price row, footer logos) + `TicketStub`; min heights for one-way vs round-trip.
 - **Cards:** `JourneyRouteBar` + `LayoverChips` for scannable hops; Outbound/Return labels on RT.
 - **Header:** `SearchSummaryBar` `tone="plain"` on mobile; mood `compact` strip (not full photo rail).
 - **Trust:** provider warnings in compact `SearchSourcesBanner` (per-provider chips, no ops dump); pagination count is inline text only.
