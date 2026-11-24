@@ -114,13 +114,6 @@ function skyResultsWaitMs(config) {
   return Math.min(base, skyBudgetMs(config) - 8000);
 }
 
-function jsonHasOffers(captured, req) {
-  const parsed = extractSkyscanner(captured, req);
-  if (!parsed.length) return false;
-  if (!req.returnDate) return true;
-  return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
-}
-
 async function skyDomHasCards(page) {
   try {
     const n = await page
@@ -133,15 +126,13 @@ async function skyDomHasCards(page) {
 }
 
 /**
- * Wait for JSON offers OR DOM fare cards. Do NOT block on web-unified-search XHR first —
- * on headed CDP that response often never appears in Playwright capture while cards do.
- * Blocking on it burned 25s+ per call and let site budgets kill the scrape with 0 offers.
+ * Wait only for visible fare cards. Unified/radar JSON is optional gravy if Playwright
+ * happened to capture it — we never block on it. Cards on screen → scrape the DOM.
  */
-async function waitForSkyResults(page, captured, req, config) {
+async function waitForSkyCards(page, config) {
   const waitMs = skyResultsWaitMs(config);
-  const ready = async () => jsonHasOffers(captured, req) || (await skyDomHasCards(page));
-  if (await ready()) return true;
-  return waitUntil(page, ready, { timeoutMs: waitMs, intervalMs: 350 });
+  if (await skyDomHasCards(page)) return true;
+  return waitUntil(page, () => skyDomHasCards(page), { timeoutMs: waitMs, intervalMs: 300 });
 }
 
 async function readDomCardRows(page) {
@@ -408,18 +399,19 @@ async function scrapeSkyscanner(req, config) {
           return [];
         }
 
-        await waitForSkyResults(page, captured, req, config);
+        await waitForSkyCards(page, config);
         if (overSkyBudget()) return [];
-        let found = parsedWithReturn();
-        if (found.length) return found;
 
-        // DOM first when cards are already painted — this is the VPS reality (JSON often missing).
+        // Cards on screen → scrape them. Do not wait for unified JSON.
         let domRows = await readDomCardRows(page);
         let fromDom = offersFromDomRows(domRows, req, url, config);
         if (fromDom.length) {
-          console.log(`[flight-scraper] sky DOM offers=${fromDom.length} (json=0)`);
+          console.log(`[flight-scraper] sky DOM offers=${fromDom.length}`);
           return fromDom;
         }
+        // Bonus only: if JSON already landed in the capture buffer, use it.
+        let found = parsedWithReturn();
+        if (found.length) return found;
 
         // PerimeterX can also swap the results page for its wall mid-search (captcha
         // url=/). Solve it and reload the search instead of waiting on cards that never come.
@@ -427,18 +419,18 @@ async function scrapeSkyscanner(req, config) {
           if (!(await solveWall())) return [];
           if (urlMissingSearchDates(page.url())) {
             try {
-              await gotoAndSettle(page, url, config, { networkIdleMs: 8000 });
+              await gotoAndSettle(page, url, config, { networkIdleMs: 3500 });
             } catch {
               /* checked below */
             }
             if (!(await solveWall())) return [];
           }
-          await waitForSkyResults(page, captured, req, config);
-          found = parsedWithReturn();
-          if (found.length) return found;
+          await waitForSkyCards(page, config);
           domRows = await readDomCardRows(page);
           fromDom = offersFromDomRows(domRows, req, url, config);
           if (fromDom.length) return fromDom;
+          found = parsedWithReturn();
+          if (found.length) return found;
         }
 
         try {
@@ -458,8 +450,6 @@ async function scrapeSkyscanner(req, config) {
         await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
         await page.waitForTimeout(400);
 
-        found = parsedWithReturn();
-        if (found.length) return found;
         if (await onWall()) {
           endedOnWall = true;
           noteSkyscannerBlocked();
@@ -469,6 +459,8 @@ async function scrapeSkyscanner(req, config) {
         domRows = await readDomCardRows(page);
         fromDom = offersFromDomRows(domRows, req, url, config);
         if (fromDom.length) return fromDom;
+        found = parsedWithReturn();
+        if (found.length) return found;
         console.log(
           `[flight-scraper] sky 0 offers after wait cards=${domRows.length} json=${extractSkyscanner(captured, req).length}`,
         );
