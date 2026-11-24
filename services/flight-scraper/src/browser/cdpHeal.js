@@ -54,4 +54,31 @@ function setSearchBusyFlag(busy) {
   }
 }
 
-module.exports = { requestCdpHeal, setSearchBusyFlag, healRequestPath, busyFlagPath };
+function chromeRestartedAtPath() {
+  return (
+    process.env.SCRAPER_CHROME_RESTARTED_AT ||
+    process.env.FLIGHT_CHROME_RESTARTED_AT ||
+    '/var/lib/flight-scraper/chrome-restarted-at'
+  );
+}
+
+/** True when host watchdog restarted Chrome recently (cold session → PX risk). */
+function chromeRecentlyRestarted(withinMs = 15 * 60 * 1000) {
+  try {
+    const raw = fs.readFileSync(chromeRestartedAtPath(), 'utf8').trim();
+    const ts = Date.parse(raw) || Number(raw) || 0;
+    if (!ts) return false;
+    return Date.now() - ts < withinMs;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = {
+  requestCdpHeal,
+  setSearchBusyFlag,
+  healRequestPath,
+  busyFlagPath,
+  chromeRecentlyRestarted,
+  chromeRestartedAtPath,
+};
