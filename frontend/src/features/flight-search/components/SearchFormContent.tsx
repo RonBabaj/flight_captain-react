@@ -72,12 +72,14 @@ export function SearchFormContent({
         const active = tripType === tt;
         const isFirst = index === 0;
         const isLast = index === 1;
+        // Solid brand violet fill — pale primary washes washed out on dark controlBg.
+        const activeBg = theme.isDark ? '#6366F1' : theme.primary;
         return (
           <TouchableOpacity
             key={tt}
             style={[
               s.tripSeg,
-              active && { backgroundColor: theme.primary },
+              active && { backgroundColor: activeBg },
               isFirst && (isRTL ? s.tripSegEndRtl : s.tripSegStart),
               isLast && (isRTL ? s.tripSegStart : s.tripSegEnd),
             ]}
@@ -90,7 +92,9 @@ export function SearchFormContent({
               style={[
                 s.tripSegLabel,
                 { fontFamily: theme.fontBody },
-                active ? { color: '#FFFFFF', fontWeight: '700' } : { color: theme.textMuted, fontWeight: '600' },
+                active
+                  ? { color: '#FFFFFF', fontWeight: '700' }
+                  : { color: theme.textMuted, fontWeight: '600' },
               ]}
             >
               {t(tt === 'one-way' ? 'one_way' : 'round_trip')}
@@ -265,8 +269,8 @@ const s = StyleSheet.create({
   },
   routeRule: {
     height: StyleSheet.hairlineWidth,
-    marginVertical: 2,
-    marginHorizontal: 4,
+    marginVertical: 8,
+    marginHorizontal: 2,
   },
   detailsBlock: {
     borderWidth: StyleSheet.hairlineWidth,
