@@ -4,6 +4,7 @@ const { scrapeKiwi } = require('./sites/kiwi');
 const { scrapeSkyscanner } = require('./sites/skyscanner');
 const { scrapeExpedia } = require('./sites/expedia');
 const { isSkyscannerBlocked } = require('./warm');
+const { resetCdpLock } = require('./browser/cdpLock');
 const {
   totalScrapeBudgetMs,
   siteTimeBudgetMs,
@@ -55,9 +56,12 @@ async function runWithSiteBudget(site, req, config) {
   }
 
   let timer;
+  let timedOut = false;
   const timeout = new Promise((resolve) => {
     timer = setTimeout(() => {
+      timedOut = true;
       console.log(`[flight-scraper] site=${site} siteMaxMs=${budgetMs} exceeded`);
+      resetCdpLock(`${site}_site_budget`);
       resolve({
         site,
         offers: [],
@@ -68,6 +72,10 @@ async function runWithSiteBudget(site, req, config) {
   });
   const result = await Promise.race([work, timeout]);
   clearTimeout(timer);
+  // Orphaned work after a budget kill still finishes later; ignore its result if we already timed out.
+  if (timedOut && result.error === 'site time budget exceeded') {
+    work.catch(() => {});
+  }
   return result;
 }
 
