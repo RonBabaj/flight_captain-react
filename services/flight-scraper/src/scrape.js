@@ -109,26 +109,27 @@ async function scrapeAll(req, config) {
   const unique = [...new Set(sites)];
   const started = Date.now();
 
-  // Serial CDP: Skyscanner often needs the full scrape window after Kiwi; run it first
-  // so it is not starved when SCRAPER_SERIAL_SITES=1 on the VPS.
-  const skyscannerFirst = (sites) => {
+  // CDP: Kiwi before Skyscanner. Sky-first burned the budget and crashed Chrome under PX,
+  // leaving Kiwi with ECONNRESET and GF2-only results.
+  const kiwiBeforeSky = (sites) => {
+    const kiwi = sites.filter((s) => s === 'kiwi');
     const sky = sites.filter((s) => s === 'skyscanner');
-    const rest = sites.filter((s) => s !== 'skyscanner');
-    return sky.length ? [...sky, ...rest] : sites;
+    const rest = sites.filter((s) => s !== 'kiwi' && s !== 'skyscanner');
+    return [...kiwi, ...rest, ...sky];
   };
-  let orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
-    ? skyscannerFirst(unique)
-    : unique;
-  // Cold Chrome after watchdog restart re-arms PerimeterX — prefer Kiwi first and mark Sky blocked.
+  let orderedSites =
+    hasCdp(config) && (unique.includes('skyscanner') || unique.includes('kiwi'))
+      ? kiwiBeforeSky(unique)
+      : unique;
+  // Cold Chrome after watchdog restart re-arms PerimeterX — mark Sky blocked for warm/scrape.
   if (hasCdp(config) && chromeRecentlyRestarted() && unique.includes('skyscanner')) {
     noteSkyscannerBlocked();
     console.log('[flight-scraper] Chrome recently restarted — Skyscanner PX cooldown');
   }
   const pxCooldown =
     hasCdp(config) && unique.includes('skyscanner') && unique.includes('kiwi') && isSkyscannerBlocked();
-  // After a PX wall, Skyscanner first can burn 10+ minutes before Kiwi runs; serve Kiwi first.
   if (pxCooldown) {
-    orderedSites = ['kiwi', 'skyscanner'];
+    orderedSites = kiwiBeforeSky(unique);
     console.log('[flight-scraper] skyscanner PX cooldown — scrape kiwi before skyscanner');
   }
 

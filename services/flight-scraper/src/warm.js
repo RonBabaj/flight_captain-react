@@ -55,6 +55,38 @@ let lastWarm = {
 let warmInFlight = null;
 let skyscannerBlockedUntil = 0;
 
+function skyBlockPath() {
+  return (
+    process.env.SCRAPER_SKY_BLOCK_UNTIL ||
+    process.env.FLIGHT_SKY_BLOCK_UNTIL ||
+    '/var/lib/flight-scraper/sky-block-until'
+  );
+}
+
+function loadSkyBlockUntil() {
+  try {
+    const raw = require('fs').readFileSync(skyBlockPath(), 'utf8').trim();
+    const ts = Number(raw) || Date.parse(raw) || 0;
+    if (ts > skyscannerBlockedUntil) skyscannerBlockedUntil = ts;
+  } catch {
+    /* missing in local/dev */
+  }
+}
+
+function persistSkyBlockUntil(until) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const file = skyBlockPath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${until}\n`, 'utf8');
+  } catch {
+    /* ignore */
+  }
+}
+
+loadSkyBlockUntil();
+
 function warmStatus() {
   return {
     ...lastWarm,
@@ -311,9 +343,11 @@ function startWarmLoop(config) {
 /** Call from Skyscanner scrape when PX wins — stops homepage warm from hammering captcha. */
 function noteSkyscannerBlocked() {
   skyscannerBlockedUntil = Date.now() + SKY_BLOCK_COOLDOWN_MS;
+  persistSkyBlockUntil(skyscannerBlockedUntil);
 }
 
 function isSkyscannerBlocked() {
+  loadSkyBlockUntil();
   return Date.now() < skyscannerBlockedUntil;
 }
 

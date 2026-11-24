@@ -18,7 +18,8 @@ USER_RUN="${FLIGHT_CHROME_USER:-fbmonitor}"
 LOG_TAG="ensure-flight-chrome"
 ENV_FILE="${FLIGHT_ENV_FILE:-/opt/apps/flight_captain-react/backend/.env}"
 
-log() { echo "[$LOG_TAG] $*"; }
+# Always stderr — chrome_proxy_args is captured into Chrome argv via mapfile.
+log() { echo "[$LOG_TAG] $*" >&2; }
 
 load_scraper_proxy_env() {
   if [ ! -f "$ENV_FILE" ]; then
@@ -39,7 +40,8 @@ chrome_proxy_args() {
     if [[ "${SCRAPER_PROXY_URL}" == *"@"* ]]; then
       SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
       if [ -x "${SCRIPT_DIR}/ensure-scraper-proxy-forwarder.sh" ]; then
-        sudo -E "${SCRIPT_DIR}/ensure-scraper-proxy-forwarder.sh" || true
+        # Must not print to stdout — mapfile feeds this function into Chrome argv.
+        sudo -E "${SCRIPT_DIR}/ensure-scraper-proxy-forwarder.sh" >/dev/null || true
       fi
       server="http://127.0.0.1:${local_port}"
     else
@@ -55,6 +57,7 @@ chrome_proxy_args() {
     return 1
   fi
   log "Chrome egress proxy: ${server}"
+  # Sole stdout line — consumed as Chrome CLI args.
   printf '%s\n' "--proxy-server=${server}"
 }
 
