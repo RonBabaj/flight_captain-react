@@ -13,6 +13,12 @@ function formatProviderError(raw: string): string {
   if (lower.includes('perimeterx') || lower.includes('captcha')) {
     return 'blocked by bot protection';
   }
+  if (lower.includes('price calendar') || lower.includes('dates stripped')) {
+    return 'dates not accepted (calendar)';
+  }
+  if (lower.includes('past departure')) {
+    return 'departure date is in the past';
+  }
   if (lower.includes('site time budget')) return 'timed out';
   if (lower.includes('context deadline')) return 'timed out';
   if (lower.includes('gf2_empty_upstream')) return 'no Google Flights offers for this route';

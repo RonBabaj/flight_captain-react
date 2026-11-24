@@ -63,6 +63,20 @@ function urlMissingSearchDates(href) {
   return !/\/[a-z0-9-]+\/[a-z0-9-]+\/\d{6}(?:\/\d{6})?\/?$/i.test(path);
 }
 
+/** Month-price calendar (oym=/iym=) after Skyscanner strips dated path slugs. */
+function urlLooksLikePriceCalendar(href) {
+  const u = String(href || '');
+  if (/[?&](?:oym|iym)=\d{4}/i.test(u)) return true;
+  return urlMissingSearchDates(u) && /\/transport\/(?:vols|flights|fluege|voli|vuelos)\//i.test(u);
+}
+
+function departureDateIsPast(req) {
+  const d = String(req?.departureDate || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return d < today;
+}
+
 async function preferUsCulture(page) {
   // Shared CDP context also holds Kiwi cookies — only drop Skyscanner culture cookies.
   const ctx = page.context();
@@ -279,29 +293,48 @@ async function leaveCaptchaForSearch(page, req, config, preferFr) {
  * Culture/geo redirects often strip YYMMDD date slugs (land on month calendar).
  * Re-navigate on the redirected host with the localized flights segment + dates.
  * Skip repair when already on captcha — another navigation usually deepens the wall.
+ * Falls back to .com when .fr keeps dumping us on the calendar.
  */
-async function ensureDatedResultsUrl(page, req, config) {
+async function ensureDatedResultsUrl(page, req, config, preferHost) {
   let href = page.url();
   if (/captcha-v2/i.test(href) || (await pageLooksBlocked(page))) {
     return href;
   }
-  if (!urlMissingSearchDates(href) && !/previousCultureSource=/i.test(href)) {
+  if (
+    !urlMissingSearchDates(href) &&
+    !urlLooksLikePriceCalendar(href) &&
+    !/previousCultureSource=/i.test(href)
+  ) {
     return href;
   }
   let host;
   try {
     host = new URL(href).hostname;
   } catch {
-    host = 'www.skyscanner.com';
+    host = preferHost || 'www.skyscanner.fr';
   }
-  const repaired = skyscannerUrl(req, host);
-  if (repaired.split('?')[0] === href.split('?')[0] && !urlMissingSearchDates(href)) {
-    return href;
-  }
-  try {
-    await gotoAndSettle(page, repaired, config);
-  } catch {
-    /* navigation interrupted by captcha redirect — caller checks blocked */
+  const hosts = [...new Set([host, preferHost, 'www.skyscanner.com', 'www.skyscanner.fr'].filter(Boolean))];
+  for (const h of hosts) {
+    const repaired = skyscannerUrl(req, h);
+    if (repaired.split('?')[0] === page.url().split('?')[0] && !urlMissingSearchDates(page.url())) {
+      return page.url();
+    }
+    try {
+      await gotoAndSettle(page, repaired, config, { networkIdleMs: 3500 });
+    } catch {
+      /* captcha may interrupt — caller checks */
+    }
+    href = page.url();
+    if (/captcha-v2/i.test(href) || (await pageLooksBlocked(page))) {
+      return href;
+    }
+    if (!urlMissingSearchDates(href) && !urlLooksLikePriceCalendar(href)) {
+      return href;
+    }
+    // Dated path kept — good enough even if query still has culture junk.
+    if (!urlMissingSearchDates(href)) {
+      return href;
+    }
   }
   return page.url();
 }
@@ -328,8 +361,13 @@ async function scrapeSkyscanner(req, config) {
   const preferFr = process.env.SCRAPER_SKYSCANNER_HOST || 'www.skyscanner.fr';
   const url = skyscannerUrl(req, preferFr);
 
+  if (departureDateIsPast(req)) {
+    return { offers: [], error: 'skyscanner rejected past departure date' };
+  }
+
   return runWithRetries(config.headless, 'skyscanner', async () => {
     let endedOnWall = false;
+    let endedOnCalendar = false;
     const offers = await withPage(
       config.headless,
       async (page) => {
@@ -358,6 +396,15 @@ async function scrapeSkyscanner(req, config) {
         const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs(config);
         const cardsReady = () => skyDomHasCards(page);
 
+        /** After PX clear, always reopen the dated search — captcha leave often lands empty. */
+        const resumeDatedSearch = async () => {
+          if (await cardsReady()) return true;
+          const left = await leaveCaptchaForSearch(page, req, config, preferFr);
+          if (left || (await cardsReady())) return true;
+          await ensureDatedResultsUrl(page, req, config, preferFr);
+          return !!(await cardsReady()) || !urlMissingSearchDates(page.url());
+        };
+
         /**
          * Hard captcha URL or soft overlay: stronger hold, then resume search URL.
          * If fare cards are scrapable (results URL + overlay, or after hold), keep going —
@@ -373,6 +420,9 @@ async function scrapeSkyscanner(req, config) {
             console.log(
               `[flight-scraper] sky PX recover cleared=${recovered.cleared} usable=${recovered.usable} cards=${recovered.hasCards}`,
             );
+            if (!recovered.hasCards) {
+              await resumeDatedSearch();
+            }
             return { ok: true, soft: recovered.soft };
           }
           if (!overSkyBudget() && urlIsCaptchaHardWall(page.url())) {
@@ -408,7 +458,7 @@ async function scrapeSkyscanner(req, config) {
           return [];
         }
 
-        await ensureDatedResultsUrl(page, req, config);
+        await ensureDatedResultsUrl(page, req, config, preferFr);
         if (overSkyBudget()) return [];
 
         wall = await clearOrBypassWall();
@@ -420,8 +470,14 @@ async function scrapeSkyscanner(req, config) {
           }
           return [];
         }
-        if (urlMissingSearchDates(page.url()) && !(await cardsReady())) {
-          return [];
+        if ((urlMissingSearchDates(page.url()) || urlLooksLikePriceCalendar(page.url())) && !(await cardsReady())) {
+          // One more host/date repair before giving up as calendar.
+          await ensureDatedResultsUrl(page, req, config, preferFr);
+          if (!(await cardsReady()) && urlMissingSearchDates(page.url())) {
+            endedOnCalendar = true;
+            console.log(`[flight-scraper] sky stuck on price calendar url=${page.url().slice(0, 160)}`);
+            return [];
+          }
         }
 
         await waitForSkyCards(page, config);
@@ -511,6 +567,9 @@ async function scrapeSkyscanner(req, config) {
     if (offers.length) return { offers, error: undefined };
     if (endedOnWall) {
       return { offers: [], error: 'skyscanner blocked (perimeterx captcha)' };
+    }
+    if (endedOnCalendar) {
+      return { offers: [], error: 'skyscanner price calendar (dates stripped)' };
     }
     return {
       offers: [],
