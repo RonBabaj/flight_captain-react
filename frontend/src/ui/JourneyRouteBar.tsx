@@ -2,11 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Theme } from '../theme/ThemeContext';
 import type { LegPreviewSummary } from '../utils/legSummary';
+import { railConnectionLabel } from '../utils/legSummary';
 import { formatFlightTime, formatArrivalDayOffset, type FlightTimeDisplayMode } from '../utils/flightTimeDisplay';
 import { isolateLTR } from '../utils/bidi';
 
 /**
- * Scannable leg header: departure ↔ arrival times with endpoint airports (no pill chain).
+ * Scannable leg header: departure ↔ arrival times with connection duration above the rail.
  */
 export function JourneyRouteBar({
   summary,
@@ -28,13 +29,7 @@ export function JourneyRouteBar({
   const dayOffset = formatArrivalDayOffset(summary.departureTime, summary.arrivalTime);
   const origin = summary.origin?.toUpperCase() || '—';
   const dest = summary.destination?.toUpperCase() || '—';
-  const stops = summary.stopsCount ?? 0;
-  const stopsLabel =
-    stops === 0
-      ? t('direct')
-      : stops === 1
-        ? t('stops_1')
-        : t('stops_2_plus');
+  const midLabel = railConnectionLabel(summary, t);
 
   const row = isRTL ? s.rowRtl : s.row;
 
@@ -51,9 +46,7 @@ export function JourneyRouteBar({
             style={[s.railMeta, { color: theme.textMuted, fontFamily: theme.fontBody }]}
             numberOfLines={1}
           >
-            {stops > 0 && summary.layovers[0]?.airportCode
-              ? isolateLTR(summary.layovers[0].airportCode)
-              : stopsLabel}
+            {isolateLTR(midLabel)}
           </Text>
           <View style={[s.railLine, { backgroundColor: theme.cardBorder }]} />
         </View>
@@ -88,29 +81,29 @@ const s = StyleSheet.create({
   time: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] as any, letterSpacing: -0.15 },
   offset: { fontSize: 13, fontWeight: '600' },
   code: { fontSize: 13, fontWeight: '700', marginTop: 2, letterSpacing: 0.4 },
-  railWrap: { flex: 1, minWidth: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
-  railTrack: {
-    width: '100%',
-    minHeight: 28,
+  railWrap: {
+    flex: 1,
+    minWidth: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  railTrack: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    gap: 5,
   },
   railLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+    width: '100%',
     height: 2,
     borderRadius: 1,
-    top: 11,
   },
   railMeta: {
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    letterSpacing: 0.35,
-    zIndex: 1,
+    letterSpacing: 0.2,
+    lineHeight: 14,
   },
 });
