@@ -47,7 +47,7 @@ export function makeFormThemedStyles(theme: Theme) {
     heroSubtitle: { fontSize: 14, color: theme.textMuted, marginBottom: 20 },
     label: { fontSize: 14, fontWeight: '600' as const, marginBottom: 6, color: theme.text },
     tabText: { color: theme.text, fontSize: 14 },
-    tabTextActive: { color: theme.buttonText, fontWeight: '600' as const, fontSize: 14 },
+    tabTextActive: { color: theme.onPrimary, fontWeight: '600' as const, fontSize: 14 },
     dateText: { fontSize: 15, color: theme.text },
     error: { color: theme.error, marginTop: 10, fontSize: 14 },
     button: {

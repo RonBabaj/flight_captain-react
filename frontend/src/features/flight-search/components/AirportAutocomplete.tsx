@@ -291,8 +291,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   inputRoute: {
+    // No bottom border — SearchFormContent draws a single routeRule between From/To.
     borderWidth: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     borderRadius: 0,
     paddingVertical: 10,
     paddingHorizontal: 2,

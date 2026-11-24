@@ -612,72 +612,87 @@ export function FlightDetailsModal({
             showsVerticalScrollIndicator
             keyboardShouldPersistTaps="handled"
           >
-            {/* ── Summary row (price + meta; RTL swaps sides) ── */}
-            <View style={[s.summaryRow, isRTL && { flexDirection: 'row-reverse' }]}>
-              <View>
-                <Text style={[s.price, { color: theme.price, fontFamily: theme.fontDisplay }]}>
-                  {priceSymbol} {totalAmount.toFixed(0)}
-                </Text>
-                {passengers > 1 && (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
-                    {priceSymbol} {perPassengerAmount.toFixed(0)} {t('per_passenger')}
+            {/* ── Summary: stacked so price / via / airlines / legs don't collide ── */}
+            <View style={s.summaryBlock}>
+              <View style={[s.summaryTop, isRTL && { flexDirection: 'row-reverse' }]}>
+                <View style={s.summaryPriceCol}>
+                  <Text style={[s.price, { color: theme.price, fontFamily: theme.fontDisplay }]}>
+                    {priceSymbol} {totalAmount.toFixed(0)}
                   </Text>
-                )}
-                {option.priceIsEstimate && (
-                  <View style={s.priceEstimateBlock}>
-                    <View style={[s.estBadge, { backgroundColor: theme.controlBg }]}>
-                      <Text style={[s.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total')}</Text>
-                    </View>
-                    {option.originalPrice?.amount != null && option.originalPrice.currency ? (
-                      <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                        {t('provider_price')}: {(() => {
-                          const { amount: conv, currency: cur2 } = getDisplayPrice(
-                            option.originalPrice.amount * passengers,
-                            option.originalPrice.currency,
-                            displayCurrency,
-                          );
-                          return `${getCurrencySymbol(cur2)} ${conv.toFixed(0)}`;
-                        })()}
-                      </Text>
-                    ) : null}
-                    <Text style={[s.priceEstimateNote, { color: theme.textMuted }]}>
-                      {t('price_estimate_note')}
+                  {passengers > 1 && (
+                    <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                      {priceSymbol} {perPassengerAmount.toFixed(0)} {t('per_passenger')}
                     </Text>
-                  </View>
-                )}
-                {option.selfTransfer ? (
-                  <Text style={[s.selfTransferWarn, { color: theme.warning, marginTop: 8 }]}>
-                    {option.selfTransferWarning || t('self_transfer_warning')}
-                  </Text>
-                ) : null}
-                {airlineName && option.source ? (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {t('via_vendor').replace('{vendor}', sourceLabel)}
-                    {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
-                  </Text>
-                ) : option.source ? (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {sourceLabel}
-                    {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
-                  </Text>
-                ) : option.vendorName && !multiAirline ? (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
-                    {t('via_vendor').replace('{vendor}', option.vendorName)}
-                  </Text>
-                ) : null}
-                {breakdownParts.length > 0 && (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 2 }]}>
-                    {breakdownParts.join('   ')}
-                  </Text>
-                )}
-              </View>
-              <View style={s.summaryMeta}>
+                  )}
+                </View>
                 {airlineName ? (
-                  <View style={[s.summaryAirlineRow, isRTL && { alignItems: 'flex-start' }]}>
-                    <AirlineLogoRow codes={distinctMarketingCarriers(option)} size={32} />
-                    <Text style={[s.summaryText, { color: theme.text }]}>{airlineName}</Text>
-                  </View>
+                  <AirlineLogoRow codes={distinctMarketingCarriers(option)} size={32} />
                 ) : null}
+              </View>
+
+              {option.priceIsEstimate && (
+                <View style={s.priceEstimateBlock}>
+                  <View style={[s.estBadge, { backgroundColor: theme.controlBg }]}>
+                    <Text style={[s.estBadgeText, { color: theme.textMuted }]}>{t('estimated_total')}</Text>
+                  </View>
+                  {option.originalPrice?.amount != null && option.originalPrice.currency ? (
+                    <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                      {t('provider_price')}: {(() => {
+                        const { amount: conv, currency: cur2 } = getDisplayPrice(
+                          option.originalPrice.amount * passengers,
+                          option.originalPrice.currency,
+                          displayCurrency,
+                        );
+                        return `${getCurrencySymbol(cur2)} ${conv.toFixed(0)}`;
+                      })()}
+                    </Text>
+                  ) : null}
+                  <Text style={[s.priceEstimateNote, { color: theme.textMuted }]}>
+                    {t('price_estimate_note')}
+                  </Text>
+                </View>
+              )}
+
+              {option.selfTransfer ? (
+                <Text style={[s.selfTransferWarn, { color: theme.warning }]}>
+                  {option.selfTransferWarning || t('self_transfer_warning')}
+                </Text>
+              ) : null}
+
+              {airlineName && option.source ? (
+                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                  {t('via_vendor').replace('{vendor}', sourceLabel)}
+                  {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
+                </Text>
+              ) : option.source ? (
+                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                  {sourceLabel}
+                  {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
+                </Text>
+              ) : option.vendorName && !multiAirline ? (
+                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                  {t('via_vendor').replace('{vendor}', option.vendorName)}
+                </Text>
+              ) : null}
+
+              {breakdownParts.length > 0 && (
+                <Text style={[s.summaryMuted, { color: theme.textMuted }]}>
+                  {breakdownParts.join('   ')}
+                </Text>
+              )}
+
+              {airlineName ? (
+                <Text
+                  style={[
+                    s.summaryText,
+                    { color: theme.text, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {airlineName}
+                </Text>
+              ) : null}
+
+              <View style={s.summaryLegs}>
                 {titledLegs.length > 1 ? (
                   titledLegs.map((leg, i) => {
                     const last = titledLegs.length - 1;
@@ -690,35 +705,42 @@ export function FlightDetailsModal({
                     return (
                       <Text
                         key={i}
-                        style={[s.summaryMuted, { color: theme.textMuted, textAlign: isRTL ? 'left' : 'right' }]}
+                        style={[
+                          s.summaryLegLine,
+                          { color: theme.textMuted, textAlign: isRTL ? 'right' : 'left' },
+                        ]}
                       >
                         {legName} · {legDurationLine(leg.segments, option.selfTransfer, t)}
                       </Text>
                     );
                   })
                 ) : (
-                  <Text style={[s.summaryMuted, { color: theme.textMuted, textAlign: isRTL ? 'left' : 'right' }]}>
+                  <Text
+                    style={[
+                      s.summaryLegLine,
+                      { color: theme.textMuted, textAlign: isRTL ? 'right' : 'left' },
+                    ]}
+                  >
                     {formatDuration(totalDur)} · {stopsLabel}
                   </Text>
                 )}
               </View>
-            </View>
 
-            {/* ── Badges ── */}
-            {(cabinStr || hasBaggage) && (
-              <View style={s.badges}>
-                {cabinStr ? (
-                  <View style={[s.badge, { borderColor: theme.cardBorder }]}>
-                    <Text style={[s.badgeText, { color: theme.textMuted }]}>{cabinStr}</Text>
-                  </View>
-                ) : null}
-                {hasBaggage ? (
-                  <View style={[s.badge, { borderColor: theme.cardBorder }]}>
-                    <Text style={[s.badgeText, { color: theme.textMuted }]}>{baggageStr}</Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
+              {(cabinStr || hasBaggage) && (
+                <View style={s.badges}>
+                  {cabinStr ? (
+                    <View style={[s.badge, { borderColor: theme.cardBorder }]}>
+                      <Text style={[s.badgeText, { color: theme.textMuted }]}>{cabinStr}</Text>
+                    </View>
+                  ) : null}
+                  {hasBaggage ? (
+                    <View style={[s.badge, { borderColor: theme.cardBorder }]}>
+                      <Text style={[s.badgeText, { color: theme.textMuted }]}>{baggageStr}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </View>
 
             {/* ── Legs ── */}
             {option.legs.map((leg, legIdx) => {
@@ -918,24 +940,29 @@ const s = StyleSheet.create({
     paddingTop: 16,
   },
 
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+  summaryBlock: {
+    gap: 10,
+    marginBottom: 8,
   },
+  summaryTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  summaryPriceCol: { flexShrink: 1, gap: 4 },
   price: { fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'] as const },
-  priceEstimateBlock: { marginTop: 8, gap: 4, maxWidth: 220 },
+  priceEstimateBlock: { gap: 6, maxWidth: 280 },
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  priceEstimateNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
+  priceEstimateNote: { fontSize: 12, lineHeight: 16 },
   selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  summaryMeta: { alignItems: 'flex-end', flexShrink: 1 },
-  summaryAirlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' },
-  summaryText: { fontSize: 15, fontWeight: '600' },
-  summaryMuted: { fontSize: 14, marginTop: 2 },
+  summaryText: { fontSize: 15, fontWeight: '600', lineHeight: 22 },
+  summaryMuted: { fontSize: 14, lineHeight: 20 },
+  summaryLegs: { gap: 6, marginTop: 2 },
+  summaryLegLine: { fontSize: 14, lineHeight: 20 },
 
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 8 },
   badge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   badgeText: { fontSize: 12 },
 

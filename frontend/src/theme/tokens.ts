@@ -1,12 +1,16 @@
 /**
  * Fly-Fix design tokens (Phase 1).
- * Premium travel utility — evolved boarding-pass + signal coral CTAs.
+ * Premium travel utility — violet brand signal + coral CTAs (boarding-pass chrome).
  */
 
 export const palette = {
   aviationNavy: '#172A40',
   cloudPaper: '#F6F5F1',
   signalCoral: '#FF735C',
+  /** Brand violet — tabs, links, selected chrome (not CTAs). */
+  signalViolet: '#6366F1',
+  signalVioletSoft: '#818CF8',
+  signalVioletDeep: '#4F46E5',
   mist: '#DFE8E8',
   deepEvergreen: '#263B37',
   white: '#FFFFFF',
