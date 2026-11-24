@@ -228,6 +228,11 @@ function webUnifiedSettled(payloads, minResults = 50) {
   });
 }
 
+/** True when unified JSON has at least one itinerary (may still be polling). */
+function webUnifiedHasAnyResults(payloads) {
+  return webUnifiedPayloads(payloads).some((p) => p.itineraries.results.length > 0);
+}
+
 function deeplinkCurrency(url) {
   const m = String(url || '').match(/\/transport_deeplink\/[^/]+\/[^/]+\/[^/]+\/([A-Z]{3})\//);
   return m ? m[1] : '';
@@ -356,5 +361,7 @@ module.exports = {
   pickSessionBookingUrl,
   extractUnifiedOffers,
   webUnifiedSettled,
+  webUnifiedHasAnyResults,
+  webUnifiedPayloads,
   rejectAirlineLabel,
 };

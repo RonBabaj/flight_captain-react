@@ -4,10 +4,8 @@ const { withPage, gotoAndSettle, skyscannerDate } = require('../src/sites/shared
 const { attachJsonCapture } = require('../src/sites/jsonCapture');
 const { pageLooksBlocked } = require('../src/browser/botWall');
 const { waitUntil } = require('../src/browser/fastLoad');
-const {
-  extractUnifiedOffers,
-  webUnifiedSettled,
-} = require('../src/sites/skyscannerParse');
+const { extractUnifiedOffers, webUnifiedSettled } = require('../src/sites/skyscannerParse');
+const { waitUntil } = require('../src/browser/fastLoad');
 const config = require('../src/config');
 
 function skyscannerUrl(req, host = 'www.skyscanner.fr') {
@@ -44,19 +42,24 @@ const url = skyscannerUrl(req);
       page,
       /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i,
     );
-    const jsonUseful = () => {
-      if (!webUnifiedSettled(captured)) return false;
-      const parsed = extractSkyscanner(captured, req);
-      if (!parsed.length) return false;
-      if (!req.returnDate) return true;
-      return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
-    };
-
     try {
-      await gotoAndSettle(page, url, config, { ready: jsonUseful });
+      await gotoAndSettle(page, url, config, { networkIdleMs: 8000 });
     } catch (e) {
       console.log('goto_error', String(e.message || e).slice(0, 120));
     }
+    await waitUntil(
+      page,
+      async () => {
+        const parsed = extractSkyscanner(captured, req);
+        if (parsed.length) return true;
+        const cards = await page
+          .locator('[data-testid="ticket"], [data-testid="itinerary-card"]')
+          .count()
+          .catch(() => 0);
+        return cards > 0;
+      },
+      { timeoutMs: Number(process.env.WAIT_MS || 55000), intervalMs: 350 },
+    );
 
     const blocked = await pageLooksBlocked(page);
     const captcha = /captcha-v2/i.test(page.url());

@@ -20,7 +20,7 @@ const { isSearchBusy } = require('./searchBusy');
 const { trySolvePerimeterX } = require('./browser/perimeterx');
 const { pickReusablePage, closePoisonedTabs } = require('./browser/session');
 
-const { buildWarmUrlsForPass, warmLoopIncludesSky, skyWarmUrl } = require('./warmPolicy');
+const { buildWarmUrlsForPass } = require('./warmPolicy');
 
 let startupWarmPass = true;
 
