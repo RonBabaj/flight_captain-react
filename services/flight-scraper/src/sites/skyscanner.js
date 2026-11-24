@@ -10,8 +10,8 @@ const {
   extractUnifiedOffers,
 } = require('./skyscannerParse');
 const { parseRoundTripHm } = require('../localTime');
-const { pageLooksBlocked } = require('../browser/botWall');
-const { trySolvePerimeterX, pxSolveAttempts } = require('../browser/perimeterx');
+const { pageLooksBlocked, getBlockState, urlIsCaptchaHardWall } = require('../browser/botWall');
+const { recoverSkyCaptcha, trySolvePerimeterX } = require('../browser/perimeterx');
 const { waitUntil } = require('../browser/fastLoad');
 const { noteSkyscannerBlocked } = require('../warm');
 
@@ -271,7 +271,8 @@ async function leaveCaptchaForSearch(page, req, config, preferFr) {
   } catch {
     /* checked below */
   }
-  return !(await pageLooksBlocked(page)) && !/captcha-v2/i.test(page.url());
+  const state = await getBlockState(page);
+  return !state.hard && !state.soft;
 }
 
 /**
@@ -353,28 +354,41 @@ async function scrapeSkyscanner(req, config) {
           /* captcha may interrupt navigation */
         }
 
-        const onWall = async () => /captcha-v2/i.test(page.url()) || (await pageLooksBlocked(page));
-        // PerimeterX sometimes flashes then continues; attempt headed press-and-hold.
-        // Cap at 2 — each hold is ~6s; more attempts dominated total scrape time.
         const scrapeStarted = Date.now();
         const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs(config);
-        const solveWall = async () => {
-          for (let i = 0; i < pxSolveAttempts(); i++) {
-            if (overSkyBudget()) break;
-            if (!(await onWall())) return true;
-            const solved = await trySolvePerimeterX(page);
-            if (solved) return true;
-            if (!overSkyBudget() && (await leaveCaptchaForSearch(page, req, config, preferFr))) return true;
-            await page.waitForTimeout(800);
+        const cardsReady = () => skyDomHasCards(page);
+
+        /**
+         * Hard captcha URL or soft overlay: stronger hold, then resume search URL.
+         * If fare cards are scrapable (results URL + overlay, or after hold), keep going —
+         * do not abort the whole search just because PX chrome is still on the page.
+         */
+        const clearOrBypassWall = async () => {
+          const state = await getBlockState(page);
+          if (!state.blocked && !urlIsCaptchaHardWall(state.url)) {
+            return { ok: true };
           }
-          if (await onWall()) {
-            endedOnWall = true;
-            noteSkyscannerBlocked();
-            await closePageIfPoisoned(page);
-            return false;
+          const recovered = await recoverSkyCaptcha(page, { hasCards: cardsReady });
+          if (recovered.cleared || recovered.usable) {
+            console.log(
+              `[flight-scraper] sky PX recover cleared=${recovered.cleared} usable=${recovered.usable} cards=${recovered.hasCards}`,
+            );
+            return { ok: true, soft: recovered.soft };
           }
-          return true;
+          if (!overSkyBudget() && urlIsCaptchaHardWall(page.url())) {
+            const left = await leaveCaptchaForSearch(page, req, config, preferFr);
+            if (left || (await cardsReady())) return { ok: true };
+          }
+          // Last chance: cards under/after overlay.
+          if (await cardsReady()) {
+            console.log('[flight-scraper] sky PX soft overlay — scraping visible cards');
+            return { ok: true, soft: true };
+          }
+          endedOnWall = true;
+          noteSkyscannerBlocked();
+          return { ok: false };
         };
+
         const parsedWithReturn = () => {
           const parsed = extractSkyscanner(captured, req);
           const missingReturn =
@@ -382,20 +396,31 @@ async function scrapeSkyscanner(req, config) {
           return parsed.length && !missingReturn ? parsed.slice(0, config.maxOffersPerSite) : [];
         };
 
-        if (!(await solveWall()) || overSkyBudget()) {
+        let wall = await clearOrBypassWall();
+        if (!wall.ok || overSkyBudget()) {
+          // Even on wall failure, scrape cards if present (overlay on results).
+          const earlyDom = offersFromDomRows(await readDomCardRows(page), req, url, config);
+          if (earlyDom.length) {
+            endedOnWall = false;
+            return earlyDom;
+          }
           if (endedOnWall) await closePageIfPoisoned(page);
           return [];
         }
 
         await ensureDatedResultsUrl(page, req, config);
         if (overSkyBudget()) return [];
-        if (await pageLooksBlocked(page) || /captcha-v2/i.test(page.url())) {
-          endedOnWall = true;
-          noteSkyscannerBlocked();
+
+        wall = await clearOrBypassWall();
+        if (!wall.ok) {
+          const earlyDom = offersFromDomRows(await readDomCardRows(page), req, url, config);
+          if (earlyDom.length) {
+            endedOnWall = false;
+            return earlyDom;
+          }
           return [];
         }
-        if (urlMissingSearchDates(page.url())) {
-          // Still on calendar — don't pretend we scraped itineraries.
+        if (urlMissingSearchDates(page.url()) && !(await cardsReady())) {
           return [];
         }
 
@@ -407,30 +432,38 @@ async function scrapeSkyscanner(req, config) {
         let fromDom = offersFromDomRows(domRows, req, url, config);
         if (fromDom.length) {
           console.log(`[flight-scraper] sky DOM offers=${fromDom.length}`);
+          endedOnWall = false;
           return fromDom;
         }
-        // Bonus only: if JSON already landed in the capture buffer, use it.
         let found = parsedWithReturn();
-        if (found.length) return found;
+        if (found.length) {
+          endedOnWall = false;
+          return found;
+        }
 
-        // PerimeterX can also swap the results page for its wall mid-search (captcha
-        // url=/). Solve it and reload the search instead of waiting on cards that never come.
-        if (await onWall()) {
-          if (!(await solveWall())) return [];
-          if (urlMissingSearchDates(page.url())) {
+        // Mid-search PX swap: hold + resume, then DOM again.
+        if ((await getBlockState(page)).blocked || urlIsCaptchaHardWall(page.url())) {
+          wall = await clearOrBypassWall();
+          if (!overSkyBudget() && urlMissingSearchDates(page.url())) {
             try {
               await gotoAndSettle(page, url, config, { networkIdleMs: 3500 });
             } catch {
               /* checked below */
             }
-            if (!(await solveWall())) return [];
+            await clearOrBypassWall();
           }
           await waitForSkyCards(page, config);
           domRows = await readDomCardRows(page);
           fromDom = offersFromDomRows(domRows, req, url, config);
-          if (fromDom.length) return fromDom;
+          if (fromDom.length) {
+            endedOnWall = false;
+            return fromDom;
+          }
           found = parsedWithReturn();
-          if (found.length) return found;
+          if (found.length) {
+            endedOnWall = false;
+            return found;
+          }
         }
 
         try {
@@ -450,19 +483,25 @@ async function scrapeSkyscanner(req, config) {
         await page.evaluate(() => window.scrollBy(0, 800)).catch(() => {});
         await page.waitForTimeout(400);
 
-        if (await onWall()) {
-          endedOnWall = true;
-          noteSkyscannerBlocked();
-          return [];
-        }
-
         domRows = await readDomCardRows(page);
         fromDom = offersFromDomRows(domRows, req, url, config);
-        if (fromDom.length) return fromDom;
+        if (fromDom.length) {
+          endedOnWall = false;
+          return fromDom;
+        }
         found = parsedWithReturn();
-        if (found.length) return found;
+        if (found.length) {
+          endedOnWall = false;
+          return found;
+        }
+
+        const finalBlock = await getBlockState(page);
+        if (finalBlock.hard || (finalBlock.soft && !(await cardsReady()))) {
+          endedOnWall = true;
+          noteSkyscannerBlocked();
+        }
         console.log(
-          `[flight-scraper] sky 0 offers after wait cards=${domRows.length} json=${extractSkyscanner(captured, req).length}`,
+          `[flight-scraper] sky 0 offers after wait cards=${domRows.length} json=${extractSkyscanner(captured, req).length} hard=${finalBlock.hard} soft=${finalBlock.soft}`,
         );
         return [];
       },
