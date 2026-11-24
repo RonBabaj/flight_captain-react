@@ -123,3 +123,21 @@ export function formatLayoverPreview(
     );
   return parts.join(', ');
 }
+
+/** Mid-rail label: Direct, or stop count + total connection time (not airport codes). */
+export function railConnectionLabel(
+  summary: Pick<LegPreviewSummary, 'stopsCount' | 'layovers'>,
+  t: (key: string) => string,
+): string {
+  const stops = summary.stopsCount ?? 0;
+  const stopsLabel = formatLegStopsLabel(stops, t);
+
+  if (stops <= 0) return stopsLabel;
+
+  const connectionMinutes = (summary.layovers || [])
+    .map((lo) => Math.max(0, lo.minutes || 0))
+    .reduce((sum, m) => sum + m, 0);
+
+  if (connectionMinutes <= 0) return stopsLabel;
+  return `${stopsLabel} · ${formatDuration(connectionMinutes)}`;
+}
