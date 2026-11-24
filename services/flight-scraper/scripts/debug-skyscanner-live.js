@@ -5,7 +5,6 @@ const { attachJsonCapture } = require('../src/sites/jsonCapture');
 const { pageLooksBlocked } = require('../src/browser/botWall');
 const { waitUntil } = require('../src/browser/fastLoad');
 const { extractUnifiedOffers, webUnifiedSettled } = require('../src/sites/skyscannerParse');
-const { waitUntil } = require('../src/browser/fastLoad');
 const config = require('../src/config');
 
 function skyscannerUrl(req, host = 'www.skyscanner.fr') {
