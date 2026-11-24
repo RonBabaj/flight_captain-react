@@ -26,6 +26,11 @@ services:
       SCRAPER_CDP_CONNECT_RETRIES: ${SCRAPER_CDP_CONNECT_RETRIES:-5}
       SCRAPER_PX_SOLVE_ATTEMPTS: ${SCRAPER_PX_SOLVE_ATTEMPTS:-6}
       SCRAPER_PX_HOLD_MS: ${SCRAPER_PX_HOLD_MS:-7200}
+      # Shared with host flight-chrome-watchdog (heal request + search-busy).
+      SCRAPER_CDP_HEAL_REQUEST: /var/lib/flight-scraper/cdp-heal-request
+      SCRAPER_SEARCH_BUSY_FLAG: /var/lib/flight-scraper/search-busy
+    volumes:
+      - /var/lib/flight-scraper:/var/lib/flight-scraper
     networks:
       - proxy
     expose:

@@ -19,9 +19,11 @@ fi
 chmod +x "$APP_ROOT"/scripts/vps/ensure-flight-stack.sh \
   "$APP_ROOT"/scripts/vps/ensure-flight-chrome.sh \
   "$APP_ROOT"/scripts/vps/ensure-scraper-proxy-forwarder.sh \
-  "$APP_ROOT"/scripts/vps/ensure-flight-vnc.sh 2>/dev/null || true
+  "$APP_ROOT"/scripts/vps/ensure-flight-vnc.sh \
+  "$APP_ROOT"/scripts/vps/flight-chrome-watchdog.sh \
+  "$APP_ROOT"/scripts/vps/install-flight-chrome-watchdog.sh 2>/dev/null || true
 
-cat >/etc/systemd/system/fly-fix-flight-stack.service <<EOF
+cat >/etc/systemd/system/flyfix-flight-stack.service <<EOF
 [Unit]
 Description=Fly-Fix flight scraper stack (proxy, Chrome CDP, VNC, compose)
 After=docker.service network-online.target
@@ -42,7 +44,7 @@ TimeoutStartSec=300
 WantedBy=multi-user.target
 EOF
 
-cat >/etc/systemd/system/fly-fix-flight-stack.timer <<'EOF'
+cat >/etc/systemd/system/flyfix-flight-stack.timer <<'EOF'
 [Unit]
 Description=Periodic Fly-Fix flight stack health pass
 
@@ -56,10 +58,15 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
-systemctl enable fly-fix-flight-stack.service
-systemctl enable --now fly-fix-flight-stack.timer
-systemctl start fly-fix-flight-stack.service
+systemctl enable flyfix-flight-stack.service
+systemctl enable --now flyfix-flight-stack.timer
+systemctl start flyfix-flight-stack.service
 
-echo "OK: fly-fix-flight-stack.service + timer enabled"
-echo "  sudo systemctl status fly-fix-flight-stack.service"
-echo "  sudo journalctl -u fly-fix-flight-stack.service -n 30"
+# Fast CDP recovery (30s loop) — stack timer alone left Chrome dead for minutes.
+if [[ -x "$APP_ROOT/scripts/vps/install-flight-chrome-watchdog.sh" ]]; then
+  bash "$APP_ROOT/scripts/vps/install-flight-chrome-watchdog.sh"
+fi
+
+echo "OK: flyfix-flight-stack.service + timer enabled"
+echo "  sudo systemctl status flyfix-flight-stack.service"
+echo "  sudo journalctl -u flyfix-flight-stack.service -n 30"

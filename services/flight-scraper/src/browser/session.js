@@ -7,6 +7,7 @@ const { dismissCookieBanners } = require('../sites/cookies');
 const { withCdpLock } = require('./cdpLock');
 const { getOpenPageHook } = require('./parallelContext');
 const { blockHeavyResources } = require('./fastLoad');
+const { requestCdpHeal } = require('./cdpHeal');
 
 let browserPromises = {};
 
@@ -33,10 +34,16 @@ async function connectOverCdp(cdpUrl) {
       return await chromium.connectOverCDP(cdpUrl, { timeout: 20_000 });
     } catch (err) {
       lastErr = err;
+      const msg = String(err?.message || err);
+      // Ask host watchdog to recycle Chrome while we back off and retry.
+      if (/ECONNRESET|ECONNREFUSED|socket hang up|Timeout|cdp/i.test(msg)) {
+        requestCdpHeal(msg);
+      }
       const backoff = Math.min(4000, 800 * (i + 1));
       await new Promise((r) => setTimeout(r, backoff));
     }
   }
+  requestCdpHeal(String(lastErr?.message || lastErr || 'cdp_connect_failed'));
   throw lastErr || new Error(`CDP connect failed: ${cdpUrl}`);
 }
 
