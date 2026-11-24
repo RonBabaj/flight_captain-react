@@ -1,6 +1,7 @@
 'use strict';
 
 const { withPage, runWithRetries, gotoAndSettle, skyscannerDate } = require('./shared');
+const { closePageIfPoisoned } = require('../browser/session');
 const { attachJsonCapture } = require('./jsonCapture');
 const { offerTemplate, segment, segmentsFromRoundTripClocks } = require('../normalize');
 const {
@@ -106,6 +107,13 @@ function skyscannerPathFromCaptchaPage(href, host = 'www.skyscanner.fr') {
   }
 }
 
+async function humanSkyPause(page) {
+  const base = Math.min(Math.max(Number(process.env.SCRAPER_SKY_HUMAN_MS || 450) || 450, 0), 3000);
+  if (base <= 0) return;
+  const jitter = Math.floor(Math.random() * Math.min(400, base));
+  await page.waitForTimeout(base + jitter);
+}
+
 function skyBudgetMs(config) {
   const base = Math.min(Math.max(Number(process.env.SCRAPER_SKY_MAX_MS || 150_000) || 150_000, 45_000), 300_000);
   const cap = config?.siteMaxMs;
@@ -201,6 +209,7 @@ async function scrapeSkyscanner(req, config) {
           if (!req.returnDate) return true;
           return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
         };
+        await humanSkyPause(page);
         try {
           await gotoAndSettle(page, url, config, { ready: jsonUseful });
         } catch {
@@ -224,6 +233,7 @@ async function scrapeSkyscanner(req, config) {
           if (await onWall()) {
             endedOnWall = true;
             noteSkyscannerBlocked();
+            await closePageIfPoisoned(page);
             return false;
           }
           return true;
@@ -235,7 +245,10 @@ async function scrapeSkyscanner(req, config) {
           return parsed.length && !missingReturn ? parsed.slice(0, config.maxOffersPerSite) : [];
         };
 
-        if (!(await solveWall()) || overSkyBudget()) return [];
+        if (!(await solveWall()) || overSkyBudget()) {
+          if (endedOnWall) await closePageIfPoisoned(page);
+          return [];
+        }
 
         await ensureDatedResultsUrl(page, req, config);
         if (overSkyBudget()) return [];

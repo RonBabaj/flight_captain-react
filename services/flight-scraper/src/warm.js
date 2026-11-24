@@ -12,7 +12,6 @@
  * sticky in the shared Chrome context — that redirects later scrapes to the wrong city.
  * Also skip Skyscanner homepage warm after a recent PX block (homepage warm worsens reputation).
  */
-const { chromium } = require('playwright');
 const { dismissCookieBanners } = require('./sites/cookies');
 const { pageLooksBlocked } = require('./browser/botWall');
 const { stealthInitScript } = require('./browser/stealth');
@@ -21,15 +20,17 @@ const { isSearchBusy } = require('./searchBusy');
 const { trySolvePerimeterX } = require('./browser/perimeterx');
 const { pickReusablePage, closePoisonedTabs } = require('./browser/session');
 
-const DEFAULT_SKY_WARM =
-  'https://www.skyscanner.fr/transport/vols/tlv/ber/261201/261208/?adultsv2=1&cabinclass=economy&rtn=1&preferdirects=false';
+const { buildWarmUrlsForPass, warmLoopIncludesSky, skyWarmUrl } = require('./warmPolicy');
 
-function skyWarmUrl() {
-  const raw = String(process.env.SCRAPER_SKY_WARM_URL || DEFAULT_SKY_WARM).trim();
-  return raw || DEFAULT_SKY_WARM;
+let startupWarmPass = true;
+
+function warmUrlsForPass() {
+  const urls = buildWarmUrlsForPass({
+    startupWarmPass,
+    skyscannerBlockedUntil,
+  });
+  return urls.filter((url) => shouldWarmUrl(url));
 }
-
-const WARM_URLS = () => ['https://www.kiwi.com/en/', skyWarmUrl()];
 
 // Keep warm navigations short so a hung Kiwi homepage cannot block a real search
 // behind the shared CDP lock for nearly a minute.
@@ -38,10 +39,10 @@ const GOTO_TIMEOUT_MS = Math.max(
   Number(process.env.SCRAPER_WARM_GOTO_MS || 12_000) || 12_000,
 );
 
-/** Skip Skyscanner homepage warm for this long after a PX block. */
+/** Skip Skyscanner warm/scrape-assist for this long after a PX block. */
 const SKY_BLOCK_COOLDOWN_MS = Math.max(
-  30 * 60 * 1000,
-  Number(process.env.SCRAPER_SKY_WARM_COOLDOWN_MS || 2 * 60 * 60 * 1000) || 2 * 60 * 60 * 1000,
+  60 * 60 * 1000,
+  Number(process.env.SCRAPER_SKY_WARM_COOLDOWN_MS || 4 * 60 * 60 * 1000) || 4 * 60 * 60 * 1000,
 );
 
 let lastWarm = {
@@ -83,18 +84,7 @@ async function pruneExtraPages(context) {
   }
 }
 
-async function connectCdp(cdpUrl, attempts = 3) {
-  let lastErr;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await chromium.connectOverCDP(cdpUrl, { timeout: 15_000 });
-    } catch (err) {
-      lastErr = err;
-      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
-    }
-  }
-  throw lastErr || new Error(`CDP connect failed: ${cdpUrl}`);
-}
+const { connectOverCdp } = require('./browser/session');
 
 /**
  * Navigate with progressive wait strategy:
@@ -155,7 +145,7 @@ async function resetKiwiClientState(page) {
 
 async function warmOne(cdpUrl, url) {
   return withCdpLock(async () => {
-    const browser = await connectCdp(cdpUrl);
+    const browser = await connectOverCdp(cdpUrl);
     try {
       const contexts = browser.contexts();
       const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
@@ -170,7 +160,7 @@ async function warmOne(cdpUrl, url) {
         await closePoisonedTabs(context, site);
       }
       let page = site ? await pickReusablePage(context, site) : null;
-      let reuse = !!page;
+      let reuseTab = !!page;
       if (!page) {
         page = await context.newPage();
       }
@@ -185,13 +175,20 @@ async function warmOne(cdpUrl, url) {
         }
         const title = await page.title().catch(() => '');
         const href = page.url();
+        if (blocked && /skyscanner/i.test(url)) {
+          await page.close().catch(() => {});
+          reuseTab = false;
+        }
         if (/kiwi\.com/i.test(url)) {
           await resetKiwiClientState(page);
         }
-        return { url, blocked, title, href, reached: true, reusedTab: reuse };
+        return { url, blocked, title, href, reached: true, reusedTab: reuseTab };
       } finally {
-        if (!reuse) {
+        if (!reuseTab) {
           await page.close().catch(() => {});
+        }
+        if (/skyscanner/i.test(url)) {
+          await closePoisonedTabs(context, 'skyscanner');
         }
         await pruneExtraPages(context);
       }
@@ -230,8 +227,10 @@ async function warmAll(config) {
     const sites = [];
     let reachedAny = false;
     let blockedAny = false;
+    const urlsThisPass = warmUrlsForPass();
+    startupWarmPass = false;
     for (const cdpUrl of cdpUrls) {
-      for (const url of WARM_URLS()) {
+      for (const url of urlsThisPass) {
         if (isSearchBusy()) {
           console.log('[flight-scraper] warm abort — search started');
           lastWarm = { ...lastWarm, detail: 'aborted (search busy)', at: Date.now(), sites };
@@ -295,8 +294,8 @@ async function warmAll(config) {
  */
 function startWarmLoop(config) {
   const intervalMs = Math.max(
-    5 * 60 * 1000,
-    Number(process.env.SCRAPER_WARM_INTERVAL_MS || 15 * 60 * 1000) || 15 * 60 * 1000,
+    10 * 60 * 1000,
+    Number(process.env.SCRAPER_WARM_INTERVAL_MS || 30 * 60 * 1000) || 30 * 60 * 1000,
   );
   const run = () => {
     warmAll(config).catch((err) => {
@@ -322,7 +321,7 @@ module.exports = {
   warmAll,
   warmStatus,
   startWarmLoop,
-  WARM_URLS,
+  warmUrlsForPass,
   noteSkyscannerBlocked,
   isSkyscannerBlocked,
 };

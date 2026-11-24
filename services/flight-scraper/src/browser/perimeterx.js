@@ -3,18 +3,22 @@
 const { pageLooksBlocked } = require('./botWall');
 
 function pxHoldMs() {
-  return Math.min(Math.max(Number(process.env.SCRAPER_PX_HOLD_MS || 5200) || 5200, 3000), 12_000);
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_HOLD_MS || 6500) || 6500, 3000), 15_000);
 }
 
 function pxSolveAttempts() {
-  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 3) || 3, 1), 5);
+  return Math.min(Math.max(Number(process.env.SCRAPER_PX_SOLVE_ATTEMPTS || 5) || 5, 1), 8);
 }
 
 async function pressHoldInBox(page, box) {
-  const x = box.x + box.width * 0.5;
-  const y = box.y + Math.min(box.height * 0.55, 280);
+  const jitterX = (Math.random() - 0.5) * Math.min(12, box.width * 0.08);
+  const jitterY = (Math.random() - 0.5) * Math.min(10, box.height * 0.08);
+  const x = box.x + box.width * 0.5 + jitterX;
+  const y = box.y + Math.min(box.height * 0.55, 280) + jitterY;
+  await page.mouse.move(x - 4, y - 2);
+  await page.waitForTimeout(80);
   await page.mouse.move(x, y);
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(180 + Math.floor(Math.random() * 120));
   await page.mouse.down();
   await page.waitForTimeout(pxHoldMs());
   await page.mouse.up();

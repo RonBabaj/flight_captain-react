@@ -54,7 +54,7 @@ Skyscanner often serves **PerimeterX** (`/sttc/px/captcha-v2/`) to datacenter IP
 **Improve scrape reliability (highest impact first):**
 
 1. **Residential egress** — see [Residential EU proxy](#residential-eu-proxy) below (required on VPS CDP; container `SCRAPER_PROXY_URL` alone does nothing today).
-2. **Warm the shared Chrome profile** — `SCRAPER_WARM_ON_START=1` (periodic Kiwi + Skyscanner.fr cookie dismiss).
+2. **Warm the shared Chrome profile** — `SCRAPER_WARM_ON_START=1` (periodic **Kiwi only** by default; set `SCRAPER_WARM_LOOP_SKY=1` only if you accept more idle PX). Real searches hit Skyscanner; avoid background Sky deep-links when you are not on VNC.
 3. **One manual pass on the captcha** — VNC/`DISPLAY :99` on the VPS: open the same flight Chrome profile (`scripts/vps/ensure-flight-chrome.sh`), complete Press & Hold once; cookies stick in `/var/lib/flight-scraper-chrome`.
 4. **Serial sites when blocked** — `SCRAPER_SERIAL_SITES=1` reduces parallel tab pressure on PX (slower per search).
 5. **Tune PX solver** — `SCRAPER_PX_SOLVE_ATTEMPTS`, `SCRAPER_PX_HOLD_MS` (headed Chrome only; no solve in headless Playwright).

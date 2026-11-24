@@ -36,7 +36,11 @@ log "proxy forwarder"
 sudo -E "$SCRIPT_DIR/ensure-scraper-proxy-forwarder.sh" || true
 
 log "flight Chrome (CDP :9223 / gateway :9224)"
-sudo "$SCRIPT_DIR/ensure-flight-chrome.sh"
+if [[ "${FLIGHT_CHROME_SKIP_IF_UP:-1}" == "1" ]] && curl -sf --max-time 2 http://127.0.0.1:9223/json/version >/dev/null; then
+  log "OK: flight Chrome CDP already up (keeping profile session)"
+else
+  sudo "$SCRIPT_DIR/ensure-flight-chrome.sh"
+fi
 
 if [ "${FLIGHT_VNC_ENABLE:-1}" != "0" ]; then
   log "VNC :5900 on localhost (SSH tunnel)"

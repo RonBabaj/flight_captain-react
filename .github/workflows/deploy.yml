@@ -45,7 +45,11 @@ jobs:
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
-              sudo scripts/vps/ensure-flight-chrome.sh
+              if [[ "${FLIGHT_CHROME_SKIP_IF_UP:-1}" == "1" ]] && curl -sf --max-time 2 http://127.0.0.1:9223/json/version >/dev/null; then
+                echo "flight Chrome CDP already up — keeping signed-in session"
+              else
+                sudo scripts/vps/ensure-flight-chrome.sh
+              fi
             fi
             # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
             docker compose build
@@ -97,7 +101,11 @@ jobs:
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
-              sudo scripts/vps/ensure-flight-chrome.sh
+              if [[ "${FLIGHT_CHROME_SKIP_IF_UP:-1}" == "1" ]] && curl -sf --max-time 2 http://127.0.0.1:9223/json/version >/dev/null; then
+                echo "flight Chrome CDP already up — keeping signed-in session"
+              else
+                sudo scripts/vps/ensure-flight-chrome.sh
+              fi
             fi
             docker compose build
             docker compose up -d --remove-orphans
@@ -148,7 +156,11 @@ jobs:
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
-              sudo scripts/vps/ensure-flight-chrome.sh
+              if [[ "${FLIGHT_CHROME_SKIP_IF_UP:-1}" == "1" ]] && curl -sf --max-time 2 http://127.0.0.1:9223/json/version >/dev/null; then
+                echo "flight Chrome CDP already up — keeping signed-in session"
+              else
+                sudo scripts/vps/ensure-flight-chrome.sh
+              fi
             fi
             docker compose build
             docker compose up -d --remove-orphans
@@ -198,7 +210,11 @@ jobs:
             EXPO_PUBLIC_API_BASE_URL=https://api.fly-fix.com npm run build
             cd ..
             if [[ -x scripts/vps/ensure-flight-chrome.sh ]]; then
-              sudo scripts/vps/ensure-flight-chrome.sh
+              if [[ "${FLIGHT_CHROME_SKIP_IF_UP:-1}" == "1" ]] && curl -sf --max-time 2 http://127.0.0.1:9223/json/version >/dev/null; then
+                echo "flight Chrome CDP already up — keeping signed-in session"
+              else
+                sudo scripts/vps/ensure-flight-chrome.sh
+              fi
             fi
             docker compose build
             docker compose up -d --remove-orphans
