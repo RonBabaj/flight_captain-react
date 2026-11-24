@@ -21,6 +21,39 @@ function skyFreshTab() {
   return process.env.SCRAPER_SKY_FRESH_TAB === '1';
 }
 
+function cdpConnectRetries() {
+  return Math.min(Math.max(Number(process.env.SCRAPER_CDP_CONNECT_RETRIES || 4) || 4, 1), 8);
+}
+
+async function connectOverCdp(cdpUrl) {
+  let lastErr;
+  const attempts = cdpConnectRetries();
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await chromium.connectOverCDP(cdpUrl, { timeout: 20_000 });
+    } catch (err) {
+      lastErr = err;
+      const backoff = Math.min(4000, 800 * (i + 1));
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+  throw lastErr || new Error(`CDP connect failed: ${cdpUrl}`);
+}
+
+/** Close a tab we used when it ended on PerimeterX so the next scrape does not reuse captcha. */
+async function closePageIfPoisoned(page) {
+  if (!page) return;
+  let url = '';
+  try {
+    url = page.url();
+  } catch {
+    return;
+  }
+  if (/captcha-v2|px-cloud|sttc\/px/i.test(url) || (await pageLooksBlocked(page))) {
+    await page.close().catch(() => {});
+  }
+}
+
 /** Close captcha / PX tabs so the next navigation does not inherit a poisoned session. */
 async function closePoisonedTabs(context, site) {
   if (!context) return;
@@ -44,6 +77,9 @@ async function closePoisonedTabs(context, site) {
 async function pickReusablePage(context, site) {
   if (site === 'skyscanner' && skyFreshTab()) {
     return null;
+  }
+  if (site) {
+    await closePoisonedTabs(context, site);
   }
   const pat = SITE_HOST[site];
   if (!pat || !context) return null;
@@ -120,7 +156,7 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl, options = {}) {
   return withCdpLock(async () => {
     // Reuse the default Chrome context — newContext() + service workers crashes Playwright CDP
     // (assert on service_worker target attach). Flight Chrome is started with SW disabled.
-    const browser = await chromium.connectOverCDP(cdpUrl);
+    const browser = await connectOverCdp(cdpUrl);
     const contexts = browser.contexts();
     const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
     let ownedContext = contexts.length === 0;
@@ -141,19 +177,24 @@ async function withPageViaCdp(cdpUrl, config, fn, _proxyUrl, options = {}) {
       await blockHeavyResources(page);
     }
     try {
-      return await fn(page, {
+      const out = await fn(page, {
         dismissCookieBanners,
         pageLooksBlocked,
         engine: 'chrome-cdp',
         cdpUrl,
       });
+      return out;
     } finally {
+      await closePageIfPoisoned(page);
       if (!reuse) {
         try {
           await page.close();
         } catch {
           /* ignore */
         }
+      }
+      if (site) {
+        await closePoisonedTabs(context, site);
       }
       await pruneJunkPages(context);
       if (ownedContext) {
@@ -185,7 +226,7 @@ async function withCdpBrowser(config, fn) {
   }
   const cdpUrl = cdpUrls[0];
   return withCdpLock(async () => {
-    const browser = await chromium.connectOverCDP(cdpUrl);
+    const browser = await connectOverCdp(cdpUrl);
     const contexts = browser.contexts();
     const context = contexts[0] || (await browser.newContext({ viewport: { width: 1400, height: 900 } }));
     const ownedContext = contexts.length === 0;
@@ -199,6 +240,9 @@ async function withCdpBrowser(config, fn) {
     const openPage = async (pageFn, opts = {}) => {
       await pruneJunkPages(context);
       const site = String(opts.site || '').toLowerCase();
+      if (site) {
+        await closePoisonedTabs(context, site);
+      }
       let page = site ? await pickReusablePage(context, site) : null;
       let reuse = !!page;
       if (!page) {
@@ -213,8 +257,12 @@ async function withCdpBrowser(config, fn) {
           cdpUrl,
         });
       } finally {
+        await closePageIfPoisoned(page);
         if (!reuse) {
           await page.close().catch(() => {});
+        }
+        if (site) {
+          await closePoisonedTabs(context, site);
         }
         await pruneJunkPages(context);
       }
@@ -310,7 +358,7 @@ async function withPage(config, fn, options = {}) {
 }
 
 function isTransientScrapeError(msg) {
-  return /Target page|has been closed|Timeout|net::|ECONNREFUSED|cdp|browser has been/i.test(
+  return /Target page|has been closed|Timeout|net::|ECONNREFUSED|ECONNRESET|socket hang up|cdp|browser has been/i.test(
     String(msg || ''),
   );
 }
@@ -358,6 +406,8 @@ async function warmHomepage(page, url, config) {
 module.exports = {
   pickReusablePage,
   closePoisonedTabs,
+  closePageIfPoisoned,
+  connectOverCdp,
   withPage,
   withCdpBrowser,
   runWithRetries,
