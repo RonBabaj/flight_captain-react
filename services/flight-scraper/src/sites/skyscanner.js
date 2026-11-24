@@ -132,22 +132,129 @@ async function skyDomHasCards(page) {
   }
 }
 
-/** SPA often paints fare cards before (or without) capturable web-unified-search JSON in CDP. */
+/**
+ * Wait for JSON offers OR DOM fare cards. Do NOT block on web-unified-search XHR first —
+ * on headed CDP that response often never appears in Playwright capture while cards do.
+ * Blocking on it burned 25s+ per call and let site budgets kill the scrape with 0 offers.
+ */
 async function waitForSkyResults(page, captured, req, config) {
   const waitMs = skyResultsWaitMs(config);
   const ready = async () => jsonHasOffers(captured, req) || (await skyDomHasCards(page));
+  if (await ready()) return true;
+  return waitUntil(page, ready, { timeoutMs: waitMs, intervalMs: 350 });
+}
+
+async function readDomCardRows(page) {
   try {
-    await page.waitForResponse(
-      (r) =>
-        /web-unified-search|chicken-wings|\/radar\/|\/g\/radar\//i.test(r.url()) &&
-        r.status() >= 200 &&
-        r.status() < 400,
-      { timeout: Math.min(25000, waitMs) },
-    );
-  } catch {
-    /* headed Chrome on VPS may never emit this XHR — DOM scrape still works */
+    return await page.evaluate(() => {
+      const out = [];
+      const cards = document.querySelectorAll(
+        '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
+      );
+      const hmRe = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
+      const skipAlt =
+        /logo|icon|image|photo|arrow|chevron|skyscanner|direct|stop|airport|a[eé]roport|international|ben[-\s]?gour?ion|terminal|flughafen|depart|arriv|hour|heure|minute/i;
+      cards.forEach((card) => {
+        const priceEl =
+          card.querySelector('[data-testid="price"]') ||
+          card.querySelector('[data-testid="price-main-container"]') ||
+          card.querySelector('[class*="Price"]') ||
+          card.querySelector('span[class*="price"]');
+        let priceText = priceEl?.textContent || '';
+        const fullText = card.innerText || card.textContent || '';
+        if (!priceText) {
+          const m = fullText.match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
+          priceText = m ? m[0] : '';
+        }
+        const times = fullText.match(hmRe) || [];
+        const airlines = [];
+        const pushAirline = (raw) => {
+          const label = String(raw || '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s*logo.*/i, '')
+            .trim();
+          if (!label || label.length < 2 || label.length > 40 || skipAlt.test(label)) return;
+          if (/^[A-Z0-9]{3}$/i.test(label)) return;
+          if (!airlines.includes(label)) airlines.push(label);
+        };
+        card
+          .querySelectorAll(
+            '[data-testid*="airline"], [data-testid*="carrier"], [class*="Airline"], [class*="Carrier"]',
+          )
+          .forEach((el) => {
+            pushAirline(el.getAttribute('alt') || el.getAttribute('title') || el.textContent);
+          });
+        if (!airlines.length) {
+          card.querySelectorAll('img[alt], img[title]').forEach((el) => {
+            pushAirline(el.getAttribute('alt') || el.getAttribute('title'));
+          });
+        }
+        const hrefs = [];
+        card.querySelectorAll('a[href]').forEach((a) => {
+          if (a.href) hrefs.push(a.href);
+        });
+        out.push({
+          priceText,
+          link: card.querySelector('a')?.href || window.location.href,
+          hrefs,
+          times,
+          airlines,
+          text: fullText.slice(0, 1500),
+        });
+      });
+      return out.slice(0, 30);
+    });
+  } catch (err) {
+    console.warn(`[flight-scraper] sky DOM read failed: ${String(err.message || err).slice(0, 120)}`);
+    return [];
   }
-  await waitUntil(page, ready, { timeoutMs: waitMs, intervalMs: 350 });
+}
+
+function offersFromDomRows(dom, req, url, config) {
+  const fromDom = [];
+  const seenDom = new Set();
+  for (const row of dom) {
+    const price = parsePriceText(row.priceText) || parsePriceText(row.text);
+    if (!price) continue;
+    let clocks = null;
+    if (Array.isArray(row.times) && row.times.length >= 2) {
+      clocks = {
+        outbound: { depHm: row.times[0], arrHm: row.times[1] },
+      };
+      if (row.times.length >= 4) {
+        clocks.inbound = { depHm: row.times[2], arrHm: row.times[3] };
+      }
+    } else {
+      clocks = parseRoundTripHm(row.text);
+    }
+    if (!clocks) continue;
+    // Round-trip search with only outbound clocks on the card — still keep the offer;
+    // missing inbound used to drop every DOM row when JSON was empty (Sky 0).
+    const fromText = airlinesFromCardText(row.text);
+    const outboundAirline =
+      (Array.isArray(row.airlines) && row.airlines[0]) || fromText.outbound || undefined;
+    const inboundAirline =
+      (Array.isArray(row.airlines) && row.airlines[1]) || fromText.inbound || outboundAirline;
+    const segments = segmentsFromRoundTripClocks(req, clocks, {
+      airline: outboundAirline,
+      inboundAirline,
+    });
+    if (!segments.length) continue;
+    const key = `${price}|${segments.map((s) => `${s.leg}:${s.departureTime}:${s.arrivalTime}`).join('|')}`;
+    if (seenDom.has(key)) continue;
+    seenDom.add(key);
+    fromDom.push(
+      offerTemplate({
+        origin: req.origin,
+        destination: req.destination,
+        price,
+        currency: req.currency || 'EUR',
+        bookingUrl: pickSessionBookingUrl(row.hrefs) || row.link || url,
+        segments,
+      }),
+    );
+  }
+  return fromDom.slice(0, config.maxOffersPerSite || 60);
 }
 
 async function humanSkyPause(page) {
@@ -250,7 +357,7 @@ async function scrapeSkyscanner(req, config) {
         );
         await humanSkyPause(page);
         try {
-          await gotoAndSettle(page, url, config, { networkIdleMs: 8000 });
+          await gotoAndSettle(page, url, config, { networkIdleMs: 3500 });
         } catch {
           /* captcha may interrupt navigation */
         }
@@ -302,8 +409,17 @@ async function scrapeSkyscanner(req, config) {
         }
 
         await waitForSkyResults(page, captured, req, config);
+        if (overSkyBudget()) return [];
         let found = parsedWithReturn();
         if (found.length) return found;
+
+        // DOM first when cards are already painted — this is the VPS reality (JSON often missing).
+        let domRows = await readDomCardRows(page);
+        let fromDom = offersFromDomRows(domRows, req, url, config);
+        if (fromDom.length) {
+          console.log(`[flight-scraper] sky DOM offers=${fromDom.length} (json=0)`);
+          return fromDom;
+        }
 
         // PerimeterX can also swap the results page for its wall mid-search (captcha
         // url=/). Solve it and reload the search instead of waiting on cards that never come.
@@ -320,6 +436,9 @@ async function scrapeSkyscanner(req, config) {
           await waitForSkyResults(page, captured, req, config);
           found = parsedWithReturn();
           if (found.length) return found;
+          domRows = await readDomCardRows(page);
+          fromDom = offersFromDomRows(domRows, req, url, config);
+          if (fromDom.length) return fromDom;
         }
 
         try {
@@ -341,128 +460,19 @@ async function scrapeSkyscanner(req, config) {
 
         found = parsedWithReturn();
         if (found.length) return found;
-        const parsed = extractSkyscanner(captured, req);
         if (await onWall()) {
           endedOnWall = true;
           noteSkyscannerBlocked();
           return [];
         }
 
-        try {
-          await page.waitForSelector('[data-testid="ticket"], [data-testid="itinerary-card"]', {
-            timeout: 18000,
-          });
-        } catch {
-          /* DOM scrape anyway */
-        }
-
-        const dom = await page.evaluate(() => {
-          const out = [];
-          const cards = document.querySelectorAll(
-            '[data-testid="ticket"], [data-testid="itinerary-card"], [class*="FlightsTicket"]',
-          );
-          const hmRe = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g;
-          const skipAlt =
-            /logo|icon|image|photo|arrow|chevron|skyscanner|direct|stop|airport|a[eé]roport|international|ben[-\s]?gour?ion|terminal|flughafen|depart|arriv|hour|heure|minute/i;
-          cards.forEach((card) => {
-            const priceEl =
-              card.querySelector('[data-testid="price"]') ||
-              card.querySelector('[data-testid="price-main-container"]') ||
-              card.querySelector('[class*="Price"]') ||
-              card.querySelector('span[class*="price"]');
-            let priceText = priceEl?.textContent || '';
-            const fullText = card.innerText || card.textContent || '';
-            if (!priceText) {
-              const m = fullText.match(/(\d[\d\s.,]*)\s*€|€\s*(\d[\d\s.,]*)/);
-              priceText = m ? m[0] : '';
-            }
-            // Extract clocks from the FULL card text — truncating to ~240 chars
-            // cut off French "Vol retour" times and caused "return not loaded".
-            const times = fullText.match(hmRe) || [];
-            // Prefer airline-specific nodes; never treat airport img alts as carriers
-            // (that produced "David-Ben-Gurion International" in Flight details).
-            const airlines = [];
-            const pushAirline = (raw) => {
-              const label = String(raw || '')
-                .replace(/\s+/g, ' ')
-                .replace(/\s*logo.*/i, '')
-                .trim();
-              if (!label || label.length < 2 || label.length > 40 || skipAlt.test(label)) return;
-              if (/^[A-Z0-9]{3}$/i.test(label)) return; // airport IATA
-              if (!airlines.includes(label)) airlines.push(label);
-            };
-            card
-              .querySelectorAll(
-                '[data-testid*="airline"], [data-testid*="carrier"], [class*="Airline"], [class*="Carrier"]',
-              )
-              .forEach((el) => {
-                pushAirline(el.getAttribute('alt') || el.getAttribute('title') || el.textContent);
-              });
-            if (!airlines.length) {
-              card.querySelectorAll('img[alt], img[title]').forEach((el) => {
-                pushAirline(el.getAttribute('alt') || el.getAttribute('title'));
-              });
-            }
-            const hrefs = [];
-            card.querySelectorAll('a[href]').forEach((a) => {
-              if (a.href) hrefs.push(a.href);
-            });
-            out.push({
-              priceText,
-              link: card.querySelector('a')?.href || window.location.href,
-              hrefs,
-              times,
-              airlines,
-              text: fullText.slice(0, 1500),
-            });
-          });
-          return out.slice(0, 30);
-        });
-
-        const fromDom = [];
-        const seenDom = new Set();
-        for (const row of dom) {
-          const price = parsePriceText(row.priceText) || parsePriceText(row.text);
-          if (!price) continue;
-          let clocks = null;
-          if (Array.isArray(row.times) && row.times.length >= 2) {
-            clocks = {
-              outbound: { depHm: row.times[0], arrHm: row.times[1] },
-            };
-            if (row.times.length >= 4) {
-              clocks.inbound = { depHm: row.times[2], arrHm: row.times[3] };
-            }
-          } else {
-            clocks = parseRoundTripHm(row.text);
-          }
-          if (!clocks) continue;
-          const fromText = airlinesFromCardText(row.text);
-          const outboundAirline =
-            (Array.isArray(row.airlines) && row.airlines[0]) || fromText.outbound || undefined;
-          const inboundAirline =
-            (Array.isArray(row.airlines) && row.airlines[1]) || fromText.inbound || outboundAirline;
-          const segments = segmentsFromRoundTripClocks(req, clocks, {
-            airline: outboundAirline,
-            inboundAirline,
-          });
-          if (!segments.length) continue;
-          const key = `${price}|${segments.map((s) => `${s.leg}:${s.departureTime}:${s.arrivalTime}`).join('|')}`;
-          if (seenDom.has(key)) continue;
-          seenDom.add(key);
-          fromDom.push(
-            offerTemplate({
-              origin: req.origin,
-              destination: req.destination,
-              price,
-              currency: req.currency || 'EUR',
-              bookingUrl: pickSessionBookingUrl(row.hrefs) || row.link || url,
-              segments,
-            }),
-          );
-        }
-        // Prefer DOM RT offers when JSON lacked inbound legs.
+        domRows = await readDomCardRows(page);
+        fromDom = offersFromDomRows(domRows, req, url, config);
         if (fromDom.length) return fromDom;
-        return parsed.slice(0, config.maxOffersPerSite);
+        console.log(
+          `[flight-scraper] sky 0 offers after wait cards=${domRows.length} json=${extractSkyscanner(captured, req).length}`,
+        );
+        return [];
       },
       { proxyUrl: config.proxyUrl, engines: ['chromium'], site: 'skyscanner' },
     );

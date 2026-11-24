@@ -28,4 +28,19 @@ function cdpLockBusy() {
   return depth > 0;
 }
 
-module.exports = { withCdpLock, cdpLockBusy };
+/**
+ * Drop the queue after a timed-out scrape. Orphaned CDP tasks can keep holding
+ * the lock forever (site budget Promise.race does not cancel Playwright work),
+ * which makes every later Sky/Kiwi search return 0 via "site time budget exceeded".
+ */
+function resetCdpLock(reason = '') {
+  if (depth > 0 || reason) {
+    console.warn(
+      `[flight-scraper] CDP lock reset depth=${depth}${reason ? ` reason=${reason}` : ''}`,
+    );
+  }
+  chain = Promise.resolve();
+  depth = 0;
+}
+
+module.exports = { withCdpLock, cdpLockBusy, resetCdpLock };
