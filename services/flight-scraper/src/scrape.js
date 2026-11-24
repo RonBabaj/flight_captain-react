@@ -3,8 +3,9 @@
 const { scrapeKiwi } = require('./sites/kiwi');
 const { scrapeSkyscanner } = require('./sites/skyscanner');
 const { scrapeExpedia } = require('./sites/expedia');
-const { isSkyscannerBlocked } = require('./warm');
+const { isSkyscannerBlocked, noteSkyscannerBlocked } = require('./warm');
 const { resetCdpLock } = require('./browser/cdpLock');
+const { chromeRecentlyRestarted } = require('./browser/cdpHeal');
 const {
   totalScrapeBudgetMs,
   siteTimeBudgetMs,
@@ -118,6 +119,11 @@ async function scrapeAll(req, config) {
   let orderedSites = config.serialSites || (hasCdp(config) && unique.includes('skyscanner'))
     ? skyscannerFirst(unique)
     : unique;
+  // Cold Chrome after watchdog restart re-arms PerimeterX — prefer Kiwi first and mark Sky blocked.
+  if (hasCdp(config) && chromeRecentlyRestarted() && unique.includes('skyscanner')) {
+    noteSkyscannerBlocked();
+    console.log('[flight-scraper] Chrome recently restarted — Skyscanner PX cooldown');
+  }
   const pxCooldown =
     hasCdp(config) && unique.includes('skyscanner') && unique.includes('kiwi') && isSkyscannerBlocked();
   // After a PX wall, Skyscanner first can burn 10+ minutes before Kiwi runs; serve Kiwi first.

@@ -17,10 +17,11 @@ STATE_DIR="${FLIGHT_SCRAPER_STATE_DIR:-/var/lib/flight-scraper}"
 HEAL_REQUEST="${FLIGHT_CDP_HEAL_REQUEST:-${STATE_DIR}/cdp-heal-request}"
 BUSY_FLAG="${FLIGHT_SEARCH_BUSY_FLAG:-${STATE_DIR}/search-busy}"
 INTERVAL="${FLIGHT_CHROME_WATCHDOG_INTERVAL:-30}"
-HEAL_COOLDOWN_S="${FLIGHT_CHROME_WATCHDOG_HEAL_COOLDOWN_S:-60}"
-RECYCLE_EVERY_S="${FLIGHT_CHROME_WATCHDOG_RECYCLE_S:-43200}"
+HEAL_COOLDOWN_S="${FLIGHT_CHROME_WATCHDOG_HEAL_COOLDOWN_S:-120}"
+RECYCLE_EVERY_S="${FLIGHT_CHROME_WATCHDOG_RECYCLE_S:-86400}"
 LOG="${FLIGHT_CHROME_WATCHDOG_LOG:-/var/log/flight-chrome-watchdog.log}"
 USER_RUN="${FLIGHT_CHROME_USER:-fbmonitor}"
+RESTARTED_AT="${FLIGHT_CHROME_RESTARTED_AT:-${STATE_DIR}/chrome-restarted-at}"
 
 LAST_HEAL_EPOCH=0
 LAST_RECYCLE_EPOCH="$(date +%s)"
@@ -132,32 +133,57 @@ kill_flight_chrome() {
   sleep 1
 }
 
+mark_chrome_restarted() {
+  mkdir -p "$(dirname "$RESTARTED_AT")" 2>/dev/null || true
+  date -Is >"$RESTARTED_AT" 2>/dev/null || true
+}
+
+run_ensure() {
+  if ! sudo -n "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null; then
+    if ! "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null; then
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# Soft path: Chrome still answering HTTP — only refresh gateway/socat. Never kill.
+soft_heal_gateway() {
+  log "soft heal (keep Chrome session) — refresh gateway only"
+  run_ensure || true
+  consume_heal_request
+}
+
 restart_chrome() {
   local reason="$1"
   local force="${2:-0}"
-  if search_busy && [[ "$force" != "1" ]]; then
+
+  # Never kill a live browser under an in-flight search — that re-triggers PerimeterX
+  # and cascades ECONNRESET into the next site (Sky fail → heal → Kiwi reset).
+  if search_busy; then
     log "skip restart (search busy) reason=${reason}"
+    # Drop stale heal spam so we do not kill the moment search ends.
+    if [[ "$reason" == "heal_request" ]]; then
+      consume_heal_request
+    fi
     return 0
   fi
-  if in_heal_cooldown && [[ "$force" != "1" ]] && [[ "$reason" != "down" ]]; then
+  if in_heal_cooldown && [[ "$reason" != "down" ]]; then
     log "skip restart (cooldown) reason=${reason}"
+    consume_heal_request
     return 0
   fi
   if [[ ! -x "$ENSURE" ]]; then
     log "ERROR: missing ensure script $ENSURE"
     return 1
   fi
-  log "restarting flight Chrome reason=${reason}"
-  if [[ "$force" == "1" ]] || [[ "$reason" == "ws_wedge" ]] || [[ "$reason" == "recycle" ]]; then
+  log "restarting flight Chrome reason=${reason} force=${force}"
+  if [[ "$force" == "1" ]]; then
     kill_flight_chrome
   fi
-  # Force path: ensure treats dead port as start; after kill, port is free.
-  if ! sudo -n "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null; then
-    # Non-interactive sudo may already be root when run from systemd.
-    if ! "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null; then
-      log "ERROR: ensure-flight-chrome failed"
-      return 1
-    fi
+  if ! run_ensure; then
+    log "ERROR: ensure-flight-chrome failed"
+    return 1
   fi
   LAST_HEAL_EPOCH="$(date +%s)"
   if [[ "$reason" == "recycle" ]]; then
@@ -165,6 +191,7 @@ restart_chrome() {
   fi
   consume_heal_request
   if cdp_http_ok; then
+    mark_chrome_restarted
     log "OK: CDP up after ${reason}"
     return 0
   fi
@@ -173,38 +200,41 @@ restart_chrome() {
 }
 
 check_once() {
-  local need=0
-  local reason=""
-
-  if ! cdp_http_ok; then
-    need=1
-    reason="down"
-  elif ! cdp_ws_ok; then
-    need=1
-    reason="ws_wedge"
-  elif ! gateway_ok; then
-    # HTTP Chrome up but Docker gateway broken — refresh socat only.
-    log "gateway :${GATEWAY_PORT} down — refreshing proxy"
-    if [[ -x "$ENSURE" ]]; then
-      sudo -n "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null || "$ENSURE" 2>&1 | tee -a "$LOG" >/dev/null || true
-    fi
+  local http_ok=0
+  local ws_ok=0
+  cdp_http_ok && http_ok=1
+  if (( http_ok )); then
+    cdp_ws_ok && ws_ok=1
   fi
 
-  if heal_requested; then
-    need=1
-    reason="${reason:-heal_request}"
+  # Gateway-only: Chrome alive, Docker path broken — never kill profile.
+  if (( http_ok )) && ! gateway_ok; then
+    soft_heal_gateway
+  fi
+
+  # Scraper heal spam while CDP is healthy = transient client disconnect, not a dead browser.
+  # Killing here was re-arming PerimeterX on every auto-recovery.
+  if heal_requested && (( http_ok )); then
+    log "heal request ignored (CDP HTTP healthy) — keep signed-in session"
+    consume_heal_request
+  fi
+
+  if ! (( http_ok )); then
+    restart_chrome "down" 0 || true
+    return 0
+  fi
+
+  if ! (( ws_ok )); then
+    if search_busy; then
+      log "WS wedge but search busy — defer kill"
+    else
+      restart_chrome "ws_wedge" 1 || true
+    fi
+    return 0
   fi
 
   if recycle_due && ! search_busy; then
-    need=1
-    reason="recycle"
-  fi
-
-  if (( need )); then
-    local force=0
-    [[ "$reason" == "ws_wedge" || "$reason" == "recycle" || "$reason" == "heal_request" ]] && force=1
-    [[ "$reason" == "down" ]] && force=0
-    restart_chrome "$reason" "$force" || true
+    restart_chrome "recycle" 1 || true
   fi
 }
 
