@@ -6,6 +6,7 @@ const {
   pickSessionBookingUrl,
   extractUnifiedOffers,
   webUnifiedSettled,
+  webUnifiedHasAnyResults,
 } = require('../src/sites/skyscannerParse');
 
 const frenchCard =
@@ -139,6 +140,7 @@ assert.strictEqual(radarOffers[0].segments[0].departureTime, '2027-01-07T05:00:0
 assert.ok(radarOffers[0].bookingUrl.includes('transport_deeplink'));
 
 assert.strictEqual(webUnifiedSettled([firstPage]), false, 'first page of a pending search');
+assert.strictEqual(webUnifiedHasAnyResults([firstPage]), true);
 assert.strictEqual(webUnifiedSettled([radar('complete', firstPage.itineraries.results)]), true);
 assert.strictEqual(
   webUnifiedSettled([radar('incomplete', Array(50).fill(firstPage.itineraries.results[0]))]),

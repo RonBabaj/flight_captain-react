@@ -8,7 +8,6 @@ const {
   airlinesFromCardText,
   pickSessionBookingUrl,
   extractUnifiedOffers,
-  webUnifiedSettled,
 } = require('./skyscannerParse');
 const { parseRoundTripHm } = require('../localTime');
 const { pageLooksBlocked } = require('../browser/botWall');
@@ -107,6 +106,50 @@ function skyscannerPathFromCaptchaPage(href, host = 'www.skyscanner.fr') {
   }
 }
 
+function skyResultsWaitMs(config) {
+  const base = Math.min(
+    Math.max(Number(process.env.SCRAPER_SKY_RESULTS_WAIT_MS || 55000) || 55000, 15000),
+    90000,
+  );
+  return Math.min(base, skyBudgetMs(config) - 8000);
+}
+
+function jsonHasOffers(captured, req) {
+  const parsed = extractSkyscanner(captured, req);
+  if (!parsed.length) return false;
+  if (!req.returnDate) return true;
+  return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
+}
+
+async function skyDomHasCards(page) {
+  try {
+    const n = await page
+      .locator('[data-testid="ticket"], [data-testid="itinerary-card"]')
+      .count();
+    return n > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** SPA often paints fare cards before (or without) capturable web-unified-search JSON in CDP. */
+async function waitForSkyResults(page, captured, req, config) {
+  const waitMs = skyResultsWaitMs(config);
+  const ready = async () => jsonHasOffers(captured, req) || (await skyDomHasCards(page));
+  try {
+    await page.waitForResponse(
+      (r) =>
+        /web-unified-search|chicken-wings|\/radar\/|\/g\/radar\//i.test(r.url()) &&
+        r.status() >= 200 &&
+        r.status() < 400,
+      { timeout: Math.min(25000, waitMs) },
+    );
+  } catch {
+    /* headed Chrome on VPS may never emit this XHR — DOM scrape still works */
+  }
+  await waitUntil(page, ready, { timeoutMs: waitMs, intervalMs: 350 });
+}
+
 async function humanSkyPause(page) {
   const base = Math.min(Math.max(Number(process.env.SCRAPER_SKY_HUMAN_MS || 450) || 450, 0), 3000);
   if (base <= 0) return;
@@ -201,17 +244,13 @@ async function scrapeSkyscanner(req, config) {
         }
 
         // Skip homepage warm — it often hits PerimeterX; deep search URLs work in headed Chrome.
-        const captured = attachJsonCapture(page, /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary/i);
-        const jsonUseful = () => {
-          if (!webUnifiedSettled(captured)) return false;
-          const parsed = extractSkyscanner(captured, req);
-          if (!parsed.length) return false;
-          if (!req.returnDate) return true;
-          return parsed.some((o) => (o.segments || []).some((s) => s.leg === 'inbound'));
-        };
+        const captured = attachJsonCapture(
+          page,
+          /skyscanner|graphql|radar|chicken-wings|flights|unified|itinerary|slipstream|falcon|acorn/i,
+        );
         await humanSkyPause(page);
         try {
-          await gotoAndSettle(page, url, config, { ready: jsonUseful });
+          await gotoAndSettle(page, url, config, { networkIdleMs: 8000 });
         } catch {
           /* captcha may interrupt navigation */
         }
@@ -262,8 +301,7 @@ async function scrapeSkyscanner(req, config) {
           return [];
         }
 
-        // Prefer early JSON exit before optional sort / DOM waits.
-        await waitUntil(page, jsonUseful, { timeoutMs: 14000, intervalMs: 200 });
+        await waitForSkyResults(page, captured, req, config);
         let found = parsedWithReturn();
         if (found.length) return found;
 
@@ -273,13 +311,13 @@ async function scrapeSkyscanner(req, config) {
           if (!(await solveWall())) return [];
           if (urlMissingSearchDates(page.url())) {
             try {
-              await gotoAndSettle(page, url, config, { ready: jsonUseful });
+              await gotoAndSettle(page, url, config, { networkIdleMs: 8000 });
             } catch {
               /* checked below */
             }
             if (!(await solveWall())) return [];
           }
-          await waitUntil(page, jsonUseful, { timeoutMs: 14000, intervalMs: 200 });
+          await waitForSkyResults(page, captured, req, config);
           found = parsedWithReturn();
           if (found.length) return found;
         }
