@@ -46,18 +46,13 @@ const url = skyscannerUrl(req);
     } catch (e) {
       console.log('goto_error', String(e.message || e).slice(0, 120));
     }
+    // Wait for fare cards only — do not gate on unified JSON.
     await waitUntil(
       page,
-      async () => {
-        const parsed = extractSkyscanner(captured, req);
-        if (parsed.length) return true;
-        const cards = await page
-          .locator('[data-testid="ticket"], [data-testid="itinerary-card"]')
-          .count()
-          .catch(() => 0);
-        return cards > 0;
-      },
-      { timeoutMs: Number(process.env.WAIT_MS || 55000), intervalMs: 350 },
+      async () =>
+        (await page.locator('[data-testid="ticket"], [data-testid="itinerary-card"]').count().catch(() => 0)) >
+        0,
+      { timeoutMs: Number(process.env.WAIT_MS || 55000), intervalMs: 300 },
     );
 
     const blocked = await pageLooksBlocked(page);
