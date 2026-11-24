@@ -2,7 +2,7 @@
  * Collect distinct marketing carriers across all legs/segments for honest UI labels.
  */
 
-import { getAirlineName, resolveAirlineLabel } from '../data/airlines';
+import { getAirlineName, resolveAirlineLabel, resolveCarrierCode } from '../data/airlines';
 import type { FlightOption } from '../types';
 
 /** Ordered unique marketing carrier codes (first segment appearance wins). */
@@ -11,7 +11,10 @@ export function distinctMarketingCarriers(option?: FlightOption | null): string[
   const codes: string[] = [];
   for (const leg of option?.legs ?? []) {
     for (const seg of leg.segments ?? []) {
-      const code = (seg.marketingCarrier?.code || '').toUpperCase();
+      const code = resolveCarrierCode(
+        seg.marketingCarrier?.code,
+        seg.marketingCarrier?.name,
+      );
       if (!code || seen.has(code)) continue;
       seen.add(code);
       codes.push(code);
@@ -35,11 +38,13 @@ export function providerNameForCode(option: FlightOption | null | undefined, cod
   for (const leg of option?.legs ?? []) {
     for (const seg of leg.segments ?? []) {
       const mkt = seg.marketingCarrier;
-      if ((mkt?.code || '').toUpperCase() === want && mkt?.name?.trim()) {
+      const mktCode = resolveCarrierCode(mkt?.code, mkt?.name);
+      if (mktCode === want && mkt?.name?.trim()) {
         return mkt.name;
       }
       const op = seg.operatingCarrier;
-      if ((op?.code || '').toUpperCase() === want && op?.name?.trim()) {
+      const opCode = resolveCarrierCode(op?.code, op?.name);
+      if (opCode === want && op?.name?.trim()) {
         return op.name;
       }
     }
@@ -69,8 +74,16 @@ export function displayAirlineLabel(option?: FlightOption | null, maxNames = 3):
 /** Resolve a single carrier code using the static map and any name on the option. */
 export function labelForCarrierCode(option: FlightOption | null | undefined, code?: string | null): string {
   if (!code || looksLikeAirportLabel(code)) return '';
-  const name = resolveAirlineLabel(code, providerNameForCode(option, code));
+  const resolved = resolveCarrierCode(code, providerNameForCode(option, code));
+  const name = resolveAirlineLabel(resolved || code, providerNameForCode(option, resolved || code));
   return looksLikeAirportLabel(name) ? '' : name;
+}
+
+/** Segment marketing identity — fills empty IATA from the scraped display name. */
+export function segmentMarketingCode(seg?: {
+  marketingCarrier?: { code?: string | null; name?: string | null } | null;
+} | null): string {
+  return resolveCarrierCode(seg?.marketingCarrier?.code, seg?.marketingCarrier?.name);
 }
 
 function looksLikeAirportLabel(raw: string): boolean {

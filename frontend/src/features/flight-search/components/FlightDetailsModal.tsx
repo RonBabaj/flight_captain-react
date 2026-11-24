@@ -20,7 +20,7 @@ import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl, pickPrimaryBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { BookingOptionsFooter, Button } from '../../../ui';
-import { resolveAirlineLabel } from '../../../data/airlines';
+import { resolveAirlineLabel, resolveCarrierCode } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
@@ -650,7 +650,12 @@ export function FlightDetailsModal({
                     {option.selfTransferWarning || t('self_transfer_warning')}
                   </Text>
                 ) : null}
-                {option.source ? (
+                {airlineName && option.source ? (
+                  <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
+                    {t('via_vendor').replace('{vendor}', sourceLabel)}
+                    {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
+                  </Text>
+                ) : option.source ? (
                   <Text style={[s.summaryMuted, { color: theme.textMuted, marginTop: 4 }]}>
                     {sourceLabel}
                     {vendorLabel && !multiAirline && !vendorEchoesSource ? ` · ${vendorLabel}` : ''}
@@ -752,8 +757,13 @@ export function FlightDetailsModal({
                   {/* Segments */}
                   {segs.map((seg, segIdx) => {
                     const lo = layoverBetween(segs, segIdx);
-                    const carrier = seg.marketingCarrier?.code || '';
-                    const carrierName = carrier ? labelForCarrierCode(option, carrier) : '';
+                    const carrier =
+                      resolveCarrierCode(seg.marketingCarrier?.code, seg.marketingCarrier?.name) ||
+                      seg.marketingCarrier?.code ||
+                      '';
+                    const carrierName =
+                      labelForCarrierCode(option, carrier) ||
+                      (seg.marketingCarrier?.name || '').trim();
                     const segCabin = cabinLabel(seg.cabinClass, t);
 
                     return (

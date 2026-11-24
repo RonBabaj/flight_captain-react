@@ -3,6 +3,7 @@
  */
 
 import type { CreateSearchSessionRequest, FlightLeg, FlightOption } from '../types';
+import { resolveCarrierCode } from '../data/airlines';
 
 export function isoDatePrefix(iso?: string | null): string {
   if (!iso) return '';
@@ -69,7 +70,8 @@ export interface BookingHop {
 }
 
 function segmentCarrierCode(seg?: FlightLeg['segments'][0]): string {
-  return (seg?.marketingCarrier?.code || '').toUpperCase();
+  // Scraped OTAs often leave code empty and only send "Condor" / "Austrian" as name.
+  return resolveCarrierCode(seg?.marketingCarrier?.code, seg?.marketingCarrier?.name);
 }
 
 /** True when connecting segments use different marketing carriers (separate tickets). */
