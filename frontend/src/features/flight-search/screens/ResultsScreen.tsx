@@ -1852,16 +1852,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
-                    <View style={styles.toolbarSortWrap}>
-                      <SortBar
-                        sortField={sortField}
-                        sortOrder={sortOrder}
-                        onSort={toggleSort}
-                        resultCount={filtered.length}
-                      />
-                    </View>
-                    {cheaperCitiesToolbarSlot}
+                  <View style={[styles.toolbar, styles.toolbarSortOnly, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
+                    <SortBar
+                      sortField={sortField}
+                      sortOrder={sortOrder}
+                      onSort={toggleSort}
+                      resultCount={filtered.length}
+                      trailing={cheaperCitiesToolbarSlot}
+                    />
                   </View>
                   {resultsList}
                 </Animated.View>
@@ -1888,16 +1886,14 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
                     </ScrollView>
                 </View>
                 <Animated.View style={[styles.resultsColumn, { opacity: fadeAnim }]}>
-                  <View style={[styles.toolbar, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
-                    <View style={styles.toolbarSortWrap}>
-                      <SortBar
-                        sortField={sortField}
-                        sortOrder={sortOrder}
-                        onSort={toggleSort}
-                        resultCount={filtered.length}
-                      />
-                    </View>
-                    {cheaperCitiesToolbarSlot}
+                  <View style={[styles.toolbar, styles.toolbarSortOnly, { backgroundColor: theme.cardBg, borderBottomColor: theme.cardBorder, paddingHorizontal: resultsGutter }]}>
+                    <SortBar
+                      sortField={sortField}
+                      sortOrder={sortOrder}
+                      onSort={toggleSort}
+                      resultCount={filtered.length}
+                      trailing={cheaperCitiesToolbarSlot}
+                    />
                   </View>
                   {resultsList}
                 </Animated.View>
@@ -2170,6 +2166,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 8,
+  },
+  toolbarSortOnly: {
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
   },
   toolbarStacked: {
     flexDirection: 'column',

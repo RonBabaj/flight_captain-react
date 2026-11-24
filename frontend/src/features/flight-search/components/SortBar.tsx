@@ -15,9 +15,14 @@ interface SortBarProps {
   onSort: (field: SortField) => void;
   /** Optional result count shown beside sort controls. */
   resultCount?: number;
+  /**
+   * Renders on the same row as Cheapest/Fastest/Best (e.g. cheaper-cities pills),
+   * so trailing controls share the segment baseline instead of centering against the label.
+   */
+  trailing?: React.ReactNode;
 }
 
-export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarProps) {
+export function SortBar({ sortField, sortOrder, onSort, resultCount, trailing }: SortBarProps) {
   const { theme } = useTheme();
   const { t, isRTL } = useLocale();
   const narrow = useIsNarrowPhone();
@@ -36,60 +41,64 @@ export function SortBar({ sortField, sortOrder, onSort, resultCount }: SortBarPr
         ) : null}
       </View>
 
-      <View
-        style={[
-          s.segment,
-          {
-            backgroundColor: theme.controlBg,
-            borderColor: theme.cardBorder,
-            borderRadius: theme.radiusMd,
-          },
-          isRTL && { flexDirection: 'row-reverse' },
-        ]}
-        accessibilityRole="tablist"
-      >
-        {opts.map((opt, index) => {
-          const active = sortField === opt;
-          const arrow =
-            active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↓' : ' ↑') : '';
-          const isFirst = index === 0;
-          const isLast = index === opts.length - 1;
-          return (
-            <TouchableOpacity
-              key={opt}
-              style={[
-                s.segBtn,
-                active && {
-                  backgroundColor: theme.buttonBg,
-                },
-                // Keep outer corners rounded on the track ends
-                isFirst && (isRTL ? s.segEndRTL : s.segStart),
-                isLast && (isRTL ? s.segStartRTL : s.segEnd),
-              ]}
-              onPress={() => onSort(opt as SortField)}
-              activeOpacity={0.85}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${t('sort_by')} ${t(KEYS[opt])}`}
-            >
-              <Text
+      <View style={[s.controlsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+        <View
+          style={[
+            s.segment,
+            {
+              backgroundColor: theme.controlBg,
+              borderColor: theme.cardBorder,
+              borderRadius: theme.radiusMd,
+            },
+            isRTL && { flexDirection: 'row-reverse' },
+            trailing ? s.segmentWithTrailing : null,
+          ]}
+          accessibilityRole="tablist"
+        >
+          {opts.map((opt, index) => {
+            const active = sortField === opt;
+            const arrow =
+              active && opt !== 'best' ? (sortOrder === 'asc' ? ' ↓' : ' ↑') : '';
+            const isFirst = index === 0;
+            const isLast = index === opts.length - 1;
+            return (
+              <TouchableOpacity
+                key={opt}
                 style={[
-                  s.segLabel,
-                  narrow && s.segLabelNarrow,
-                  {
-                    color: active ? theme.buttonText : theme.textMuted,
-                    fontFamily: theme.fontBody,
-                    fontWeight: active ? '700' : '600',
+                  s.segBtn,
+                  active && {
+                    backgroundColor: theme.buttonBg,
                   },
+                  // Keep outer corners rounded on the track ends
+                  isFirst && (isRTL ? s.segEndRTL : s.segStart),
+                  isLast && (isRTL ? s.segStartRTL : s.segEnd),
                 ]}
-                numberOfLines={1}
+                onPress={() => onSort(opt as SortField)}
+                activeOpacity={0.85}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${t('sort_by')} ${t(KEYS[opt])}`}
               >
-                {t(KEYS[opt])}
-                {arrow}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                <Text
+                  style={[
+                    s.segLabel,
+                    narrow && s.segLabelNarrow,
+                    {
+                      color: active ? theme.buttonText : theme.textMuted,
+                      fontFamily: theme.fontBody,
+                      fontWeight: active ? '700' : '600',
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t(KEYS[opt])}
+                  {arrow}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {trailing ? <View style={s.trailing}>{trailing}</View> : null}
       </View>
     </View>
   );
@@ -102,6 +111,7 @@ const s = StyleSheet.create({
     gap: 8,
     minWidth: 0,
     flexShrink: 1,
+    width: '100%',
   },
   metaRow: {
     flexDirection: 'row',
@@ -117,6 +127,18 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+    width: '100%',
+  },
+  trailing: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
   segment: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -126,6 +148,13 @@ const s = StyleSheet.create({
     gap: 2,
     alignSelf: 'stretch',
     maxWidth: '100%',
+    flexGrow: 1,
+  },
+  segmentWithTrailing: {
+    flexGrow: 0,
+    flexShrink: 0,
+    width: 280,
+    maxWidth: '55%',
   },
   segBtn: {
     flex: 1,
