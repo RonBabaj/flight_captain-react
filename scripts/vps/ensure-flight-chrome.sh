@@ -106,7 +106,12 @@ ensure_gateway_proxy() {
 
 PROXY_GW="$(docker network inspect proxy --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)"
 
-if curl -sf "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
+if [[ "${FLIGHT_CHROME_FORCE:-0}" == "1" ]]; then
+  log "FLIGHT_CHROME_FORCE=1 — stopping existing flight Chrome on :${PORT}"
+  pkill -f -- "--user-data-dir=${PROFILE}" 2>/dev/null || true
+  pkill -f -- "--remote-debugging-port=${PORT}" 2>/dev/null || true
+  sleep 1
+elif curl -sf "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
   log "OK: Chrome CDP already listening on ${PORT} (DISPLAY=${DISPLAY})"
   log "NOTE: to change residential proxy, restart flight Chrome (proxy is set at Chrome start)"
   ensure_gateway_proxy "$PROXY_GW"
