@@ -38,6 +38,19 @@ var airlineNameToIATA = map[string]string{
 	"TRANSAVIA":            "HV",
 	"BLUEBIRDAIRWAYS":      "BZ",
 	"ARKIAISRAELIAIRLINES": "IZ",
+	"CONDOR":               "DE",
+	"CONDORFLUGDIENST":     "DE",
+	"EUROWINGS":            "EW",
+	"NORWEGIAN":            "DY",
+	"NORWEGIANAIR":         "DY",
+	"NORWEGIANAIRSHUTTLE":  "DY",
+	"AERLINGUS":            "EI",
+	"IBERIA":               "IB",
+	"FINNAIR":              "AY",
+	"SAS":                  "SK",
+	"SCANDINAVIANAIRLINES": "SK",
+	"JET2":                 "LS",
+	"JET2COM":              "LS",
 }
 
 func airlineAliasKey(raw string) string {

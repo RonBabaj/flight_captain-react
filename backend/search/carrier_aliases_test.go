@@ -12,6 +12,9 @@ func TestLookupAirlineIATA(t *testing.T) {
 		"Tus Airways":    "U8",
 		"LY":             "LY",
 		"Austrian Airlines": "OS",
+		"Condor":            "DE",
+		"Condor Flugdienst": "DE",
+		"Eurowings":         "EW",
 		"David-Ben-Gurion International": "",
 		"DAVID-BEN-GOURION INTERNATIONAL": "",
 	}
@@ -43,6 +46,10 @@ func TestResolveFlightIdentity_rejectsAirportAsCarrier(t *testing.T) {
 	code, fn = ResolveFlightIdentity("Austrian Airlines", "")
 	if code != "OS" {
 		t.Fatalf("Austrian → OS, got %q / %q", code, fn)
+	}
+	code, fn = ResolveFlightIdentity("Condor", "")
+	if code != "DE" {
+		t.Fatalf("Condor → DE, got %q / %q", code, fn)
 	}
 }
 
