@@ -9,6 +9,11 @@ on:
       - main
   workflow_dispatch:
 
+# Rapid merges to main used to run deploys in parallel → .git/index.lock on the VPS and half-started compose.
+concurrency:
+  group: deploy-vps-main
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,6 +36,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
+            rm -f .git/index.lock
             git fetch origin main
             git checkout -f main
             git reset --hard origin/main
@@ -43,7 +49,14 @@ jobs:
             fi
             # Use BuildKit cache; --no-cache routinely hits SSH command_timeout on this VPS
             docker compose build
-            docker compose up -d
+            docker compose up -d --remove-orphans
+            sleep 3
+            if ! docker ps --format '{{.Names}}' | grep -qx flight-scraper \
+              || ! docker ps --format '{{.Names}}' | grep -qx flyfix-frontend; then
+              docker compose down
+              docker compose up -d --force-recreate --remove-orphans
+            fi
+            docker compose ps -a
             if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
               docker exec flight-scraper node scripts/warm-flight-chrome.js || true
             fi
@@ -75,6 +88,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
+            rm -f .git/index.lock
             git fetch origin main
             git checkout -f main
             git reset --hard origin/main
@@ -86,7 +100,14 @@ jobs:
               sudo scripts/vps/ensure-flight-chrome.sh
             fi
             docker compose build
-            docker compose up -d
+            docker compose up -d --remove-orphans
+            sleep 3
+            if ! docker ps --format '{{.Names}}' | grep -qx flight-scraper \
+              || ! docker ps --format '{{.Names}}' | grep -qx flyfix-frontend; then
+              docker compose down
+              docker compose up -d --force-recreate --remove-orphans
+            fi
+            docker compose ps -a
             if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
               docker exec flight-scraper node scripts/warm-flight-chrome.js || true
             fi
@@ -118,6 +139,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
+            rm -f .git/index.lock
             git fetch origin main
             git checkout -f main
             git reset --hard origin/main
@@ -129,7 +151,14 @@ jobs:
               sudo scripts/vps/ensure-flight-chrome.sh
             fi
             docker compose build
-            docker compose up -d
+            docker compose up -d --remove-orphans
+            sleep 3
+            if ! docker ps --format '{{.Names}}' | grep -qx flight-scraper \
+              || ! docker ps --format '{{.Names}}' | grep -qx flyfix-frontend; then
+              docker compose down
+              docker compose up -d --force-recreate --remove-orphans
+            fi
+            docker compose ps -a
             if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
               docker exec flight-scraper node scripts/warm-flight-chrome.js || true
             fi
@@ -160,6 +189,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/apps/flight_captain-react
+            rm -f .git/index.lock
             git fetch origin main
             git checkout -f main
             git reset --hard origin/main
@@ -171,7 +201,14 @@ jobs:
               sudo scripts/vps/ensure-flight-chrome.sh
             fi
             docker compose build
-            docker compose up -d
+            docker compose up -d --remove-orphans
+            sleep 3
+            if ! docker ps --format '{{.Names}}' | grep -qx flight-scraper \
+              || ! docker ps --format '{{.Names}}' | grep -qx flyfix-frontend; then
+              docker compose down
+              docker compose up -d --force-recreate --remove-orphans
+            fi
+            docker compose ps -a
             if docker ps --format '{{.Names}}' | grep -qx flight-scraper; then
               docker exec flight-scraper node scripts/warm-flight-chrome.js || true
             fi
