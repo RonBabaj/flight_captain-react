@@ -237,7 +237,8 @@ export function LandingScreen() {
           {[
             { titleKey: 'landing_feature_1_title', descKey: 'landing_feature_1_desc', icon: 'airplane-outline' as const },
             { titleKey: 'landing_feature_2_title', descKey: 'landing_feature_2_desc', icon: 'options-outline' as const },
-            { titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc', icon: 'ticket-outline' as const },
+            // calendar-outline is in the local SVG set; ticket-outline was not → empty square.
+            { titleKey: 'landing_feature_3_title', descKey: 'landing_feature_3_desc', icon: 'calendar-outline' as const },
           ].map((f) => (
             <View
               key={f.titleKey}
