@@ -120,12 +120,15 @@ function skyscannerPathFromCaptchaPage(href, host = 'www.skyscanner.fr') {
   }
 }
 
-function skyResultsWaitMs(config) {
+function skyResultsWaitMs(config, { afterPx = false } = {}) {
+  // After PerimeterX, fare cards often take 60–90s to hydrate even on a cleared dated URL.
+  const envDefault = afterPx ? 85_000 : 55_000;
+  const envKey = afterPx ? 'SCRAPER_SKY_PX_RESULTS_WAIT_MS' : 'SCRAPER_SKY_RESULTS_WAIT_MS';
   const base = Math.min(
-    Math.max(Number(process.env.SCRAPER_SKY_RESULTS_WAIT_MS || 55000) || 55000, 15000),
-    90000,
+    Math.max(Number(process.env[envKey] || envDefault) || envDefault, afterPx ? 45_000 : 15_000),
+    afterPx ? 120_000 : 90_000,
   );
-  return Math.min(base, skyBudgetMs(config) - 8000);
+  return Math.min(base, Math.max(12_000, skyBudgetMs(config) - 8_000));
 }
 
 async function skyDomHasCards(page) {
@@ -143,10 +146,13 @@ async function skyDomHasCards(page) {
  * Wait only for visible fare cards. Unified/radar JSON is optional gravy if Playwright
  * happened to capture it — we never block on it. Cards on screen → scrape the DOM.
  */
-async function waitForSkyCards(page, config) {
-  const waitMs = skyResultsWaitMs(config);
+async function waitForSkyCards(page, config, opts = {}) {
+  const waitMs = skyResultsWaitMs(config, opts);
   if (await skyDomHasCards(page)) return true;
-  return waitUntil(page, () => skyDomHasCards(page), { timeoutMs: waitMs, intervalMs: 300 });
+  console.log(
+    `[flight-scraper] sky waiting for cards up to ${waitMs}ms${opts.afterPx ? ' (post-PX)' : ''}`,
+  );
+  return waitUntil(page, () => skyDomHasCards(page), { timeoutMs: waitMs, intervalMs: 400 });
 }
 
 async function readDomCardRows(page) {
@@ -395,6 +401,7 @@ async function scrapeSkyscanner(req, config) {
         const scrapeStarted = Date.now();
         const overSkyBudget = () => Date.now() - scrapeStarted > skyBudgetMs(config);
         const cardsReady = () => skyDomHasCards(page);
+        let sawPxThisScrape = false;
 
         /** After PX clear, always reopen the dated search — captcha leave often lands empty. */
         const resumeDatedSearch = async () => {
@@ -415,6 +422,7 @@ async function scrapeSkyscanner(req, config) {
           if (!state.blocked && !urlIsCaptchaHardWall(state.url)) {
             return { ok: true };
           }
+          sawPxThisScrape = true;
           const recovered = await recoverSkyCaptcha(page, { hasCards: cardsReady });
           if (recovered.cleared || recovered.usable) {
             console.log(
@@ -422,6 +430,11 @@ async function scrapeSkyscanner(req, config) {
             );
             if (!recovered.hasCards) {
               await resumeDatedSearch();
+              // Cards hydrate slowly after a hold — wait here so we do not return empty
+              // while the results page is still spinning up.
+              if (!(await cardsReady()) && !overSkyBudget()) {
+                await waitForSkyCards(page, config, { afterPx: true });
+              }
             }
             return { ok: true, soft: recovered.soft };
           }
@@ -480,8 +493,8 @@ async function scrapeSkyscanner(req, config) {
           }
         }
 
-        await waitForSkyCards(page, config);
-        if (overSkyBudget()) return [];
+        await waitForSkyCards(page, config, { afterPx: sawPxThisScrape });
+        if (overSkyBudget() && !(await cardsReady())) return [];
 
         // Cards on screen → scrape them. Do not wait for unified JSON.
         let domRows = await readDomCardRows(page);
