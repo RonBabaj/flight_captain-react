@@ -1,13 +1,14 @@
 /**
  * Fly-Fix design tokens (Phase 1).
- * Premium travel utility — violet brand signal + coral CTAs (boarding-pass chrome).
+ * Premium travel utility — violet brand for chrome and primary CTAs.
  */
 
 export const palette = {
   aviationNavy: '#172A40',
   cloudPaper: '#F6F5F1',
+  /** Legacy coral — unused for CTAs; kept so old references do not break. */
   signalCoral: '#FF735C',
-  /** Brand violet — tabs, links, selected chrome (not CTAs). */
+  /** Brand violet — CTAs, tabs, links, selected chrome. */
   signalViolet: '#6366F1',
   signalVioletSoft: '#818CF8',
   signalVioletDeep: '#4F46E5',

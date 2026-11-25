@@ -21,7 +21,7 @@ export type Theme = {
   inputBorder: string;
   tabActive: string;
   tabInactive: string;
-  /** Primary actions (coral) */
+  /** Primary actions (violet fill) */
   buttonBg: string;
   buttonText: string;
   /** Legacy name: contrasting text on filled primary-colored controls */
@@ -52,7 +52,7 @@ const FONTS = {
 const lightTheme: Theme = {
   mode: 'light',
   isDark: false,
-  // Violet brand for links/selected chrome; coral stays on CTAs (buttonBg).
+  // Violet brand for links, selected chrome, and primary CTAs (no coral mix).
   primary: palette.signalVioletDeep,
   primaryLight: palette.signalViolet,
   navBg: palette.white,
@@ -65,8 +65,8 @@ const lightTheme: Theme = {
   inputBorder: '#D4D4E0',
   tabActive: palette.signalVioletDeep,
   tabInactive: '#5C6B7A',
-  buttonBg: palette.signalCoral,
-  buttonText: palette.aviationNavy,
+  buttonBg: palette.signalVioletDeep,
+  buttonText: palette.white,
   onPrimary: palette.white,
   error: '#B42318',
   errorBg: '#FEF3F2',
@@ -102,8 +102,8 @@ const darkTheme: Theme = {
   inputBorder: '#322A45',
   tabActive: '#F2F4F6',
   tabInactive: 'rgba(242,244,246,0.65)',
-  buttonBg: palette.signalCoral,
-  buttonText: palette.aviationNavy,
+  buttonBg: palette.signalViolet,
+  buttonText: palette.white,
   onPrimary: palette.white,
   error: '#F97066',
   errorBg: 'rgba(185, 35, 24, 0.16)',
