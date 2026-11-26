@@ -215,6 +215,32 @@ export function BookingOptionsFooter({
                 onPress={() => onOpenUrl(offer.url)}
                 style={styles.singleCta}
               />
+              {resolved.message && (resolved.alternatives?.length ?? 0) > 0 ? (
+                <Text style={[styles.singleSubtitle, { color: theme.textMuted }]}>{resolved.message}</Text>
+              ) : null}
+              {(resolved.alternatives ?? [])
+                .filter((alt) => alt.url && isSafeBookingUrl(alt.url))
+                .map((alt) => {
+                  const label = formatProviderDisplayName(alt.provider || alt.domain || '');
+                  const price =
+                    alt.price != null && alt.currency
+                      ? `${getCurrencySymbol(alt.currency)} ${alt.price.toFixed(0)}`
+                      : null;
+                  return (
+                    <Button
+                      key={`${alt.domain}-${alt.url}`}
+                      label={
+                        price
+                          ? t('booking_open_alternative').replace('{provider}', label).replace('{price}', price)
+                          : t('booking_open_alternative_no_price').replace('{provider}', label)
+                      }
+                      onPress={() => onOpenUrl(alt.url!)}
+                      variant="secondary"
+                      size="sm"
+                      style={styles.singleCta}
+                    />
+                  );
+                })}
             </View>
           );
         })()

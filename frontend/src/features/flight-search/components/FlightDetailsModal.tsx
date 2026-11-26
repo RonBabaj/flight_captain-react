@@ -149,8 +149,13 @@ export function FlightDetailsModal({
   const splitBooking = option ? isSplitBookingItinerary(option, searchParams) : false;
   const perTicketBooking = option ? needsPerTicketBooking(option, searchParams) : false;
   const hops = useMemo(() => (option ? bookingHopsFromOption(option) : []), [option]);
+  // GF2 round-trip fares rarely expose one combined booking_token — checkout is per direction.
+  const gf2MultiLegBooking =
+    (option?.source || '').toLowerCase() === 'googleflights2' && (option?.legs?.length ?? 0) > 1;
   const showPerTicketSection =
-    perTicketBooking && hops.length > 0 && (hops.length > 1 || splitBooking);
+    (perTicketBooking || gf2MultiLegBooking) &&
+    hops.length > 0 &&
+    (hops.length > 1 || splitBooking);
 
   const resolveStorageKey = (legIndex?: number, segmentIndex?: number) => {
     if (segmentIndex != null && segmentIndex >= 0) {
@@ -365,7 +370,7 @@ export function FlightDetailsModal({
   };
 
   const unresolvedHopCount =
-    perTicketBooking && hops.length > 1
+    showPerTicketSection && hops.length > 1
       ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
       : 0;
   const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;
