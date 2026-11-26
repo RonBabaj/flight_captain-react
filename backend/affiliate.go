@@ -153,10 +153,12 @@ func init() {
 			URLTpl: "https://www.britishairways.com/travel/book/public/en_us?eId=106019&from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
 		"LH": {
-			Code:   "LH",
-			Name:   "Lufthansa",
-			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.lufthansa.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+			Code: "LH",
+			Name: "Lufthansa",
+			Type: ProviderTypeAirline,
+			// /booking/flight?… 404s on lufthansa.com. Partner /deeplink/partner needs an
+			// encrypted LH partner key (same class of failure as Austrian). No link until verified.
+			URLTpl: "",
 		},
 		"OS": {
 			Code: "OS",
@@ -168,10 +170,11 @@ func init() {
 			URLTpl: "",
 		},
 		"LX": {
-			Code:   "LX",
-			Name:   "Swiss",
-			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.swiss.com/booking/flight?from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+			Code: "LX",
+			Name: "Swiss",
+			Type: ProviderTypeAirline,
+			// Same LH-group pattern as Lufthansa — unverified /booking/flight templates 404.
+			URLTpl: "",
 		},
 		"AF": {
 			Code:   "AF",
@@ -321,7 +324,7 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	if option == nil || legIndex < 0 || legIndex >= len(option.Legs) {
 		return ""
 	}
-	carrier := strings.ToUpper(strings.TrimSpace(marketingCarrierForLeg(option, legIndex)))
+	carrier := strings.ToUpper(strings.TrimSpace(marketingCarrierForScope(option, legIndex, segmentIndex)))
 	if carrier == "" {
 		return ""
 	}

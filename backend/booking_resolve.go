@@ -1033,7 +1033,8 @@ func normalizePartnerSlotForDual(resp *BookingResolveResponse) {
 }
 
 // ensureDualBookingCompanion attaches airline-direct (registry prefill, then GF2) whenever we
-// already have a partner/OTA offer and a single-carrier itinerary.
+// already have a partner/OTA offer and a single-carrier itinerary. Also the reverse: when we
+// only have airline-direct, attach a third-party OTA so the UI can show dual Book options.
 func ensureDualBookingCompanion(
 	ctx context.Context,
 	session *SearchSession,
@@ -1047,10 +1048,12 @@ func ensureDualBookingCompanion(
 		return
 	}
 	normalizePartnerSlotForDual(resp)
-	if resp.CheapestOta == nil {
+	if !scopedCarriersUniform(option, legIndex, segmentIndex) {
+		ensureOTACompanionWhenAirlineOnly(ctx, session, option, it, fp, legIndex, segmentIndex, resp)
 		return
 	}
-	if !scopedCarriersUniform(option, legIndex, segmentIndex) {
+	if resp.CheapestOta == nil {
+		ensureOTACompanionWhenAirlineOnly(ctx, session, option, it, fp, legIndex, segmentIndex, resp)
 		return
 	}
 	if resp.AirlineDirect == nil {
@@ -1066,6 +1069,61 @@ func ensureDualBookingCompanion(
 			resp.Message = "Compare the partner price with booking on the airline site."
 		}
 	}
+	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
+}
+
+// ensureOTACompanionWhenAirlineOnly restores dual Book when resolve only found airline-direct
+// (common on per-hop segment booking after GF2 OTA was empty on the first pass).
+func ensureOTACompanionWhenAirlineOnly(
+	ctx context.Context,
+	session *SearchSession,
+	option *FlightOption,
+	it search.CanonicalItinerary,
+	fp string,
+	legIndex, segmentIndex int,
+	resp *BookingResolveResponse,
+) {
+	if resp == nil || resp.CheapestOta != nil {
+		return
+	}
+	if resp.AirlineDirect == nil {
+		if resp.Offer != nil && isAirlineOnlyPrefillLabel(resp.Offer.PriceLabel) {
+			cp := *resp.Offer
+			resp.AirlineDirect = &cp
+		} else {
+			return
+		}
+	}
+	airlineURL := resp.AirlineDirect.URL
+	normalize := bookingMatchPriceNormalizer()
+
+	// Full-itinerary seller handoff (Kiwi /booking) — not for a single hop of a multi-ticket trip.
+	if legIndex < 0 && segmentIndex < 0 {
+		if u := storedSessionBookingURL(option, -1); u != "" && !sameBookingURL(u, airlineURL) {
+			if sessResp, ok := sessionBookingResponse(session, option, fp, u, -1, -1); ok && sessResp.CheapestOta != nil {
+				resp.CheapestOta = sessResp.CheapestOta
+				resp.Offer = sessResp.CheapestOta
+				resp.Message = "Compare the partner price with booking on the airline site."
+				return
+			}
+		}
+	}
+
+	gf2Offers, err := bookingGF2OffersResolver(ctx, session, option, it, legIndex, segmentIndex)
+	if err != nil || len(gf2Offers) == 0 {
+		return
+	}
+	ota := pickCheapestOTAOffer(gf2CheckoutOffers(gf2Offers), nil, session, option, legIndex, segmentIndex, normalize)
+	if ota == nil {
+		return
+	}
+	pub := publicBookingOfferFromPick(ota, gf2Offers, "cheapest_ota", false)
+	if pub == nil || sameBookingURL(pub.URL, airlineURL) {
+		return
+	}
+	resp.CheapestOta = pub
+	resp.Offer = pub
+	resp.Message = "Compare the partner price with booking on the airline site."
 	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
 }
 
