@@ -173,12 +173,32 @@ export function FlightDetailsModal({
     resolveStorageKey(hop.legIndex, hop.segmentIndex);
 
   useEffect(() => {
-    // Kiwi/Skyscanner already attach a checkout URL on the card — seed Book from that
-    // (backend storedSessionBookingURL does the same). Do not wait on GF2 rematch.
+    setResolveLoadingKeys({});
+    // Per-hop Book must resolve each leg (dual OTA + airline). Do not seed a full-trip
+    // handoff into the wrong storage key — that hid dual compare.
+    if (showPerTicketSection) {
+      setLegResolves({});
+      return;
+    }
+    // Kiwi/Skyscanner card deepLink: show Open immediately, then enrich for dual.
     const seeded = sessionBookingResolveFromOption(option);
     setLegResolves(seeded ? { full: seeded } : {});
-    setResolveLoadingKeys({});
-  }, [option?.id, sessionId]);
+    if (!seeded || !option || !sessionId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await resolveBookingOffer(sessionId, option.id, undefined, false);
+        if (!cancelled && res?.found) {
+          setLegResolves((prev) => ({ ...prev, full: res }));
+        }
+      } catch {
+        // Keep seeded session handoff.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [option?.id, sessionId, showPerTicketSection]);
 
   const setHopLoading = (key: string, loading: boolean) => {
     setResolveLoadingKeys((prev) => {
