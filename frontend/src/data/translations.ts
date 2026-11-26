@@ -1034,7 +1034,7 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     ru: 'Пересадка',
   },
   positioning_split_hint: {
-    en: 'Each leg is a separate one-way search. Open a new Fly-Fix search for each flight.',
+    en: 'Each leg was priced separately. Open the result page for that exact flight, then book from there.',
     he: 'כל רגל הוא חיפוש כיוון אחד נפרד. פתחו חיפוש Fly-Fix חדש לכל טיסה.',
     ru: 'Каждый перелёт — отдельный поиск в одну сторону. Откройте новый поиск Fly-Fix для каждого рейса.',
   },

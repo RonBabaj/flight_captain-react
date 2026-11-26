@@ -46,13 +46,24 @@ import { formatMonthShort, formatMonthYear } from '../../../utils/monthNames';
 import { CheaperCitiesSection } from '../../flight-search/components/CheaperCitiesSection';
 import type { CheaperCitiesOption } from '../../flight-search/components/CheaperCitiesSection';
 import { POSITIONING_HUB_AIRPORTS } from '../../../utils/positioningSearch';
+import { openHubMainLeg, openHubPositioningLeg } from '../../../utils/positioningHubLinks';
 
 // Module-scope cache: key → Promise<{ price, sessionId, results } | null>
 // Persists across dev-mode StrictMode remounts so we never create duplicate sessions.
 interface PositioningLegResult {
   price: number;
   sessionId: string;
+  optionId: string;
   results: FlightOption[];
+}
+
+function cheapestOptionId(results: FlightOption[]): string {
+  if (!results.length) return '';
+  const best = results.reduce(
+    (min, opt) => (opt.price.amount < min.price.amount ? opt : min),
+    results[0],
+  );
+  return best.id;
 }
 const POSITIONING_LIVE_CACHE = new Map<string, Promise<PositioningLegResult | null>>();
 
@@ -113,7 +124,8 @@ async function findCheapestFlightForDate(params: {
         (min, opt) => (opt.price.amount < min ? opt.price.amount : min),
         lastResults[0].price.amount,
       );
-      return { price: cheapestPrice, sessionId: session.id, results: lastResults };
+      const optionId = cheapestOptionId(lastResults);
+      return { price: cheapestPrice, sessionId: session.id, optionId, results: lastResults };
     } catch {
       return null;
     }
@@ -813,6 +825,10 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           positioningPrice: { amount: posPrice, currency },
           hubFlightPrice: { amount: hubPrice, currency },
           mainTripPrice: { amount: directBaseline, currency },
+          positioningSessionId: posResult?.sessionId,
+          positioningOptionId: posResult?.optionId,
+          hubSessionId: hubResult?.sessionId,
+          hubOptionId: hubResult?.optionId,
         } as CheaperCitiesOption;
       }),
     ).then((results) => {
@@ -1451,19 +1467,55 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
           savingsAmount={hubSummaryModal.savings.amount}
           savingsCurrency={hubSummaryModal.savings.currency}
           footer={
-            <TouchableOpacity
-              style={[hfm.ctaBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
-              activeOpacity={0.85}
-              onPress={() => {
-                const hub = hubSummaryModal.hubAirport;
-                setHubSummaryModal(null);
-                handleViewOptimizedHub(hub);
-              }}
-            >
-              <Text style={[hfm.ctaText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
-                {t('search_via')} {hubSummaryModal.hubAirport}
+            <>
+              <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 4 }}>
+                {t('positioning_split_hint')}
               </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[hfm.ctaBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
+                activeOpacity={0.85}
+                onPress={() => {
+                  const hub = hubSummaryModal;
+                  const params = {
+                    origin: origin.trim().toUpperCase(),
+                    destination: destination.trim().toUpperCase(),
+                    departureDate: hub.departureDate || '',
+                    adults,
+                    children,
+                    currency,
+                  };
+                  void openHubPositioningLeg(hub, params, currency);
+                }}
+              >
+                <Text style={[hfm.ctaText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+                  {t('search_route_leg')
+                    .replace('{from}', origin.trim().toUpperCase())
+                    .replace('{to}', hubSummaryModal.hubAirport)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[hfm.ctaBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
+                activeOpacity={0.85}
+                onPress={() => {
+                  const hub = hubSummaryModal;
+                  const params = {
+                    origin: origin.trim().toUpperCase(),
+                    destination: destination.trim().toUpperCase(),
+                    departureDate: hub.departureDate || '',
+                    adults,
+                    children,
+                    currency,
+                  };
+                  void openHubMainLeg(hub, params, currency);
+                }}
+              >
+                <Text style={[hfm.ctaText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
+                  {t('search_route_leg')
+                    .replace('{from}', hubSummaryModal.hubAirport)
+                    .replace('{to}', destination.trim().toUpperCase())}
+                </Text>
+              </TouchableOpacity>
+            </>
           }
         />
       )}
