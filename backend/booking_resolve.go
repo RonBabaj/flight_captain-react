@@ -1242,6 +1242,22 @@ func runBookingMatch(ctx context.Context, session *SearchSession, option *Flight
 		}
 	}
 
+	// Prefer verified per-leg GF2 partner checkout over airline search templates on RT rows.
+	if legIndex < 0 && option != nil && len(option.Legs) > 1 && !isSellerOTASource(option) && !isOTAScrapedSource(option.Source) {
+		if legResp, ok := tryPerLegGF2BookingResolve(ctx, session, option, fp, segmentIndex); ok {
+			logBookingResolve(bookingResolveLogEvent{
+				Event:                "resolve_verified_per_leg",
+				ItineraryFingerprint: fp,
+				LegRoute:             legRoute,
+				Status:               legResp.Status,
+				Provider:             providerFromOffer(legResp.Offer),
+				CandidateCount:       legResp.CandidatesConsidered,
+				DurationMs:           time.Since(start).Milliseconds(),
+			})
+			return legResp
+		}
+	}
+
 	// Sell the fare we showed — not a different store, not a dead deep link.
 	// - Seller OTA (Kiwi): primary = that OTA's results/checkout path (ketchup).
 	// - Meta scrape (Skyscanner): never listing; airline only when template works.
@@ -1492,6 +1508,79 @@ func mustCanonicalForLog(option *FlightOption, legIndex int, segmentIndex int) s
 		return search.CanonicalItinerary{}
 	}
 	return it
+}
+
+// tryPerLegGF2BookingResolve resolves partner checkout for each leg when a combined
+// round-trip GF2 fingerprint has no single booking_token (common on Google Flights rows).
+func tryPerLegGF2BookingResolve(
+	ctx context.Context,
+	session *SearchSession,
+	option *FlightOption,
+	fp string,
+	segmentIndex int,
+) (BookingResolveResponse, bool) {
+	if option == nil || len(option.Legs) <= 1 {
+		return BookingResolveResponse{}, false
+	}
+	normalize := bookingMatchPriceNormalizer()
+	var legPicks []*bookingmatch.BookingOffer
+	for i := range option.Legs {
+		it, err := canonicalItineraryForOption(option, i, segmentIndex)
+		if err != nil {
+			return BookingResolveResponse{}, false
+		}
+		var (
+			gf2Offers   []bookingmatch.BookingOffer
+			matchResult *bookingmatch.MatchResult
+		)
+		gf2Offers, _ = bookingGF2OffersResolver(ctx, session, option, it, i, segmentIndex)
+		if webBookingMatchEnabled() {
+			matchResult, _ = bookingMatchRunner(ctx, it)
+		}
+		offers := collectVerifiedBookingOffers(gf2Offers, matchResult)
+		pick := selectBestBookingOffer(offers, matchResult, session, option, i, normalize)
+		if pick == nil {
+			pick = selectBestBookingOffer(gf2CheckoutOffers(gf2Offers), matchResult, session, option, i, normalize)
+		}
+		if pick == nil {
+			return BookingResolveResponse{}, false
+		}
+		legPicks = append(legPicks, pick)
+	}
+
+	primary := publicOfferFromMatch(legPicks[0], len(legPicks) > 1)
+	if primary == nil {
+		return BookingResolveResponse{}, false
+	}
+	primary.PriceLabel = "cheapest_ota"
+
+	var alts []PublicBookingAlternative
+	for i := 1; i < len(legPicks); i++ {
+		pub := publicOfferFromMatch(legPicks[i], false)
+		if pub == nil || pub.URL == "" {
+			continue
+		}
+		alt := PublicBookingAlternative{
+			Provider: pub.Provider,
+			Domain:   pub.Domain,
+			URL:      pub.URL,
+			Price:    pub.Price,
+			Currency: pub.Currency,
+		}
+		alts = append(alts, alt)
+	}
+
+	cheapest := *primary
+	return BookingResolveResponse{
+		Found:                true,
+		Status:               BookingResolveVerified,
+		ItineraryFingerprint: fp,
+		Offer:                &cheapest,
+		CheapestOta:          &cheapest,
+		Alternatives:         alts,
+		CandidatesConsidered: len(legPicks),
+		Message:              "Book each direction separately — partner checkout links are below.",
+	}, true
 }
 
 func legRouteLabel(it search.CanonicalItinerary) string {

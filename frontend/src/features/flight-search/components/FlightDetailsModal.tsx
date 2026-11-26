@@ -19,6 +19,10 @@ import { AppIcon } from '../../../components/AppIcon';
 import { resolveBookingOffer } from '../../../api';
 import { isSafeBookingUrl, pickPrimaryBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
+import {
+  sessionBookingResolveFromOption,
+  sessionCheckoutUrlFromOption,
+} from '../../../utils/sessionBookingHandoff';
 import { BookingOptionsFooter, Button } from '../../../ui';
 import { resolveAirlineLabel, resolveCarrierCode } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
@@ -149,8 +153,13 @@ export function FlightDetailsModal({
   const splitBooking = option ? isSplitBookingItinerary(option, searchParams) : false;
   const perTicketBooking = option ? needsPerTicketBooking(option, searchParams) : false;
   const hops = useMemo(() => (option ? bookingHopsFromOption(option) : []), [option]);
+  // GF2 round-trip fares rarely expose one combined booking_token — checkout is per direction.
+  const gf2MultiLegBooking =
+    (option?.source || '').toLowerCase() === 'googleflights2' && (option?.legs?.length ?? 0) > 1;
   const showPerTicketSection =
-    perTicketBooking && hops.length > 0 && (hops.length > 1 || splitBooking);
+    (perTicketBooking || gf2MultiLegBooking) &&
+    hops.length > 0 &&
+    (hops.length > 1 || splitBooking);
 
   const resolveStorageKey = (legIndex?: number, segmentIndex?: number) => {
     if (segmentIndex != null && segmentIndex >= 0) {
@@ -164,7 +173,10 @@ export function FlightDetailsModal({
     resolveStorageKey(hop.legIndex, hop.segmentIndex);
 
   useEffect(() => {
-    setLegResolves({});
+    // Kiwi/Skyscanner already attach a checkout URL on the card — seed Book from that
+    // (backend storedSessionBookingURL does the same). Do not wait on GF2 rematch.
+    const seeded = sessionBookingResolveFromOption(option);
+    setLegResolves(seeded ? { full: seeded } : {});
     setResolveLoadingKeys({});
   }, [option?.id, sessionId]);
 
@@ -304,10 +316,29 @@ export function FlightDetailsModal({
       return;
     }
 
+    // Full-itinerary Book: open the scrape/session handoff on the card immediately.
+    if (
+      !forceRefresh &&
+      (legIndex == null || legIndex < 0) &&
+      (segmentIndex == null || segmentIndex < 0) &&
+      !(perTicketBooking && hops.length > 1)
+    ) {
+      const sessionUrl = sessionCheckoutUrlFromOption(option);
+      if (sessionUrl) {
+        const seeded = sessionBookingResolveFromOption(option);
+        if (seeded) {
+          setLegResolves((prev) => ({ ...prev, full: seeded }));
+        }
+        await openUrlInNewTab(sessionUrl);
+        refreshResolve(undefined, undefined);
+        return;
+      }
+    }
+
     if (forceRefresh) {
       const res = await resolveHop(legIndex, segmentIndex, true);
       if (!res?.found) {
-        Alert.alert('Error', t('booking_search_unavailable'));
+        Alert.alert('Error', t('no_verified_booking'));
       }
       return;
     }
@@ -327,14 +358,17 @@ export function FlightDetailsModal({
         targets.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, false)),
       );
       if (results.length === 1 && !results[0]?.found) {
-        Alert.alert('Error', t('booking_search_unavailable'));
+        Alert.alert('Error', results[0]?.message || t('no_verified_booking'));
       }
       return;
     }
 
     const res = await resolveHop(legIndex, segmentIndex, false);
     if (!res?.found) {
-      Alert.alert('Error', t('booking_search_unavailable'));
+      Alert.alert('Error', res?.message || t('no_verified_booking'));
+    } else {
+      const url = pickPrimaryBookingUrl(res);
+      if (url) await openUrlInNewTab(url);
     }
   };
 
@@ -365,7 +399,7 @@ export function FlightDetailsModal({
   };
 
   const unresolvedHopCount =
-    perTicketBooking && hops.length > 1
+    showPerTicketSection && hops.length > 1
       ? hops.filter((hop) => !legResolves[hopStorageKey(hop)]?.found).length
       : 0;
   const parallelLoadingCount = Object.keys(resolveLoadingKeys).length;

@@ -62,7 +62,7 @@ import { matchesStopsFilter } from '../../../utils/itineraryStops';
 import { distinctMarketingCarriers } from '../../../utils/displayAirlines';
 import { flushActiveAutocomplete } from '../../../utils/placeSearch';
 import { buildResultsSearchSummary } from '../../../utils/searchSummaryDisplay';
-import { openFlyFixLegSearchInNewTab } from '../../../utils/searchRouteUrl';
+import { openHubMainLeg, openHubPositioningLeg } from '../../../utils/positioningHubLinks';
 import {
   findCheapestOptionForParams,
   POSITIONING_HUB_AIRPORTS,
@@ -1469,22 +1469,18 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
     setPositioningDetails(opt);
   };
 
-  const openPositioningLegSearch = async (origin: string, destination: string) => {
+  const openHubLegResults = async (which: 'positioning' | 'hub') => {
+    if (!positioningDetails) return;
     const dep = storeParams?.departureDate;
-    if (!dep || !origin.trim() || !destination.trim()) {
+    if (!dep) {
       Alert.alert('', t('fill_origin_destination_dates'));
       return;
     }
     try {
-      const ok = await openFlyFixLegSearchInNewTab({
-        origin: origin.trim().toUpperCase(),
-        destination: destination.trim().toUpperCase(),
-        departureDate: dep,
-        cabinClass: storeParams?.cabinClass,
-        adults: storeParams?.adults,
-        children: storeParams?.children,
-        currency: storeParams?.currency || currency,
-      });
+      const ok =
+        which === 'positioning'
+          ? await openHubPositioningLeg(positioningDetails, storeParams, currency)
+          : await openHubMainLeg(positioningDetails, storeParams, currency);
       if (!ok) {
         Alert.alert('', t('search_failed'));
       }
@@ -2001,9 +1997,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               </Text>
               <TouchableOpacity
                 style={[styles.positioningPrimaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
-                onPress={() =>
-                  openPositioningLegSearch(storeParams?.origin || '', positioningDetails.hubAirport)
-                }
+                onPress={() => void openHubLegResults('positioning')}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.positioningPrimaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>
@@ -2014,9 +2008,7 @@ export function ResultsScreen({ route }: { route: { params: Record<string, unkno
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.positioningPrimaryBtn, { backgroundColor: theme.buttonBg, borderRadius: theme.radiusMd }]}
-                onPress={() =>
-                  openPositioningLegSearch(positioningDetails.hubAirport, storeParams?.destination || '')
-                }
+                onPress={() => void openHubLegResults('hub')}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.positioningPrimaryBtnText, { color: theme.buttonText, fontFamily: theme.fontBody }]}>

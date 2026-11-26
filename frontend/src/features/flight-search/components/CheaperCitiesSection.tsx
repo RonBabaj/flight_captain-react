@@ -13,6 +13,12 @@ export interface CheaperCitiesOption {
   hubFlightPrice?: MonetaryAmount;
   mainTripPrice?: MonetaryAmount;
   departureDate?: string;
+  /** Live search session for origin → hub (positioning optimizer). */
+  positioningSessionId?: string;
+  positioningOptionId?: string;
+  /** Live search session for hub → destination. */
+  hubSessionId?: string;
+  hubOptionId?: string;
 }
 
 interface Props {

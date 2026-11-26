@@ -174,11 +174,12 @@ func TestPersistSearchSessionKeepsBookingTokens(t *testing.T) {
 
 	public := sanitizeSessionForClient(got)
 	if public.Results[0].BookingToken != "" || len(public.Results[0].LegBookingTokens) != 0 ||
-		len(public.Results[0].LegDeepLinks) != 0 || public.Results[0].BookingURL != "" {
-		t.Fatalf("client snapshot leaked booking internals: %+v", public.Results[0])
+		len(public.Results[0].LegDeepLinks) != 0 {
+		t.Fatalf("client snapshot leaked GF2 booking tokens: %+v", public.Results[0])
 	}
-	if public.Results[0].DeepLink != "https://ota.example/full" {
-		t.Fatalf("public deepLink=%q", public.Results[0].DeepLink)
+	// Seller handoff URLs stay on the card for Book (session methodology #189).
+	if public.Results[0].DeepLink != "https://ota.example/full" || public.Results[0].BookingURL != "https://ota.example/out" {
+		t.Fatalf("public deepLink=%q bookingUrl=%q", public.Results[0].DeepLink, public.Results[0].BookingURL)
 	}
 	if got.Results[0].BookingToken != "tok-full" {
 		t.Fatal("sanitizeSessionForClient must not mutate the stored session")
