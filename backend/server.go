@@ -1353,8 +1353,10 @@ func pageSearchSessionForClient(resp SearchSessionResultsResponse, offset, limit
 	return out
 }
 
-// sanitizeSessionForClient copies a session snapshot and removes booking tokens /
-// internal checkout URLs so GET /api/search/sessions/{id} does not expose them.
+// sanitizeSessionForClient copies a session snapshot and removes GF2 booking tokens
+// (opaque RapidAPI secrets) so GET /api/search/sessions/{id} does not expose them.
+// Seller checkout URLs (Kiwi /booking?token=…, Skyscanner transport_deeplink) stay on
+// DeepLink / BookingURL — Book uses those as the session handoff without rematching GF2.
 // persistSearchSession still stores the unsanitized snapshot for booking resolve.
 func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionResultsResponse {
 	out := resp
@@ -1366,7 +1368,7 @@ func sanitizeSessionForClient(resp SearchSessionResultsResponse) SearchSessionRe
 		out.Results[i].BookingToken = ""
 		out.Results[i].LegBookingTokens = nil
 		out.Results[i].LegDeepLinks = nil
-		out.Results[i].BookingURL = ""
+		// Keep BookingURL / DeepLink — OTA scrape handoffs (#189), not GF2 tokens.
 		// Keep LegPrices — they are fares, not checkout secrets.
 	}
 	return out
