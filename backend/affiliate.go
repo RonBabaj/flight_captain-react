@@ -152,29 +152,22 @@ func init() {
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://www.britishairways.com/travel/book/public/en_us?eId=106019&from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
+		// LH-group (LH/OS/LX): public /booking/search-flights?origin1=… (buildLHGroupSearchURL).
+		// Do NOT use /booking/flight (404) or /deeplink/partner without partner encryption.
 		"LH": {
 			Code: "LH",
 			Name: "Lufthansa",
 			Type: ProviderTypeAirline,
-			// /booking/flight?… 404s on lufthansa.com. Partner /deeplink/partner needs an
-			// encrypted LH partner key (same class of failure as Austrian). No link until verified.
-			URLTpl: "",
 		},
 		"OS": {
 			Code: "OS",
 			Name: "Austrian Airlines",
 			Type: ProviderTypeAirline,
-			// No public search URL. /at/en/booking 404s, and /deeplink/partner without
-			// a partner key opens the book form in an error state (default Frankfurt,
-			// empty destination). Do not emit a link until one is verified.
-			URLTpl: "",
 		},
 		"LX": {
 			Code: "LX",
 			Name: "Swiss",
 			Type: ProviderTypeAirline,
-			// Same LH-group pattern as Lufthansa — unverified /booking/flight templates 404.
-			URLTpl: "",
 		},
 		"AF": {
 			Code:   "AF",
@@ -368,6 +361,9 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	if carrier == "DE" {
 		return buildCondorSearchURL(origin, dest, dep, returnDate)
 	}
+	if carrier == "OS" || carrier == "LH" || carrier == "LX" {
+		return buildLHGroupSearchURL(carrier, origin, dest, dep, returnDate, adults)
+	}
 
 	if strings.TrimSpace(provider.URLTpl) == "" {
 		return ""
@@ -404,6 +400,47 @@ func compactYYYYMMDD(isoDate string) string {
 		return d[0:4] + d[5:7] + d[8:10]
 	}
 	return strings.ReplaceAll(d, "-", "")
+}
+
+// buildLHGroupSearchURL opens Austrian / Lufthansa / Swiss public flight search
+// with route and dates prefilled (fare not guaranteed — user confirms on the airline site).
+// Uses the LHG destinations-widget path: /booking/search-flights?origin1=…
+// Never emit /deeplink/partner (needs encrypted partner key) or /booking/flight (404).
+func buildLHGroupSearchURL(carrier, origin, dest, dep, returnDate string, adults int) string {
+	origin = strings.ToUpper(strings.TrimSpace(origin))
+	dest = strings.ToUpper(strings.TrimSpace(dest))
+	dep = strings.TrimSpace(dep)
+	if origin == "" || dest == "" || dep == "" {
+		return ""
+	}
+	host := ""
+	switch strings.ToUpper(strings.TrimSpace(carrier)) {
+	case "OS":
+		host = "https://www.austrian.com/us/en/booking/search-flights"
+	case "LH":
+		host = "https://www.lufthansa.com/us/en/booking/search-flights"
+	case "LX":
+		host = "https://www.swiss.com/us/en/booking/search-flights"
+	default:
+		return ""
+	}
+	if adults < 1 {
+		adults = 1
+	}
+	q := url.Values{}
+	q.Set("origin1", origin)
+	q.Set("destination1", dest)
+	q.Set("departuredate1", dep)
+	q.Set("adults", strconv.Itoa(adults))
+	q.Set("children", "0")
+	q.Set("infants", "0")
+	ret := strings.TrimSpace(returnDate)
+	if ret != "" {
+		q.Set("origin2", dest)
+		q.Set("destination2", origin)
+		q.Set("departuredate2", ret)
+	}
+	return host + "?" + q.Encode()
 }
 
 // buildCondorSearchURL opens Condor's flight search with route and dates prefilled.

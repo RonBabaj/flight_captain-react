@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestBuildLegAirlineDirectURL_lufthansaHasNoUnverifiedLink(t *testing.T) {
+func TestBuildLegAirlineDirectURL_lufthansaSearchFlights(t *testing.T) {
 	dep := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
 	opt := &FlightOption{
 		Legs: []FlightLeg{
@@ -21,10 +21,16 @@ func TestBuildLegAirlineDirectURL_lufthansaHasNoUnverifiedLink(t *testing.T) {
 		DepartureDate: "2026-11-27", Adults: 1,
 	}}
 	u := BuildLegAirlineDirectURL(sess, opt, 0, 0, "", "")
-	if u != "" {
-		t.Fatalf("must not emit unverified Lufthansa /booking/flight URL (404s): %s", u)
+	if u == "" {
+		t.Fatal("expected Lufthansa search-flights URL")
 	}
-	if strings.Contains(u, "lufthansa.com/booking") {
+	if !strings.Contains(u, "lufthansa.com") || !strings.Contains(u, "search-flights") {
+		t.Fatalf("expected lufthansa.com/booking/search-flights, got %s", u)
+	}
+	if strings.Contains(u, "/booking/flight") || strings.Contains(u, "deeplink/partner") {
 		t.Fatalf("dead Lufthansa path: %s", u)
+	}
+	if !strings.Contains(u, "origin1=TLV") || !strings.Contains(u, "destination1=ATH") {
+		t.Fatalf("missing route params: %s", u)
 	}
 }
