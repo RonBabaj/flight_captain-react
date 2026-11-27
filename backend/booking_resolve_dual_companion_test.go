@@ -141,6 +141,34 @@ func TestEnsureDualBookingCompanion_attachesAirlineWhenOTAOnlySwissHop(t *testin
 	}
 }
 
+func TestApplyAirlinePrefillPricing_clearsSearchQuoteWhenOTAPriced(t *testing.T) {
+	p := 728.0
+	q := 185.0
+	resp := BookingResolveResponse{
+		CheapestOta: &PublicBookingOffer{
+			Provider: "Priceline", Domain: "priceline.com",
+			URL: "https://www.priceline.com/book", Price: &p, Currency: "USD",
+			PriceLabel: "google_flights_partner",
+		},
+		AirlineDirect: &PublicBookingOffer{
+			Provider: "British Airways", Domain: "britishairways.com",
+			URL: "https://www.britishairways.com/travel/book/public/en_us/flightList?onds=TLV-LHR_2026-11-28&ad=1",
+			Price: &q, Currency: "USD", PriceLabel: "airline_direct",
+		},
+	}
+	sess := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "LHR", DepartureDate: "2026-11-28", Adults: 1, Currency: "USD",
+	}}
+	opt := &FlightOption{Price: MonetaryAmount{Amount: 185, Currency: "USD"}}
+	applyAirlinePrefillPricing(&resp, sess, opt, -1)
+	if resp.AirlineDirect.PriceLabel != "airline_direct_prefill" {
+		t.Fatalf("priceLabel=%q", resp.AirlineDirect.PriceLabel)
+	}
+	if resp.AirlineDirect.Price != nil {
+		t.Fatalf("must not keep search quote on BA prefill beside priced OTA, got %v", *resp.AirlineDirect.Price)
+	}
+}
+
 func TestRunBookingMatch_swissHopPrefillNotNotFound(t *testing.T) {
 	dep := time.Date(2026, 11, 28, 18, 0, 0, 0, time.UTC)
 	arr := time.Date(2026, 11, 28, 22, 10, 0, 0, time.UTC)

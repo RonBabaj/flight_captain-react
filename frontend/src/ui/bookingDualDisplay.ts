@@ -7,13 +7,21 @@ function offerPriceAmount(offer: PublicBookingOffer): number | null {
   return offer.price;
 }
 
+/** Search-form airline links are not a verified fare — never use them for LOWEST HERE. */
+function comparableAirlinePrice(airline: PublicBookingOffer): number | null {
+  if (airline.priceLabel === 'airline_direct_prefill' || airline.priceLabel === 'search_prefill') {
+    return null;
+  }
+  return offerPriceAmount(airline);
+}
+
 /** Pick honest card badges from comparable numeric prices. */
 export function badgesForDualOffers(
   partner: PublicBookingOffer,
   airline: PublicBookingOffer,
 ): { partnerBadge: BookingDisplayBadge; airlineBadge: BookingDisplayBadge; partnerIsLower: boolean } {
   const pp = offerPriceAmount(partner);
-  const ap = offerPriceAmount(airline);
+  const ap = comparableAirlinePrice(airline);
   const airlineBadge: BookingDisplayBadge = 'direct';
 
   if (pp == null && ap == null) {

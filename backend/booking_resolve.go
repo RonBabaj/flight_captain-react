@@ -349,21 +349,13 @@ func buildDualBookingResolveResponse(
 	return resp, event, true
 }
 
-// reconcileDualBookingOffers fixes dual-compare UX: airline template prices must match the
-// full-trip search quote (not a GF2 hop scrape), and broken Skyscanner deeplinks are dropped.
+// reconcileDualBookingOffers fixes dual-compare UX: airline template pricing vs verified OTAs,
+// and drops broken Skyscanner deeplinks.
 func reconcileDualBookingOffers(resp *BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int) {
 	if resp == nil || option == nil {
 		return
 	}
-	if resp.AirlineDirect != nil && resp.AirlineDirect.URL != "" && isAffiliateTemplateBookingURL(resp.AirlineDirect.URL) {
-		q := quoteBindingFromOption(session, option, legIndex)
-		if q.Amount > 0 && strings.TrimSpace(q.Currency) != "" {
-			amt := q.Amount
-			resp.AirlineDirect.Price = &amt
-			resp.AirlineDirect.Currency = q.Currency
-			resp.AirlineDirect.PriceLabel = "airline_direct_prefill"
-		}
-	}
+	applyAirlinePrefillPricing(resp, session, option, legIndex)
 	if resp.CheapestOta != nil && resp.CheapestOta.URL != "" {
 		if search.IsTransportDeeplink(resp.CheapestOta.URL) && !search.IsValidSkyscannerDeeplink(resp.CheapestOta.URL) {
 			resp.CheapestOta.URL = ""
@@ -375,6 +367,34 @@ func reconcileDualBookingOffers(resp *BookingResolveResponse, session *SearchSes
 	if resp.CheapestOta == nil && resp.Offer != nil && resp.Offer.URL == "" && resp.AirlineDirect != nil {
 		resp.Offer = resp.AirlineDirect
 	}
+}
+
+// applyAirlinePrefillPricing labels airline search-form URLs as airline_direct_prefill.
+// When a verified OTA price exists, clear the search-card quote from airline prefill so the UI
+// cannot mark a fake $185 "LOWEST HERE" against a real $700+ partner checkout.
+func applyAirlinePrefillPricing(resp *BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int) {
+	if resp == nil || resp.AirlineDirect == nil || strings.TrimSpace(resp.AirlineDirect.URL) == "" {
+		return
+	}
+	if !isAffiliateTemplateBookingURL(resp.AirlineDirect.URL) && resp.AirlineDirect.PriceLabel != "airline_direct_prefill" {
+		return
+	}
+	resp.AirlineDirect.PriceLabel = "airline_direct_prefill"
+	if resp.CheapestOta != nil && resp.CheapestOta.Price != nil && *resp.CheapestOta.Price > 0 {
+		resp.AirlineDirect.Price = nil
+		resp.AirlineDirect.Currency = ""
+		return
+	}
+	if resp.AirlineDirect.Price != nil && *resp.AirlineDirect.Price > 0 && strings.TrimSpace(resp.AirlineDirect.Currency) != "" {
+		return
+	}
+	q := quoteBindingFromOption(session, option, legIndex)
+	if q.Amount <= 0 || strings.TrimSpace(q.Currency) == "" {
+		return
+	}
+	amt := q.Amount
+	resp.AirlineDirect.Price = &amt
+	resp.AirlineDirect.Currency = q.Currency
 }
 
 func pickDualBookingOffers(
@@ -1069,7 +1089,7 @@ func ensureDualBookingCompanion(
 			resp.Message = "Compare the partner price with booking on the airline site."
 		}
 	}
-	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
+	applyAirlinePrefillPricing(resp, session, option, legIndex)
 }
 
 // ensureOTACompanionWhenAirlineOnly restores dual Book when resolve only found airline-direct
@@ -1124,7 +1144,7 @@ func ensureOTACompanionWhenAirlineOnly(
 	resp.CheapestOta = pub
 	resp.Offer = pub
 	resp.Message = "Compare the partner price with booking on the airline site."
-	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
+	applyAirlinePrefillPricing(resp, session, option, legIndex)
 }
 
 // supplementAirlineDirectFromGF2 fills airlineDirect when a scrape session already has
@@ -1170,7 +1190,7 @@ func supplementAirlineDirectFromGF2(
 	}
 	resp.AirlineDirect = airline
 	resp.Message = "Compare the partner price with booking on the airline site."
-	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
+	applyAirlinePrefillPricing(resp, session, option, legIndex)
 }
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) (resp BookingResolveResponse) {

@@ -146,11 +146,12 @@ func init() {
 			Type:   ProviderTypeAirline,
 			URLTpl: "https://www.aa.com/booking/find-flights?origin={origin}&destination={destination}&departureDate={departureDate}&returnDate={returnDate}&aff_id={aff_id}&subid={subid}",
 		},
+		// BA — flightList?onds=ORIGIN-DEST_YYYY-MM-DD (buildBASearchURL).
+		// Old travel/book/public/en_us?eId=…&from=… 404s ("Page not found").
 		"BA": {
-			Code:   "BA",
-			Name:   "British Airways",
-			Type:   ProviderTypeAirline,
-			URLTpl: "https://www.britishairways.com/travel/book/public/en_us?eId=106019&from={origin}&to={destination}&outbound={departureDate}&inbound={returnDate}&aff_id={aff_id}&subid={subid}",
+			Code: "BA",
+			Name: "British Airways",
+			Type: ProviderTypeAirline,
 		},
 		// LH-group (LH/OS/LX): public /booking/search-flights?origin1=… (buildLHGroupSearchURL).
 		// Do NOT use /booking/flight (404) or /deeplink/partner without partner encryption.
@@ -364,6 +365,9 @@ func BuildLegAirlineDirectURL(session *SearchSession, option *FlightOption, legI
 	if carrier == "OS" || carrier == "LH" || carrier == "LX" {
 		return buildLHGroupSearchURL(carrier, origin, dest, dep, returnDate, adults)
 	}
+	if carrier == "BA" {
+		return buildBASearchURL(origin, dest, dep, returnDate, adults)
+	}
 
 	if strings.TrimSpace(provider.URLTpl) == "" {
 		return ""
@@ -400,6 +404,36 @@ func compactYYYYMMDD(isoDate string) string {
 		return d[0:4] + d[5:7] + d[8:10]
 	}
 	return strings.ReplaceAll(d, "-", "")
+}
+
+// buildBASearchURL opens British Airways flightList with route/dates prefilled.
+// Fare is not guaranteed — user picks the matching flight on ba.com.
+// Never emit the legacy /travel/book/public/en_us?eId=…&from=… URL (404).
+func buildBASearchURL(origin, dest, dep, returnDate string, adults int) string {
+	origin = strings.ToUpper(strings.TrimSpace(origin))
+	dest = strings.ToUpper(strings.TrimSpace(dest))
+	dep = strings.TrimSpace(dep)
+	if origin == "" || dest == "" || dep == "" {
+		return ""
+	}
+	if adults < 1 {
+		adults = 1
+	}
+	onds := origin + "-" + dest + "_" + dep
+	ret := strings.TrimSpace(returnDate)
+	if ret != "" {
+		onds = onds + "," + dest + "-" + origin + "_" + ret
+	}
+	q := url.Values{}
+	q.Set("onds", onds)
+	q.Set("ad", strconv.Itoa(adults))
+	q.Set("yad", "0")
+	q.Set("ch", "0")
+	q.Set("inf", "0")
+	q.Set("cabin", "M")
+	q.Set("flex", "LOWEST")
+	q.Set("ond", "1")
+	return "https://www.britishairways.com/travel/book/public/en_us/flightList?" + q.Encode()
 }
 
 // buildLHGroupSearchURL opens Austrian / Lufthansa / Swiss public flight search
