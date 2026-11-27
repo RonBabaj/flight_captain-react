@@ -261,10 +261,21 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 	// "return not loaded" on result cards until TTL expires.
 	cacheKey := p.buildCacheKey(req)
 	if cached, ok := p.cache.get(cacheKey); ok {
-		incompleteRT := req.ReturnDate != "" && !IsOpenJaw(req) && !HasExtraLegs(req) &&
-			classicRoundTripMissingReturn(cached)
-		if incompleteRT {
-			log.Printf("[GF2_RT] ignoring incomplete cached RT results count=%d (missing return legs)", len(cached))
+		classicRT := req.ReturnDate != "" && !IsOpenJaw(req) && !HasExtraLegs(req)
+		if classicRT {
+			complete := filterCompleteClassicRoundTrip(cached)
+			if len(complete) == 0 {
+				log.Printf("[GF2_RT] ignoring incomplete cached RT results count=%d (missing return legs)", len(cached))
+			} else {
+				if len(complete) < len(cached) {
+					log.Printf("[GF2_RT] stripped %d outbound-only rows from RT cache (kept %d)", len(cached)-len(complete), len(complete))
+					p.cache.set(cacheKey, complete)
+				}
+				cacheHit = true
+				resultCount = len(complete)
+				cheapest = complete[0].Price.Amount
+				return complete, nil
+			}
 		} else {
 			cacheHit = true
 			resultCount = len(cached)
@@ -292,15 +303,22 @@ func (p *GoogleFlights2Provider) Search(ctx context.Context, req SearchRequest) 
 				if !GF2SkipRoundTripEnrich() {
 					p.enrichNativeRoundTripReturnLegs(ctx, req, results)
 				}
-				// Native GF2 often returns outbound-only; if enrich could not attach returns,
+				// Native GF2 often returns outbound-only; if any result still lacks a return,
 				// fall back to decomposed OW+OW so cards show real return schedules.
 				if classicRoundTripMissingReturn(results) {
 					log.Printf("[GF2_RT] native enrich incomplete (%d results); falling back to decomposed RT", len(results))
-					if alt, altErr := p.searchRoundTrip(ctx, req); altErr == nil && len(alt) > 0 && !classicRoundTripMissingReturn(alt) {
-						results = alt
+					if alt, altErr := p.searchRoundTrip(ctx, req); altErr == nil && len(alt) > 0 {
+						if complete := filterCompleteClassicRoundTrip(alt); len(complete) > 0 {
+							results = complete
+						}
 					} else if altErr != nil {
 						log.Printf("[GF2_RT] decomposed RT fallback failed: %v", altErr)
 					}
+				}
+				beforeFilter := len(results)
+				results = filterCompleteClassicRoundTrip(results)
+				if dropped := beforeFilter - len(results); dropped > 0 {
+					log.Printf("[GF2_RT] dropped %d outbound-only results after enrich/fallback (kept %d)", dropped, len(results))
 				}
 			}
 		}

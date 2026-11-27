@@ -515,8 +515,16 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "wizzair.com") && strings.Contains(u, "/booking/") {
 		return true
 	}
-	if strings.Contains(u, "austrian.com") && strings.Contains(u, "origin=") {
+	if strings.Contains(u, "austrian.com") && (strings.Contains(u, "origin=") || strings.Contains(u, "origin1=")) {
 		return true
+	}
+	// LH-group public search-flights (origin1 / destination1 / departuredate1).
+	if strings.Contains(u, "search-flights") && strings.Contains(u, "origin1=") {
+		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com"} {
+			if strings.Contains(u, host) {
+				return true
+			}
+		}
 	}
 	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {
 		return true

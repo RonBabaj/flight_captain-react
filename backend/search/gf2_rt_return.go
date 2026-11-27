@@ -9,17 +9,27 @@ import (
 // classicRoundTripMissingReturn reports whether any classic RT result still lacks a return leg.
 // Used to reject incomplete cache hits and to trigger decomposed RT fallback.
 func classicRoundTripMissingReturn(results []ProviderResult) bool {
-	if len(results) == 0 {
-		return false
-	}
-	missing := 0
 	for i := range results {
 		if len(results[i].Legs) < 2 {
-			missing++
+			return true
 		}
 	}
-	// Treat as incomplete when a majority of hits lack return (native GF2 outbound-only).
-	return missing*2 >= len(results)
+	return false
+}
+
+// filterCompleteClassicRoundTrip drops outbound-only shells so result cards never show
+// "return not loaded" for classic round trips.
+func filterCompleteClassicRoundTrip(results []ProviderResult) []ProviderResult {
+	if len(results) == 0 {
+		return results
+	}
+	out := make([]ProviderResult, 0, len(results))
+	for i := range results {
+		if len(results[i].Legs) >= 2 {
+			out = append(out, results[i])
+		}
+	}
+	return out
 }
 
 // enrichNativeRoundTripReturnLegs attaches return-leg schedules to native round-trip

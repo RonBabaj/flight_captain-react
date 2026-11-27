@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,5 +72,125 @@ func TestEnsureDualBookingCompanion_attachesOTAWhenAirlineOnly(t *testing.T) {
 	}
 	if resp.AirlineDirect == nil {
 		t.Fatal("expected airline direct to remain")
+	}
+}
+
+func TestEnsureDualBookingCompanion_attachesAirlineWhenOTAOnlySwissHop(t *testing.T) {
+	dep := time.Date(2026, 11, 28, 18, 0, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "ZRH",
+		DepartureTime: dep, MarketingCarrier: "LX", FlightNumber: "LX253",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+
+	oldGF2 := bookingGF2OffersResolver
+	defer func() { bookingGF2OffersResolver = oldGF2 }()
+	bookingGF2OffersResolver = func(
+		ctx context.Context,
+		session *SearchSession,
+		option *FlightOption,
+		wantItin search.CanonicalItinerary,
+		legIndex int,
+		segmentIndex int,
+	) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+
+	opt := &FlightOption{
+		Source: "googleflights2",
+		Price:  MonetaryAmount{Amount: 344, Currency: "USD"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "ZRH"},
+			DepartureTime: dep, MarketingCarrier: Carrier{Code: "LX"}, FlightNumber: "LX253",
+		}}}},
+	}
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2026-11-28", Adults: 1, Currency: "USD",
+	}}
+	p := 180.0
+	ota := &PublicBookingOffer{
+		Provider:   "Orbitz",
+		Domain:     "orbitz.com",
+		URL:        "https://www.orbitz.com/book?x=1",
+		PriceLabel: "verified",
+		Currency:   "USD",
+		Price:      &p,
+	}
+	resp := BookingResolveResponse{
+		Found:                true,
+		Status:               BookingResolveVerified,
+		ItineraryFingerprint: fp,
+		Offer:                ota,
+		CheapestOta:          ota,
+	}
+	ensureDualBookingCompanion(context.Background(), session, opt, it, fp, 0, 0, &resp)
+	if resp.CheapestOta == nil || resp.CheapestOta.URL != ota.URL {
+		t.Fatalf("OTA must remain, got %+v", resp.CheapestOta)
+	}
+	if resp.AirlineDirect == nil {
+		t.Fatal("expected airlineDirect companion for Swiss LX hop")
+	}
+	low := strings.ToLower(resp.AirlineDirect.URL)
+	if !strings.Contains(low, "swiss.com") || !strings.Contains(low, "search-flights") {
+		t.Fatalf("expected Swiss search-flights airlineDirect, got %q", resp.AirlineDirect.URL)
+	}
+}
+
+func TestRunBookingMatch_swissHopPrefillNotNotFound(t *testing.T) {
+	dep := time.Date(2026, 11, 28, 18, 0, 0, 0, time.UTC)
+	arr := time.Date(2026, 11, 28, 22, 10, 0, 0, time.UTC)
+	seg := search.CanonicalSegment{
+		From: "TLV", To: "ZRH",
+		DepartureTime: dep, ArrivalTime: arr,
+		MarketingCarrier: "LX", FlightNumber: "LX253",
+	}
+	it := search.CanonicalItinerary{
+		Segments: []search.CanonicalSegment{seg},
+		Legs:     []search.CanonicalLeg{{Segments: []search.CanonicalSegment{seg}}},
+	}
+	fp := search.CanonicalItineraryFingerprint(it)
+
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	opt := &FlightOption{
+		Source: "googleflights2",
+		Price:  MonetaryAmount{Amount: 344, Currency: "USD"},
+		Legs: []FlightLeg{{Segments: []FlightSegment{{
+			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "ZRH"},
+			DepartureTime: dep, ArrivalTime: arr,
+			MarketingCarrier: Carrier{Code: "LX"}, FlightNumber: "LX253",
+		}}}},
+	}
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2026-11-28", Adults: 1, Currency: "USD",
+	}}
+	resp := runBookingMatch(context.Background(), session, opt, it, fp, 0, 0)
+	if !resp.Found || resp.Status == BookingResolveNotFound {
+		t.Fatalf("Swiss hop must not be not_found; got found=%v status=%s msg=%q", resp.Found, resp.Status, resp.Message)
+	}
+	if resp.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "swiss.com") {
+		t.Fatalf("expected Swiss airlineDirect prefill, got %+v", resp.AirlineDirect)
 	}
 }

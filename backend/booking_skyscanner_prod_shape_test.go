@@ -226,11 +226,20 @@ func TestRunBookingMatch_skyscannerAustrianDoesNotUseBrokenDeeplink(t *testing.T
 	resp := runBookingMatch(context.Background(), session, opt, it, fp, -1, -1)
 	if resp.Found && resp.Offer != nil {
 		low := strings.ToLower(resp.Offer.URL)
-		if strings.Contains(low, "skyscanner") || strings.Contains(low, "austrian.com") {
-			t.Fatalf("must not Book via Skyscanner or a broken Austrian URL, got %q", resp.Offer.URL)
+		if strings.Contains(low, "skyscanner") {
+			t.Fatalf("must not Book via Skyscanner listing, got %q", resp.Offer.URL)
+		}
+		if strings.Contains(low, "deeplink/partner") || strings.Contains(low, "/at/en/booking?") {
+			t.Fatalf("must not use broken Austrian partner/deeplink URL, got %q", resp.Offer.URL)
 		}
 	}
-	if resp.AirlineDirect != nil && strings.Contains(strings.ToLower(resp.AirlineDirect.URL), "austrian.com") {
-		t.Fatalf("airline direct must not be an unverified Austrian URL: %q", resp.AirlineDirect.URL)
+	if resp.AirlineDirect != nil {
+		low := strings.ToLower(resp.AirlineDirect.URL)
+		if strings.Contains(low, "deeplink/partner") || strings.Contains(low, "/at/en/booking?") {
+			t.Fatalf("airline direct must not use dead Austrian paths: %q", resp.AirlineDirect.URL)
+		}
+		if strings.Contains(low, "austrian.com") && !strings.Contains(low, "search-flights") {
+			t.Fatalf("airline direct Austrian URL must be search-flights prefill: %q", resp.AirlineDirect.URL)
+		}
 	}
 }

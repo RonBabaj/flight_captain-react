@@ -791,6 +791,9 @@ func TestIsAffiliateTemplateBookingURL(t *testing.T) {
 	if !isAffiliateTemplateBookingURL("https://www.austrian.com/at/en/booking?origin=TLV&destination=VIE&departureDate=2027-01-07&cabin=ECONOMY") {
 		t.Fatal("expected austrian template URL")
 	}
+	if !isAffiliateTemplateBookingURL("https://www.swiss.com/us/en/booking/search-flights?origin1=TLV&destination1=ZRH&departuredate1=2026-11-28&adults=1") {
+		t.Fatal("expected swiss search-flights template URL")
+	}
 	if isAffiliateTemplateBookingURL("https://booking.elal.co.il/checkout/szg-tlv") {
 		t.Fatal("checkout deeplink is not a template")
 	}
