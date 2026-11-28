@@ -222,3 +222,91 @@ func TestRunBookingMatch_swissHopPrefillNotNotFound(t *testing.T) {
 		t.Fatalf("expected Swiss airlineDirect prefill, got %+v", resp.AirlineDirect)
 	}
 }
+
+// Exact prod shape from "LEG 1 OF 3" self-transfer: LX TLV→ZRH + OS ZRH→VIE + BZ VIE→TLV.
+// Empty GF2/OTA/web must still return Swiss airline-direct — never "No verified booking offer found yet".
+func TestRunBookingMatch_leg1Of3SwissSelfTransferNotNotFound(t *testing.T) {
+	depLX := time.Date(2026, 12, 25, 6, 0, 0, 0, time.UTC)
+	arrLX := time.Date(2026, 12, 25, 10, 40, 0, 0, time.UTC)
+	depOS := time.Date(2026, 12, 25, 19, 20, 0, 0, time.UTC)
+	arrOS := time.Date(2026, 12, 25, 20, 40, 0, 0, time.UTC)
+	depBZ := time.Date(2026, 12, 31, 14, 45, 0, 0, time.UTC)
+	arrBZ := time.Date(2026, 12, 31, 19, 15, 0, 0, time.UTC)
+
+	opt := &FlightOption{
+		Source: "googleflights2",
+		Price:  MonetaryAmount{Amount: 400, Currency: "USD"},
+		Legs: []FlightLeg{
+			{Segments: []FlightSegment{
+				{
+					From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "ZRH"},
+					DepartureTime: depLX, ArrivalTime: arrLX,
+					MarketingCarrier: Carrier{Code: "LX", Name: "SWISS"}, FlightNumber: "LX257",
+				},
+				{
+					From: AirportLike{Code: "ZRH"}, To: AirportLike{Code: "VIE"},
+					DepartureTime: depOS, ArrivalTime: arrOS,
+					MarketingCarrier: Carrier{Code: "OS", Name: "Austrian Airlines"}, FlightNumber: "OS144",
+				},
+			}},
+			{Segments: []FlightSegment{{
+				From: AirportLike{Code: "VIE"}, To: AirportLike{Code: "TLV"},
+				DepartureTime: depBZ, ArrivalTime: arrBZ,
+				MarketingCarrier: Carrier{Code: "BZ", Name: "Bluebird Airways"}, FlightNumber: "BZ317",
+			}}},
+		},
+	}
+
+	oldGF2 := bookingGF2OffersResolver
+	oldOTA := bookingOTAOffersResolver
+	oldWeb := bookingMatchRunner
+	defer func() {
+		bookingGF2OffersResolver = oldGF2
+		bookingOTAOffersResolver = oldOTA
+		bookingMatchRunner = oldWeb
+	}()
+	bookingGF2OffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingOTAOffersResolver = func(ctx context.Context, session *SearchSession, option *FlightOption, wantItin search.CanonicalItinerary, legIndex int, segmentIndex int) ([]bookingmatch.BookingOffer, error) {
+		return nil, nil
+	}
+	bookingMatchRunner = func(ctx context.Context, it search.CanonicalItinerary) (*bookingmatch.MatchResult, error) {
+		return nil, errBookingSearchUnavailable
+	}
+
+	session := &SearchSession{Params: CreateSearchSessionRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2026-12-25", ReturnDate: "2026-12-31",
+		Adults: 1, Currency: "USD",
+	}}
+
+	// LEG 1 OF 3 — TLV→ZRH SWISS
+	it0, err := canonicalItineraryForOption(opt, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp0 := search.CanonicalItineraryFingerprint(it0)
+	resp0 := runBookingMatch(context.Background(), session, opt, it0, fp0, 0, 0)
+	if !resp0.Found || resp0.Status == BookingResolveNotFound {
+		t.Fatalf("LEG1 LX must not be not_found; got found=%v status=%s msg=%q", resp0.Found, resp0.Status, resp0.Message)
+	}
+	if resp0.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp0.AirlineDirect.URL), "swiss.com") ||
+		!strings.Contains(resp0.AirlineDirect.URL, "origin1=TLV") || !strings.Contains(resp0.AirlineDirect.URL, "destination1=ZRH") {
+		t.Fatalf("LEG1 expected swiss.com TLV→ZRH search-flights, got %+v", resp0.AirlineDirect)
+	}
+
+	// LEG 2 OF 3 — ZRH→VIE Austrian
+	it1, err := canonicalItineraryForOption(opt, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp1 := search.CanonicalItineraryFingerprint(it1)
+	resp1 := runBookingMatch(context.Background(), session, opt, it1, fp1, 0, 1)
+	if !resp1.Found || resp1.Status == BookingResolveNotFound {
+		t.Fatalf("LEG2 OS must not be not_found; got found=%v status=%s msg=%q", resp1.Found, resp1.Status, resp1.Message)
+	}
+	if resp1.AirlineDirect == nil || !strings.Contains(strings.ToLower(resp1.AirlineDirect.URL), "austrian.com") {
+		t.Fatalf("LEG2 expected austrian.com prefill, got %+v", resp1.AirlineDirect)
+	}
+}
