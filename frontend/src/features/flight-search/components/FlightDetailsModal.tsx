@@ -44,6 +44,10 @@ import {
 } from '../../../utils/skyscanner';
 import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, formatFlightShortDate } from '../../../utils/flightTimeDisplay';
 import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
+import {
+  bookingResolveErrorMessage,
+  bookingResolveFetchErrorMessage,
+} from '../../../utils/bookingResolveMessage';
 import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '../../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -227,8 +231,14 @@ export function FlightDetailsModal({
       );
       setLegResolves((prev) => ({ ...prev, [key]: res }));
       return res;
-    } catch {
-      return undefined;
+    } catch (e) {
+      const failed: BookingResolveResponse = {
+        found: false,
+        status: 'search_unavailable',
+        message: bookingResolveFetchErrorMessage(e, t),
+      };
+      setLegResolves((prev) => ({ ...prev, [key]: failed }));
+      return failed;
     } finally {
       setHopLoading(key, false);
     }
@@ -358,7 +368,7 @@ export function FlightDetailsModal({
     if (forceRefresh) {
       const res = await resolveHop(legIndex, segmentIndex, true);
       if (!res?.found) {
-        Alert.alert('Error', t('no_verified_booking'));
+        Alert.alert('Error', bookingResolveErrorMessage(res, t));
       }
       return;
     }
@@ -378,14 +388,14 @@ export function FlightDetailsModal({
         targets.map((hop) => resolveHop(hop.legIndex, hop.segmentIndex, false)),
       );
       if (results.length === 1 && !results[0]?.found) {
-        Alert.alert('Error', results[0]?.message || t('no_verified_booking'));
+        Alert.alert('Error', bookingResolveErrorMessage(results[0], t));
       }
       return;
     }
 
     const res = await resolveHop(legIndex, segmentIndex, false);
     if (!res?.found) {
-      Alert.alert('Error', res?.message || t('no_verified_booking'));
+      Alert.alert('Error', bookingResolveErrorMessage(res, t));
     } else {
       const url = pickPrimaryBookingUrl(res);
       if (url) await openUrlInNewTab(url);
@@ -397,12 +407,7 @@ export function FlightDetailsModal({
     const loading = !!resolveLoadingKeys[storageKey];
     const error = resolved && !resolved.found;
 
-    const errorMessage =
-      error
-        ? resolved?.status === 'search_unavailable' || resolved?.status === 'timeout'
-          ? t('booking_search_unavailable')
-          : resolved?.message || t('no_verified_booking')
-        : null;
+    const errorMessage = error ? bookingResolveErrorMessage(resolved, t) : null;
 
     return (
       <BookingOptionsFooter

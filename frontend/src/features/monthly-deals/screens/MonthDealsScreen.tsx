@@ -25,6 +25,10 @@ import { isSafeBookingUrl } from '../../../api/booking';
 import type { BookingResolveResponse } from '../../../api/booking';
 import { BookingOptionsFooter } from '../../../ui';
 import { openUrlInNewTab } from '../../../utils/openUrl';
+import {
+  bookingResolveErrorMessage,
+  bookingResolveFetchErrorMessage,
+} from '../../../utils/bookingResolveMessage';
 import { getDisplayPrice, getCurrencySymbol } from '../../../utils/exchangeRates';
 import { getPendingDealsParams, setPendingDealsParams, getCachedDealsResults, setCachedDealsResults, paramsMatchSavedData, type DealsParams } from '../../../utils/dealsCache';
 import { formatAirlineFilterLabel, resolveAirlineLabel } from '../../../data/airlines';
@@ -890,10 +894,10 @@ export function MonthDealsScreen({ navigation, view = 'form' }: { navigation: an
       const res = await resolveBookingOffer(details.sessionId, details.optionId);
       setBookingResolve(res);
       if (!res.found) {
-        setBookError(res.message || t('no_verified_booking'));
+        setBookError(bookingResolveErrorMessage(res, t));
       }
-    } catch {
-      setBookError(t('booking_search_unavailable'));
+    } catch (e) {
+      setBookError(bookingResolveFetchErrorMessage(e, t));
     } finally {
       setBookLoading(false);
     }

@@ -966,6 +966,11 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'חיפוש הזמנה למסלול מדויק אינו זמין כרגע. נסו שוב מאוחר יותר.',
     ru: 'Поиск бронирования для точного маршрута временно недоступен. Попробуйте позже.',
   },
+  booking_search_timeout: {
+    en: 'Booking lookup took too long. Please try again.',
+    he: 'חיפוש ההזמנה ארך זמן רב מדי. נסו שוב.',
+    ru: 'Поиск бронирования занял слишком много времени. Попробуйте снова.',
+  },
   open_booking_site: { en: 'Book Now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   find_on_skyscanner: { en: 'Find on Skyscanner', he: 'חפש ב־Skyscanner', ru: 'Найти на Skyscanner' },
   share: { en: 'Share', he: 'שתף', ru: 'Поделиться' },
