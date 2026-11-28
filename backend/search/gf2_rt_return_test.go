@@ -45,15 +45,65 @@ func TestClassicRoundTripMissingReturn(t *testing.T) {
 		{Legs: []Leg{{Segments: []Segment{{From: "TLV", To: "ATH"}}}}},
 	}
 	if !classicRoundTripMissingReturn(outboundOnly) {
-		t.Fatal("outbound-only majority should be missing")
+		t.Fatal("outbound-only should be missing")
 	}
 	mixed := []ProviderResult{
 		{Legs: []Leg{{}, {}}},
 		{Legs: []Leg{{}, {}}},
 		{Legs: []Leg{{}}}, // one incomplete among mostly complete
 	}
-	if classicRoundTripMissingReturn(mixed) {
-		t.Fatal("minority incomplete should not trigger missing")
+	if !classicRoundTripMissingReturn(mixed) {
+		t.Fatal("any incomplete row must trigger missing (fallback + filter)")
+	}
+}
+
+func TestFilterCompleteClassicRoundTrip(t *testing.T) {
+	in := []ProviderResult{
+		{ID: "ok", Legs: []Leg{{}, {}}},
+		{ID: "bad", Legs: []Leg{{}}},
+		{ID: "ok2", Legs: []Leg{{}, {}}},
+	}
+	out := filterCompleteClassicRoundTrip(in)
+	if len(out) != 2 || out[0].ID != "ok" || out[1].ID != "ok2" {
+		t.Fatalf("expected only complete rows, got %+v", out)
+	}
+}
+
+func TestSearch_stripsIncompleteRowsFromClassicRTCache(t *testing.T) {
+	p := &GoogleFlights2Provider{cache: newGF2Cache(gf2CacheTTL)}
+	req := SearchRequest{
+		Origin: "TLV", Destination: "VIE",
+		DepartureDate: "2026-11-28", ReturnDate: "2026-11-30",
+		Adults: 1, Currency: "USD",
+	}
+	key := p.buildCacheKey(req)
+	p.cache.set(key, []ProviderResult{
+		{
+			ID:    "full-rt",
+			Price: Monetary{Currency: "USD", Amount: 344},
+			Legs: []Leg{
+				{Segments: []Segment{{From: "TLV", To: "VIE"}}},
+				{Segments: []Segment{{From: "VIE", To: "TLV"}}},
+			},
+		},
+		{
+			ID:    "outbound-only",
+			Price: Monetary{Currency: "USD", Amount: 300},
+			Legs:  []Leg{{Segments: []Segment{{From: "TLV", To: "VIE"}}}},
+		},
+	})
+
+	got, err := p.Search(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "full-rt" {
+		t.Fatalf("expected stripped cache to keep only full-rt, got %+v", got)
+	}
+	for _, r := range got {
+		if r.ID == "outbound-only" || len(r.Legs) < 2 {
+			t.Fatalf("must not serve return-not-loaded row: %+v", r)
+		}
 	}
 }
 

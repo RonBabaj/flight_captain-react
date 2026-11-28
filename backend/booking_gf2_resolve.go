@@ -515,8 +515,25 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "wizzair.com") && strings.Contains(u, "/booking/") {
 		return true
 	}
-	if strings.Contains(u, "austrian.com") && strings.Contains(u, "origin=") {
+	if strings.Contains(u, "austrian.com") && (strings.Contains(u, "origin=") || strings.Contains(u, "origin1=")) {
 		return true
+	}
+	// British Airways flightList?onds=… (and legacy from=/outbound= templates).
+	if strings.Contains(u, "britishairways.com") {
+		if strings.Contains(u, "flightlist") && strings.Contains(u, "onds=") {
+			return true
+		}
+		if strings.Contains(u, "from=") && (strings.Contains(u, "outbound=") || strings.Contains(u, "to=")) {
+			return true
+		}
+	}
+	// LH-group public search-flights (origin1 / destination1 / departuredate1).
+	if strings.Contains(u, "search-flights") && strings.Contains(u, "origin1=") {
+		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com"} {
+			if strings.Contains(u, host) {
+				return true
+			}
+		}
 	}
 	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {
 		return true
@@ -829,7 +846,7 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		resp.QuotedPrice = &amt
 		resp.QuotedCurrency = q.Currency
 	}
-	fillPublicOfferSearchQuote(resp.AirlineDirect, session, option, legIndex)
+	applyAirlinePrefillPricing(&resp, session, option, legIndex)
 	if resp.Offer == nil || q.Amount <= 0 {
 		return resp
 	}
