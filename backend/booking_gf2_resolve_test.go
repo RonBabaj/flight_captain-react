@@ -118,7 +118,8 @@ func TestGF2PartnerOfferFromURL_acceptsHTTPS(t *testing.T) {
 }
 
 func TestGF2PartnerOfferFromURL_transportDeeplinkIsBooking(t *testing.T) {
-	offer := gf2PartnerOfferFromURL("https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/os?itinerary=1", "fp")
+	// itinerary token must be ≥2 chars (IsValidSkyscannerDeeplink) or the URL is rejected.
+	offer := gf2PartnerOfferFromURL("https://www.skyscanner.net/transport_deeplink/4.0/FR/fr/EUR/air/os?itinerary=tlv-vie", "fp")
 	if offer == nil {
 		t.Fatal("expected deeplink offer")
 	}

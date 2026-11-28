@@ -23,7 +23,7 @@ import {
   sessionBookingResolveFromOption,
   sessionCheckoutUrlFromOption,
 } from '../../../utils/sessionBookingHandoff';
-import { BookingOptionsFooter, Button } from '../../../ui';
+import { BookingOptionsFooter, Button, SelfTransferNotice } from '../../../ui';
 import { resolveAirlineLabel, resolveCarrierCode } from '../../../data/airlines';
 import { getAirportNameByCode } from '../../../data/airports';
 import { openUrlInNewTab } from '../../../utils/openUrl';
@@ -43,6 +43,7 @@ import {
   needsPerTicketBooking,
 } from '../../../utils/skyscanner';
 import { formatFlightTime, flightTimeToMs, formatFlightWeekdayDate, formatFlightShortDate } from '../../../utils/flightTimeDisplay';
+import { formatDuration, formatLegStopsLabel } from '../../../utils/legSummary';
 import { offerSourceTranslationKey } from '../../../utils/offerSourceLabel';
 import {
   bookingResolveErrorMessage,
@@ -52,12 +53,6 @@ import type { CreateSearchSessionRequest, FlightOption, FlightSegment } from '..
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatDuration(min: number): string {
-  if (min <= 0) return '—';
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}h ${m}m`;
-}
 
 function layoverBetween(segments: FlightSegment[], idx: number): number {
   if (idx <= 0 || idx >= segments.length) return 0;
@@ -108,12 +103,6 @@ function legDuration(segments: FlightSegment[]): number {
   return segments.reduce((sum, s) => sum + segmentDurationMinutes(s), 0);
 }
 
-function stopsPhrase(stops: number, selfTransfer: boolean | undefined, t: (k: string) => string): string {
-  if (stops <= 0) return selfTransfer ? t('connection_unclear') : t('direct');
-  if (stops === 1) return `1 ${t('stop')}`;
-  return `${stops} ${t('stops')}`;
-}
-
 /** "4h 45m · Direct" for one leg, matching the line under each leg title. */
 function legDurationLine(
   segments: FlightSegment[] | undefined,
@@ -122,7 +111,7 @@ function legDurationLine(
 ): string {
   const segs = segments ?? [];
   const stops = Math.max(0, segs.length - 1);
-  return `${formatDuration(legDuration(segs))} · ${stopsPhrase(stops, selfTransfer, t)}`;
+  return `${formatDuration(legDuration(segs))} · ${formatLegStopsLabel(stops, t, { selfTransfer: !!selfTransfer })}`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -599,7 +588,7 @@ export function FlightDetailsModal({
     (acc, leg) => acc + Math.max(0, (leg.segments?.length ?? 1) - 1),
     0,
   );
-  const stopsLabel = stopsPhrase(totalStops, option.selfTransfer, t);
+  const stopsLabel = formatLegStopsLabel(totalStops, t, { selfTransfer: !!option.selfTransfer });
   const titledLegs = option.legs.filter((leg) => (leg.segments?.length ?? 0) > 0);
 
   const totalDur =
@@ -713,9 +702,7 @@ export function FlightDetailsModal({
               )}
 
               {option.selfTransfer ? (
-                <Text style={[s.selfTransferWarn, { color: theme.warning }]}>
-                  {option.selfTransferWarning || t('self_transfer_warning')}
-                </Text>
+                <SelfTransferNotice message={option.selfTransferWarning} />
               ) : null}
 
               {airlineName && option.source ? (
@@ -821,7 +808,9 @@ export function FlightDetailsModal({
                 'en-US',
               );
               const dur = legDuration(segs);
-              const legStopsLabel = stopsPhrase(Math.max(0, segs.length - 1), option.selfTransfer, t);
+              const legStopsLabel = formatLegStopsLabel(Math.max(0, segs.length - 1), t, {
+                selfTransfer: !!option.selfTransfer,
+              });
 
               return (
                 <View key={legIdx} style={[s.legBlock, { borderTopColor: theme.cardBorder }]}>
@@ -1015,7 +1004,6 @@ const s = StyleSheet.create({
   estBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   estBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   priceEstimateNote: { fontSize: 12, lineHeight: 16 },
-  selfTransferWarn: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   summaryText: { fontSize: 15, fontWeight: '600', lineHeight: 22 },
   summaryMuted: { fontSize: 14, lineHeight: 20 },
   summaryLegs: { gap: 6, marginTop: 2 },

@@ -35,7 +35,7 @@ import {
 import { formatFlightShortDate, type FlightTimeDisplayMode } from '../../../utils/flightTimeDisplay';
 import type { FlightOption, FlightSegment } from '../../../types';
 import { TicketStub } from '../../../ui/TicketStub';
-import { JourneyRouteBar, LayoverChips } from '../../../ui';
+import { JourneyRouteBar, LayoverChips, SelfTransferNotice } from '../../../ui';
 import { isolateLTR } from '../../../utils/bidi';
 import { AirlineLogoRow } from '../../../components/AirlineLogo';
 import { SegmentCarrierStrip } from '../../../components/SegmentCarrierStrip';
@@ -96,7 +96,15 @@ function LegScheduleBlock({
       ) : null}
       {showTimes ? (
         <View style={{ direction: 'ltr' } as any}>
-          <JourneyRouteBar summary={summary} theme={theme} isRTL={isRTL} timeDisplay={timeDisplay} locale={locale} t={t} />
+          <JourneyRouteBar
+            summary={summary}
+            theme={theme}
+            isRTL={isRTL}
+            timeDisplay={timeDisplay}
+            locale={locale}
+            t={t}
+            selfTransfer={selfTransfer}
+          />
         </View>
       ) : null}
       {showTimes ? (
@@ -105,7 +113,7 @@ function LegScheduleBlock({
           <View
             style={[
               c.stopsChip,
-              stopsCount === 0
+              stopsCount === 0 && !selfTransfer
                 ? { backgroundColor: theme.successBg }
                 : { backgroundColor: theme.controlBg },
             ]}
@@ -113,9 +121,11 @@ function LegScheduleBlock({
             <Text
               style={[
                 c.stopsChipText,
-                stopsCount === 0
+                stopsCount === 0 && !selfTransfer
                   ? { color: theme.success }
-                  : { color: theme.text },
+                  : selfTransfer
+                    ? { color: theme.warning }
+                    : { color: theme.text },
                 isRTL && { textAlign: 'center' },
               ]}
             >
@@ -352,11 +362,6 @@ export function FlightResultCard({
               ) : null}
             </View>
           ) : null}
-          {option.selfTransfer ? (
-            <Text style={[c.selfTransferWarn, { color: theme.warning }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
-              {option.selfTransferWarning || t('self_transfer_warning')}
-            </Text>
-          ) : null}
           {perPassengerStr ? (
             <Text style={[c.perPerson, { color: theme.textMuted }, isRTL && { textAlign: 'right', alignSelf: 'stretch' }]}>
               {perPassengerStr}
@@ -379,6 +384,10 @@ export function FlightResultCard({
           </TouchableOpacity>
         </View>
       </View>
+
+      {option.selfTransfer ? (
+        <SelfTransferNotice message={option.selfTransferWarning} style={c.selfTransferNotice} />
+      ) : null}
 
       <View style={[c.row2, { borderTopColor: theme.cardBorder }, ...row()]}>
         <View style={[c.airlineCol, isRTL && { alignItems: 'flex-end' }]}>
@@ -469,7 +478,7 @@ const c = StyleSheet.create({
   estBadgeText: { fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
   wasPrice: { fontSize: 12 },
   perPerson: { fontSize: 12, marginTop: 2 },
-  selfTransferWarn: { fontSize: 12, marginTop: 6, fontWeight: '600', lineHeight: 17 },
+  selfTransferNotice: { marginTop: 8, marginBottom: 2 },
   bookBtn: {
     marginTop: 10,
     paddingVertical: 11,

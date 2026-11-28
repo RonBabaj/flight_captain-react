@@ -280,7 +280,9 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 
 	opt := &FlightOption{
 		DeepLink: "https://www.austrian.com/en/book-flight/checkout",
-		Price:    MonetaryAmount{Amount: 158, Currency: "EUR"},
+		// Quote matches the cheaper web OTA so price-mismatch redaction does not
+		// wipe checkout URLs and collapse Offer onto airlineDirect.
+		Price: MonetaryAmount{Amount: 137, Currency: "EUR"},
 		Legs: []FlightLeg{{Segments: []FlightSegment{{
 			From: AirportLike{Code: "TLV"}, To: AirportLike{Code: "VIE"},
 			DepartureTime: dep, ArrivalTime: arr,
@@ -296,14 +298,17 @@ func TestRunBookingMatch_picksCheapestWebOfferOverGF2Partner(t *testing.T) {
 	if !resp.Found || resp.Offer == nil {
 		t.Fatalf("expected a verified offer, got %+v", resp)
 	}
-	if resp.Offer.Domain != "trip.com" {
-		t.Fatalf("expected cheapest trip.com offer, got %+v", resp.Offer)
+	if resp.CheapestOta == nil || resp.CheapestOta.Domain != "trip.com" {
+		t.Fatalf("expected cheapestOta=trip.com, got %+v", resp.CheapestOta)
 	}
-	if resp.Offer.PriceLabel != "cheapest_matching_offer" {
-		t.Fatalf("priceLabel=%q", resp.Offer.PriceLabel)
+	if resp.Offer.Domain != "trip.com" {
+		t.Fatalf("expected primary offer trip.com, got %+v", resp.Offer)
 	}
 	if resp.Offer.Price == nil || *resp.Offer.Price != 137 {
 		t.Fatalf("price=%v", resp.Offer.Price)
+	}
+	if resp.AirlineDirect == nil || resp.AirlineDirect.Domain != "austrian.com" {
+		t.Fatalf("expected airlineDirect Austrian checkout companion, got %+v", resp.AirlineDirect)
 	}
 }
 
@@ -793,6 +798,9 @@ func TestIsAffiliateTemplateBookingURL(t *testing.T) {
 	}
 	if !isAffiliateTemplateBookingURL("https://www.swiss.com/us/en/booking/search-flights?origin1=TLV&destination1=ZRH&departuredate1=2026-11-28&adults=1") {
 		t.Fatal("expected swiss search-flights template URL")
+	}
+	if !isAffiliateTemplateBookingURL("https://flights.aegeanair.com/en/?Origin=ATH&Destination=LHR&DepartureDate=2026-06-15&Adults=1") {
+		t.Fatal("expected Aegean flights.aegeanair.com template URL")
 	}
 	if isAffiliateTemplateBookingURL("https://booking.elal.co.il/checkout/szg-tlv") {
 		t.Fatal("checkout deeplink is not a template")

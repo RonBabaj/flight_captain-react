@@ -124,13 +124,14 @@ export function formatLayoverPreview(
   return parts.join(', ');
 }
 
-/** Mid-rail label: Direct, or stop count + total connection time (not airport codes). */
+/** Mid-rail label: Direct / connection unclear, or stop count + total connection time. */
 export function railConnectionLabel(
   summary: Pick<LegPreviewSummary, 'stopsCount' | 'layovers'>,
   t: (key: string) => string,
+  opts?: { selfTransfer?: boolean },
 ): string {
   const stops = summary.stopsCount ?? 0;
-  const stopsLabel = formatLegStopsLabel(stops, t);
+  const stopsLabel = formatLegStopsLabel(stops, t, opts);
 
   if (stops <= 0) return stopsLabel;
 

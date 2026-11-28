@@ -355,7 +355,7 @@ func reconcileDualBookingOffers(resp *BookingResolveResponse, session *SearchSes
 	if resp == nil || option == nil {
 		return
 	}
-	applyAirlinePrefillPricing(resp, session, option, legIndex)
+	applyAirlinePrefillPricing(resp)
 	if resp.CheapestOta != nil && resp.CheapestOta.URL != "" {
 		if search.IsTransportDeeplink(resp.CheapestOta.URL) && !search.IsValidSkyscannerDeeplink(resp.CheapestOta.URL) {
 			resp.CheapestOta.URL = ""
@@ -369,10 +369,9 @@ func reconcileDualBookingOffers(resp *BookingResolveResponse, session *SearchSes
 	}
 }
 
-// applyAirlinePrefillPricing labels airline search-form URLs as airline_direct_prefill.
-// When a verified OTA price exists, clear the search-card quote from airline prefill so the UI
-// cannot mark a fake $185 "LOWEST HERE" against a real $700+ partner checkout.
-func applyAirlinePrefillPricing(resp *BookingResolveResponse, session *SearchSession, option *FlightOption, legIndex int) {
+// applyAirlinePrefillPricing labels airline search-form URLs as airline_direct_prefill
+// and strips any fare. Prefill links are route+dates only — never a comparable price.
+func applyAirlinePrefillPricing(resp *BookingResolveResponse) {
 	if resp == nil || resp.AirlineDirect == nil || strings.TrimSpace(resp.AirlineDirect.URL) == "" {
 		return
 	}
@@ -380,21 +379,8 @@ func applyAirlinePrefillPricing(resp *BookingResolveResponse, session *SearchSes
 		return
 	}
 	resp.AirlineDirect.PriceLabel = "airline_direct_prefill"
-	if resp.CheapestOta != nil && resp.CheapestOta.Price != nil && *resp.CheapestOta.Price > 0 {
-		resp.AirlineDirect.Price = nil
-		resp.AirlineDirect.Currency = ""
-		return
-	}
-	if resp.AirlineDirect.Price != nil && *resp.AirlineDirect.Price > 0 && strings.TrimSpace(resp.AirlineDirect.Currency) != "" {
-		return
-	}
-	q := quoteBindingFromOption(session, option, legIndex)
-	if q.Amount <= 0 || strings.TrimSpace(q.Currency) == "" {
-		return
-	}
-	amt := q.Amount
-	resp.AirlineDirect.Price = &amt
-	resp.AirlineDirect.Currency = q.Currency
+	resp.AirlineDirect.Price = nil
+	resp.AirlineDirect.Currency = ""
 }
 
 func pickDualBookingOffers(
@@ -864,7 +850,8 @@ func publicAirlineDirectPrefillOffer(
 	}
 	offer.PriceLabel = "airline_direct_prefill"
 	offer.MatchConfidence = 0
-	fillPublicOfferSearchQuote(offer, session, option, legIndex)
+	offer.Price = nil
+	offer.Currency = ""
 	return offer
 }
 
@@ -1089,7 +1076,7 @@ func ensureDualBookingCompanion(
 			resp.Message = "Compare the partner price with booking on the airline site."
 		}
 	}
-	applyAirlinePrefillPricing(resp, session, option, legIndex)
+	applyAirlinePrefillPricing(resp)
 }
 
 // ensureOTACompanionWhenAirlineOnly restores dual Book when resolve only found airline-direct
@@ -1144,7 +1131,7 @@ func ensureOTACompanionWhenAirlineOnly(
 	resp.CheapestOta = pub
 	resp.Offer = pub
 	resp.Message = "Compare the partner price with booking on the airline site."
-	applyAirlinePrefillPricing(resp, session, option, legIndex)
+	applyAirlinePrefillPricing(resp)
 }
 
 // supplementAirlineDirectFromGF2 fills airlineDirect when a scrape session already has
@@ -1190,7 +1177,7 @@ func supplementAirlineDirectFromGF2(
 	}
 	resp.AirlineDirect = airline
 	resp.Message = "Compare the partner price with booking on the airline site."
-	applyAirlinePrefillPricing(resp, session, option, legIndex)
+	applyAirlinePrefillPricing(resp)
 }
 
 func runBookingMatch(ctx context.Context, session *SearchSession, option *FlightOption, it search.CanonicalItinerary, fp string, legIndex int, segmentIndex int) (resp BookingResolveResponse) {

@@ -156,16 +156,30 @@ func TestApplyAirlinePrefillPricing_clearsSearchQuoteWhenOTAPriced(t *testing.T)
 			Price: &q, Currency: "USD", PriceLabel: "airline_direct",
 		},
 	}
-	sess := &SearchSession{Params: CreateSearchSessionRequest{
-		Origin: "TLV", Destination: "LHR", DepartureDate: "2026-11-28", Adults: 1, Currency: "USD",
-	}}
-	opt := &FlightOption{Price: MonetaryAmount{Amount: 185, Currency: "USD"}}
-	applyAirlinePrefillPricing(&resp, sess, opt, -1)
+	applyAirlinePrefillPricing(&resp)
 	if resp.AirlineDirect.PriceLabel != "airline_direct_prefill" {
 		t.Fatalf("priceLabel=%q", resp.AirlineDirect.PriceLabel)
 	}
 	if resp.AirlineDirect.Price != nil {
 		t.Fatalf("must not keep search quote on BA prefill beside priced OTA, got %v", *resp.AirlineDirect.Price)
+	}
+}
+
+func TestApplyAirlinePrefillPricing_neverAttachesSearchQuote(t *testing.T) {
+	q := 185.0
+	resp := BookingResolveResponse{
+		AirlineDirect: &PublicBookingOffer{
+			Provider: "Aegean Airlines", Domain: "aegeanair.com",
+			URL: "https://flights.aegeanair.com/en/?Origin=ATH&Destination=LHR&DepartureDate=2026-06-15&Adults=1",
+			Price: &q, Currency: "USD", PriceLabel: "airline_direct",
+		},
+	}
+	applyAirlinePrefillPricing(&resp)
+	if resp.AirlineDirect.PriceLabel != "airline_direct_prefill" {
+		t.Fatalf("priceLabel=%q", resp.AirlineDirect.PriceLabel)
+	}
+	if resp.AirlineDirect.Price != nil || resp.AirlineDirect.Currency != "" {
+		t.Fatalf("prefill must not carry a fare, got price=%v currency=%q", resp.AirlineDirect.Price, resp.AirlineDirect.Currency)
 	}
 }
 

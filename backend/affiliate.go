@@ -277,11 +277,17 @@ func BuildRedirectURL(session *SearchSession, option *FlightOption, provider *Pr
 		subid = ""
 	}
 
+	adults := 1
+	if params.Adults > 0 {
+		adults = params.Adults
+	}
+
 	s := provider.URLTpl
 	s = strings.ReplaceAll(s, "{origin}", url.QueryEscape(origin))
 	s = strings.ReplaceAll(s, "{destination}", url.QueryEscape(destination))
 	s = strings.ReplaceAll(s, "{departureDate}", url.QueryEscape(departureDate))
 	s = strings.ReplaceAll(s, "{returnDate}", url.QueryEscape(returnDate))
+	s = strings.ReplaceAll(s, "{adults}", strconv.Itoa(adults))
 	s = strings.ReplaceAll(s, "{cabin}", url.QueryEscape(cabin))
 	s = strings.ReplaceAll(s, "{aff_id}", url.QueryEscape(affID))
 	s = strings.ReplaceAll(s, "{subid}", url.QueryEscape(subid))

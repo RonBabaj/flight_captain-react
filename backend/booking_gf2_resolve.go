@@ -498,6 +498,26 @@ func preferAirlineDirectWhenCheaperThanMarkedUpOTA(best *bookingmatch.BookingOff
 	return best
 }
 
+// airlineSearchTemplateHosts are substrings of hosts we build route+date search URLs for.
+// Keep in sync with provider URLTpl / builders in affiliate*.go — not checkout deeplinks.
+var airlineSearchTemplateHosts = []string{
+	"austrian.com", "lufthansa.com", "swiss.com", "brusselsairlines.com", "airfrance.", "klm.com",
+	"turkishairlines.com", "united.com", "delta.com", "aa.com", "condor.com", "eurowings.com",
+	"aegeanair.com", "iberia.com", "vueling.com", "flysas.com", "finnair.com", "norwegian.com",
+	"qatarairways.com", "etihad.com", "aircanada.com", "flytap.com", "ita-airways.com",
+	"sunexpress.com", "tui.co.uk", "emirates.com", "britishairways.com", "elal.com", "israir",
+	"wizzair.com",
+}
+
+func urlHostMatchesAirlineSearchTemplate(u string) bool {
+	for _, host := range airlineSearchTemplateHosts {
+		if strings.Contains(u, host) {
+			return true
+		}
+	}
+	return false
+}
+
 // isAffiliateTemplateBookingURL is true for synthetic airline search URLs built from provider templates
 // (not live GF2 partner checkout deeplinks). El Al rejects these with "Request is not allowed."
 func isAffiliateTemplateBookingURL(raw string) bool {
@@ -508,7 +528,6 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "elal") && strings.Contains(u, "/booking/flights") && strings.Contains(u, "origin=") {
 		return true
 	}
-	// Israir / similar airline search forms with origin prefilled.
 	if strings.Contains(u, "israir") && strings.Contains(u, "origin=") {
 		return true
 	}
@@ -518,7 +537,6 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "austrian.com") && (strings.Contains(u, "origin=") || strings.Contains(u, "origin1=")) {
 		return true
 	}
-	// British Airways flightList?onds=… (and legacy from=/outbound= templates).
 	if strings.Contains(u, "britishairways.com") {
 		if strings.Contains(u, "flightlist") && strings.Contains(u, "onds=") {
 			return true
@@ -527,7 +545,6 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 			return true
 		}
 	}
-	// LH-group public search-flights (origin1 / destination1 / departuredate1).
 	if strings.Contains(u, "search-flights") && strings.Contains(u, "origin1=") {
 		for _, host := range []string{"austrian.com", "lufthansa.com", "swiss.com"} {
 			if strings.Contains(u, host) {
@@ -538,19 +555,9 @@ func isAffiliateTemplateBookingURL(raw string) bool {
 	if strings.Contains(u, "aff_id=") && (strings.Contains(u, "origin=") || strings.Contains(u, "from=")) {
 		return true
 	}
-	// Route/date search forms (no flight number) for major carriers we template-link.
 	if strings.Contains(u, "origin=") && (strings.Contains(u, "departuredate=") || strings.Contains(u, "departure=")) {
-		for _, host := range []string{
-			"austrian.com", "lufthansa.com", "swiss.com", "brusselsairlines.com", "airfrance.", "klm.com",
-			"turkishairlines.com", "united.com", "delta.com", "aa.com", "condor.com", "eurowings.com",
-			"aegeanair.com", "iberia.com", "vueling.com", "flysas.com", "finnair.com", "norwegian.com",
-			"qatarairways.com", "etihad.com", "aircanada.com", "flytap.com", "ita-airways.com",
-			"sunexpress.com", "tui.co.uk", "emirates.com", "britishairways.com", "elal.com", "israir",
-			"wizzair.com",
-		} {
-			if strings.Contains(u, host) {
-				return true
-			}
+		if urlHostMatchesAirlineSearchTemplate(u) {
+			return true
 		}
 	}
 	if strings.Contains(u, "condor.com") && strings.Contains(u, "outbounddate=") {
@@ -846,7 +853,7 @@ func attachQuotedPriceMeta(resp BookingResolveResponse, session *SearchSession, 
 		resp.QuotedPrice = &amt
 		resp.QuotedCurrency = q.Currency
 	}
-	applyAirlinePrefillPricing(&resp, session, option, legIndex)
+	applyAirlinePrefillPricing(&resp)
 	if resp.Offer == nil || q.Amount <= 0 {
 		return resp
 	}
@@ -919,24 +926,6 @@ func applySearchQuoteToOffer(offer *bookingmatch.BookingOffer, quote search.Quot
 		offer.Currency = quote.Currency
 	}
 	return nil
-}
-
-// fillPublicOfferSearchQuote sets price/currency from the search quote when an offer has no price
-// (e.g. airline site prefill templates).
-func fillPublicOfferSearchQuote(offer *PublicBookingOffer, session *SearchSession, option *FlightOption, legIndex int) {
-	if offer == nil || option == nil {
-		return
-	}
-	if offer.Price != nil && *offer.Price > 0 && strings.TrimSpace(offer.Currency) != "" {
-		return
-	}
-	q := quoteBindingFromOption(session, option, legIndex)
-	if q.Amount <= 0 || strings.TrimSpace(q.Currency) == "" {
-		return
-	}
-	amt := q.Amount
-	offer.Price = &amt
-	offer.Currency = q.Currency
 }
 
 func bookingMatchPriceNormalizer() bookingmatch.PriceNormalizer {

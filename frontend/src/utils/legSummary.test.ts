@@ -8,6 +8,7 @@ const t = (key: string) =>
     direct: 'Direct',
     stop: 'stop',
     stops: 'stops',
+    connection_unclear: 'Connection',
   }[key] || key);
 
 function assert(cond: unknown, msg: string): void {
@@ -16,6 +17,10 @@ function assert(cond: unknown, msg: string): void {
 
 assert(formatDuration(18 * 60 + 20) === '18h 20m', 'formatDuration');
 assert(railConnectionLabel({ stopsCount: 0, layovers: [] }, t) === 'Direct', 'direct');
+assert(
+  railConnectionLabel({ stopsCount: 0, layovers: [] }, t, { selfTransfer: true }) === 'Connection',
+  'self-transfer zero-stop is not Direct',
+);
 
 assert(
   railConnectionLabel({ stopsCount: 1, layovers: [{ airportCode: 'WAW', minutes: 18 * 60 + 20 }] }, t) ===

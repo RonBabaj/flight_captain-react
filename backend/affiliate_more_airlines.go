@@ -20,7 +20,8 @@ func registerExtraAirlineProviders() {
 			Code:   "A3",
 			Name:   "Aegean Airlines",
 			Type:   ProviderTypeAirline,
-			URLTpl: "https://en.aegeanair.com/plan/booking/flights/?Origin={origin}&Destination={destination}&DepartureDate={departureDate}&ReturnDate={returnDate}&aff_id={aff_id}&subid={subid}",
+			// Live booker is flights.aegeanair.com — en.aegeanair.com/plan/booking/flights/ 404s.
+			URLTpl: "https://flights.aegeanair.com/en/?Origin={origin}&Destination={destination}&DepartureDate={departureDate}&ReturnDate={returnDate}&Adults={adults}",
 		},
 		"IB": {
 			Code:   "IB",
