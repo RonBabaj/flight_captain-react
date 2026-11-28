@@ -951,11 +951,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'פותח את אתר חברת התעופה עם המסלול — בחרו את הטיסה ואמתו את המחיר.',
     ru: 'Откроется сайт авиакомпании с вашим маршрутом — выберите рейс и проверьте цену.',
   },
-  search_quote_price: {
-    en: 'search quote',
-    he: 'מחיר חיפוש',
-    ru: 'цена из поиска',
-  },
   no_verified_booking: {
     en: 'No verified booking offer found yet',
     he: 'לא נמצא דף הזמנה מאומת למסלול המדויק.',
@@ -971,7 +966,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     he: 'חיפוש ההזמנה ארך זמן רב מדי. נסו שוב.',
     ru: 'Поиск бронирования занял слишком много времени. Попробуйте снова.',
   },
-  open_booking_site: { en: 'Book Now', he: 'הזמן עכשיו', ru: 'Забронировать' },
   find_on_skyscanner: { en: 'Find on Skyscanner', he: 'חפש ב־Skyscanner', ru: 'Найти на Skyscanner' },
   share: { en: 'Share', he: 'שתף', ru: 'Поделиться' },
   copy_link: { en: 'Copy link', he: 'העתק קישור', ru: 'Копировать ссылку' },
@@ -1017,21 +1011,6 @@ const TRANSLATIONS: Record<string, Partial<Record<LanguageCode, string>>> = {
     en: 'Opens Kiwi with your route — pick this flight and verify the fare',
     he: 'פותח את Kiwi עם המסלול — בחרו את הטיסה ואמתו את המחיר',
     ru: 'Откроет Kiwi с вашим маршрутом — выберите рейс и проверьте цену',
-  },
-  open_flight_search: {
-    en: 'Search flights',
-    he: 'חפש טיסות',
-    ru: 'Искать рейсы',
-  },
-  open_skyscanner_search: {
-    en: 'Open on Skyscanner',
-    he: 'פתח ב־Skyscanner',
-    ru: 'Открыть на Skyscanner',
-  },
-  open_kiwi_search: {
-    en: 'Open on Kiwi',
-    he: 'פתח ב־Kiwi',
-    ru: 'Открыть на Kiwi',
   },
   connection_unclear: {
     en: 'Connection',

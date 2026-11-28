@@ -38,4 +38,18 @@ function offer(partial: Partial<PublicBookingOffer>): PublicBookingOffer {
   assert.equal(partnerIsLower, false);
 }
 
+{
+  const { partnerBadge, airlineBadge } = badgesForDualOffers(
+    offer({ provider: 'Priceline', price: 400, priceLabel: 'google_flights_partner' }),
+    offer({
+      provider: 'Aegean Airlines',
+      price: undefined,
+      currency: '',
+      priceLabel: 'airline_direct_prefill',
+    }),
+  );
+  assert.equal(partnerBadge, 'cheapest');
+  assert.equal(airlineBadge, 'direct');
+}
+
 console.log('bookingDualDisplay.test.ts: ok');

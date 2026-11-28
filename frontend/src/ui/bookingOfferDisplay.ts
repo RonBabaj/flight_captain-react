@@ -31,27 +31,31 @@ export function formatProviderDisplayName(raw: string): string {
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
+/** Minimal fare fields shared by offers and alternatives. */
+export type OfferPriceFields = {
+  price?: number | null;
+  currency?: string;
+  priceLabel?: string;
+};
+
 export function formatBookingOfferPriceAmount(
-  offer: PublicBookingOffer,
+  offer: OfferPriceFields,
   t?: (key: string) => string,
 ): string | null {
-  if (offer.price == null || !offer.currency) return null;
-  const amount = `${getCurrencySymbol(offer.currency)} ${offer.price.toFixed(0)}`;
-  if (offer.priceLabel === 'airline_direct_prefill' && t) {
-    return `${amount} (${t('search_quote_price')})`;
+  // Prefill is route+dates only — never present a fare (even a search quote).
+  if (offer.priceLabel === 'airline_direct_prefill' || offer.priceLabel === 'search_prefill') {
+    return null;
   }
-  return amount;
+  if (offer.price == null || !offer.currency) return null;
+  return `${getCurrencySymbol(offer.currency)} ${offer.price.toFixed(0)}`;
 }
 
-export function formatBookingOfferPriceLine(
-  offer: PublicBookingOffer,
-  t: (key: string) => string,
-): string | null {
-  const amount = formatBookingOfferPriceAmount(offer, t);
-  if (!amount) return null;
-  const hint =
-    offer.priceLabel === 'google_flights_partner' ? ` (${t('partner_listing_price')})` : '';
-  return `${amount}${hint}`;
+/** Table/card display: amount or an explicit em dash when unknown. */
+export function formatBookingOfferPriceDisplay(
+  offer: OfferPriceFields,
+  t?: (key: string) => string,
+): string {
+  return formatBookingOfferPriceAmount(offer, t) ?? '—';
 }
 
 export function bookingOfferSubtitle(

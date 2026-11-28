@@ -7,7 +7,7 @@ import { BookingOptionCard } from './BookingOptionCard';
 import {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
-  formatBookingOfferPriceAmount,
+  formatBookingOfferPriceDisplay,
 } from './bookingOfferDisplay';
 import { badgesForDualOffers } from './bookingDualDisplay';
 
@@ -34,8 +34,8 @@ export function BookingDualComparison({
 
   const partnerLabel = bookingOfferProviderLabel(cheapest, t('book_this_flight'));
   const directLabel = airlineName || bookingOfferProviderLabel(airline, t('book_this_flight'));
-  const partnerPrice = formatBookingOfferPriceAmount(cheapest, t) ?? '—';
-  const directPrice = formatBookingOfferPriceAmount(airline, t) ?? '—';
+  const partnerPrice = formatBookingOfferPriceDisplay(cheapest, t);
+  const directPrice = formatBookingOfferPriceDisplay(airline, t);
   const directSub = bookingOfferSubtitle(airline, t);
   const { partnerBadge, airlineBadge, partnerIsLower } = badgesForDualOffers(cheapest, airline);
   const partnerFirst = partnerIsLower || partnerBadge === 'cheapest';

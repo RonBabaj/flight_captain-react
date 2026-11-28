@@ -7,7 +7,7 @@ import { Button } from './Button';
 import {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
-  formatBookingOfferPriceAmount,
+  formatBookingOfferPriceDisplay,
 } from './bookingOfferDisplay';
 import { badgeToTranslationKey, type BookingDisplayBadge } from './bookingDualDisplay';
 
@@ -16,10 +16,8 @@ export type BookingOptionBadge = BookingDisplayBadge;
 export interface BookingOptionCardProps {
   offer: PublicBookingOffer;
   badge: BookingOptionBadge;
-  /** Display name override (e.g. airline marketing name). */
   titleOverride?: string;
   onContinue: () => void;
-  /** Tighter layout for narrow containers (mobile legs, small modals). */
   compact?: boolean;
   style?: ViewStyle;
 }
@@ -36,7 +34,7 @@ export function BookingOptionCard({
   const { t } = useLocale();
 
   const title = titleOverride || bookingOfferProviderLabel(offer, t('book_this_flight'));
-  const priceAmount = formatBookingOfferPriceAmount(offer, t);
+  const priceAmount = formatBookingOfferPriceDisplay(offer, t);
   const subtitle = bookingOfferSubtitle(offer, t);
   const badgeLabel = t(badgeToTranslationKey(badge));
   const badgeColors =
@@ -62,14 +60,12 @@ export function BookingOptionCard({
         <View style={[styles.badge, { backgroundColor: badgeColors.bg }]}>
           <Text style={[styles.badgeText, { color: badgeColors.fg }]}>{badgeLabel}</Text>
         </View>
-        {priceAmount ? (
-          <Text
-            style={[styles.price, compact && styles.priceCompact, { color: theme.text }]}
-            accessibilityLabel={priceAmount}
-          >
-            {priceAmount}
-          </Text>
-        ) : null}
+        <Text
+          style={[styles.price, compact && styles.priceCompact, { color: theme.text }]}
+          accessibilityLabel={priceAmount}
+        >
+          {priceAmount}
+        </Text>
       </View>
       <Text style={[styles.title, compact && styles.titleCompact, { color: theme.text }]} numberOfLines={2}>
         {title}

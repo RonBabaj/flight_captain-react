@@ -9,7 +9,10 @@ export type { BookingOptionCardProps, BookingOptionBadge } from './BookingOption
 export { BookingOptionsFooter } from './BookingOptionsFooter';
 export type { BookingOptionsFooterProps } from './BookingOptionsFooter';
 export { BookingDualComparison } from './BookingDualComparison';
+export { BookingAlternativesList } from './BookingAlternativesList';
 export { BookingTrustStrip } from './BookingTrustStrip';
+export { SelfTransferNotice } from './SelfTransferNotice';
+export type { SelfTransferNoticeProps } from './SelfTransferNotice';
 export { PageTicketHeader } from './PageTicketHeader';
 export { AirportRouteTimeline } from './AirportRouteTimeline';
 export { JourneyRouteBar } from './JourneyRouteBar';
@@ -20,7 +23,7 @@ export type { SearchStatusBannerProps } from './SearchStatusBanner';
 export {
   bookingOfferProviderLabel,
   bookingOfferSubtitle,
-  formatBookingOfferPriceLine,
   formatBookingOfferPriceAmount,
+  formatBookingOfferPriceDisplay,
   formatProviderDisplayName,
 } from './bookingOfferDisplay';

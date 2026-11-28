@@ -16,6 +16,7 @@ export function JourneyRouteBar({
   timeDisplay,
   locale,
   t,
+  selfTransfer,
 }: {
   summary: LegPreviewSummary;
   theme: Theme;
@@ -23,13 +24,14 @@ export function JourneyRouteBar({
   timeDisplay: FlightTimeDisplayMode;
   locale: string;
   t: (key: string) => string;
+  selfTransfer?: boolean;
 }) {
   const dep = formatFlightTime(summary.departureTime, summary.origin, timeDisplay, locale);
   const arr = formatFlightTime(summary.arrivalTime, summary.destination, timeDisplay, locale);
   const dayOffset = formatArrivalDayOffset(summary.departureTime, summary.arrivalTime);
   const origin = summary.origin?.toUpperCase() || '—';
   const dest = summary.destination?.toUpperCase() || '—';
-  const midLabel = railConnectionLabel(summary, t);
+  const midLabel = railConnectionLabel(summary, t, { selfTransfer });
 
   const row = isRTL ? s.rowRtl : s.row;
 
